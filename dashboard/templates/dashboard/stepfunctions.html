@@ -1,0 +1,52 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Step Functions - Floci Dashboard</title>
+    <link rel="stylesheet" href="{% static 'dashboard/styles.css' %}?v=20260502-15">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <a class="back-link" href="/">Services</a>
+          <p class="eyebrow">State machines and executions</p>
+          <h1>Step Functions</h1>
+        </div>
+        <button id="refresh" type="button" aria-label="Refresh Step Functions">Refresh</button>
+      </header>
+
+      <section class="status" aria-live="polite">
+        <div>
+          <span class="label">Floci health</span>
+          <strong id="health">Checking...</strong>
+        </div>
+        <div>
+          <span class="label">Endpoint</span>
+          <strong id="endpoint">Checking...</strong>
+        </div>
+        <div>
+          <span class="label">Profile</span>
+          <strong id="profile">Checking...</strong>
+        </div>
+        <div>
+          <span class="label">Identity</span>
+          <strong id="identity">Checking...</strong>
+        </div>
+      </section>
+
+      <section class="section-block">
+        <div class="section-heading">
+          <h2>Step Functions inventory</h2>
+          <span id="stepfunctions-loaded-at"></span>
+        </div>
+        <div id="stepfunctions-summary" class="summary-grid"></div>
+        <div id="stepfunctions-grid" class="iam-grid"></div>
+      </section>
+    </main>
+
+    <script src="{% static 'dashboard/dashboard.js' %}?v=20260502-15"></script>
+  </body>
+</html>
