@@ -86,6 +86,9 @@ const ssmLoadedAt = document.querySelector('#ssm-loaded-at');
 const athenaGrid = document.querySelector('#athena-grid');
 const athenaSummary = document.querySelector('#athena-summary');
 const athenaLoadedAt = document.querySelector('#athena-loaded-at');
+const autoscalingGrid = document.querySelector('#autoscaling-grid');
+const autoscalingSummary = document.querySelector('#autoscaling-summary');
+const autoscalingLoadedAt = document.querySelector('#autoscaling-loaded-at');
 const bedrockruntimeGrid = document.querySelector('#bedrockruntime-grid');
 const bedrockruntimeSummary = document.querySelector('#bedrockruntime-summary');
 const bedrockruntimeLoadedAt = document.querySelector('#bedrockruntime-loaded-at');
@@ -120,6 +123,14 @@ const glueLoadedAt = document.querySelector('#glue-loaded-at');
 let latestHealthData = null;
 
 const flociCloudImage = '/static/dashboard/flocicloud.png';
+const minimumLoadingMs = 2000;
+
+function waitForMinimumLoadingTime(startedAt) {
+  const elapsed = performance.now() - startedAt;
+  const remaining = Math.max(0, minimumLoadingMs - elapsed);
+
+  return new Promise((resolve) => window.setTimeout(resolve, remaining));
+}
 
 function activeInventoryGrids() {
   return Array.from(document.querySelectorAll('#service-grid, .iam-grid'));
@@ -204,6 +215,8 @@ const serviceDetailPages = {
   appconfig: 'http://127.0.0.1:8000/service/appconfig/',
   appconfigdata: 'http://127.0.0.1:8000/service/appconfig/',
   athena: '/service/athena/',
+  'auto-scaling': '/service/autoscaling/',
+  autoscaling: '/service/autoscaling/',
   'bedrock-runtime': 'http://127.0.0.1:8000/service/bedrockruntime/',
   bedrockruntime: 'http://127.0.0.1:8000/service/bedrockruntime/',
   codebuild: 'http://127.0.0.1:8000/service/codebuild/',
@@ -252,6 +265,7 @@ function canonicalServiceKey(name) {
   const aliases = {
     apigatewayv2: 'apigateway',
     appconfigdata: 'appconfig',
+    'auto-scaling': 'autoscaling',
     bedrockruntime: 'bedrock-runtime',
     codebuild: 'codebuild',
     codedeploy: 'codedeploy',
@@ -2603,6 +2617,170 @@ function renderAthena(data) {
   athenaLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
 }
 
+function renderAutoScaling(data) {
+  autoscalingGrid.textContent = '';
+  renderSummary(data.summary, autoscalingSummary);
+
+  const panels = [
+    renderDetailList('Auto Scaling groups', data.groups || [], [
+      ['ARN', 'arn'],
+      ['Launch configuration', 'launch_configuration_name'],
+      ['Launch template', 'launch_template'],
+      ['Mixed instances policy', 'mixed_instances_policy'],
+      ['Min size', 'min_size'],
+      ['Max size', 'max_size'],
+      ['Desired capacity', 'desired_capacity'],
+      ['Default cooldown', 'default_cooldown'],
+      ['Availability zones', 'availability_zones'],
+      ['Load balancers', 'load_balancer_names'],
+      ['Target groups', 'target_group_arns'],
+      ['Health check type', 'health_check_type'],
+      ['Health check grace period', 'health_check_grace_period'],
+      ['Placement group', 'placement_group'],
+      ['VPC zone identifier', 'vpc_zone_identifier'],
+      ['Status', 'status'],
+      ['Created', 'created_time'],
+      ['Suspended processes', 'suspended_processes'],
+      ['Enabled metrics', 'enabled_metrics'],
+      ['Termination policies', 'termination_policies'],
+      ['Scale-in protection', 'new_instances_protected_from_scale_in'],
+      ['Service linked role ARN', 'service_linked_role_arn'],
+      ['Capacity rebalance', 'capacity_rebalance'],
+      ['Traffic sources', 'traffic_sources'],
+      ['Availability zone distribution', 'availability_zone_distribution'],
+      ['Availability zone impairment policy', 'availability_zone_impairment_policy'],
+      ['Capacity reservation specification', 'capacity_reservation_specification'],
+      ['Instance count', 'instance_count'],
+      ['In-service instances', 'in_service_instances'],
+      ['Instances', 'instances'],
+      ['Policies', 'policies'],
+      ['Scheduled actions', 'scheduled_actions'],
+      ['Activities', 'activities'],
+      ['Lifecycle hooks', 'lifecycle_hooks'],
+      ['Warm pool', 'warm_pool'],
+      ['Instance refreshes', 'instance_refreshes'],
+      ['Notifications', 'notification_configurations'],
+      ['Tags', 'tags'],
+    ]),
+    renderDetailList('Launch configurations', data.launch_configurations || [], [
+      ['ARN', 'LaunchConfigurationARN'],
+      ['Image ID', 'ImageId'],
+      ['Key name', 'KeyName'],
+      ['Security groups', 'SecurityGroups'],
+      ['ClassicLink VPC', 'ClassicLinkVPCId'],
+      ['ClassicLink security groups', 'ClassicLinkVPCSecurityGroups'],
+      ['User data', 'UserData'],
+      ['Instance type', 'InstanceType'],
+      ['Kernel ID', 'KernelId'],
+      ['RAM disk ID', 'RamdiskId'],
+      ['Block device mappings', 'BlockDeviceMappings'],
+      ['Instance monitoring', 'InstanceMonitoring'],
+      ['Spot price', 'SpotPrice'],
+      ['IAM instance profile', 'IamInstanceProfile'],
+      ['Created', 'CreatedTime'],
+      ['EBS optimized', 'EbsOptimized'],
+      ['Associate public IP address', 'AssociatePublicIpAddress'],
+      ['Placement tenancy', 'PlacementTenancy'],
+      ['Metadata options', 'MetadataOptions'],
+    ]),
+    renderDetailList('Scaling policies', data.scaling_policies || [], [
+      ['ARN', 'PolicyARN'],
+      ['Group', 'AutoScalingGroupName'],
+      ['Type', 'PolicyType'],
+      ['Adjustment type', 'AdjustmentType'],
+      ['Scaling adjustment', 'ScalingAdjustment'],
+      ['Cooldown', 'Cooldown'],
+      ['Metric aggregation type', 'MetricAggregationType'],
+      ['Step adjustments', 'StepAdjustments'],
+      ['Estimated instance warmup', 'EstimatedInstanceWarmup'],
+      ['Alarms', 'Alarms'],
+      ['Target tracking configuration', 'TargetTrackingConfiguration'],
+      ['Predictive scaling configuration', 'PredictiveScalingConfiguration'],
+      ['Enabled', 'Enabled'],
+    ]),
+    renderDetailList('Scheduled actions', data.scheduled_actions || [], [
+      ['ARN', 'ScheduledActionARN'],
+      ['Group', 'AutoScalingGroupName'],
+      ['Time', 'Time'],
+      ['Start time', 'StartTime'],
+      ['End time', 'EndTime'],
+      ['Recurrence', 'Recurrence'],
+      ['Min size', 'MinSize'],
+      ['Max size', 'MaxSize'],
+      ['Desired capacity', 'DesiredCapacity'],
+      ['Time zone', 'TimeZone'],
+    ]),
+    renderDetailList('Scaling activities', data.activities || [], [
+      ['Activity ID', 'ActivityId'],
+      ['Group', 'AutoScalingGroupName'],
+      ['Description', 'Description'],
+      ['Cause', 'Cause'],
+      ['Start time', 'StartTime'],
+      ['End time', 'EndTime'],
+      ['Status code', 'StatusCode'],
+      ['Status message', 'StatusMessage'],
+      ['Progress', 'Progress'],
+      ['Details', 'Details'],
+      ['Auto scaling group state', 'AutoScalingGroupState'],
+    ]),
+    renderDetailList('Notification configurations', data.notification_configurations || [], [
+      ['Group', 'AutoScalingGroupName'],
+      ['Topic ARN', 'TopicARN'],
+      ['Notification type', 'NotificationType'],
+    ]),
+    renderDetailList('Tags', data.tags || [], [
+      ['Resource ID', 'ResourceId'],
+      ['Resource type', 'ResourceType'],
+      ['Key', 'Key'],
+      ['Value', 'Value'],
+      ['Propagate at launch', 'PropagateAtLaunch'],
+    ]),
+    renderDetailList('Account limits', data.account_limits ? [{
+      name: 'Account limits',
+      ...data.account_limits,
+    }] : [], [
+      ['Max groups', 'MaxNumberOfAutoScalingGroups'],
+      ['Max launch configurations', 'MaxNumberOfLaunchConfigurations'],
+      ['Groups', 'NumberOfAutoScalingGroups'],
+      ['Launch configurations', 'NumberOfLaunchConfigurations'],
+    ]),
+    renderDetailList('Adjustment types', data.adjustment_types || [], [
+      ['Type', 'AdjustmentType'],
+    ]),
+    renderDetailList('Metric collection types', data.metric_collection_types ? [{
+      name: 'Metric collection types',
+      ...data.metric_collection_types,
+    }] : [], [
+      ['Granularities', 'Granularities'],
+      ['Metrics', 'Metrics'],
+    ]),
+    renderDetailList('Scaling process types', data.scaling_process_types || [], [
+      ['Process name', 'ProcessName'],
+    ]),
+    renderDetailList('Termination policy types', (data.termination_policy_types || []).map((policy) => ({
+      name: policy,
+      policy,
+    })), [
+      ['Policy', 'policy'],
+    ]),
+    renderDetailList('Supported from SDK', (data.supported_from_sdk || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
+  ];
+
+  autoscalingGrid.append(...panels);
+  autoscalingLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+}
+
 function renderSNS(data) {
   snsGrid.textContent = '';
   renderSummary(data.summary, snsSummary);
@@ -3200,6 +3378,8 @@ function titleCaseService(name) {
     appconfig: 'AppConfig',
     appconfigdata: 'AppConfig Data',
     athena: 'Athena',
+    'auto-scaling': 'Auto Scaling',
+    autoscaling: 'Auto Scaling',
     'bedrock-runtime': 'Bedrock Runtime',
     bedrockruntime: 'Bedrock Runtime',
     codebuild: 'CodeBuild',
@@ -3281,6 +3461,7 @@ function resourceServiceKey(resource) {
     'cloudformation-resources': 'cloudformation',
     'cognito-resources': 'cognito-idp',
     'athena-resources': 'athena',
+    'autoscaling-resources': 'autoscaling',
     'dynamodb-tables': 'dynamodb',
     'ec2-resources': 'ec2',
     'ecr-resources': 'ecr',
@@ -3479,9 +3660,20 @@ async function loadHealth() {
   return true;
 }
 
-async function loadHome() {
-  const response = await fetch('/api/resources/');
+async function loadHome(loadingStartedAt) {
+  const resourcesPromise = fetch('/api/resources/');
+
+  await waitForMinimumLoadingTime(loadingStartedAt);
+  renderServices([], latestHealthData?.services || {});
+  loadedAt.textContent = 'Loading resource counts...';
+
+  const response = await resourcesPromise;
   const data = await response.json();
+
+  if (!response.ok || data.error) {
+    throw new Error(data.error || 'Unable to load service resources');
+  }
+
   renderServices(data.resources || [], latestHealthData?.services || {});
 }
 
@@ -3782,6 +3974,17 @@ async function loadAthenaPage() {
   renderAthena(athenaData);
 }
 
+async function loadAutoScalingPage() {
+  const autoscalingResponse = await fetch('/api/autoscaling/');
+  const autoscalingData = await autoscalingResponse.json();
+
+  if (!autoscalingResponse.ok || autoscalingData.error) {
+    throw new Error(autoscalingData.error || 'Unable to load Auto Scaling inventory');
+  }
+
+  renderAutoScaling(autoscalingData);
+}
+
 async function loadBedrockRuntimePage() {
   const bedrockruntimeResponse = await fetch('/api/bedrockruntime/');
   const bedrockruntimeData = await bedrockruntimeResponse.json();
@@ -3895,6 +4098,7 @@ async function loadGluePage() {
 async function refresh() {
   refreshButton.disabled = true;
   refreshButton.textContent = 'Refreshing';
+  const loadingStartedAt = performance.now();
   showLoadingStates();
 
   try {
@@ -3902,7 +4106,7 @@ async function refresh() {
     await loadIdentity();
 
     if (serviceGrid) {
-      await loadHome();
+      await loadHome(loadingStartedAt);
     }
 
     if (iamGrid) {
@@ -4011,6 +4215,10 @@ async function refresh() {
 
     if (athenaGrid) {
       await loadAthenaPage();
+    }
+
+    if (autoscalingGrid) {
+      await loadAutoScalingPage();
     }
 
     if (bedrockruntimeGrid) {
@@ -4360,6 +4568,17 @@ async function refresh() {
       message.textContent = error.message;
       panel.append(message);
       athenaGrid.append(panel);
+    }
+
+    if (autoscalingGrid) {
+      autoscalingGrid.textContent = '';
+      const panel = document.createElement('section');
+      panel.className = 'iam-panel';
+      const message = document.createElement('p');
+      message.className = 'message error';
+      message.textContent = error.message;
+      panel.append(message);
+      autoscalingGrid.append(panel);
     }
 
     if (bedrockruntimeGrid) {

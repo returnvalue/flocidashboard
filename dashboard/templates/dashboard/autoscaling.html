@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>ElastiCache - Floci Dashboard</title>
+    <title>Auto Scaling - Floci Dashboard</title>
     <link rel="stylesheet" href="{% static 'dashboard/styles.css' %}?v=20260505-spinner">
   </head>
   <body>
@@ -12,10 +12,10 @@
       <header class="topbar">
         <div>
           <a class="back-link" href="/">Services</a>
-          <p class="eyebrow">Cache clusters and replication groups</p>
-          <h1>ElastiCache</h1>
+          <p class="eyebrow">Groups, policies, and scaling activity</p>
+          <h1>Auto Scaling</h1>
         </div>
-        <button id="refresh" type="button" aria-label="Refresh ElastiCache">Refresh</button>
+        <button id="refresh" type="button" aria-label="Refresh Auto Scaling">Refresh</button>
       </header>
 
       <section class="status" aria-live="polite">
@@ -39,11 +39,11 @@
 
       <section class="section-block">
         <div class="section-heading">
-          <h2>ElastiCache inventory</h2>
-          <span id="elasticache-loaded-at"></span>
+          <h2>Auto Scaling inventory</h2>
+          <span id="autoscaling-loaded-at"></span>
         </div>
-        <div id="elasticache-summary" class="summary-grid"></div>
-        <div id="elasticache-grid" class="iam-grid"></div>
+        <div id="autoscaling-summary" class="summary-grid"></div>
+        <div id="autoscaling-grid" class="iam-grid"></div>
       </section>
     </main>
 

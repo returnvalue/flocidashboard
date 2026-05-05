@@ -1,5 +1,6 @@
 import os
 import json
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from urllib.error import URLError
 from urllib.parse import urlparse
@@ -4130,6 +4131,239 @@ def _ecs_operation_supported(client, operation_name: str) -> bool:
     return operation_name in client.meta.service_model.operation_names
 
 
+def _autoscaling_operation_supported(client, operation_name: str) -> bool:
+    return operation_name in client.meta.service_model.operation_names
+
+
+def _autoscaling_optional(loader: Callable[[], Any], empty_codes: set[str]) -> Any:
+    try:
+        return _clean_response(loader())
+    except ClientError as exc:
+        if _error_code(exc) in empty_codes:
+            return None
+        return {'error': str(exc)}
+    except (BotoCoreError, ValueError, json.JSONDecodeError) as exc:
+        return {'error': str(exc)}
+
+
+def autoscaling_inventory() -> dict[str, Any]:
+    factory = FlociClientFactory()
+    autoscaling = factory.client('autoscaling')
+
+    groups = _safe_value(
+        lambda: _paginate(autoscaling, 'describe_auto_scaling_groups', 'AutoScalingGroups'),
+        [],
+    )
+    launch_configurations = _safe_value(
+        lambda: _paginate(autoscaling, 'describe_launch_configurations', 'LaunchConfigurations'),
+        [],
+    )
+    policies = _safe_value(
+        lambda: _paginate(autoscaling, 'describe_policies', 'ScalingPolicies'),
+        [],
+    )
+    scheduled_actions = _safe_value(
+        lambda: _paginate(autoscaling, 'describe_scheduled_actions', 'ScheduledUpdateGroupActions'),
+        [],
+    )
+    activities = _safe_value(
+        lambda: _paginate(autoscaling, 'describe_scaling_activities', 'Activities'),
+        [],
+    )
+    notification_configurations = _safe_value(
+        lambda: _paginate(autoscaling, 'describe_notification_configurations', 'NotificationConfigurations'),
+        [],
+    )
+    tags = _safe_value(
+        lambda: _paginate(autoscaling, 'describe_tags', 'Tags'),
+        [],
+    )
+    account_limits = _autoscaling_optional(
+        lambda: autoscaling.describe_account_limits(),
+        {'ResourceContention'},
+    )
+    adjustment_types = _autoscaling_optional(
+        lambda: autoscaling.describe_adjustment_types().get('AdjustmentTypes', []),
+        {'ResourceContention'},
+    )
+    metric_collection_types = _autoscaling_optional(
+        lambda: autoscaling.describe_metric_collection_types(),
+        {'ResourceContention'},
+    )
+    scaling_process_types = _autoscaling_optional(
+        lambda: autoscaling.describe_scaling_process_types().get('Processes', []),
+        {'ResourceContention'},
+    )
+    termination_policy_types = _autoscaling_optional(
+        lambda: autoscaling.describe_termination_policy_types().get('TerminationPolicyTypes', []),
+        {'ResourceContention'},
+    )
+
+    policies_by_group: dict[str, list[dict[str, Any]]] = {}
+    for policy in policies:
+        group_name = policy.get('AutoScalingGroupName')
+        if group_name:
+            policies_by_group.setdefault(group_name, []).append(_clean_response(policy))
+
+    scheduled_actions_by_group: dict[str, list[dict[str, Any]]] = {}
+    for action in scheduled_actions:
+        group_name = action.get('AutoScalingGroupName')
+        if group_name:
+            scheduled_actions_by_group.setdefault(group_name, []).append(_clean_response(action))
+
+    activities_by_group: dict[str, list[dict[str, Any]]] = {}
+    for activity in activities:
+        group_name = activity.get('AutoScalingGroupName')
+        if group_name:
+            activities_by_group.setdefault(group_name, []).append(_clean_response(activity))
+
+    notifications_by_group: dict[str, list[dict[str, Any]]] = {}
+    for configuration in notification_configurations:
+        group_name = configuration.get('AutoScalingGroupName')
+        if group_name:
+            notifications_by_group.setdefault(group_name, []).append(_clean_response(configuration))
+
+    tags_by_group: dict[str, list[dict[str, Any]]] = {}
+    for tag in tags:
+        resource_type = tag.get('ResourceType')
+        resource_id = tag.get('ResourceId')
+        if resource_type == 'auto-scaling-group' and resource_id:
+            tags_by_group.setdefault(resource_id, []).append(_clean_response(tag))
+
+    def group_detail(group: dict[str, Any]) -> dict[str, Any]:
+        name = group.get('AutoScalingGroupName')
+        lifecycle_hooks = _autoscaling_optional(
+            lambda: autoscaling.describe_lifecycle_hooks(AutoScalingGroupName=name).get('LifecycleHooks', []),
+            {'ResourceContention', 'ValidationError'},
+        )
+        warm_pool = _autoscaling_optional(
+            lambda: autoscaling.describe_warm_pool(AutoScalingGroupName=name),
+            {'ResourceContention', 'ValidationError'},
+        ) if _autoscaling_operation_supported(autoscaling, 'DescribeWarmPool') else None
+        instance_refreshes = _autoscaling_optional(
+            lambda: _paginate(
+                autoscaling,
+                'describe_instance_refreshes',
+                'InstanceRefreshes',
+                AutoScalingGroupName=name,
+            ),
+            {'ResourceContention', 'ValidationError'},
+        ) if _autoscaling_operation_supported(autoscaling, 'DescribeInstanceRefreshes') else None
+
+        instances = group.get('Instances', [])
+
+        return {
+            'name': name,
+            'arn': group.get('AutoScalingGroupARN'),
+            'launch_configuration_name': group.get('LaunchConfigurationName'),
+            'launch_template': group.get('LaunchTemplate'),
+            'mixed_instances_policy': group.get('MixedInstancesPolicy'),
+            'min_size': group.get('MinSize'),
+            'max_size': group.get('MaxSize'),
+            'desired_capacity': group.get('DesiredCapacity'),
+            'default_cooldown': group.get('DefaultCooldown'),
+            'availability_zones': group.get('AvailabilityZones'),
+            'load_balancer_names': group.get('LoadBalancerNames'),
+            'target_group_arns': group.get('TargetGroupARNs'),
+            'health_check_type': group.get('HealthCheckType'),
+            'health_check_grace_period': group.get('HealthCheckGracePeriod'),
+            'placement_group': group.get('PlacementGroup'),
+            'vpc_zone_identifier': group.get('VPCZoneIdentifier'),
+            'status': group.get('Status'),
+            'created_time': group.get('CreatedTime'),
+            'suspended_processes': group.get('SuspendedProcesses'),
+            'enabled_metrics': group.get('EnabledMetrics'),
+            'termination_policies': group.get('TerminationPolicies'),
+            'new_instances_protected_from_scale_in': group.get('NewInstancesProtectedFromScaleIn'),
+            'service_linked_role_arn': group.get('ServiceLinkedRoleARN'),
+            'capacity_rebalance': group.get('CapacityRebalance'),
+            'traffic_sources': group.get('TrafficSources'),
+            'availability_zone_distribution': group.get('AvailabilityZoneDistribution'),
+            'availability_zone_impairment_policy': group.get('AvailabilityZoneImpairmentPolicy'),
+            'capacity_reservation_specification': group.get('CapacityReservationSpecification'),
+            'instances': instances,
+            'instance_count': len(instances),
+            'in_service_instances': sum(
+                1
+                for instance in instances
+                if instance.get('LifecycleState') == 'InService'
+            ),
+            'policies': policies_by_group.get(name, []),
+            'scheduled_actions': scheduled_actions_by_group.get(name, []),
+            'activities': activities_by_group.get(name, []),
+            'lifecycle_hooks': lifecycle_hooks,
+            'warm_pool': warm_pool,
+            'instance_refreshes': instance_refreshes,
+            'notification_configurations': notifications_by_group.get(name, []),
+            'tags': tags_by_group.get(name, group.get('Tags', [])),
+        }
+
+    detailed_groups = [group_detail(group) for group in groups]
+
+    return {
+        'summary': {
+            'groups': len(detailed_groups),
+            'instances': sum(group.get('instance_count') or 0 for group in detailed_groups),
+            'in_service_instances': sum(group.get('in_service_instances') or 0 for group in detailed_groups),
+            'launch_configurations': len(launch_configurations),
+            'scaling_policies': len(policies),
+            'scheduled_actions': len(scheduled_actions),
+            'activities': len(activities),
+            'lifecycle_hooks': sum(
+                len(group.get('lifecycle_hooks') or [])
+                for group in detailed_groups
+                if isinstance(group.get('lifecycle_hooks'), list)
+            ),
+        },
+        'groups': detailed_groups,
+        'launch_configurations': _clean_response(launch_configurations),
+        'scaling_policies': _clean_response(policies),
+        'scheduled_actions': _clean_response(scheduled_actions),
+        'activities': _clean_response(activities),
+        'notification_configurations': _clean_response(notification_configurations),
+        'tags': _clean_response(tags),
+        'account_limits': account_limits,
+        'adjustment_types': adjustment_types,
+        'metric_collection_types': metric_collection_types,
+        'scaling_process_types': scaling_process_types,
+        'termination_policy_types': termination_policy_types,
+        'supported_from_sdk': [
+            'CreateAutoScalingGroup',
+            'UpdateAutoScalingGroup',
+            'DeleteAutoScalingGroup',
+            'DescribeAutoScalingGroups',
+            'CreateLaunchConfiguration',
+            'DescribeLaunchConfigurations',
+            'DeleteLaunchConfiguration',
+            'PutScalingPolicy',
+            'DescribePolicies',
+            'DeletePolicy',
+            'PutScheduledUpdateGroupAction',
+            'DescribeScheduledActions',
+            'DeleteScheduledAction',
+            'DescribeScalingActivities',
+            'SetDesiredCapacity',
+            'TerminateInstanceInAutoScalingGroup',
+            'SuspendProcesses',
+            'ResumeProcesses',
+            'PutLifecycleHook',
+            'DescribeLifecycleHooks',
+            'DeleteLifecycleHook',
+            'PutNotificationConfiguration',
+            'DescribeNotificationConfigurations',
+            'DeleteNotificationConfiguration',
+            'DescribeTags',
+            'CreateOrUpdateTags',
+            'DeleteTags',
+            'DescribeAccountLimits',
+        ],
+        'notes': [
+            'This page uses the EC2 Auto Scaling SDK API and tolerates missing optional operations from local implementations.',
+            'Group detail expands lifecycle hooks, warm pool data, instance refreshes, policies, activities, notifications, and tags when available.',
+        ],
+    }
+
+
 def ecs_inventory() -> dict[str, Any]:
     factory = FlociClientFactory()
     ecs = factory.client('ecs')
@@ -6872,6 +7106,66 @@ def list_resources() -> list[ResourceResult]:
         )
         return resources
 
+    def autoscaling_resources() -> list[dict[str, Any]]:
+        autoscaling = factory.client('autoscaling')
+        resources: list[dict[str, Any]] = []
+        groups = _safe_value(
+            lambda: _paginate(autoscaling, 'describe_auto_scaling_groups', 'AutoScalingGroups'),
+            [],
+        )
+        resources.extend(
+            {
+                'type': 'auto_scaling_group',
+                'name': group.get('AutoScalingGroupName'),
+                'arn': group.get('AutoScalingGroupARN'),
+                'desired_capacity': group.get('DesiredCapacity'),
+                'min_size': group.get('MinSize'),
+                'max_size': group.get('MaxSize'),
+                'instance_count': len(group.get('Instances', [])),
+            }
+            for group in groups
+        )
+        resources.extend(
+            {
+                'type': 'launch_configuration',
+                'name': configuration.get('LaunchConfigurationName'),
+                'arn': configuration.get('LaunchConfigurationARN'),
+                'image_id': configuration.get('ImageId'),
+                'instance_type': configuration.get('InstanceType'),
+            }
+            for configuration in _safe_value(
+                lambda: _paginate(autoscaling, 'describe_launch_configurations', 'LaunchConfigurations'),
+                [],
+            )
+        )
+        resources.extend(
+            {
+                'type': 'scaling_policy',
+                'name': policy.get('PolicyName'),
+                'arn': policy.get('PolicyARN'),
+                'group': policy.get('AutoScalingGroupName'),
+                'policy_type': policy.get('PolicyType'),
+            }
+            for policy in _safe_value(
+                lambda: _paginate(autoscaling, 'describe_policies', 'ScalingPolicies'),
+                [],
+            )
+        )
+        resources.extend(
+            {
+                'type': 'scheduled_action',
+                'name': action.get('ScheduledActionName'),
+                'arn': action.get('ScheduledActionARN'),
+                'group': action.get('AutoScalingGroupName'),
+                'recurrence': action.get('Recurrence'),
+            }
+            for action in _safe_value(
+                lambda: _paginate(autoscaling, 'describe_scheduled_actions', 'ScheduledUpdateGroupActions'),
+                [],
+            )
+        )
+        return resources
+
     def ec2_resources() -> list[dict[str, Any]]:
         ec2 = factory.client('ec2')
         resources: list[dict[str, Any]] = []
@@ -6894,44 +7188,51 @@ def list_resources() -> list[ResourceResult]:
         resources.extend({'type': 'key_pair', 'id': item.get('KeyName')} for item in _safe_value(lambda: ec2.describe_key_pairs().get('KeyPairs', []), []))
         return resources
 
-    return [
-        _resource('acm-certificates', 'ACM certificates', acm_resources),
-        _resource('apigateway-apis', 'API Gateway APIs', apigateway_apis),
-        _resource('appconfig-resources', 'AppConfig resources', appconfig_resources),
-        _resource('athena-resources', 'Athena resources', athena_resources),
-        _resource('bedrockruntime-resources', 'Bedrock Runtime operations', bedrockruntime_resources),
-        _resource('codebuild-resources', 'CodeBuild resources', codebuild_resources),
-        _resource('codedeploy-resources', 'CodeDeploy resources', codedeploy_resources),
-        _resource('eks-resources', 'EKS resources', eks_resources),
-        _resource('elasticache-resources', 'ElastiCache resources', elasticache_resources),
-        _resource('elasticloadbalancing-resources', 'Elastic Load Balancing resources', elasticloadbalancing_resources),
-        _resource('firehose-resources', 'Data Firehose resources', firehose_resources),
-        _resource('kinesis-resources', 'Kinesis resources', kinesis_resources),
-        _resource('kafka-resources', 'MSK / Kafka resources', kafka_resources),
-        _resource('opensearch-resources', 'OpenSearch resources', opensearch_resources),
-        _resource('pipes-resources', 'EventBridge Pipes resources', pipes_resources),
-        _resource('resourcegroupstagging-resources', 'Resource Groups Tagging resources', resourcegroupstagging_resources),
-        _resource('ssm-resources', 'SSM resources', ssm_resources),
-        _resource('cloudformation-resources', 'CloudFormation resources', cloudformation_resources),
-        _resource('ecr-resources', 'ECR resources', ecr_resources),
-        _resource('glue-resources', 'Glue resources', glue_resources),
-        _resource('rds-resources', 'RDS resources', rds_resources),
-        _resource('iam-users', 'IAM users', iam_users),
-        _resource('iam-roles', 'IAM roles', iam_roles),
-        _resource('ec2-resources', 'EC2 resources', ec2_resources),
-        _resource('ecs-resources', 'ECS resources', ecs_resources),
-        _resource('s3-buckets', 'S3 buckets', s3_buckets),
-        _resource('sqs-queues', 'SQS queues', sqs_queues),
-        _resource('dynamodb-tables', 'DynamoDB tables', dynamodb_tables),
-        _resource('sns-topics', 'SNS topics', sns_topics),
-        _resource('ses-resources', 'SES resources', ses_resources),
-        _resource('scheduler-resources', 'EventBridge Scheduler resources', scheduler_resources),
-        _resource('stepfunctions-resources', 'Step Functions resources', stepfunctions_resources),
-        _resource('lambda-functions', 'Lambda functions', lambda_functions),
-        _resource('kms-keys', 'KMS keys', kms_keys),
-        _resource('secrets', 'Secrets Manager secrets', secrets),
-        _resource('log-groups', 'CloudWatch log groups', log_groups),
-        _resource('cloudwatch-metrics', 'CloudWatch metrics and alarms', cloudwatch_metrics),
-        _resource('cognito-resources', 'Cognito resources', cognito_resources),
-        _resource('eventbridge-resources', 'EventBridge resources', eventbridge_resources),
+    resource_loaders: list[tuple[str, str, Callable[[], list[dict[str, Any]]]]] = [
+        ('acm-certificates', 'ACM certificates', acm_resources),
+        ('apigateway-apis', 'API Gateway APIs', apigateway_apis),
+        ('appconfig-resources', 'AppConfig resources', appconfig_resources),
+        ('athena-resources', 'Athena resources', athena_resources),
+        ('autoscaling-resources', 'Auto Scaling resources', autoscaling_resources),
+        ('bedrockruntime-resources', 'Bedrock Runtime operations', bedrockruntime_resources),
+        ('codebuild-resources', 'CodeBuild resources', codebuild_resources),
+        ('codedeploy-resources', 'CodeDeploy resources', codedeploy_resources),
+        ('eks-resources', 'EKS resources', eks_resources),
+        ('elasticache-resources', 'ElastiCache resources', elasticache_resources),
+        ('elasticloadbalancing-resources', 'Elastic Load Balancing resources', elasticloadbalancing_resources),
+        ('firehose-resources', 'Data Firehose resources', firehose_resources),
+        ('kinesis-resources', 'Kinesis resources', kinesis_resources),
+        ('kafka-resources', 'MSK / Kafka resources', kafka_resources),
+        ('opensearch-resources', 'OpenSearch resources', opensearch_resources),
+        ('pipes-resources', 'EventBridge Pipes resources', pipes_resources),
+        ('resourcegroupstagging-resources', 'Resource Groups Tagging resources', resourcegroupstagging_resources),
+        ('ssm-resources', 'SSM resources', ssm_resources),
+        ('cloudformation-resources', 'CloudFormation resources', cloudformation_resources),
+        ('ecr-resources', 'ECR resources', ecr_resources),
+        ('glue-resources', 'Glue resources', glue_resources),
+        ('rds-resources', 'RDS resources', rds_resources),
+        ('iam-users', 'IAM users', iam_users),
+        ('iam-roles', 'IAM roles', iam_roles),
+        ('ec2-resources', 'EC2 resources', ec2_resources),
+        ('ecs-resources', 'ECS resources', ecs_resources),
+        ('s3-buckets', 'S3 buckets', s3_buckets),
+        ('sqs-queues', 'SQS queues', sqs_queues),
+        ('dynamodb-tables', 'DynamoDB tables', dynamodb_tables),
+        ('sns-topics', 'SNS topics', sns_topics),
+        ('ses-resources', 'SES resources', ses_resources),
+        ('scheduler-resources', 'EventBridge Scheduler resources', scheduler_resources),
+        ('stepfunctions-resources', 'Step Functions resources', stepfunctions_resources),
+        ('lambda-functions', 'Lambda functions', lambda_functions),
+        ('kms-keys', 'KMS keys', kms_keys),
+        ('secrets', 'Secrets Manager secrets', secrets),
+        ('log-groups', 'CloudWatch log groups', log_groups),
+        ('cloudwatch-metrics', 'CloudWatch metrics and alarms', cloudwatch_metrics),
+        ('cognito-resources', 'Cognito resources', cognito_resources),
+        ('eventbridge-resources', 'EventBridge resources', eventbridge_resources),
     ]
+
+    with ThreadPoolExecutor(max_workers=min(12, len(resource_loaders))) as executor:
+        return list(executor.map(
+            lambda args: _resource(*args),
+            resource_loaders,
+        ))
