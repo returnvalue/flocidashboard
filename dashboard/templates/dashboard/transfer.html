@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Bedrock Runtime - Floci Dashboard</title>
+    <title>Transfer Family - Floci Dashboard</title>
     <link rel="stylesheet" href="{% static 'dashboard/styles.css' %}?v=20260507-transfer">
   </head>
   <body>
@@ -12,10 +12,10 @@
       <header class="topbar">
         <div>
           <a class="back-link" href="/">Services</a>
-          <p class="eyebrow">Model runtime stub</p>
-          <h1>Bedrock Runtime</h1>
+          <p class="eyebrow">SFTP, FTPS, FTP, and AS2 transfer resources</p>
+          <h1>Transfer Family</h1>
         </div>
-        <button id="refresh" type="button" aria-label="Refresh Bedrock Runtime">Refresh</button>
+        <button id="refresh" type="button" aria-label="Refresh Transfer Family">Refresh</button>
       </header>
 
       <section class="status" aria-live="polite">
@@ -39,11 +39,11 @@
 
       <section class="section-block">
         <div class="section-heading">
-          <h2>Bedrock Runtime inventory</h2>
-          <span id="bedrockruntime-loaded-at"></span>
+          <h2>Transfer Family inventory</h2>
+          <span id="transfer-loaded-at"></span>
         </div>
-        <div id="bedrockruntime-summary" class="summary-grid"></div>
-        <div id="bedrockruntime-grid" class="iam-grid"></div>
+        <div id="transfer-summary" class="summary-grid"></div>
+        <div id="transfer-grid" class="iam-grid"></div>
       </section>
     </main>
 

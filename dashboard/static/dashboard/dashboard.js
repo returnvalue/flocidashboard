@@ -89,6 +89,9 @@ const athenaLoadedAt = document.querySelector('#athena-loaded-at');
 const autoscalingGrid = document.querySelector('#autoscaling-grid');
 const autoscalingSummary = document.querySelector('#autoscaling-summary');
 const autoscalingLoadedAt = document.querySelector('#autoscaling-loaded-at');
+const backupGrid = document.querySelector('#backup-grid');
+const backupSummary = document.querySelector('#backup-summary');
+const backupLoadedAt = document.querySelector('#backup-loaded-at');
 const bedrockruntimeGrid = document.querySelector('#bedrockruntime-grid');
 const bedrockruntimeSummary = document.querySelector('#bedrockruntime-summary');
 const bedrockruntimeLoadedAt = document.querySelector('#bedrockruntime-loaded-at');
@@ -107,6 +110,12 @@ const ecrLoadedAt = document.querySelector('#ecr-loaded-at');
 const rdsGrid = document.querySelector('#rds-grid');
 const rdsSummary = document.querySelector('#rds-summary');
 const rdsLoadedAt = document.querySelector('#rds-loaded-at');
+const route53Grid = document.querySelector('#route53-grid');
+const route53Summary = document.querySelector('#route53-summary');
+const route53LoadedAt = document.querySelector('#route53-loaded-at');
+const transferGrid = document.querySelector('#transfer-grid');
+const transferSummary = document.querySelector('#transfer-summary');
+const transferLoadedAt = document.querySelector('#transfer-loaded-at');
 const acmGrid = document.querySelector('#acm-grid');
 const acmSummary = document.querySelector('#acm-summary');
 const acmLoadedAt = document.querySelector('#acm-loaded-at');
@@ -217,6 +226,7 @@ const serviceDetailPages = {
   athena: '/service/athena/',
   'auto-scaling': '/service/autoscaling/',
   autoscaling: '/service/autoscaling/',
+  backup: '/service/backup/',
   'bedrock-runtime': 'http://127.0.0.1:8000/service/bedrockruntime/',
   bedrockruntime: 'http://127.0.0.1:8000/service/bedrockruntime/',
   codebuild: 'http://127.0.0.1:8000/service/codebuild/',
@@ -248,6 +258,7 @@ const serviceDetailPages = {
   resourcegroupstagging: 'http://127.0.0.1:8000/service/resourcegroupstagging/',
   resourcegroupstaggingapi: 'http://127.0.0.1:8000/service/resourcegroupstagging/',
   rds: '/service/rds/',
+  route53: '/service/route53/',
   s3: '/service/s3/',
   scheduler: '/service/scheduler/',
   secretsmanager: '/service/secretsmanager/',
@@ -259,6 +270,7 @@ const serviceDetailPages = {
   sqs: '/service/sqs/',
   states: '/service/stepfunctions/',
   stepfunctions: '/service/stepfunctions/',
+  transfer: '/service/transfer/',
 };
 
 function canonicalServiceKey(name) {
@@ -3147,6 +3159,252 @@ function renderRDS(data) {
   rdsLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
 }
 
+function renderBackup(data) {
+  backupGrid.textContent = '';
+  renderSummary(data.summary, backupSummary);
+
+  const panels = [
+    renderDetailList('Backup vaults', data.vaults || [], [
+      ['ARN', 'arn'],
+      ['Created', 'created'],
+      ['Creator request ID', 'creator_request_id'],
+      ['Encryption key ARN', 'encryption_key_arn'],
+      ['Recovery points', 'recovery_points'],
+      ['Locked', 'locked'],
+      ['Minimum retention days', 'min_retention_days'],
+      ['Maximum retention days', 'max_retention_days'],
+      ['Recovery point count', 'recovery_point_count'],
+      ['Recovery point details', 'recovery_point_details'],
+    ]),
+    renderDetailList('Backup plans', data.plans || [], [
+      ['ARN', 'arn'],
+      ['Plan ID', 'id'],
+      ['Version ID', 'version_id'],
+      ['Created', 'created'],
+      ['Deleted', 'deleted'],
+      ['Last execution', 'last_execution'],
+      ['Advanced backup settings', 'advanced_backup_settings'],
+      ['Rules', 'rules'],
+      ['Selection count', 'selection_count'],
+      ['Selections', 'selections'],
+    ]),
+    renderDetailList('Backup jobs', data.backup_jobs || [], [
+      ['Job ID', 'BackupJobId'],
+      ['Vault name', 'BackupVaultName'],
+      ['Vault ARN', 'BackupVaultArn'],
+      ['Recovery point ARN', 'RecoveryPointArn'],
+      ['Resource ARN', 'ResourceArn'],
+      ['Resource type', 'ResourceType'],
+      ['State', 'State'],
+      ['Status message', 'StatusMessage'],
+      ['Created', 'CreationDate'],
+      ['Started', 'StartBy'],
+      ['Completed', 'CompletionDate'],
+      ['Percent done', 'PercentDone'],
+      ['Backup size bytes', 'BackupSizeInBytes'],
+      ['IAM role ARN', 'IamRoleArn'],
+    ]),
+    renderDetailList('Restore jobs', data.restore_jobs || [], [
+      ['Job ID', 'RestoreJobId'],
+      ['Recovery point ARN', 'RecoveryPointArn'],
+      ['Resource ARN', 'ResourceArn'],
+      ['Resource type', 'ResourceType'],
+      ['Status', 'Status'],
+      ['Status message', 'StatusMessage'],
+      ['Created', 'CreationDate'],
+      ['Completed', 'CompletionDate'],
+      ['IAM role ARN', 'IamRoleArn'],
+      ['Expected completion time minutes', 'ExpectedCompletionTimeMinutes'],
+      ['Percent done', 'PercentDone'],
+    ]),
+    renderDetailList('Protected resources', data.protected_resources || [], [
+      ['Resource ARN', 'ResourceArn'],
+      ['Resource type', 'ResourceType'],
+      ['Last backup time', 'LastBackupTime'],
+      ['Last backup vault ARN', 'LastBackupVaultArn'],
+      ['Last recovery point ARN', 'LastRecoveryPointArn'],
+    ]),
+    renderDetailList('Supported actions', (data.supported || []).map((action) => ({
+      name: action,
+      action,
+    })), [
+      ['Action', 'action'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
+  ];
+
+  backupGrid.append(...panels);
+  backupLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+}
+
+function renderRoute53(data) {
+  route53Grid.textContent = '';
+  renderSummary(data.summary, route53Summary);
+
+  const panels = [
+    renderDetailList('Hosted zones', data.hosted_zones || [], [
+      ['ID', 'id'],
+      ['Clean ID', 'clean_id'],
+      ['Caller reference', 'caller_reference'],
+      ['Private zone', 'private_zone'],
+      ['Comment', 'comment'],
+      ['Resource record set count', 'resource_record_set_count'],
+      ['Delegation set', 'delegation_set'],
+      ['VPCs', 'vpcs'],
+      ['Query logging configs', 'query_logging_configs'],
+      ['Record count', 'record_count'],
+      ['Records', 'records'],
+    ]),
+    renderDetailList('Health checks', data.health_checks || [], [
+      ['ID', 'Id'],
+      ['Caller reference', 'CallerReference'],
+      ['Health check version', 'HealthCheckVersion'],
+      ['Config', 'HealthCheckConfig'],
+      ['Linked service', 'LinkedService'],
+      ['CloudWatch alarm configuration', 'CloudWatchAlarmConfiguration'],
+    ]),
+    renderDetailList('Traffic policies', data.traffic_policies || [], [
+      ['ID', 'Id'],
+      ['Type', 'Type'],
+      ['Latest version', 'LatestVersion'],
+      ['Traffic policy count', 'TrafficPolicyCount'],
+    ]),
+    renderDetailList('Traffic policy instances', data.traffic_policy_instances || [], [
+      ['ID', 'Id'],
+      ['Hosted zone ID', 'HostedZoneId'],
+      ['Name', 'Name'],
+      ['TTL', 'TTL'],
+      ['State', 'State'],
+      ['Message', 'Message'],
+      ['Traffic policy ID', 'TrafficPolicyId'],
+      ['Traffic policy version', 'TrafficPolicyVersion'],
+      ['Traffic policy type', 'TrafficPolicyType'],
+    ]),
+    renderDetailList('Reusable delegation sets', data.delegation_sets || [], [
+      ['ID', 'Id'],
+      ['Caller reference', 'CallerReference'],
+      ['Name servers', 'NameServers'],
+    ]),
+    renderDetailList('Supported actions', (data.supported || []).map((action) => ({
+      name: action,
+      action,
+    })), [
+      ['Action', 'action'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
+  ];
+
+  route53Grid.append(...panels);
+  route53LoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+}
+
+function renderTransfer(data) {
+  transferGrid.textContent = '';
+  renderSummary(data.summary, transferSummary);
+
+  const panels = [
+    renderDetailList('Servers', data.servers || [], [
+      ['Server ID', 'id'],
+      ['ARN', 'arn'],
+      ['State', 'state'],
+      ['Endpoint type', 'endpoint_type'],
+      ['Domain', 'domain'],
+      ['Identity provider type', 'identity_provider_type'],
+      ['Protocols', 'protocols'],
+      ['Endpoint details', 'endpoint_details'],
+      ['Logging role', 'logging_role'],
+      ['Structured log destinations', 'structured_log_destinations'],
+      ['Security policy name', 'security_policy_name'],
+      ['Workflow details', 'workflow_details'],
+      ['Certificate', 'certificate'],
+      ['Tags', 'tags'],
+      ['User count', 'user_count'],
+      ['Users', 'users'],
+      ['Host key count', 'host_key_count'],
+      ['Host keys', 'host_keys'],
+      ['Agreement count', 'agreement_count'],
+      ['Agreements', 'agreements'],
+    ]),
+    renderDetailList('Workflows', data.workflows || [], [
+      ['Workflow ID', 'WorkflowId'],
+      ['ARN', 'Arn'],
+      ['Description', 'Description'],
+    ]),
+    renderDetailList('Profiles', data.profiles || [], [
+      ['Profile ID', 'id'],
+      ['ARN', 'arn'],
+      ['AS2 ID', 'as2_id'],
+      ['Profile type', 'profile_type'],
+      ['Certificate IDs', 'certificate_ids'],
+      ['Tags', 'tags'],
+    ]),
+    renderDetailList('Certificates', data.certificates || [], [
+      ['Certificate ID', 'id'],
+      ['ARN', 'arn'],
+      ['Status', 'status'],
+      ['Type', 'type'],
+      ['Usage', 'usage'],
+      ['Certificate', 'certificate'],
+      ['Active date', 'active_date'],
+      ['Inactive date', 'inactive_date'],
+      ['Serial', 'serial'],
+      ['Not before', 'not_before_date'],
+      ['Not after', 'not_after_date'],
+      ['Description', 'description'],
+      ['Tags', 'tags'],
+    ]),
+    renderDetailList('Connectors', data.connectors || [], [
+      ['Connector ID', 'id'],
+      ['ARN', 'arn'],
+      ['URL', 'url'],
+      ['AS2 config', 'as2_config'],
+      ['Access role', 'access_role'],
+      ['Logging role', 'logging_role'],
+      ['Security policy name', 'security_policy_name'],
+      ['Tags', 'tags'],
+    ]),
+    renderDetailList('Security policies', (data.security_policies || []).map((policy) => ({
+      name: policy,
+      policy,
+    })), [
+      ['Policy', 'policy'],
+    ]),
+    renderDetailList('Web apps', data.web_apps || [], [
+      ['Web app ID', 'WebAppId'],
+      ['ARN', 'Arn'],
+      ['Endpoint', 'Endpoint'],
+      ['Identity provider details', 'IdentityProviderDetails'],
+      ['Access endpoint', 'AccessEndpoint'],
+      ['Tags', 'Tags'],
+    ]),
+    renderDetailList('Supported actions', (data.supported || []).map((action) => ({
+      name: action,
+      action,
+    })), [
+      ['Action', 'action'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
+  ];
+
+  transferGrid.append(...panels);
+  transferLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+}
+
 function renderACM(data) {
   acmGrid.textContent = '';
   renderSummary(data.summary, acmSummary);
@@ -3410,6 +3668,7 @@ function titleCaseService(name) {
     monitoring: 'CloudWatch Metrics',
     pipes: 'EventBridge Pipes',
     rds: 'RDS',
+    route53: 'Route 53',
     resourcegroupstagging: 'Resource Groups Tagging',
     resourcegroupstaggingapi: 'Resource Groups Tagging',
     s3: 'S3',
@@ -3422,6 +3681,7 @@ function titleCaseService(name) {
     stepfunctions: 'Step Functions',
     states: 'Step Functions',
     tagging: 'Resource Groups Tagging',
+    transfer: 'Transfer Family',
   };
 
   return labels[name] || name
@@ -3435,6 +3695,14 @@ function serviceHref(name) {
 }
 
 function resourceServiceName(resource) {
+  if (resource.name === 'route53-resources') {
+    return 'Route 53';
+  }
+
+  if (resource.name === 'transfer-resources') {
+    return 'Transfer Family';
+  }
+
   if (resource.name.startsWith('iam-')) {
     return 'IAM';
   }
@@ -3496,6 +3764,7 @@ function resourceServiceKey(resource) {
     'sns-topics': 'sns',
     'sqs-queues': 'sqs',
     'stepfunctions-resources': 'stepfunctions',
+    'transfer-resources': 'transfer',
   };
 
   if (keys[resource.name]) {
@@ -4051,6 +4320,39 @@ async function loadRDSPage() {
   renderRDS(rdsData);
 }
 
+async function loadBackupPage() {
+  const backupResponse = await fetch('/api/backup/');
+  const backupData = await backupResponse.json();
+
+  if (!backupResponse.ok || backupData.error) {
+    throw new Error(backupData.error || 'Unable to load Backup inventory');
+  }
+
+  renderBackup(backupData);
+}
+
+async function loadRoute53Page() {
+  const route53Response = await fetch('/api/route53/');
+  const route53Data = await route53Response.json();
+
+  if (!route53Response.ok || route53Data.error) {
+    throw new Error(route53Data.error || 'Unable to load Route 53 inventory');
+  }
+
+  renderRoute53(route53Data);
+}
+
+async function loadTransferPage() {
+  const transferResponse = await fetch('/api/transfer/');
+  const transferData = await transferResponse.json();
+
+  if (!transferResponse.ok || transferData.error) {
+    throw new Error(transferData.error || 'Unable to load Transfer Family inventory');
+  }
+
+  renderTransfer(transferData);
+}
+
 async function loadACMPage() {
   const acmResponse = await fetch('/api/acm/');
   const acmData = await acmResponse.json();
@@ -4243,6 +4545,18 @@ async function refresh() {
 
     if (rdsGrid) {
       await loadRDSPage();
+    }
+
+    if (backupGrid) {
+      await loadBackupPage();
+    }
+
+    if (route53Grid) {
+      await loadRoute53Page();
+    }
+
+    if (transferGrid) {
+      await loadTransferPage();
     }
 
     if (acmGrid) {
@@ -4645,6 +4959,39 @@ async function refresh() {
       message.textContent = error.message;
       panel.append(message);
       rdsGrid.append(panel);
+    }
+
+    if (backupGrid) {
+      backupGrid.textContent = '';
+      const panel = document.createElement('section');
+      panel.className = 'iam-panel';
+      const message = document.createElement('p');
+      message.className = 'message error';
+      message.textContent = error.message;
+      panel.append(message);
+      backupGrid.append(panel);
+    }
+
+    if (route53Grid) {
+      route53Grid.textContent = '';
+      const panel = document.createElement('section');
+      panel.className = 'iam-panel';
+      const message = document.createElement('p');
+      message.className = 'message error';
+      message.textContent = error.message;
+      panel.append(message);
+      route53Grid.append(panel);
+    }
+
+    if (transferGrid) {
+      transferGrid.textContent = '';
+      const panel = document.createElement('section');
+      panel.className = 'iam-panel';
+      const message = document.createElement('p');
+      message.className = 'message error';
+      message.textContent = error.message;
+      panel.append(message);
+      transferGrid.append(panel);
     }
 
     if (acmGrid) {

@@ -4,7 +4,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from django.http import JsonResponse
 from django.shortcuts import render
 
-from .aws import FlociClientFactory, acm_inventory, apigateway_inventory, appconfig_inventory, athena_inventory, autoscaling_inventory, bedrockruntime_inventory, cloudformation_inventory, cloudwatch_inventory, codebuild_inventory, codedeploy_inventory, cognito_inventory, dynamodb_inventory, ec2_inventory, ecr_inventory, ecs_inventory, eks_inventory, elasticache_inventory, elasticloadbalancing_inventory, eventbridge_inventory, firehose_inventory, glue_inventory, iam_inventory, kafka_inventory, kinesis_inventory, kms_inventory, lambda_inventory, list_resources, opensearch_inventory, pipes_inventory, rds_inventory, resourcegroupstagging_inventory, s3_inventory, scheduler_inventory, secretsmanager_inventory, ses_inventory, sns_inventory, sqs_inventory, ssm_inventory, stepfunctions_inventory
+from .aws import FlociClientFactory, acm_inventory, apigateway_inventory, appconfig_inventory, athena_inventory, autoscaling_inventory, backup_inventory, bedrockruntime_inventory, cloudformation_inventory, cloudwatch_inventory, codebuild_inventory, codedeploy_inventory, cognito_inventory, dynamodb_inventory, ec2_inventory, ecr_inventory, ecs_inventory, eks_inventory, elasticache_inventory, elasticloadbalancing_inventory, eventbridge_inventory, firehose_inventory, glue_inventory, iam_inventory, kafka_inventory, kinesis_inventory, kms_inventory, lambda_inventory, list_resources, opensearch_inventory, pipes_inventory, rds_inventory, resourcegroupstagging_inventory, route53_inventory, s3_inventory, scheduler_inventory, secretsmanager_inventory, ses_inventory, sns_inventory, sqs_inventory, ssm_inventory, stepfunctions_inventory, transfer_inventory
 
 
 def index(request):
@@ -125,6 +125,18 @@ def athena_service(request):
 
 def autoscaling_service(request):
     return render(request, 'dashboard/autoscaling.html')
+
+
+def backup_service(request):
+    return render(request, 'dashboard/backup.html')
+
+
+def route53_service(request):
+    return render(request, 'dashboard/route53.html')
+
+
+def transfer_service(request):
+    return render(request, 'dashboard/transfer.html')
 
 
 def sns_service(request):
@@ -385,6 +397,27 @@ def athena(request):
 def autoscaling(request):
     try:
         return JsonResponse(autoscaling_inventory())
+    except (BotoCoreError, ClientError, ValueError) as exc:
+        return JsonResponse({'error': str(exc)}, status=502)
+
+
+def backup(request):
+    try:
+        return JsonResponse(backup_inventory())
+    except (BotoCoreError, ClientError, ValueError) as exc:
+        return JsonResponse({'error': str(exc)}, status=502)
+
+
+def route53(request):
+    try:
+        return JsonResponse(route53_inventory())
+    except (BotoCoreError, ClientError, ValueError) as exc:
+        return JsonResponse({'error': str(exc)}, status=502)
+
+
+def transfer(request):
+    try:
+        return JsonResponse(transfer_inventory())
     except (BotoCoreError, ClientError, ValueError) as exc:
         return JsonResponse({'error': str(exc)}, status=502)
 

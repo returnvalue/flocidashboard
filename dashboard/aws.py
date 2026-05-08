@@ -4364,6 +4364,329 @@ def autoscaling_inventory() -> dict[str, Any]:
     }
 
 
+def backup_inventory() -> dict[str, Any]:
+    factory = FlociClientFactory()
+    backup = factory.client('backup')
+    vaults = _safe_value(lambda: _paginate(backup, 'list_backup_vaults', 'BackupVaultList'), [])
+    plans = _safe_value(lambda: _paginate(backup, 'list_backup_plans', 'BackupPlansList'), [])
+    backup_jobs = _safe_value(lambda: _paginate(backup, 'list_backup_jobs', 'BackupJobs'), [])
+    restore_jobs = _safe_value(lambda: _paginate(backup, 'list_restore_jobs', 'RestoreJobs'), [])
+    protected_resources = _safe_value(lambda: _paginate(backup, 'list_protected_resources', 'Results'), [])
+
+    def vault_detail(vault: dict[str, Any]) -> dict[str, Any]:
+        name = vault.get('BackupVaultName')
+        recovery_points = _safe_value(
+            lambda: _paginate(backup, 'list_recovery_points_by_backup_vault', 'RecoveryPoints', BackupVaultName=name),
+            [],
+        ) if name else []
+
+        return {
+            'name': name,
+            'arn': vault.get('BackupVaultArn'),
+            'created': vault.get('CreationDate'),
+            'creator_request_id': vault.get('CreatorRequestId'),
+            'encryption_key_arn': vault.get('EncryptionKeyArn'),
+            'recovery_points': vault.get('NumberOfRecoveryPoints'),
+            'locked': vault.get('Locked'),
+            'min_retention_days': vault.get('MinRetentionDays'),
+            'max_retention_days': vault.get('MaxRetentionDays'),
+            'recovery_point_count': len(recovery_points),
+            'recovery_point_details': recovery_points,
+        }
+
+    def plan_detail(plan: dict[str, Any]) -> dict[str, Any]:
+        plan_id = plan.get('BackupPlanId')
+        details = _safe_value(lambda: backup.get_backup_plan(BackupPlanId=plan_id), {}) if plan_id else {}
+        selections = _safe_value(
+            lambda: _paginate(backup, 'list_backup_selections', 'BackupSelectionsList', BackupPlanId=plan_id),
+            [],
+        ) if plan_id else []
+
+        return {
+            'name': plan.get('BackupPlanName'),
+            'arn': plan.get('BackupPlanArn'),
+            'id': plan_id,
+            'version_id': plan.get('VersionId'),
+            'created': plan.get('CreationDate'),
+            'deleted': plan.get('DeletionDate'),
+            'last_execution': plan.get('LastExecutionDate'),
+            'advanced_backup_settings': details.get('AdvancedBackupSettings'),
+            'rules': details.get('BackupPlan', {}).get('Rules'),
+            'selections': selections,
+            'selection_count': len(selections),
+        }
+
+    detailed_vaults = [vault_detail(vault) for vault in vaults]
+    detailed_plans = [plan_detail(plan) for plan in plans]
+
+    return {
+        'summary': {
+            'vaults': len(detailed_vaults),
+            'plans': len(detailed_plans),
+            'backup_jobs': len(backup_jobs),
+            'restore_jobs': len(restore_jobs),
+            'protected_resources': len(protected_resources),
+            'recovery_points': sum(vault.get('recovery_point_count') or 0 for vault in detailed_vaults),
+        },
+        'vaults': detailed_vaults,
+        'plans': detailed_plans,
+        'backup_jobs': backup_jobs,
+        'restore_jobs': restore_jobs,
+        'protected_resources': protected_resources,
+        'supported': [
+            'CreateBackupVault',
+            'ListBackupVaults',
+            'DeleteBackupVault',
+            'CreateBackupPlan',
+            'GetBackupPlan',
+            'ListBackupPlans',
+            'DeleteBackupPlan',
+            'CreateBackupSelection',
+            'ListBackupSelections',
+            'ListBackupJobs',
+            'ListRestoreJobs',
+            'ListProtectedResources',
+            'ListRecoveryPointsByBackupVault',
+        ],
+        'notes': [
+            'AWS Backup coordinates backup plans, vaults, recovery points, and restore workflows.',
+            'Inventory calls are read-only and tolerate missing local service operations.',
+        ],
+    }
+
+
+def route53_inventory() -> dict[str, Any]:
+    factory = FlociClientFactory()
+    route53 = factory.client('route53')
+    hosted_zones = _safe_value(lambda: _paginate(route53, 'list_hosted_zones', 'HostedZones'), [])
+    health_checks = _safe_value(lambda: _paginate(route53, 'list_health_checks', 'HealthChecks'), [])
+    traffic_policies = _safe_value(lambda: route53.list_traffic_policies().get('TrafficPolicySummaries', []), [])
+    traffic_policy_instances = _safe_value(
+        lambda: route53.list_traffic_policy_instances().get('TrafficPolicyInstances', []),
+        [],
+    )
+    delegation_sets = _safe_value(
+        lambda: route53.list_reusable_delegation_sets().get('DelegationSets', []),
+        [],
+    )
+
+    def zone_detail(zone: dict[str, Any]) -> dict[str, Any]:
+        zone_id = zone.get('Id')
+        clean_zone_id = zone_id.rsplit('/', 1)[-1] if zone_id else None
+        details = _safe_value(lambda: route53.get_hosted_zone(Id=zone_id), {}) if zone_id else {}
+        records = _safe_value(
+            lambda: _paginate(route53, 'list_resource_record_sets', 'ResourceRecordSets', HostedZoneId=zone_id),
+            [],
+        ) if zone_id else []
+        query_logging_configs = _safe_value(
+            lambda: route53.list_query_logging_configs(HostedZoneId=clean_zone_id).get('QueryLoggingConfigs', []),
+            [],
+        ) if clean_zone_id else []
+
+        return {
+            'name': zone.get('Name'),
+            'id': zone_id,
+            'clean_id': clean_zone_id,
+            'caller_reference': zone.get('CallerReference'),
+            'private_zone': zone.get('Config', {}).get('PrivateZone'),
+            'comment': zone.get('Config', {}).get('Comment'),
+            'resource_record_set_count': zone.get('ResourceRecordSetCount'),
+            'delegation_set': details.get('DelegationSet'),
+            'vpcs': details.get('VPCs'),
+            'query_logging_configs': query_logging_configs,
+            'record_count': len(records),
+            'records': _clean_response(records),
+        }
+
+    detailed_zones = [zone_detail(zone) for zone in hosted_zones]
+
+    return {
+        'summary': {
+            'hosted_zones': len(detailed_zones),
+            'record_sets': sum(zone.get('record_count') or 0 for zone in detailed_zones),
+            'health_checks': len(health_checks),
+            'traffic_policies': len(traffic_policies),
+            'traffic_policy_instances': len(traffic_policy_instances),
+            'delegation_sets': len(delegation_sets),
+            'private_zones': sum(1 for zone in detailed_zones if zone.get('private_zone')),
+        },
+        'hosted_zones': detailed_zones,
+        'health_checks': _clean_response(health_checks),
+        'traffic_policies': _clean_response(traffic_policies),
+        'traffic_policy_instances': _clean_response(traffic_policy_instances),
+        'delegation_sets': _clean_response(delegation_sets),
+        'supported': [
+            'CreateHostedZone',
+            'GetHostedZone',
+            'ListHostedZones',
+            'DeleteHostedZone',
+            'ChangeResourceRecordSets',
+            'ListResourceRecordSets',
+            'ListHealthChecks',
+            'CreateHealthCheck',
+            'DeleteHealthCheck',
+            'ListTrafficPolicies',
+            'ListTrafficPolicyInstances',
+            'ListReusableDelegationSets',
+        ],
+        'notes': [
+            'Route 53 inventory expands hosted zones with record sets and query logging configuration when available.',
+            'Route 53 is a global service; this dashboard still uses the configured local endpoint.',
+        ],
+    }
+
+
+def transfer_inventory() -> dict[str, Any]:
+    factory = FlociClientFactory()
+    transfer = factory.client('transfer')
+    servers = _safe_value(lambda: _paginate(transfer, 'list_servers', 'Servers'), [])
+    workflows = _safe_value(lambda: _paginate(transfer, 'list_workflows', 'Workflows'), [])
+    profiles = _safe_value(lambda: _paginate(transfer, 'list_profiles', 'Profiles'), [])
+    certificates = _safe_value(lambda: _paginate(transfer, 'list_certificates', 'Certificates'), [])
+    connectors = _safe_value(lambda: _paginate(transfer, 'list_connectors', 'Connectors'), [])
+    security_policies = _safe_value(lambda: _paginate(transfer, 'list_security_policies', 'SecurityPolicyNames'), [])
+    web_apps = _safe_value(lambda: _paginate(transfer, 'list_web_apps', 'WebApps'), [])
+
+    def server_detail(server: dict[str, Any]) -> dict[str, Any]:
+        server_id = server.get('ServerId')
+        details = _safe_value(lambda: transfer.describe_server(ServerId=server_id).get('Server', {}), {}) if server_id else {}
+        users = _safe_value(lambda: _paginate(transfer, 'list_users', 'Users', ServerId=server_id), []) if server_id else []
+        host_keys = _safe_value(lambda: transfer.list_host_keys(ServerId=server_id).get('HostKeys', []), []) if server_id else []
+        agreements = _safe_value(lambda: _paginate(transfer, 'list_agreements', 'Agreements', ServerId=server_id), []) if server_id else []
+
+        return {
+            'name': server_id,
+            'id': server_id,
+            'arn': server.get('Arn') or details.get('Arn'),
+            'state': server.get('State') or details.get('State'),
+            'endpoint_type': server.get('EndpointType') or details.get('EndpointType'),
+            'domain': server.get('Domain') or details.get('Domain'),
+            'identity_provider_type': server.get('IdentityProviderType') or details.get('IdentityProviderType'),
+            'protocols': details.get('Protocols'),
+            'endpoint_details': details.get('EndpointDetails'),
+            'logging_role': details.get('LoggingRole'),
+            'structured_log_destinations': details.get('StructuredLogDestinations'),
+            'security_policy_name': details.get('SecurityPolicyName'),
+            'workflow_details': details.get('WorkflowDetails'),
+            'certificate': details.get('Certificate'),
+            'tags': details.get('Tags'),
+            'user_count': len(users),
+            'users': _clean_response(users),
+            'host_key_count': len(host_keys),
+            'host_keys': _clean_response(host_keys),
+            'agreement_count': len(agreements),
+            'agreements': _clean_response(agreements),
+        }
+
+    def profile_detail(profile: dict[str, Any]) -> dict[str, Any]:
+        profile_id = profile.get('ProfileId')
+        details = _safe_value(lambda: transfer.describe_profile(ProfileId=profile_id).get('Profile', {}), {}) if profile_id else {}
+        return {
+            'name': profile_id,
+            'id': profile_id,
+            'arn': profile.get('Arn') or details.get('Arn'),
+            'as2_id': details.get('As2Id'),
+            'profile_type': details.get('ProfileType'),
+            'certificate_ids': details.get('CertificateIds'),
+            'tags': details.get('Tags'),
+        }
+
+    def certificate_detail(certificate: dict[str, Any]) -> dict[str, Any]:
+        certificate_id = certificate.get('CertificateId')
+        details = _safe_value(
+            lambda: transfer.describe_certificate(CertificateId=certificate_id).get('Certificate', {}),
+            {},
+        ) if certificate_id else {}
+        return {
+            'name': certificate_id,
+            'id': certificate_id,
+            'arn': certificate.get('Arn') or details.get('Arn'),
+            'status': details.get('Status'),
+            'type': details.get('Type'),
+            'usage': details.get('Usage'),
+            'certificate': details.get('Certificate'),
+            'active_date': details.get('ActiveDate'),
+            'inactive_date': details.get('InactiveDate'),
+            'serial': details.get('Serial'),
+            'not_before_date': details.get('NotBeforeDate'),
+            'not_after_date': details.get('NotAfterDate'),
+            'description': details.get('Description'),
+            'tags': details.get('Tags'),
+        }
+
+    def connector_detail(connector: dict[str, Any]) -> dict[str, Any]:
+        connector_id = connector.get('ConnectorId')
+        details = _safe_value(
+            lambda: transfer.describe_connector(ConnectorId=connector_id).get('Connector', {}),
+            {},
+        ) if connector_id else {}
+        return {
+            'name': connector_id,
+            'id': connector_id,
+            'arn': connector.get('Arn') or details.get('Arn'),
+            'url': details.get('Url'),
+            'as2_config': details.get('As2Config'),
+            'access_role': details.get('AccessRole'),
+            'logging_role': details.get('LoggingRole'),
+            'security_policy_name': details.get('SecurityPolicyName'),
+            'tags': details.get('Tags'),
+        }
+
+    detailed_servers = [server_detail(server) for server in servers]
+    detailed_profiles = [profile_detail(profile) for profile in profiles]
+    detailed_certificates = [certificate_detail(certificate) for certificate in certificates]
+    detailed_connectors = [connector_detail(connector) for connector in connectors]
+
+    return {
+        'summary': {
+            'servers': len(detailed_servers),
+            'users': sum(server.get('user_count') or 0 for server in detailed_servers),
+            'host_keys': sum(server.get('host_key_count') or 0 for server in detailed_servers),
+            'agreements': sum(server.get('agreement_count') or 0 for server in detailed_servers),
+            'workflows': len(workflows),
+            'profiles': len(detailed_profiles),
+            'certificates': len(detailed_certificates),
+            'connectors': len(detailed_connectors),
+            'security_policies': len(security_policies),
+            'web_apps': len(web_apps),
+        },
+        'servers': detailed_servers,
+        'workflows': _clean_response(workflows),
+        'profiles': detailed_profiles,
+        'certificates': detailed_certificates,
+        'connectors': detailed_connectors,
+        'security_policies': _clean_response(security_policies),
+        'web_apps': _clean_response(web_apps),
+        'supported': [
+            'CreateServer',
+            'DescribeServer',
+            'ListServers',
+            'DeleteServer',
+            'CreateUser',
+            'DescribeUser',
+            'ListUsers',
+            'DeleteUser',
+            'ImportHostKey',
+            'ListHostKeys',
+            'CreateWorkflow',
+            'ListWorkflows',
+            'CreateProfile',
+            'ListProfiles',
+            'ImportCertificate',
+            'ListCertificates',
+            'CreateConnector',
+            'ListConnectors',
+            'ListSecurityPolicies',
+            'CreateWebApp',
+            'ListWebApps',
+        ],
+        'notes': [
+            'Transfer Family supports SFTP, FTPS, FTP, and AS2 managed transfer workflows.',
+            'Server detail expands users, host keys, and AS2 agreements when those local operations are available.',
+        ],
+    }
+
+
 def ecs_inventory() -> dict[str, Any]:
     factory = FlociClientFactory()
     ecs = factory.client('ecs')
@@ -7166,6 +7489,114 @@ def list_resources() -> list[ResourceResult]:
         )
         return resources
 
+    def backup_resources() -> list[dict[str, Any]]:
+        backup = factory.client('backup')
+        resources = [
+            {
+                'type': 'backup_vault',
+                'name': vault.get('BackupVaultName'),
+                'arn': vault.get('BackupVaultArn'),
+                'recovery_points': vault.get('NumberOfRecoveryPoints'),
+            }
+            for vault in _safe_value(lambda: _paginate(backup, 'list_backup_vaults', 'BackupVaultList'), [])
+        ]
+        resources.extend(
+            {
+                'type': 'backup_plan',
+                'name': plan.get('BackupPlanName'),
+                'arn': plan.get('BackupPlanArn'),
+                'id': plan.get('BackupPlanId'),
+                'version_id': plan.get('VersionId'),
+            }
+            for plan in _safe_value(lambda: _paginate(backup, 'list_backup_plans', 'BackupPlansList'), [])
+        )
+        resources.extend(
+            {
+                'type': 'protected_resource',
+                'name': resource.get('ResourceName') or resource.get('ResourceArn'),
+                'arn': resource.get('ResourceArn'),
+                'resource_type': resource.get('ResourceType'),
+                'last_backup_time': resource.get('LastBackupTime'),
+            }
+            for resource in _safe_value(lambda: _paginate(backup, 'list_protected_resources', 'Results'), [])
+        )
+        return resources
+
+    def route53_resources() -> list[dict[str, Any]]:
+        route53 = factory.client('route53')
+        resources = [
+            {
+                'type': 'hosted_zone',
+                'name': zone.get('Name'),
+                'id': zone.get('Id'),
+                'private_zone': zone.get('Config', {}).get('PrivateZone'),
+                'record_sets': zone.get('ResourceRecordSetCount'),
+            }
+            for zone in _safe_value(lambda: _paginate(route53, 'list_hosted_zones', 'HostedZones'), [])
+        ]
+        resources.extend(
+            {
+                'type': 'health_check',
+                'name': check.get('Id'),
+                'id': check.get('Id'),
+                'health_check_version': check.get('HealthCheckVersion'),
+                'config': check.get('HealthCheckConfig'),
+            }
+            for check in _safe_value(lambda: _paginate(route53, 'list_health_checks', 'HealthChecks'), [])
+        )
+        resources.extend(
+            {
+                'type': 'traffic_policy',
+                'name': policy.get('Name'),
+                'id': policy.get('Id'),
+                'policy_type': policy.get('Type'),
+                'latest_version': policy.get('LatestVersion'),
+            }
+            for policy in _safe_value(lambda: route53.list_traffic_policies().get('TrafficPolicySummaries', []), [])
+        )
+        return resources
+
+    def transfer_resources() -> list[dict[str, Any]]:
+        transfer = factory.client('transfer')
+        resources = [
+            {
+                'type': 'server',
+                'name': server.get('ServerId'),
+                'arn': server.get('Arn'),
+                'state': server.get('State'),
+                'endpoint_type': server.get('EndpointType'),
+            }
+            for server in _safe_value(lambda: _paginate(transfer, 'list_servers', 'Servers'), [])
+        ]
+        resources.extend(
+            {
+                'type': 'workflow',
+                'name': workflow.get('WorkflowId'),
+                'arn': workflow.get('Arn'),
+                'description': workflow.get('Description'),
+            }
+            for workflow in _safe_value(lambda: _paginate(transfer, 'list_workflows', 'Workflows'), [])
+        )
+        resources.extend(
+            {
+                'type': 'profile',
+                'name': profile.get('ProfileId'),
+                'arn': profile.get('Arn'),
+                'profile_type': profile.get('ProfileType'),
+            }
+            for profile in _safe_value(lambda: _paginate(transfer, 'list_profiles', 'Profiles'), [])
+        )
+        resources.extend(
+            {
+                'type': 'connector',
+                'name': connector.get('ConnectorId'),
+                'arn': connector.get('Arn'),
+                'url': connector.get('Url'),
+            }
+            for connector in _safe_value(lambda: _paginate(transfer, 'list_connectors', 'Connectors'), [])
+        )
+        return resources
+
     def ec2_resources() -> list[dict[str, Any]]:
         ec2 = factory.client('ec2')
         resources: list[dict[str, Any]] = []
@@ -7194,6 +7625,7 @@ def list_resources() -> list[ResourceResult]:
         ('appconfig-resources', 'AppConfig resources', appconfig_resources),
         ('athena-resources', 'Athena resources', athena_resources),
         ('autoscaling-resources', 'Auto Scaling resources', autoscaling_resources),
+        ('backup-resources', 'Backup resources', backup_resources),
         ('bedrockruntime-resources', 'Bedrock Runtime operations', bedrockruntime_resources),
         ('codebuild-resources', 'CodeBuild resources', codebuild_resources),
         ('codedeploy-resources', 'CodeDeploy resources', codedeploy_resources),
@@ -7211,6 +7643,7 @@ def list_resources() -> list[ResourceResult]:
         ('ecr-resources', 'ECR resources', ecr_resources),
         ('glue-resources', 'Glue resources', glue_resources),
         ('rds-resources', 'RDS resources', rds_resources),
+        ('route53-resources', 'Route 53 resources', route53_resources),
         ('iam-users', 'IAM users', iam_users),
         ('iam-roles', 'IAM roles', iam_roles),
         ('ec2-resources', 'EC2 resources', ec2_resources),
@@ -7222,6 +7655,7 @@ def list_resources() -> list[ResourceResult]:
         ('ses-resources', 'SES resources', ses_resources),
         ('scheduler-resources', 'EventBridge Scheduler resources', scheduler_resources),
         ('stepfunctions-resources', 'Step Functions resources', stepfunctions_resources),
+        ('transfer-resources', 'Transfer Family resources', transfer_resources),
         ('lambda-functions', 'Lambda functions', lambda_functions),
         ('kms-keys', 'KMS keys', kms_keys),
         ('secrets', 'Secrets Manager secrets', secrets),
