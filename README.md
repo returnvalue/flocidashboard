@@ -2,7 +2,7 @@
 
 A small Django UI for inspecting a local [Floci](https://floci.io/) AWS-compatible environment. The dashboard shows Floci health, endpoint/profile/identity details, service cards, resource counts, and service-specific inventory pages.
 
-![Floci Dashboard UI](./djangoflociui.png)
+![Floci Dashboard UI](./djangofloci.png)
 
 ## What It Shows
 
@@ -29,7 +29,7 @@ This keeps the Python packages isolated to this project.
 python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install --upgrade pip
-pip3 install "Django>=4.2,<5" boto3
+pip3 install -r requirements.txt
 ```
 
 ### Option 2: Install Without A Virtual Environment
@@ -37,8 +37,11 @@ pip3 install "Django>=4.2,<5" boto3
 This installs the packages into your current Python 3 environment.
 
 ```bash
-pip3 install "Django>=4.2,<5" boto3
+pip3 install -r requirements.txt
 ```
+
+The requirements install the latest available Django and boto3 releases.
+
 
 Make sure Floci is already running locally on port `4566`.
 

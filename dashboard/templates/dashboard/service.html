@@ -1,0 +1,25 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}{{ service.title }} - Floci Dashboard{% endblock %}
+
+{% block content %}
+  <header class="topbar">
+    <div>
+      <a class="back-link" href="/">Services</a>
+      <p class="eyebrow">{{ service.eyebrow }}</p>
+      <h1>{{ service.title }}</h1>
+    </div>
+    <button id="refresh" type="button" aria-label="Refresh {{ service.title }}">Refresh</button>
+  </header>
+
+  {% include 'dashboard/_status.html' %}
+
+  <section class="section-block">
+    <div class="section-heading">
+      <h2>{{ service.title }} inventory</h2>
+      <span id="{{ service.key }}-loaded-at"></span>
+    </div>
+    <div id="{{ service.key }}-summary" class="summary-grid"></div>
+    <div id="{{ service.key }}-grid" class="iam-grid"></div>
+  </section>
+{% endblock %}

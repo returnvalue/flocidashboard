@@ -221,16 +221,16 @@ const serviceDetailPages = {
   acm: '/service/acm/',
   apigateway: '/service/apigateway/',
   apigatewayv2: '/service/apigateway/',
-  appconfig: 'http://127.0.0.1:8000/service/appconfig/',
-  appconfigdata: 'http://127.0.0.1:8000/service/appconfig/',
+  appconfig: '/service/appconfig/',
+  appconfigdata: '/service/appconfig/',
   athena: '/service/athena/',
   'auto-scaling': '/service/autoscaling/',
   autoscaling: '/service/autoscaling/',
   backup: '/service/backup/',
-  'bedrock-runtime': 'http://127.0.0.1:8000/service/bedrockruntime/',
-  bedrockruntime: 'http://127.0.0.1:8000/service/bedrockruntime/',
-  codebuild: 'http://127.0.0.1:8000/service/codebuild/',
-  codedeploy: 'http://127.0.0.1:8000/service/codedeploy/',
+  'bedrock-runtime': '/service/bedrockruntime/',
+  bedrockruntime: '/service/bedrockruntime/',
+  codebuild: '/service/codebuild/',
+  codedeploy: '/service/codedeploy/',
   cloudformation: '/service/cloudformation/',
   'cognito-idp': '/service/cognito/',
   monitoring: '/service/cloudwatch/',
@@ -239,31 +239,31 @@ const serviceDetailPages = {
   ec2: '/service/ec2/',
   ecr: '/service/ecr/',
   ecs: '/service/ecs/',
-  eks: 'http://127.0.0.1:8000/service/eks/',
-  elasticache: 'http://127.0.0.1:8000/service/elasticache/',
-  elb: 'http://127.0.0.1:8000/service/elasticloadbalancing/',
-  elbv2: 'http://127.0.0.1:8000/service/elasticloadbalancing/',
-  elasticloadbalancing: 'http://127.0.0.1:8000/service/elasticloadbalancing/',
+  eks: '/service/eks/',
+  elasticache: '/service/elasticache/',
+  elb: '/service/elasticloadbalancing/',
+  elbv2: '/service/elasticloadbalancing/',
+  elasticloadbalancing: '/service/elasticloadbalancing/',
   events: '/service/eventbridge/',
-  firehose: 'http://127.0.0.1:8000/service/firehose/',
+  firehose: '/service/firehose/',
   glue: '/service/glue/',
   iam: '/service/iam/',
-  kafka: 'http://127.0.0.1:8000/service/kafka/',
-  kinesis: 'http://127.0.0.1:8000/service/kinesis/',
+  kafka: '/service/kafka/',
+  kinesis: '/service/kinesis/',
   kms: '/service/kms/',
   lambda: '/service/lambda/',
-  es: 'http://127.0.0.1:8000/service/opensearch/',
-  opensearch: 'http://127.0.0.1:8000/service/opensearch/',
-  pipes: 'http://127.0.0.1:8000/service/pipes/',
-  resourcegroupstagging: 'http://127.0.0.1:8000/service/resourcegroupstagging/',
-  resourcegroupstaggingapi: 'http://127.0.0.1:8000/service/resourcegroupstagging/',
+  es: '/service/opensearch/',
+  opensearch: '/service/opensearch/',
+  pipes: '/service/pipes/',
+  resourcegroupstagging: '/service/resourcegroupstagging/',
+  resourcegroupstaggingapi: '/service/resourcegroupstagging/',
   rds: '/service/rds/',
   route53: '/service/route53/',
   s3: '/service/s3/',
   scheduler: '/service/scheduler/',
   secretsmanager: '/service/secretsmanager/',
-  ssm: 'http://127.0.0.1:8000/service/ssm/',
-  tagging: 'http://127.0.0.1:8000/service/resourcegroupstagging/',
+  ssm: '/service/ssm/',
+  tagging: '/service/resourcegroupstagging/',
   email: '/service/ses/',
   ses: '/service/ses/',
   sns: '/service/sns/',
@@ -3990,455 +3990,102 @@ async function loadHome(loadingStartedAt) {
   renderServices(data.resources || [], latestHealthData?.services || {});
 }
 
-async function loadIamPage() {
-  const iamResponse = await fetch('/api/iam/');
-  const iamData = await iamResponse.json();
+async function loadJson(path, errorMessage) {
+  const response = await fetch(path);
+  const data = await response.json();
 
-  if (!iamResponse.ok || iamData.error) {
-    throw new Error(iamData.error || 'Unable to load IAM inventory');
+  if (!response.ok || data.error) {
+    throw new Error(data.error || errorMessage);
   }
 
-  renderIam(iamData);
+  return data;
 }
 
-async function loadS3Page() {
-  const s3Response = await fetch('/api/s3/');
-  const s3Data = await s3Response.json();
-
-  if (!s3Response.ok || s3Data.error) {
-    throw new Error(s3Data.error || 'Unable to load S3 inventory');
-  }
-
-  renderS3(s3Data);
+async function loadServicePage(service) {
+  const data = await loadJson(service.apiPath, `Unable to load ${service.label} inventory`);
+  service.render(data);
 }
 
-async function loadEC2Page() {
-  const ec2Response = await fetch('/api/ec2/');
-  const ec2Data = await ec2Response.json();
+function renderInventoryError(grid, messageText) {
+  grid.textContent = '';
 
-  if (!ec2Response.ok || ec2Data.error) {
-    throw new Error(ec2Data.error || 'Unable to load EC2 inventory');
-  }
+  const panel = document.createElement('section');
+  panel.className = 'iam-panel';
 
-  renderEC2(ec2Data);
+  const message = document.createElement('p');
+  message.className = 'message error';
+  message.textContent = messageText;
+
+  panel.append(message);
+  grid.append(panel);
 }
 
-async function loadKMSPage() {
-  const kmsResponse = await fetch('/api/kms/');
-  const kmsData = await kmsResponse.json();
+const servicePages = [
+  { key: 'iam', label: 'IAM', grid: iamGrid, apiPath: '/api/iam/', render: renderIam },
+  { key: 's3', label: 'S3', grid: s3Grid, apiPath: '/api/s3/', render: renderS3 },
+  { key: 'ec2', label: 'EC2', grid: ec2Grid, apiPath: '/api/ec2/', render: renderEC2 },
+  { key: 'kms', label: 'KMS', grid: kmsGrid, apiPath: '/api/kms/', render: renderKMS },
+  { key: 'lambda', label: 'Lambda', grid: lambdaGrid, apiPath: '/api/lambda/', render: renderLambda },
+  { key: 'sqs', label: 'SQS', grid: sqsGrid, apiPath: '/api/sqs/', render: renderSQS },
+  { key: 'secretsmanager', label: 'Secrets Manager', grid: secretsmanagerGrid, apiPath: '/api/secretsmanager/', render: renderSecretsManager },
+  { key: 'dynamodb', label: 'DynamoDB', grid: dynamodbGrid, apiPath: '/api/dynamodb/', render: renderDynamoDB },
+  { key: 'cloudwatch', label: 'CloudWatch', grid: cloudwatchGrid, apiPath: '/api/cloudwatch/', render: renderCloudWatch },
+  { key: 'codebuild', label: 'CodeBuild', grid: codebuildGrid, apiPath: '/api/codebuild/', render: renderCodeBuild },
+  { key: 'codedeploy', label: 'CodeDeploy', grid: codedeployGrid, apiPath: '/api/codedeploy/', render: renderCodeDeploy },
+  { key: 'eventbridge', label: 'EventBridge', grid: eventbridgeGrid, apiPath: '/api/eventbridge/', render: renderEventBridge },
+  { key: 'cognito', label: 'Cognito', grid: cognitoGrid, apiPath: '/api/cognito/', render: renderCognito },
+  { key: 'apigateway', label: 'API Gateway', grid: apigatewayGrid, apiPath: '/api/apigateway/', render: renderApiGateway },
+  { key: 'appconfig', label: 'AppConfig', grid: appconfigGrid, apiPath: '/api/appconfig/', render: renderAppConfig },
+  { key: 'ecs', label: 'ECS', grid: ecsGrid, apiPath: '/api/ecs/', render: renderECS },
+  { key: 'eks', label: 'EKS', grid: eksGrid, apiPath: '/api/eks/', render: renderEKS },
+  { key: 'elasticache', label: 'ElastiCache', grid: elasticacheGrid, apiPath: '/api/elasticache/', render: renderElastiCache },
+  { key: 'elasticloadbalancing', label: 'Elastic Load Balancing', grid: elasticloadbalancingGrid, apiPath: '/api/elasticloadbalancing/', render: renderElasticLoadBalancing },
+  { key: 'firehose', label: 'Data Firehose', grid: firehoseGrid, apiPath: '/api/firehose/', render: renderFirehose },
+  { key: 'kinesis', label: 'Kinesis', grid: kinesisGrid, apiPath: '/api/kinesis/', render: renderKinesis },
+  { key: 'kafka', label: 'MSK / Kafka', grid: kafkaGrid, apiPath: '/api/kafka/', render: renderKafka },
+  { key: 'opensearch', label: 'OpenSearch', grid: opensearchGrid, apiPath: '/api/opensearch/', render: renderOpenSearch },
+  { key: 'pipes', label: 'EventBridge Pipes', grid: pipesGrid, apiPath: '/api/pipes/', render: renderPipes },
+  { key: 'resourcegroupstagging', label: 'Resource Groups Tagging', grid: resourcegroupstaggingGrid, apiPath: '/api/resourcegroupstagging/', render: renderResourceGroupsTagging },
+  { key: 'ssm', label: 'SSM', grid: ssmGrid, apiPath: '/api/ssm/', render: renderSsm },
+  { key: 'athena', label: 'Athena', grid: athenaGrid, apiPath: '/api/athena/', render: renderAthena },
+  { key: 'autoscaling', label: 'Auto Scaling', grid: autoscalingGrid, apiPath: '/api/autoscaling/', render: renderAutoScaling },
+  { key: 'bedrockruntime', label: 'Bedrock Runtime', grid: bedrockruntimeGrid, apiPath: '/api/bedrockruntime/', render: renderBedrockRuntime },
+  { key: 'sns', label: 'SNS', grid: snsGrid, apiPath: '/api/sns/', render: renderSNS },
+  { key: 'ses', label: 'SES', grid: sesGrid, apiPath: '/api/ses/', render: renderSES },
+  { key: 'cloudformation', label: 'CloudFormation', grid: cloudformationGrid, apiPath: '/api/cloudformation/', render: renderCloudFormation },
+  { key: 'ecr', label: 'ECR', grid: ecrGrid, apiPath: '/api/ecr/', render: renderECR },
+  { key: 'rds', label: 'RDS', grid: rdsGrid, apiPath: '/api/rds/', render: renderRDS },
+  { key: 'backup', label: 'Backup', grid: backupGrid, apiPath: '/api/backup/', render: renderBackup },
+  { key: 'route53', label: 'Route 53', grid: route53Grid, apiPath: '/api/route53/', render: renderRoute53 },
+  { key: 'transfer', label: 'Transfer Family', grid: transferGrid, apiPath: '/api/transfer/', render: renderTransfer },
+  { key: 'acm', label: 'ACM', grid: acmGrid, apiPath: '/api/acm/', render: renderACM },
+  { key: 'stepfunctions', label: 'Step Functions', grid: stepfunctionsGrid, apiPath: '/api/stepfunctions/', render: renderStepFunctions },
+  { key: 'scheduler', label: 'EventBridge Scheduler', grid: schedulerGrid, apiPath: '/api/scheduler/', render: renderScheduler },
+  { key: 'glue', label: 'Glue', grid: glueGrid, apiPath: '/api/glue/', render: renderGlue },
+];
 
-  if (!kmsResponse.ok || kmsData.error) {
-    throw new Error(kmsData.error || 'Unable to load KMS inventory');
-  }
-
-  renderKMS(kmsData);
+function activeServicePage() {
+  return servicePages.find((service) => service.grid);
 }
 
-async function loadLambdaPage() {
-  const lambdaResponse = await fetch('/api/lambda/');
-  const lambdaData = await lambdaResponse.json();
-
-  if (!lambdaResponse.ok || lambdaData.error) {
-    throw new Error(lambdaData.error || 'Unable to load Lambda inventory');
+function renderRefreshError(error) {
+  if (serviceGrid) {
+    renderServices([
+      {
+        label: 'Dashboard error',
+        name: 'dashboard-error',
+        count: null,
+        items: [],
+        error: error.message,
+      },
+    ], latestHealthData?.services || {});
+    return;
   }
 
-  renderLambda(lambdaData);
-}
-
-async function loadSQSPage() {
-  const sqsResponse = await fetch('/api/sqs/');
-  const sqsData = await sqsResponse.json();
-
-  if (!sqsResponse.ok || sqsData.error) {
-    throw new Error(sqsData.error || 'Unable to load SQS inventory');
+  const service = activeServicePage();
+  if (service) {
+    renderInventoryError(service.grid, error.message);
   }
-
-  renderSQS(sqsData);
-}
-
-async function loadSecretsManagerPage() {
-  const secretsmanagerResponse = await fetch('/api/secretsmanager/');
-  const secretsmanagerData = await secretsmanagerResponse.json();
-
-  if (!secretsmanagerResponse.ok || secretsmanagerData.error) {
-    throw new Error(secretsmanagerData.error || 'Unable to load Secrets Manager inventory');
-  }
-
-  renderSecretsManager(secretsmanagerData);
-}
-
-async function loadDynamoDBPage() {
-  const dynamodbResponse = await fetch('/api/dynamodb/');
-  const dynamodbData = await dynamodbResponse.json();
-
-  if (!dynamodbResponse.ok || dynamodbData.error) {
-    throw new Error(dynamodbData.error || 'Unable to load DynamoDB inventory');
-  }
-
-  renderDynamoDB(dynamodbData);
-}
-
-async function loadCloudWatchPage() {
-  const cloudwatchResponse = await fetch('/api/cloudwatch/');
-  const cloudwatchData = await cloudwatchResponse.json();
-
-  if (!cloudwatchResponse.ok || cloudwatchData.error) {
-    throw new Error(cloudwatchData.error || 'Unable to load CloudWatch inventory');
-  }
-
-  renderCloudWatch(cloudwatchData);
-}
-
-async function loadCodeBuildPage() {
-  const codebuildResponse = await fetch('/api/codebuild/');
-  const codebuildData = await codebuildResponse.json();
-
-  if (!codebuildResponse.ok || codebuildData.error) {
-    throw new Error(codebuildData.error || 'Unable to load CodeBuild inventory');
-  }
-
-  renderCodeBuild(codebuildData);
-}
-
-async function loadCodeDeployPage() {
-  const codedeployResponse = await fetch('/api/codedeploy/');
-  const codedeployData = await codedeployResponse.json();
-
-  if (!codedeployResponse.ok || codedeployData.error) {
-    throw new Error(codedeployData.error || 'Unable to load CodeDeploy inventory');
-  }
-
-  renderCodeDeploy(codedeployData);
-}
-
-async function loadEventBridgePage() {
-  const eventbridgeResponse = await fetch('/api/eventbridge/');
-  const eventbridgeData = await eventbridgeResponse.json();
-
-  if (!eventbridgeResponse.ok || eventbridgeData.error) {
-    throw new Error(eventbridgeData.error || 'Unable to load EventBridge inventory');
-  }
-
-  renderEventBridge(eventbridgeData);
-}
-
-async function loadCognitoPage() {
-  const cognitoResponse = await fetch('/api/cognito/');
-  const cognitoData = await cognitoResponse.json();
-
-  if (!cognitoResponse.ok || cognitoData.error) {
-    throw new Error(cognitoData.error || 'Unable to load Cognito inventory');
-  }
-
-  renderCognito(cognitoData);
-}
-
-async function loadApiGatewayPage() {
-  const apigatewayResponse = await fetch('/api/apigateway/');
-  const apigatewayData = await apigatewayResponse.json();
-
-  if (!apigatewayResponse.ok || apigatewayData.error) {
-    throw new Error(apigatewayData.error || 'Unable to load API Gateway inventory');
-  }
-
-  renderApiGateway(apigatewayData);
-}
-
-async function loadAppConfigPage() {
-  const appconfigResponse = await fetch('/api/appconfig/');
-  const appconfigData = await appconfigResponse.json();
-
-  if (!appconfigResponse.ok || appconfigData.error) {
-    throw new Error(appconfigData.error || 'Unable to load AppConfig inventory');
-  }
-
-  renderAppConfig(appconfigData);
-}
-
-async function loadECSPage() {
-  const ecsResponse = await fetch('/api/ecs/');
-  const ecsData = await ecsResponse.json();
-
-  if (!ecsResponse.ok || ecsData.error) {
-    throw new Error(ecsData.error || 'Unable to load ECS inventory');
-  }
-
-  renderECS(ecsData);
-}
-
-async function loadEKSPage() {
-  const eksResponse = await fetch('/api/eks/');
-  const eksData = await eksResponse.json();
-
-  if (!eksResponse.ok || eksData.error) {
-    throw new Error(eksData.error || 'Unable to load EKS inventory');
-  }
-
-  renderEKS(eksData);
-}
-
-async function loadElastiCachePage() {
-  const elasticacheResponse = await fetch('/api/elasticache/');
-  const elasticacheData = await elasticacheResponse.json();
-
-  if (!elasticacheResponse.ok || elasticacheData.error) {
-    throw new Error(elasticacheData.error || 'Unable to load ElastiCache inventory');
-  }
-
-  renderElastiCache(elasticacheData);
-}
-
-async function loadElasticLoadBalancingPage() {
-  const elasticloadbalancingResponse = await fetch('/api/elasticloadbalancing/');
-  const elasticloadbalancingData = await elasticloadbalancingResponse.json();
-
-  if (!elasticloadbalancingResponse.ok || elasticloadbalancingData.error) {
-    throw new Error(elasticloadbalancingData.error || 'Unable to load Elastic Load Balancing inventory');
-  }
-
-  renderElasticLoadBalancing(elasticloadbalancingData);
-}
-
-async function loadFirehosePage() {
-  const firehoseResponse = await fetch('/api/firehose/');
-  const firehoseData = await firehoseResponse.json();
-
-  if (!firehoseResponse.ok || firehoseData.error) {
-    throw new Error(firehoseData.error || 'Unable to load Data Firehose inventory');
-  }
-
-  renderFirehose(firehoseData);
-}
-
-async function loadKinesisPage() {
-  const kinesisResponse = await fetch('/api/kinesis/');
-  const kinesisData = await kinesisResponse.json();
-
-  if (!kinesisResponse.ok || kinesisData.error) {
-    throw new Error(kinesisData.error || 'Unable to load Kinesis inventory');
-  }
-
-  renderKinesis(kinesisData);
-}
-
-async function loadKafkaPage() {
-  const kafkaResponse = await fetch('/api/kafka/');
-  const kafkaData = await kafkaResponse.json();
-
-  if (!kafkaResponse.ok || kafkaData.error) {
-    throw new Error(kafkaData.error || 'Unable to load MSK / Kafka inventory');
-  }
-
-  renderKafka(kafkaData);
-}
-
-async function loadOpenSearchPage() {
-  const opensearchResponse = await fetch('/api/opensearch/');
-  const opensearchData = await opensearchResponse.json();
-
-  if (!opensearchResponse.ok || opensearchData.error) {
-    throw new Error(opensearchData.error || 'Unable to load OpenSearch inventory');
-  }
-
-  renderOpenSearch(opensearchData);
-}
-
-async function loadPipesPage() {
-  const pipesResponse = await fetch('/api/pipes/');
-  const pipesData = await pipesResponse.json();
-
-  if (!pipesResponse.ok || pipesData.error) {
-    throw new Error(pipesData.error || 'Unable to load EventBridge Pipes inventory');
-  }
-
-  renderPipes(pipesData);
-}
-
-async function loadResourceGroupsTaggingPage() {
-  const resourcegroupstaggingResponse = await fetch('/api/resourcegroupstagging/');
-  const resourcegroupstaggingData = await resourcegroupstaggingResponse.json();
-
-  if (!resourcegroupstaggingResponse.ok || resourcegroupstaggingData.error) {
-    throw new Error(resourcegroupstaggingData.error || 'Unable to load Resource Groups Tagging inventory');
-  }
-
-  renderResourceGroupsTagging(resourcegroupstaggingData);
-}
-
-async function loadSsmPage() {
-  const ssmResponse = await fetch('/api/ssm/');
-  const ssmData = await ssmResponse.json();
-
-  if (!ssmResponse.ok || ssmData.error) {
-    throw new Error(ssmData.error || 'Unable to load SSM inventory');
-  }
-
-  renderSsm(ssmData);
-}
-
-async function loadAthenaPage() {
-  const athenaResponse = await fetch('/api/athena/');
-  const athenaData = await athenaResponse.json();
-
-  if (!athenaResponse.ok || athenaData.error) {
-    throw new Error(athenaData.error || 'Unable to load Athena inventory');
-  }
-
-  renderAthena(athenaData);
-}
-
-async function loadAutoScalingPage() {
-  const autoscalingResponse = await fetch('/api/autoscaling/');
-  const autoscalingData = await autoscalingResponse.json();
-
-  if (!autoscalingResponse.ok || autoscalingData.error) {
-    throw new Error(autoscalingData.error || 'Unable to load Auto Scaling inventory');
-  }
-
-  renderAutoScaling(autoscalingData);
-}
-
-async function loadBedrockRuntimePage() {
-  const bedrockruntimeResponse = await fetch('/api/bedrockruntime/');
-  const bedrockruntimeData = await bedrockruntimeResponse.json();
-
-  if (!bedrockruntimeResponse.ok || bedrockruntimeData.error) {
-    throw new Error(bedrockruntimeData.error || 'Unable to load Bedrock Runtime inventory');
-  }
-
-  renderBedrockRuntime(bedrockruntimeData);
-}
-
-async function loadSNSPage() {
-  const snsResponse = await fetch('/api/sns/');
-  const snsData = await snsResponse.json();
-
-  if (!snsResponse.ok || snsData.error) {
-    throw new Error(snsData.error || 'Unable to load SNS inventory');
-  }
-
-  renderSNS(snsData);
-}
-
-async function loadSESPage() {
-  const sesResponse = await fetch('/api/ses/');
-  const sesData = await sesResponse.json();
-
-  if (!sesResponse.ok || sesData.error) {
-    throw new Error(sesData.error || 'Unable to load SES inventory');
-  }
-
-  renderSES(sesData);
-}
-
-async function loadCloudFormationPage() {
-  const cloudformationResponse = await fetch('/api/cloudformation/');
-  const cloudformationData = await cloudformationResponse.json();
-
-  if (!cloudformationResponse.ok || cloudformationData.error) {
-    throw new Error(cloudformationData.error || 'Unable to load CloudFormation inventory');
-  }
-
-  renderCloudFormation(cloudformationData);
-}
-
-async function loadECRPage() {
-  const ecrResponse = await fetch('/api/ecr/');
-  const ecrData = await ecrResponse.json();
-
-  if (!ecrResponse.ok || ecrData.error) {
-    throw new Error(ecrData.error || 'Unable to load ECR inventory');
-  }
-
-  renderECR(ecrData);
-}
-
-async function loadRDSPage() {
-  const rdsResponse = await fetch('/api/rds/');
-  const rdsData = await rdsResponse.json();
-
-  if (!rdsResponse.ok || rdsData.error) {
-    throw new Error(rdsData.error || 'Unable to load RDS inventory');
-  }
-
-  renderRDS(rdsData);
-}
-
-async function loadBackupPage() {
-  const backupResponse = await fetch('/api/backup/');
-  const backupData = await backupResponse.json();
-
-  if (!backupResponse.ok || backupData.error) {
-    throw new Error(backupData.error || 'Unable to load Backup inventory');
-  }
-
-  renderBackup(backupData);
-}
-
-async function loadRoute53Page() {
-  const route53Response = await fetch('/api/route53/');
-  const route53Data = await route53Response.json();
-
-  if (!route53Response.ok || route53Data.error) {
-    throw new Error(route53Data.error || 'Unable to load Route 53 inventory');
-  }
-
-  renderRoute53(route53Data);
-}
-
-async function loadTransferPage() {
-  const transferResponse = await fetch('/api/transfer/');
-  const transferData = await transferResponse.json();
-
-  if (!transferResponse.ok || transferData.error) {
-    throw new Error(transferData.error || 'Unable to load Transfer Family inventory');
-  }
-
-  renderTransfer(transferData);
-}
-
-async function loadACMPage() {
-  const acmResponse = await fetch('/api/acm/');
-  const acmData = await acmResponse.json();
-
-  if (!acmResponse.ok || acmData.error) {
-    throw new Error(acmData.error || 'Unable to load ACM inventory');
-  }
-
-  renderACM(acmData);
-}
-
-async function loadStepFunctionsPage() {
-  const stepfunctionsResponse = await fetch('/api/stepfunctions/');
-  const stepfunctionsData = await stepfunctionsResponse.json();
-
-  if (!stepfunctionsResponse.ok || stepfunctionsData.error) {
-    throw new Error(stepfunctionsData.error || 'Unable to load Step Functions inventory');
-  }
-
-  renderStepFunctions(stepfunctionsData);
-}
-
-async function loadSchedulerPage() {
-  const schedulerResponse = await fetch('/api/scheduler/');
-  const schedulerData = await schedulerResponse.json();
-
-  if (!schedulerResponse.ok || schedulerData.error) {
-    throw new Error(schedulerData.error || 'Unable to load EventBridge Scheduler inventory');
-  }
-
-  renderScheduler(schedulerData);
-}
-
-async function loadGluePage() {
-  const glueResponse = await fetch('/api/glue/');
-  const glueData = await glueResponse.json();
-
-  if (!glueResponse.ok || glueData.error) {
-    throw new Error(glueData.error || 'Unable to load Glue inventory');
-  }
-
-  renderGlue(glueData);
 }
 
 async function refresh() {
@@ -4455,632 +4102,12 @@ async function refresh() {
       await loadHome(loadingStartedAt);
     }
 
-    if (iamGrid) {
-      await loadIamPage();
-    }
-
-    if (s3Grid) {
-      await loadS3Page();
-    }
-
-    if (ec2Grid) {
-      await loadEC2Page();
-    }
-
-    if (kmsGrid) {
-      await loadKMSPage();
-    }
-
-    if (lambdaGrid) {
-      await loadLambdaPage();
-    }
-
-    if (sqsGrid) {
-      await loadSQSPage();
-    }
-
-    if (secretsmanagerGrid) {
-      await loadSecretsManagerPage();
-    }
-
-    if (dynamodbGrid) {
-      await loadDynamoDBPage();
-    }
-
-    if (cloudwatchGrid) {
-      await loadCloudWatchPage();
-    }
-
-    if (codebuildGrid) {
-      await loadCodeBuildPage();
-    }
-
-    if (codedeployGrid) {
-      await loadCodeDeployPage();
-    }
-
-    if (eventbridgeGrid) {
-      await loadEventBridgePage();
-    }
-
-    if (cognitoGrid) {
-      await loadCognitoPage();
-    }
-
-    if (apigatewayGrid) {
-      await loadApiGatewayPage();
-    }
-
-    if (appconfigGrid) {
-      await loadAppConfigPage();
-    }
-
-    if (ecsGrid) {
-      await loadECSPage();
-    }
-
-    if (eksGrid) {
-      await loadEKSPage();
-    }
-
-    if (elasticacheGrid) {
-      await loadElastiCachePage();
-    }
-
-    if (elasticloadbalancingGrid) {
-      await loadElasticLoadBalancingPage();
-    }
-
-    if (firehoseGrid) {
-      await loadFirehosePage();
-    }
-
-    if (kinesisGrid) {
-      await loadKinesisPage();
-    }
-
-    if (kafkaGrid) {
-      await loadKafkaPage();
-    }
-
-    if (opensearchGrid) {
-      await loadOpenSearchPage();
-    }
-
-    if (pipesGrid) {
-      await loadPipesPage();
-    }
-
-    if (resourcegroupstaggingGrid) {
-      await loadResourceGroupsTaggingPage();
-    }
-
-    if (ssmGrid) {
-      await loadSsmPage();
-    }
-
-    if (athenaGrid) {
-      await loadAthenaPage();
-    }
-
-    if (autoscalingGrid) {
-      await loadAutoScalingPage();
-    }
-
-    if (bedrockruntimeGrid) {
-      await loadBedrockRuntimePage();
-    }
-
-    if (snsGrid) {
-      await loadSNSPage();
-    }
-
-    if (sesGrid) {
-      await loadSESPage();
-    }
-
-    if (cloudformationGrid) {
-      await loadCloudFormationPage();
-    }
-
-    if (ecrGrid) {
-      await loadECRPage();
-    }
-
-    if (rdsGrid) {
-      await loadRDSPage();
-    }
-
-    if (backupGrid) {
-      await loadBackupPage();
-    }
-
-    if (route53Grid) {
-      await loadRoute53Page();
-    }
-
-    if (transferGrid) {
-      await loadTransferPage();
-    }
-
-    if (acmGrid) {
-      await loadACMPage();
-    }
-
-    if (stepfunctionsGrid) {
-      await loadStepFunctionsPage();
-    }
-
-    if (schedulerGrid) {
-      await loadSchedulerPage();
-    }
-
-    if (glueGrid) {
-      await loadGluePage();
+    const service = activeServicePage();
+    if (service) {
+      await loadServicePage(service);
     }
   } catch (error) {
-    if (serviceGrid) {
-      renderServices([
-        {
-          label: 'Dashboard error',
-          name: 'dashboard-error',
-          count: null,
-          items: [],
-          error: error.message,
-        },
-      ], latestHealthData?.services || {});
-    }
-
-    if (iamGrid) {
-      iamGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      iamGrid.append(panel);
-    }
-
-    if (s3Grid) {
-      s3Grid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      s3Grid.append(panel);
-    }
-
-    if (ec2Grid) {
-      ec2Grid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      ec2Grid.append(panel);
-    }
-
-    if (kmsGrid) {
-      kmsGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      kmsGrid.append(panel);
-    }
-
-    if (lambdaGrid) {
-      lambdaGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      lambdaGrid.append(panel);
-    }
-
-    if (sqsGrid) {
-      sqsGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      sqsGrid.append(panel);
-    }
-
-    if (secretsmanagerGrid) {
-      secretsmanagerGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      secretsmanagerGrid.append(panel);
-    }
-
-    if (dynamodbGrid) {
-      dynamodbGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      dynamodbGrid.append(panel);
-    }
-
-    if (cloudwatchGrid) {
-      cloudwatchGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      cloudwatchGrid.append(panel);
-    }
-
-    if (codebuildGrid) {
-      codebuildGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      codebuildGrid.append(panel);
-    }
-
-    if (codedeployGrid) {
-      codedeployGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      codedeployGrid.append(panel);
-    }
-
-    if (eventbridgeGrid) {
-      eventbridgeGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      eventbridgeGrid.append(panel);
-    }
-
-    if (cognitoGrid) {
-      cognitoGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      cognitoGrid.append(panel);
-    }
-
-    if (apigatewayGrid) {
-      apigatewayGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      apigatewayGrid.append(panel);
-    }
-
-    if (appconfigGrid) {
-      appconfigGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      appconfigGrid.append(panel);
-    }
-
-    if (ecsGrid) {
-      ecsGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      ecsGrid.append(panel);
-    }
-
-    if (eksGrid) {
-      eksGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      eksGrid.append(panel);
-    }
-
-    if (elasticacheGrid) {
-      elasticacheGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      elasticacheGrid.append(panel);
-    }
-
-    if (elasticloadbalancingGrid) {
-      elasticloadbalancingGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      elasticloadbalancingGrid.append(panel);
-    }
-
-    if (firehoseGrid) {
-      firehoseGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      firehoseGrid.append(panel);
-    }
-
-    if (kinesisGrid) {
-      kinesisGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      kinesisGrid.append(panel);
-    }
-
-    if (kafkaGrid) {
-      kafkaGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      kafkaGrid.append(panel);
-    }
-
-    if (opensearchGrid) {
-      opensearchGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      opensearchGrid.append(panel);
-    }
-
-    if (pipesGrid) {
-      pipesGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      pipesGrid.append(panel);
-    }
-
-    if (resourcegroupstaggingGrid) {
-      resourcegroupstaggingGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      resourcegroupstaggingGrid.append(panel);
-    }
-
-    if (ssmGrid) {
-      ssmGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      ssmGrid.append(panel);
-    }
-
-    if (athenaGrid) {
-      athenaGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      athenaGrid.append(panel);
-    }
-
-    if (autoscalingGrid) {
-      autoscalingGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      autoscalingGrid.append(panel);
-    }
-
-    if (bedrockruntimeGrid) {
-      bedrockruntimeGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      bedrockruntimeGrid.append(panel);
-    }
-
-    if (snsGrid) {
-      snsGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      snsGrid.append(panel);
-    }
-
-    if (sesGrid) {
-      sesGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      sesGrid.append(panel);
-    }
-
-    if (cloudformationGrid) {
-      cloudformationGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      cloudformationGrid.append(panel);
-    }
-
-    if (ecrGrid) {
-      ecrGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      ecrGrid.append(panel);
-    }
-
-    if (rdsGrid) {
-      rdsGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      rdsGrid.append(panel);
-    }
-
-    if (backupGrid) {
-      backupGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      backupGrid.append(panel);
-    }
-
-    if (route53Grid) {
-      route53Grid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      route53Grid.append(panel);
-    }
-
-    if (transferGrid) {
-      transferGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      transferGrid.append(panel);
-    }
-
-    if (acmGrid) {
-      acmGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      acmGrid.append(panel);
-    }
-
-    if (stepfunctionsGrid) {
-      stepfunctionsGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      stepfunctionsGrid.append(panel);
-    }
-
-    if (schedulerGrid) {
-      schedulerGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      schedulerGrid.append(panel);
-    }
-
-    if (glueGrid) {
-      glueGrid.textContent = '';
-      const panel = document.createElement('section');
-      panel.className = 'iam-panel';
-      const message = document.createElement('p');
-      message.className = 'message error';
-      message.textContent = error.message;
-      panel.append(message);
-      glueGrid.append(panel);
-    }
+    renderRefreshError(error);
   } finally {
     clearLoadingStates();
     refreshButton.disabled = false;
