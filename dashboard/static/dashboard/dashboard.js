@@ -293,6 +293,50 @@ function canonicalServiceKey(name) {
   return aliases[name] || name;
 }
 
+const servicePriorityOrder = [
+  'iam',
+  's3',
+  'ec2',
+  'rds',
+  'autoscaling',
+  'elasticloadbalancing',
+  'lambda',
+  'dynamodb',
+  'sqs',
+  'route53',
+  'kms',
+  'monitoring',
+  'logs',
+  'secretsmanager',
+  'ssm',
+  'cloudformation',
+  'events',
+  'scheduler',
+  'acm',
+  'ecs',
+  'ecr',
+  'eks',
+  'athena',
+  'glue',
+  'sns',
+  'elasticache',
+  'kinesis',
+  'firehose',
+  'codedeploy',
+  'codebuild',
+  'bedrock-runtime',
+  'stepfunctions',
+  'cognito-idp',
+  'apigateway',
+  'transfer',
+  'backup',
+  'ses',
+];
+
+const servicePriorityRank = new Map(
+  servicePriorityOrder.map((service, index) => [canonicalServiceKey(service), index])
+);
+
 function stringifyItem(item) {
   const compact = Object.fromEntries(
     Object.entries(item).filter(([, value]) => value !== null && value !== undefined && value !== '')
@@ -3826,15 +3870,17 @@ function mergeServiceCards(resources, healthServices = {}) {
   });
 
   return Array.from(services.values()).sort((left, right) => {
-    const leftHasResources = left.count > 0 ? 1 : 0;
-    const rightHasResources = right.count > 0 ? 1 : 0;
+    const leftRank = servicePriorityRank.get(canonicalServiceKey(left.key));
+    const rightRank = servicePriorityRank.get(canonicalServiceKey(right.key));
+    const leftHasPriority = Number.isInteger(leftRank);
+    const rightHasPriority = Number.isInteger(rightRank);
 
-    if (leftHasResources !== rightHasResources) {
-      return rightHasResources - leftHasResources;
+    if (leftHasPriority && rightHasPriority && leftRank !== rightRank) {
+      return leftRank - rightRank;
     }
 
-    if (left.count !== right.count) {
-      return right.count - left.count;
+    if (leftHasPriority !== rightHasPriority) {
+      return leftHasPriority ? -1 : 1;
     }
 
     const leftHasPage = left.href ? 1 : 0;
@@ -3931,12 +3977,10 @@ async function loadHealth() {
 
 async function loadHome(loadingStartedAt) {
   const resourcesPromise = fetch('/api/resources/');
-
-  await waitForMinimumLoadingTime(loadingStartedAt);
-  renderServices([], latestHealthData?.services || {});
-  loadedAt.textContent = 'Loading resource counts...';
-
-  const response = await resourcesPromise;
+  const [response] = await Promise.all([
+    resourcesPromise,
+    waitForMinimumLoadingTime(loadingStartedAt),
+  ]);
   const data = await response.json();
 
   if (!response.ok || data.error) {
