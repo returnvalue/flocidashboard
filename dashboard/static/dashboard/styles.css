@@ -17,6 +17,10 @@
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -79,6 +83,32 @@ button {
 
 button:hover {
   background: var(--accent-strong);
+}
+
+.back-to-top {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  min-height: 46px;
+  border-radius: 999px;
+  padding: 0;
+  box-shadow: 0 12px 30px rgba(23, 32, 51, 0.18);
+  font-size: 1.3rem;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(8px);
+  transition: opacity 160ms ease, transform 160ms ease, background 160ms ease;
+}
+
+.back-to-top-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
 }
 
 .back-link {
@@ -170,11 +200,17 @@ button:hover {
 }
 
 a.service-card {
-  border-color: rgba(39, 110, 241, 0.34);
   cursor: pointer;
 }
 
-a.service-card:hover {
+.service-card-active {
+  border-color: rgba(39, 110, 241, 0.34);
+  background:
+    linear-gradient(135deg, #ffffff 0%, #ffffff 48%, rgba(39, 110, 241, 0.1) 100%),
+    var(--panel);
+}
+
+a.service-card-active:hover {
   border-color: var(--accent);
   transform: translateY(-1px);
 }
@@ -357,12 +393,24 @@ a.service-card:hover {
   margin-bottom: 14px;
 }
 
-.summary-grid > div {
+.summary-grid > :is(a, div) {
+  display: block;
   border: 1px solid var(--panel-border);
   border-radius: 8px;
   padding: 14px;
   background: var(--panel);
   box-shadow: var(--shadow);
+  color: inherit;
+  text-decoration: none;
+}
+
+.summary-grid > a {
+  cursor: pointer;
+}
+
+.summary-grid > a:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
 }
 
 .summary-grid strong {
@@ -387,6 +435,7 @@ a.service-card:hover {
 }
 
 .iam-panel {
+  scroll-margin-top: 18px;
   border: 1px solid var(--panel-border);
   border-radius: 8px;
   padding: 16px;
