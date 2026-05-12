@@ -49,6 +49,7 @@ urlpatterns = [
     path('api/sqs/', views.sqs, name='sqs'),
     path('api/ssm/', views.ssm, name='ssm'),
     path('api/stepfunctions/', views.stepfunctions, name='stepfunctions'),
+    path('api/textract/', views.textract, name='textract'),
     path('api/transfer/', views.transfer, name='transfer'),
     path('api/resources/', views.resources, name='resources'),
 ]

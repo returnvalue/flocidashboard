@@ -6,6 +6,7 @@ const endpoint = document.querySelector('#endpoint');
 const profile = document.querySelector('#profile');
 const identity = document.querySelector('#identity');
 const serviceGrid = document.querySelector('#service-grid');
+const backToTopButton = document.querySelector('.back-to-top');
 const iamGrid = document.querySelector('#iam-grid');
 const iamSummary = document.querySelector('#iam-summary');
 const s3Grid = document.querySelector('#s3-grid');
@@ -128,6 +129,9 @@ const schedulerLoadedAt = document.querySelector('#scheduler-loaded-at');
 const glueGrid = document.querySelector('#glue-grid');
 const glueSummary = document.querySelector('#glue-summary');
 const glueLoadedAt = document.querySelector('#glue-loaded-at');
+const textractGrid = document.querySelector('#textract-grid');
+const textractSummary = document.querySelector('#textract-summary');
+const textractLoadedAt = document.querySelector('#textract-loaded-at');
 
 let latestHealthData = null;
 
@@ -217,6 +221,18 @@ function clearLoadingStates() {
   activeInventoryGrids().forEach((grid) => grid.setAttribute('aria-busy', 'false'));
 }
 
+function updateBackToTopVisibility() {
+  if (!backToTopButton) {
+    return;
+  }
+
+  backToTopButton.classList.toggle('back-to-top-visible', window.scrollY > 360);
+}
+
+function scrollToTop() {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 const serviceDetailPages = {
   acm: '/service/acm/',
   apigateway: '/service/apigateway/',
@@ -270,6 +286,7 @@ const serviceDetailPages = {
   sqs: '/service/sqs/',
   states: '/service/stepfunctions/',
   stepfunctions: '/service/stepfunctions/',
+  textract: '/service/textract/',
   transfer: '/service/transfer/',
 };
 
@@ -288,6 +305,7 @@ function canonicalServiceKey(name) {
     resourcegroupstaggingapi: 'resourcegroupstagging',
     tagging: 'resourcegroupstagging',
     states: 'stepfunctions',
+    textract: 'textract',
   };
 
   return aliases[name] || name;
@@ -330,6 +348,7 @@ const servicePriorityOrder = [
   'apigateway',
   'transfer',
   'backup',
+  'textract',
   'ses',
 ];
 
@@ -378,16 +397,38 @@ function addField(card, label, value) {
   card.append(row);
 }
 
+function sectionSlug(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replaceAll('&', 'and')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function activeServiceKeyFromPath() {
+  const match = window.location.pathname.match(/\/service\/([^/]+)\//);
+  return match ? match[1] : 'dashboard';
+}
+
+function sectionIdForLabel(label) {
+  return `${activeServiceKeyFromPath()}-section-${sectionSlug(label)}`;
+}
+
 function renderSummary(summary, container) {
   container.textContent = '';
 
   Object.entries(summary || {}).forEach(([label, value]) => {
-    const card = document.createElement('div');
+    const displayLabel = label.replaceAll('_', ' ');
+    const card = document.createElement('a');
     const number = document.createElement('strong');
     const caption = document.createElement('span');
 
+    card.href = `#${sectionIdForLabel(displayLabel)}`;
+    card.className = 'summary-card';
+    card.setAttribute('aria-label', `Jump to ${displayLabel}`);
     number.textContent = value;
-    caption.textContent = label.replaceAll('_', ' ');
+    caption.textContent = displayLabel;
     card.append(number, caption);
     container.append(card);
   });
@@ -396,6 +437,7 @@ function renderSummary(summary, container) {
 function renderDetailList(title, items, fields) {
   const section = document.createElement('section');
   section.className = 'iam-panel';
+  section.id = sectionIdForLabel(title);
   items = Array.isArray(items) ? items : (items ? [{ name: 'Response', details: items }] : []);
 
   const heading = document.createElement('div');
@@ -3630,6 +3672,68 @@ function renderScheduler(data) {
   schedulerLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
 }
 
+function renderTextract(data) {
+  textractGrid.textContent = '';
+  renderSummary(data.summary, textractSummary);
+
+  const panels = [
+    renderDetailList('Adapters', data.adapters || [], [
+      ['Adapter ID', 'adapter_id'],
+      ['ARN', 'arn'],
+      ['Description', 'description'],
+      ['Feature types', 'feature_types'],
+      ['Auto update', 'auto_update'],
+      ['Created', 'created'],
+      ['Version count', 'version_count'],
+      ['Versions', 'versions'],
+      ['Version details', 'version_details'],
+      ['Tags', 'tags'],
+      ['Details', 'details'],
+    ]),
+    renderDetailList('Adapter versions', data.adapter_versions || [], [
+      ['Adapter ID', 'AdapterId'],
+      ['Adapter version', 'AdapterVersion'],
+      ['Status', 'Status'],
+      ['Status message', 'StatusMessage'],
+      ['Created', 'CreationTime'],
+      ['Feature types', 'FeatureTypes'],
+    ]),
+    renderDetailList('Document operations', (data.document_operations || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Async job operations', (data.async_job_operations || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Supported from SDK', (data.supported_from_sdk || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Available SDK operations', (data.available_sdk_operations || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
+  ];
+
+  textractGrid.append(...panels);
+  textractLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+}
+
 function renderGlue(data) {
   glueGrid.textContent = '';
   renderSummary(data.summary, glueSummary);
@@ -3725,6 +3829,7 @@ function titleCaseService(name) {
     stepfunctions: 'Step Functions',
     states: 'Step Functions',
     tagging: 'Resource Groups Tagging',
+    textract: 'Textract',
     transfer: 'Transfer Family',
   };
 
@@ -3745,6 +3850,10 @@ function resourceServiceName(resource) {
 
   if (resource.name === 'transfer-resources') {
     return 'Transfer Family';
+  }
+
+  if (resource.name === 'textract-resources') {
+    return 'Textract';
   }
 
   if (resource.name.startsWith('iam-')) {
@@ -3808,6 +3917,7 @@ function resourceServiceKey(resource) {
     'sns-topics': 'sns',
     'sqs-queues': 'sqs',
     'stepfunctions-resources': 'stepfunctions',
+    'textract-resources': 'textract',
     'transfer-resources': 'transfer',
   };
 
@@ -3870,6 +3980,13 @@ function mergeServiceCards(resources, healthServices = {}) {
   });
 
   return Array.from(services.values()).sort((left, right) => {
+    const leftIsActive = !left.error && left.count > 0;
+    const rightIsActive = !right.error && right.count > 0;
+
+    if (leftIsActive !== rightIsActive) {
+      return leftIsActive ? -1 : 1;
+    }
+
     const leftRank = servicePriorityRank.get(canonicalServiceKey(left.key));
     const rightRank = servicePriorityRank.get(canonicalServiceKey(right.key));
     const leftHasPriority = Number.isInteger(leftRank);
@@ -3902,6 +4019,10 @@ function renderServices(resources, healthServices = {}) {
     const card = document.createElement(service.href ? 'a' : 'article');
     card.className = 'service-card';
     card.dataset.service = service.key;
+
+    if (!service.error && service.count > 0) {
+      card.classList.add('service-card-active');
+    }
 
     if (service.href) {
       card.href = service.href;
@@ -4061,6 +4182,7 @@ const servicePages = [
   { key: 'acm', label: 'ACM', grid: acmGrid, apiPath: '/api/acm/', render: renderACM },
   { key: 'stepfunctions', label: 'Step Functions', grid: stepfunctionsGrid, apiPath: '/api/stepfunctions/', render: renderStepFunctions },
   { key: 'scheduler', label: 'EventBridge Scheduler', grid: schedulerGrid, apiPath: '/api/scheduler/', render: renderScheduler },
+  { key: 'textract', label: 'Textract', grid: textractGrid, apiPath: '/api/textract/', render: renderTextract },
   { key: 'glue', label: 'Glue', grid: glueGrid, apiPath: '/api/glue/', render: renderGlue },
 ];
 
@@ -4113,6 +4235,12 @@ async function refresh() {
     refreshButton.disabled = false;
     refreshButton.textContent = 'Refresh';
   }
+}
+
+if (backToTopButton) {
+  backToTopButton.addEventListener('click', scrollToTop);
+  window.addEventListener('scroll', updateBackToTopVisibility, { passive: true });
+  updateBackToTopVisibility();
 }
 
 refreshButton.addEventListener('click', refresh);
