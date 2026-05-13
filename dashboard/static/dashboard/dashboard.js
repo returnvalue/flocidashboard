@@ -78,6 +78,9 @@ const opensearchLoadedAt = document.querySelector('#opensearch-loaded-at');
 const pipesGrid = document.querySelector('#pipes-grid');
 const pipesSummary = document.querySelector('#pipes-summary');
 const pipesLoadedAt = document.querySelector('#pipes-loaded-at');
+const pricingGrid = document.querySelector('#pricing-grid');
+const pricingSummary = document.querySelector('#pricing-summary');
+const pricingLoadedAt = document.querySelector('#pricing-loaded-at');
 const resourcegroupstaggingGrid = document.querySelector('#resourcegroupstagging-grid');
 const resourcegroupstaggingSummary = document.querySelector('#resourcegroupstagging-summary');
 const resourcegroupstaggingLoadedAt = document.querySelector('#resourcegroupstagging-loaded-at');
@@ -271,6 +274,7 @@ const serviceDetailPages = {
   es: '/service/opensearch/',
   opensearch: '/service/opensearch/',
   pipes: '/service/pipes/',
+  pricing: '/service/pricing/',
   resourcegroupstagging: '/service/resourcegroupstagging/',
   resourcegroupstaggingapi: '/service/resourcegroupstagging/',
   rds: '/service/rds/',
@@ -330,6 +334,7 @@ const servicePriorityOrder = [
   'cloudformation',
   'events',
   'scheduler',
+  'pricing',
   'acm',
   'ecs',
   'ecr',
@@ -2420,6 +2425,53 @@ function renderPipes(data) {
   pipesLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
 }
 
+function renderPricing(data) {
+  pricingGrid.textContent = '';
+  renderSummary(data.summary, pricingSummary);
+
+  const panels = [
+    renderDetailList('Services', data.services || [], [
+      ['Service code', 'service_code'],
+      ['Attribute count', 'attribute_count'],
+      ['Attribute names', 'attribute_names'],
+    ]),
+    renderDetailList('Attribute value samples', data.attribute_values || [], [
+      ['Service code', 'service_code'],
+      ['Attribute name', 'attribute_name'],
+      ['Value count', 'value_count'],
+      ['Values', 'values'],
+    ]),
+    renderDetailList('Price lists', data.price_lists || [], [
+      ['Service code', 'ServiceCode'],
+      ['Currency code', 'CurrencyCode'],
+      ['Region code', 'RegionCode'],
+      ['Effective date', 'EffectiveDate'],
+      ['Price list ARN', 'PriceListArn'],
+    ]),
+    renderDetailList('Supported from SDK', (data.supported_from_sdk || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Available SDK operations', (data.available_sdk_operations || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
+  ];
+
+  pricingGrid.append(...panels);
+  pricingLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+}
+
 function renderResourceGroupsTagging(data) {
   resourcegroupstaggingGrid.textContent = '';
   renderSummary(data.summary, resourcegroupstaggingSummary);
@@ -3815,6 +3867,7 @@ function titleCaseService(name) {
     opensearch: 'OpenSearch',
     monitoring: 'CloudWatch Metrics',
     pipes: 'EventBridge Pipes',
+    pricing: 'AWS Price List',
     rds: 'RDS',
     route53: 'Route 53',
     resourcegroupstagging: 'Resource Groups Tagging',
@@ -3897,6 +3950,7 @@ function resourceServiceKey(resource) {
     'kinesis-resources': 'kinesis',
     'opensearch-resources': 'opensearch',
     'pipes-resources': 'pipes',
+    'pricing-resources': 'pricing',
     'resourcegroupstagging-resources': 'resourcegroupstagging',
     'appconfig-resources': 'appconfig',
     'apigateway-apis': 'apigateway',
@@ -4166,6 +4220,7 @@ const servicePages = [
   { key: 'kafka', label: 'MSK / Kafka', grid: kafkaGrid, apiPath: '/api/kafka/', render: renderKafka },
   { key: 'opensearch', label: 'OpenSearch', grid: opensearchGrid, apiPath: '/api/opensearch/', render: renderOpenSearch },
   { key: 'pipes', label: 'EventBridge Pipes', grid: pipesGrid, apiPath: '/api/pipes/', render: renderPipes },
+  { key: 'pricing', label: 'AWS Price List', grid: pricingGrid, apiPath: '/api/pricing/', render: renderPricing },
   { key: 'resourcegroupstagging', label: 'Resource Groups Tagging', grid: resourcegroupstaggingGrid, apiPath: '/api/resourcegroupstagging/', render: renderResourceGroupsTagging },
   { key: 'ssm', label: 'SSM', grid: ssmGrid, apiPath: '/api/ssm/', render: renderSsm },
   { key: 'athena', label: 'Athena', grid: athenaGrid, apiPath: '/api/athena/', render: renderAthena },

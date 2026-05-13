@@ -38,6 +38,7 @@ urlpatterns = [
     path('api/lambda/', views.lambda_, name='lambda'),
     path('api/opensearch/', views.opensearch, name='opensearch'),
     path('api/pipes/', views.pipes, name='pipes'),
+    path('api/pricing/', views.pricing, name='pricing'),
     path('api/resourcegroupstagging/', views.resourcegroupstagging, name='resourcegroupstagging'),
     path('api/rds/', views.rds, name='rds'),
     path('api/route53/', views.route53, name='route53'),

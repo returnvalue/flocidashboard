@@ -1,6 +1,10 @@
+import os
+from unittest.mock import patch
+
 from django.test import SimpleTestCase
 from django.urls import reverse
 
+from .aws import FlociClientFactory
 from .views import SERVICE_PAGES
 
 
@@ -33,3 +37,25 @@ class DashboardTemplateTests(SimpleTestCase):
         response = self.client.get(reverse('dashboard:service-page', kwargs={'service_key': 'not-a-service'}))
 
         self.assertEqual(response.status_code, 404)
+
+
+class FlociClientFactoryTests(SimpleTestCase):
+    def test_localhost_floci_dns_endpoints_are_allowed(self):
+        endpoints = [
+            'http://localhost.floci.io:4566',
+            'http://s3.localhost.floci.io:4566',
+            'http://bucket.s3.localhost.floci.io:4566',
+            'http://localhost.localstack.cloud:4566',
+            'http://s3.localhost.localstack.cloud:4566',
+        ]
+
+        for endpoint in endpoints:
+            with self.subTest(endpoint=endpoint), patch.dict(os.environ, {'FLOCI_AWS_ENDPOINT_URL': endpoint}):
+                factory = FlociClientFactory()
+
+                self.assertEqual(factory.endpoint_url, endpoint)
+
+    def test_non_local_endpoints_are_rejected(self):
+        with patch.dict(os.environ, {'FLOCI_AWS_ENDPOINT_URL': 'https://aws.amazon.com'}):
+            with self.assertRaisesMessage(ValueError, 'Refusing to use a non-local AWS endpoint'):
+                FlociClientFactory()

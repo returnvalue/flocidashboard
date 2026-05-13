@@ -46,9 +46,15 @@ class FlociClientFactory:
 
     def _validate_local_endpoint(self) -> None:
         parsed = urlparse(self.endpoint_url)
+        hostname = (parsed.hostname or '').rstrip('.').lower()
         allowed_hosts = {'localhost', '127.0.0.1', '::1'}
+        allowed_suffixes = ('.localhost.floci.io', '.localhost.localstack.cloud')
 
-        if parsed.hostname not in allowed_hosts:
+        if (
+            hostname not in allowed_hosts
+            and hostname not in {'localhost.floci.io', 'localhost.localstack.cloud'}
+            and not any(hostname.endswith(suffix) for suffix in allowed_suffixes)
+        ):
             raise ValueError(
                 'Refusing to use a non-local AWS endpoint. '
                 f'FLOCI_AWS_ENDPOINT_URL is {self.endpoint_url!r}.'
@@ -68,7 +74,7 @@ class FlociClientFactory:
                 retries={'max_attempts': 2, 'mode': 'standard'},
                 connect_timeout=2,
                 read_timeout=5,
-                s3={'addressing_style': 'path'},
+                s3={'addressing_style': 'auto'},
             ) if service_name == 's3' else self.config,
         )
 
@@ -3915,6 +3921,81 @@ def pipes_inventory() -> dict[str, Any]:
     }
 
 
+def pricing_inventory() -> dict[str, Any]:
+    factory = FlociClientFactory()
+    pricing = factory.client('pricing')
+    operations = set(pricing.meta.service_model.operation_names)
+
+    services = _safe_value(
+        lambda: _paginate(pricing, 'describe_services', 'Services'),
+        [],
+    ) if 'DescribeServices' in operations else []
+    service_details = [
+        {
+            'name': service.get('ServiceCode'),
+            'service_code': service.get('ServiceCode'),
+            'attribute_names': service.get('AttributeNames', []),
+            'attribute_count': len(service.get('AttributeNames', [])),
+        }
+        for service in services
+    ]
+
+    attribute_values = []
+    for service in service_details[:10]:
+        service_code = service.get('service_code')
+        for attribute_name in service.get('attribute_names', [])[:5]:
+            values = _safe_value(
+                lambda service_code=service_code, attribute_name=attribute_name: _paginate(
+                    pricing,
+                    'get_attribute_values',
+                    'AttributeValues',
+                    ServiceCode=service_code,
+                    AttributeName=attribute_name,
+                ),
+                [],
+            ) if service_code and 'GetAttributeValues' in operations else []
+            attribute_values.append({
+                'name': f'{service_code}.{attribute_name}',
+                'service_code': service_code,
+                'attribute_name': attribute_name,
+                'values': values[:25],
+                'value_count': len(values),
+            })
+
+    price_lists = _safe_value(
+        lambda: _paginate(pricing, 'list_price_lists', 'PriceLists', ServiceCode='AmazonS3'),
+        [],
+    ) if 'ListPriceLists' in operations else []
+
+    return {
+        'summary': {
+            'services': len(service_details),
+            'attribute_value_samples': len(attribute_values),
+            'price_lists': len(price_lists),
+            'available_sdk_operations': len(operations),
+        },
+        'services': service_details,
+        'attribute_values': attribute_values,
+        'price_lists': _clean_response(price_lists),
+        'supported_from_sdk': [
+            operation
+            for operation in [
+                'DescribeServices',
+                'GetAttributeValues',
+                'GetProducts',
+                'ListPriceLists',
+                'GetPriceListFileUrl',
+            ]
+            if operation in operations
+        ],
+        'available_sdk_operations': sorted(operations),
+        'notes': [
+            'Floci 1.5.15 adds AWS Price List service support under the pricing service name.',
+            'Attribute values are sampled from the first 10 services and first 5 attributes per service to keep page loads bounded.',
+        ],
+    }
+
+
 def resourcegroupstagging_inventory() -> dict[str, Any]:
     factory = FlociClientFactory()
     tagging = factory.client('resourcegroupstaggingapi')
@@ -7736,6 +7817,22 @@ def list_resources() -> list[ResourceResult]:
         )
         return resources
 
+    def pricing_resources() -> list[dict[str, Any]]:
+        pricing = factory.client('pricing')
+        operations = set(pricing.meta.service_model.operation_names)
+
+        if 'DescribeServices' not in operations:
+            return []
+
+        return [
+            {
+                'type': 'pricing_service',
+                'name': service.get('ServiceCode'),
+                'attribute_count': len(service.get('AttributeNames', [])),
+            }
+            for service in _safe_value(lambda: _paginate(pricing, 'describe_services', 'Services'), [])
+        ]
+
     def textract_resources() -> list[dict[str, Any]]:
         textract = factory.client('textract')
         operations = set(textract.meta.service_model.operation_names)
@@ -7822,6 +7919,7 @@ def list_resources() -> list[ResourceResult]:
         ('kafka-resources', 'MSK / Kafka resources', kafka_resources),
         ('opensearch-resources', 'OpenSearch resources', opensearch_resources),
         ('pipes-resources', 'EventBridge Pipes resources', pipes_resources),
+        ('pricing-resources', 'AWS Price List resources', pricing_resources),
         ('resourcegroupstagging-resources', 'Resource Groups Tagging resources', resourcegroupstagging_resources),
         ('ssm-resources', 'SSM resources', ssm_resources),
         ('cloudformation-resources', 'CloudFormation resources', cloudformation_resources),

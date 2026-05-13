@@ -4,7 +4,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from django.http import Http404, JsonResponse
 from django.shortcuts import render
 
-from .aws import FlociClientFactory, acm_inventory, apigateway_inventory, appconfig_inventory, athena_inventory, autoscaling_inventory, backup_inventory, bedrockruntime_inventory, cloudformation_inventory, cloudwatch_inventory, codebuild_inventory, codedeploy_inventory, cognito_inventory, dynamodb_inventory, ec2_inventory, ecr_inventory, ecs_inventory, eks_inventory, elasticache_inventory, elasticloadbalancing_inventory, eventbridge_inventory, firehose_inventory, glue_inventory, iam_inventory, kafka_inventory, kinesis_inventory, kms_inventory, lambda_inventory, list_resources, opensearch_inventory, pipes_inventory, rds_inventory, resourcegroupstagging_inventory, route53_inventory, s3_inventory, scheduler_inventory, secretsmanager_inventory, ses_inventory, sns_inventory, sqs_inventory, ssm_inventory, stepfunctions_inventory, textract_inventory, transfer_inventory
+from .aws import FlociClientFactory, acm_inventory, apigateway_inventory, appconfig_inventory, athena_inventory, autoscaling_inventory, backup_inventory, bedrockruntime_inventory, cloudformation_inventory, cloudwatch_inventory, codebuild_inventory, codedeploy_inventory, cognito_inventory, dynamodb_inventory, ec2_inventory, ecr_inventory, ecs_inventory, eks_inventory, elasticache_inventory, elasticloadbalancing_inventory, eventbridge_inventory, firehose_inventory, glue_inventory, iam_inventory, kafka_inventory, kinesis_inventory, kms_inventory, lambda_inventory, list_resources, opensearch_inventory, pipes_inventory, pricing_inventory, rds_inventory, resourcegroupstagging_inventory, route53_inventory, s3_inventory, scheduler_inventory, secretsmanager_inventory, ses_inventory, sns_inventory, sqs_inventory, ssm_inventory, stepfunctions_inventory, textract_inventory, transfer_inventory
 
 
 SERVICE_PAGES = {
@@ -37,6 +37,7 @@ SERVICE_PAGES = {
     'lambda': {'title': 'Lambda', 'eyebrow': 'Functions and event sources'},
     'opensearch': {'title': 'OpenSearch', 'eyebrow': 'Search domains, packages, endpoints, and maintenance'},
     'pipes': {'title': 'EventBridge Pipes', 'eyebrow': 'EventBridge pipe sources, enrichment, targets, and state'},
+    'pricing': {'title': 'AWS Price List', 'eyebrow': 'Pricing services, attributes, and price lists'},
     'rds': {'title': 'RDS', 'eyebrow': 'Database instances and proxy endpoints'},
     'resourcegroupstagging': {'title': 'Resource Groups Tagging', 'eyebrow': 'Tagged resources, tag keys, tag values, and compliance'},
     'route53': {'title': 'Route 53', 'eyebrow': 'Hosted zones, records, health checks, and DNS policies'},
@@ -259,6 +260,13 @@ def opensearch(request):
 def pipes(request):
     try:
         return JsonResponse(pipes_inventory())
+    except (BotoCoreError, ClientError, ValueError) as exc:
+        return JsonResponse({'error': str(exc)}, status=502)
+
+
+def pricing(request):
+    try:
+        return JsonResponse(pricing_inventory())
     except (BotoCoreError, ClientError, ValueError) as exc:
         return JsonResponse({'error': str(exc)}, status=502)
 
