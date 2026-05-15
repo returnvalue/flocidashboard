@@ -18,6 +18,7 @@ urlpatterns = [
     path('api/codedeploy/', views.codedeploy, name='codedeploy'),
     path('api/cloudformation/', views.cloudformation, name='cloudformation'),
     path('api/cognito/', views.cognito, name='cognito'),
+    path('api/costexplorer/', views.costexplorer, name='costexplorer'),
     path('api/cloudwatch/', views.cloudwatch, name='cloudwatch'),
     path('api/dynamodb/', views.dynamodb, name='dynamodb'),
     path('api/eventbridge/', views.eventbridge, name='eventbridge'),
@@ -51,6 +52,7 @@ urlpatterns = [
     path('api/ssm/', views.ssm, name='ssm'),
     path('api/stepfunctions/', views.stepfunctions, name='stepfunctions'),
     path('api/textract/', views.textract, name='textract'),
+    path('api/transcribe/', views.transcribe, name='transcribe'),
     path('api/transfer/', views.transfer, name='transfer'),
     path('api/resources/', views.resources, name='resources'),
 ]

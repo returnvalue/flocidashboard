@@ -4,7 +4,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from django.http import Http404, JsonResponse
 from django.shortcuts import render
 
-from .aws import FlociClientFactory, acm_inventory, apigateway_inventory, appconfig_inventory, athena_inventory, autoscaling_inventory, backup_inventory, bedrockruntime_inventory, cloudformation_inventory, cloudwatch_inventory, codebuild_inventory, codedeploy_inventory, cognito_inventory, dynamodb_inventory, ec2_inventory, ecr_inventory, ecs_inventory, eks_inventory, elasticache_inventory, elasticloadbalancing_inventory, eventbridge_inventory, firehose_inventory, glue_inventory, iam_inventory, kafka_inventory, kinesis_inventory, kms_inventory, lambda_inventory, list_resources, opensearch_inventory, pipes_inventory, pricing_inventory, rds_inventory, resourcegroupstagging_inventory, route53_inventory, s3_inventory, scheduler_inventory, secretsmanager_inventory, ses_inventory, sns_inventory, sqs_inventory, ssm_inventory, stepfunctions_inventory, textract_inventory, transfer_inventory
+from .aws import FlociClientFactory, acm_inventory, apigateway_inventory, appconfig_inventory, athena_inventory, autoscaling_inventory, backup_inventory, bedrockruntime_inventory, cloudformation_inventory, cloudwatch_inventory, codebuild_inventory, codedeploy_inventory, cognito_inventory, costexplorer_inventory, dynamodb_inventory, ec2_inventory, ecr_inventory, ecs_inventory, eks_inventory, elasticache_inventory, elasticloadbalancing_inventory, eventbridge_inventory, firehose_inventory, glue_inventory, iam_inventory, kafka_inventory, kinesis_inventory, kms_inventory, lambda_inventory, list_resources, opensearch_inventory, pipes_inventory, pricing_inventory, rds_inventory, resourcegroupstagging_inventory, route53_inventory, s3_inventory, scheduler_inventory, secretsmanager_inventory, ses_inventory, sns_inventory, sqs_inventory, ssm_inventory, stepfunctions_inventory, textract_inventory, transcribe_inventory, transfer_inventory
 
 
 SERVICE_PAGES = {
@@ -20,6 +20,7 @@ SERVICE_PAGES = {
     'codebuild': {'title': 'CodeBuild', 'eyebrow': 'Build projects and execution history'},
     'codedeploy': {'title': 'CodeDeploy', 'eyebrow': 'Deployment applications and history'},
     'cognito': {'title': 'Cognito', 'eyebrow': 'User pools and auth'},
+    'costexplorer': {'title': 'Cost Explorer', 'eyebrow': 'Cost and usage dimensions'},
     'dynamodb': {'title': 'DynamoDB', 'eyebrow': 'NoSQL tables'},
     'ec2': {'title': 'EC2', 'eyebrow': 'Compute and networking'},
     'ecr': {'title': 'ECR', 'eyebrow': 'Repositories and OCI images'},
@@ -50,6 +51,7 @@ SERVICE_PAGES = {
     'ssm': {'title': 'SSM', 'eyebrow': 'Parameter Store, documents, sessions, automation, and managed instances'},
     'stepfunctions': {'title': 'Step Functions', 'eyebrow': 'State machines and executions'},
     'textract': {'title': 'Textract', 'eyebrow': 'Document analysis, OCR, adapters, and async jobs'},
+    'transcribe': {'title': 'Transcribe', 'eyebrow': 'Speech transcription jobs and vocabularies'},
     'transfer': {'title': 'Transfer Family', 'eyebrow': 'SFTP, FTPS, FTP, and AS2 transfer resources'},
 }
 
@@ -271,6 +273,13 @@ def pricing(request):
         return JsonResponse({'error': str(exc)}, status=502)
 
 
+def costexplorer(request):
+    try:
+        return JsonResponse(costexplorer_inventory())
+    except (BotoCoreError, ClientError, ValueError) as exc:
+        return JsonResponse({'error': str(exc)}, status=502)
+
+
 def resourcegroupstagging(request):
     try:
         return JsonResponse(resourcegroupstagging_inventory())
@@ -379,6 +388,13 @@ def scheduler(request):
 def textract(request):
     try:
         return JsonResponse(textract_inventory())
+    except (BotoCoreError, ClientError, ValueError) as exc:
+        return JsonResponse({'error': str(exc)}, status=502)
+
+
+def transcribe(request):
+    try:
+        return JsonResponse(transcribe_inventory())
     except (BotoCoreError, ClientError, ValueError) as exc:
         return JsonResponse({'error': str(exc)}, status=502)
 

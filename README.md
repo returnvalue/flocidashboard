@@ -9,7 +9,7 @@ A small Django UI for inspecting a local [Floci](https://floci.io/) AWS-compatib
 - Local Floci health and version
 - AWS endpoint, profile, and caller identity
 - Clickable service cards for supported local services
-- Detail pages for services such as S3, IAM, EC2, AppConfig, Bedrock Runtime, EKS, OpenSearch, Pricing, SSM, and more
+- Detail pages for services such as S3, IAM, EC2, AppConfig, Bedrock Runtime, Cost Explorer, EKS, OpenSearch, Pricing, Transcribe, SSM, and more
 - Loading state with the Floci cloud image while service data is fetched
 
 ## Run Locally On macOS
@@ -52,7 +52,7 @@ export AWS_ACCESS_KEY_ID=test
 export AWS_SECRET_ACCESS_KEY=test
 ```
 
-Floci 1.5.15 also supports the public localhost DNS suffix for virtual-hosted-style S3. The dashboard accepts `localhost.floci.io`, `*.localhost.floci.io`, and the LocalStack-compatible `*.localhost.localstack.cloud` aliases as local endpoints:
+Floci 1.5.16 supports the public localhost DNS suffix for virtual-hosted-style S3. The dashboard accepts `localhost.floci.io`, `*.localhost.floci.io`, and the LocalStack-compatible `*.localhost.localstack.cloud` aliases as local endpoints:
 
 ```bash
 export FLOCI_AWS_ENDPOINT_URL=http://s3.localhost.floci.io:4566

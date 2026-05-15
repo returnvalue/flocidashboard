@@ -39,6 +39,9 @@ const codebuildLoadedAt = document.querySelector('#codebuild-loaded-at');
 const codedeployGrid = document.querySelector('#codedeploy-grid');
 const codedeploySummary = document.querySelector('#codedeploy-summary');
 const codedeployLoadedAt = document.querySelector('#codedeploy-loaded-at');
+const costexplorerGrid = document.querySelector('#costexplorer-grid');
+const costexplorerSummary = document.querySelector('#costexplorer-summary');
+const costexplorerLoadedAt = document.querySelector('#costexplorer-loaded-at');
 const eventbridgeGrid = document.querySelector('#eventbridge-grid');
 const eventbridgeSummary = document.querySelector('#eventbridge-summary');
 const eventbridgeLoadedAt = document.querySelector('#eventbridge-loaded-at');
@@ -135,6 +138,9 @@ const glueLoadedAt = document.querySelector('#glue-loaded-at');
 const textractGrid = document.querySelector('#textract-grid');
 const textractSummary = document.querySelector('#textract-summary');
 const textractLoadedAt = document.querySelector('#textract-loaded-at');
+const transcribeGrid = document.querySelector('#transcribe-grid');
+const transcribeSummary = document.querySelector('#transcribe-summary');
+const transcribeLoadedAt = document.querySelector('#transcribe-loaded-at');
 
 let latestHealthData = null;
 
@@ -252,6 +258,8 @@ const serviceDetailPages = {
   codedeploy: '/service/codedeploy/',
   cloudformation: '/service/cloudformation/',
   'cognito-idp': '/service/cognito/',
+  ce: '/service/costexplorer/',
+  costexplorer: '/service/costexplorer/',
   monitoring: '/service/cloudwatch/',
   logs: '/service/cloudwatch/',
   dynamodb: '/service/dynamodb/',
@@ -291,6 +299,7 @@ const serviceDetailPages = {
   states: '/service/stepfunctions/',
   stepfunctions: '/service/stepfunctions/',
   textract: '/service/textract/',
+  transcribe: '/service/transcribe/',
   transfer: '/service/transfer/',
 };
 
@@ -300,6 +309,7 @@ function canonicalServiceKey(name) {
     appconfigdata: 'appconfig',
     'auto-scaling': 'autoscaling',
     bedrockruntime: 'bedrock-runtime',
+    ce: 'costexplorer',
     codebuild: 'codebuild',
     codedeploy: 'codedeploy',
     elb: 'elasticloadbalancing',
@@ -335,6 +345,7 @@ const servicePriorityOrder = [
   'events',
   'scheduler',
   'pricing',
+  'ce',
   'acm',
   'ecs',
   'ecr',
@@ -354,6 +365,7 @@ const servicePriorityOrder = [
   'transfer',
   'backup',
   'textract',
+  'transcribe',
   'ses',
 ];
 
@@ -537,11 +549,13 @@ function renderS3(data) {
       name: 'Supported locally',
       bucket_configuration: data.supported?.bucket_configuration || [],
       objects: data.supported?.objects || [],
+      select_object_content: data.supported?.select_object_content || [],
       not_implemented: data.supported?.not_implemented || [],
     },
   ], [
     ['Bucket configuration', 'bucket_configuration'],
     ['Object operations', 'objects'],
+    ['S3 SelectObjectContent', 'select_object_content'],
     ['Not implemented', 'not_implemented'],
   ]);
 
@@ -2472,6 +2486,140 @@ function renderPricing(data) {
   pricingLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
 }
 
+function renderCostExplorer(data) {
+  costexplorerGrid.textContent = '';
+  renderSummary(data.summary, costexplorerSummary);
+
+  const panels = [
+    renderDetailList('Sampled time period', data.time_period ? [{
+      name: 'Current month',
+      ...data.time_period,
+    }] : [], [
+      ['Start', 'Start'],
+      ['End', 'End'],
+    ]),
+    renderDetailList('Dimension values', data.dimension_values || [], [
+      ['Dimension', 'dimension'],
+      ['Value count', 'value_count'],
+      ['Values', 'values'],
+    ]),
+    renderDetailList('Tags', data.tags || [], [
+      ['Tag', 'tag'],
+    ]),
+    renderDetailList('Cost categories', data.cost_categories || [], [
+      ['Category', 'category'],
+    ]),
+    renderDetailList('Cost and usage', data.cost_and_usage || [], [
+      ['Time period', 'TimePeriod'],
+      ['Total', 'Total'],
+      ['Groups', 'Groups'],
+      ['Estimated', 'Estimated'],
+    ]),
+    renderDetailList('Supported from SDK', (data.supported_from_sdk || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Available SDK operations', (data.available_sdk_operations || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
+  ];
+
+  costexplorerGrid.append(...panels);
+  costexplorerLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+}
+
+function renderTranscribe(data) {
+  transcribeGrid.textContent = '';
+  renderSummary(data.summary, transcribeSummary);
+
+  const panels = [
+    renderDetailList('Transcription jobs', data.transcription_jobs || [], [
+      ['Job name', 'TranscriptionJobName'],
+      ['Status', 'TranscriptionJobStatus'],
+      ['Language code', 'LanguageCode'],
+      ['Output location', 'OutputLocationType'],
+      ['Created', 'CreationTime'],
+      ['Started', 'StartTime'],
+      ['Completed', 'CompletionTime'],
+    ]),
+    renderDetailList('Medical transcription jobs', data.medical_transcription_jobs || [], [
+      ['Job name', 'MedicalTranscriptionJobName'],
+      ['Status', 'TranscriptionJobStatus'],
+      ['Language code', 'LanguageCode'],
+      ['Specialty', 'Specialty'],
+      ['Type', 'Type'],
+      ['Created', 'CreationTime'],
+    ]),
+    renderDetailList('Vocabularies', data.vocabularies || [], [
+      ['Vocabulary name', 'VocabularyName'],
+      ['Language code', 'LanguageCode'],
+      ['State', 'VocabularyState'],
+      ['Last modified', 'LastModifiedTime'],
+    ]),
+    renderDetailList('Medical vocabularies', data.medical_vocabularies || [], [
+      ['Vocabulary name', 'VocabularyName'],
+      ['Language code', 'LanguageCode'],
+      ['State', 'VocabularyState'],
+      ['Last modified', 'LastModifiedTime'],
+    ]),
+    renderDetailList('Vocabulary filters', data.vocabulary_filters || [], [
+      ['Filter name', 'VocabularyFilterName'],
+      ['Language code', 'LanguageCode'],
+      ['Last modified', 'LastModifiedTime'],
+    ]),
+    renderDetailList('Language models', data.language_models || [], [
+      ['Model name', 'ModelName'],
+      ['Language code', 'LanguageCode'],
+      ['Status', 'ModelStatus'],
+      ['Created', 'CreateTime'],
+    ]),
+    renderDetailList('Call analytics jobs', data.call_analytics_jobs || [], [
+      ['Job name', 'CallAnalyticsJobName'],
+      ['Status', 'CallAnalyticsJobStatus'],
+      ['Language code', 'LanguageCode'],
+      ['Created', 'CreationTime'],
+    ]),
+    renderDetailList('Call analytics categories', data.call_analytics_categories || [], [
+      ['Category name', 'CategoryName'],
+      ['Rules', 'Rules'],
+      ['Created', 'CreateTime'],
+      ['Last updated', 'LastUpdateTime'],
+    ]),
+    renderDetailList('Supported from SDK', (data.supported_from_sdk || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Available SDK operations', (data.available_sdk_operations || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
+  ];
+
+  transcribeGrid.append(...panels);
+  transcribeLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+}
+
 function renderResourceGroupsTagging(data) {
   resourcegroupstaggingGrid.textContent = '';
   renderSummary(data.summary, resourcegroupstaggingSummary);
@@ -4207,6 +4355,7 @@ const servicePages = [
   { key: 'cloudwatch', label: 'CloudWatch', grid: cloudwatchGrid, apiPath: '/api/cloudwatch/', render: renderCloudWatch },
   { key: 'codebuild', label: 'CodeBuild', grid: codebuildGrid, apiPath: '/api/codebuild/', render: renderCodeBuild },
   { key: 'codedeploy', label: 'CodeDeploy', grid: codedeployGrid, apiPath: '/api/codedeploy/', render: renderCodeDeploy },
+  { key: 'costexplorer', label: 'Cost Explorer', grid: costexplorerGrid, apiPath: '/api/costexplorer/', render: renderCostExplorer },
   { key: 'eventbridge', label: 'EventBridge', grid: eventbridgeGrid, apiPath: '/api/eventbridge/', render: renderEventBridge },
   { key: 'cognito', label: 'Cognito', grid: cognitoGrid, apiPath: '/api/cognito/', render: renderCognito },
   { key: 'apigateway', label: 'API Gateway', grid: apigatewayGrid, apiPath: '/api/apigateway/', render: renderApiGateway },
@@ -4238,6 +4387,7 @@ const servicePages = [
   { key: 'stepfunctions', label: 'Step Functions', grid: stepfunctionsGrid, apiPath: '/api/stepfunctions/', render: renderStepFunctions },
   { key: 'scheduler', label: 'EventBridge Scheduler', grid: schedulerGrid, apiPath: '/api/scheduler/', render: renderScheduler },
   { key: 'textract', label: 'Textract', grid: textractGrid, apiPath: '/api/textract/', render: renderTextract },
+  { key: 'transcribe', label: 'Transcribe', grid: transcribeGrid, apiPath: '/api/transcribe/', render: renderTranscribe },
   { key: 'glue', label: 'Glue', grid: glueGrid, apiPath: '/api/glue/', render: renderGlue },
 ];
 

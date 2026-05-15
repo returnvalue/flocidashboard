@@ -2,6 +2,7 @@ import os
 import json
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from datetime import date, timedelta
 from urllib.error import URLError
 from urllib.parse import urlparse
 from urllib.request import urlopen
@@ -512,10 +513,17 @@ def s3_inventory() -> dict[str, Any]:
                 'ListObjectVersions',
                 'HeadObject',
                 'GetObjectAttributes',
+                'SelectObjectContent',
                 'Object tagging',
                 'Object ACL',
                 'Object retention',
                 'Object legal hold',
+            ],
+            'select_object_content': [
+                'CSV, JSON, and Parquet inputs',
+                'SQL evaluation through floci-duck',
+                'ScanRange filtering',
+                'Records, Stats, and End event stream frames',
             ],
             'not_implemented': [
                 'Replication',
@@ -527,6 +535,188 @@ def s3_inventory() -> dict[str, Any]:
                 'Metrics and Analytics configurations',
             ],
         },
+    }
+
+
+def costexplorer_inventory() -> dict[str, Any]:
+    factory = FlociClientFactory()
+    ce = factory.client('ce')
+    operations = set(ce.meta.service_model.operation_names)
+    today = date.today()
+    time_period = {
+        'Start': today.replace(day=1).isoformat(),
+        'End': (today + timedelta(days=1)).isoformat(),
+    }
+
+    dimension_values = []
+    for dimension in ['SERVICE', 'REGION', 'LINKED_ACCOUNT', 'USAGE_TYPE']:
+        values = _safe_value(
+            lambda dimension=dimension: _paginate(
+                ce,
+                'get_dimension_values',
+                'DimensionValues',
+                TimePeriod=time_period,
+                Dimension=dimension,
+            ),
+            [],
+        ) if 'GetDimensionValues' in operations else []
+        dimension_values.append({
+            'name': dimension,
+            'dimension': dimension,
+            'value_count': len(values),
+            'values': values[:50],
+        })
+
+    tags = _safe_value(
+        lambda: _paginate(ce, 'get_tags', 'Tags', TimePeriod=time_period),
+        [],
+    ) if 'GetTags' in operations else []
+
+    cost_categories = _safe_value(
+        lambda: _paginate(ce, 'get_cost_categories', 'CostCategoryNames', TimePeriod=time_period),
+        [],
+    ) if 'GetCostCategories' in operations else []
+
+    cost_and_usage = _safe_value(
+        lambda: ce.get_cost_and_usage(
+            TimePeriod=time_period,
+            Granularity='MONTHLY',
+            Metrics=['UnblendedCost'],
+            GroupBy=[{'Type': 'DIMENSION', 'Key': 'SERVICE'}],
+        ).get('ResultsByTime', []),
+        [],
+    ) if 'GetCostAndUsage' in operations else []
+
+    return {
+        'summary': {
+            'dimension_groups': len(dimension_values),
+            'dimension_values': sum(item.get('value_count') or 0 for item in dimension_values),
+            'tags': len(tags),
+            'cost_categories': len(cost_categories),
+            'cost_periods': len(cost_and_usage),
+            'available_sdk_operations': len(operations),
+        },
+        'time_period': time_period,
+        'dimension_values': dimension_values,
+        'tags': [{'name': tag, 'tag': tag} for tag in tags],
+        'cost_categories': [{'name': category, 'category': category} for category in cost_categories],
+        'cost_and_usage': _clean_response(cost_and_usage),
+        'supported_from_sdk': [
+            operation
+            for operation in [
+                'GetCostAndUsage',
+                'GetDimensionValues',
+                'GetTags',
+                'GetCostCategories',
+            ]
+            if operation in operations
+        ],
+        'available_sdk_operations': sorted(operations),
+        'notes': [
+            'Floci 1.5.16 adds Cost Explorer support under the ce service name.',
+            'The dashboard samples the current month to keep Cost Explorer reads bounded.',
+        ],
+    }
+
+
+def transcribe_inventory() -> dict[str, Any]:
+    factory = FlociClientFactory()
+    transcribe = factory.client('transcribe')
+    operations = set(transcribe.meta.service_model.operation_names)
+
+    transcription_jobs = _safe_value(
+        lambda: _paginate(transcribe, 'list_transcription_jobs', 'TranscriptionJobSummaries'),
+        [],
+    ) if 'ListTranscriptionJobs' in operations else []
+    medical_transcription_jobs = _safe_value(
+        lambda: _paginate(transcribe, 'list_medical_transcription_jobs', 'MedicalTranscriptionJobSummaries'),
+        [],
+    ) if 'ListMedicalTranscriptionJobs' in operations else []
+    vocabularies = _safe_value(
+        lambda: _paginate(transcribe, 'list_vocabularies', 'Vocabularies'),
+        [],
+    ) if 'ListVocabularies' in operations else []
+    medical_vocabularies = _safe_value(
+        lambda: _paginate(transcribe, 'list_medical_vocabularies', 'Vocabularies'),
+        [],
+    ) if 'ListMedicalVocabularies' in operations else []
+    vocabulary_filters = _safe_value(
+        lambda: _paginate(transcribe, 'list_vocabulary_filters', 'VocabularyFilters'),
+        [],
+    ) if 'ListVocabularyFilters' in operations else []
+    language_models = _safe_value(
+        lambda: _paginate(transcribe, 'list_language_models', 'Models'),
+        [],
+    ) if 'ListLanguageModels' in operations else []
+    call_analytics_jobs = _safe_value(
+        lambda: _paginate(transcribe, 'list_call_analytics_jobs', 'CallAnalyticsJobSummaries'),
+        [],
+    ) if 'ListCallAnalyticsJobs' in operations else []
+    call_analytics_categories = _safe_value(
+        lambda: _paginate(transcribe, 'list_call_analytics_categories', 'Categories'),
+        [],
+    ) if 'ListCallAnalyticsCategories' in operations else []
+
+    return {
+        'summary': {
+            'transcription_jobs': len(transcription_jobs),
+            'medical_jobs': len(medical_transcription_jobs),
+            'vocabularies': len(vocabularies),
+            'vocabulary_filters': len(vocabulary_filters),
+            'language_models': len(language_models),
+            'call_analytics_jobs': len(call_analytics_jobs),
+            'available_sdk_operations': len(operations),
+        },
+        'transcription_jobs': [
+            {'name': item.get('TranscriptionJobName'), **_clean_response(item)}
+            for item in transcription_jobs
+        ],
+        'medical_transcription_jobs': [
+            {'name': item.get('MedicalTranscriptionJobName'), **_clean_response(item)}
+            for item in medical_transcription_jobs
+        ],
+        'vocabularies': [
+            {'name': item.get('VocabularyName'), **_clean_response(item)}
+            for item in vocabularies
+        ],
+        'medical_vocabularies': [
+            {'name': item.get('VocabularyName'), **_clean_response(item)}
+            for item in medical_vocabularies
+        ],
+        'vocabulary_filters': [
+            {'name': item.get('VocabularyFilterName'), **_clean_response(item)}
+            for item in vocabulary_filters
+        ],
+        'language_models': [
+            {'name': item.get('ModelName'), **_clean_response(item)}
+            for item in language_models
+        ],
+        'call_analytics_jobs': [
+            {'name': item.get('CallAnalyticsJobName'), **_clean_response(item)}
+            for item in call_analytics_jobs
+        ],
+        'call_analytics_categories': [
+            {'name': item.get('CategoryName'), **_clean_response(item)}
+            for item in call_analytics_categories
+        ],
+        'supported_from_sdk': [
+            operation
+            for operation in [
+                'StartTranscriptionJob',
+                'GetTranscriptionJob',
+                'ListTranscriptionJobs',
+                'DeleteTranscriptionJob',
+                'CreateVocabulary',
+                'ListVocabularies',
+                'CreateVocabularyFilter',
+                'ListVocabularyFilters',
+            ]
+            if operation in operations
+        ],
+        'available_sdk_operations': sorted(operations),
+        'notes': [
+            'Floci 1.5.16 adds AWS Transcribe service support under the transcribe service name.',
+        ],
     }
 
 
@@ -7833,6 +8023,96 @@ def list_resources() -> list[ResourceResult]:
             for service in _safe_value(lambda: _paginate(pricing, 'describe_services', 'Services'), [])
         ]
 
+    def costexplorer_resources() -> list[dict[str, Any]]:
+        ce = factory.client('ce')
+        operations = set(ce.meta.service_model.operation_names)
+        today = date.today()
+        time_period = {
+            'Start': today.replace(day=1).isoformat(),
+            'End': (today + timedelta(days=1)).isoformat(),
+        }
+        resources: list[dict[str, Any]] = []
+
+        if 'GetDimensionValues' in operations:
+            for dimension in ['SERVICE', 'REGION']:
+                resources.extend(
+                    {
+                        'type': 'cost_dimension',
+                        'name': value.get('Value'),
+                        'dimension': dimension,
+                        'attributes': value.get('Attributes'),
+                    }
+                    for value in _safe_value(
+                        lambda dimension=dimension: _paginate(
+                            ce,
+                            'get_dimension_values',
+                            'DimensionValues',
+                            TimePeriod=time_period,
+                            Dimension=dimension,
+                        ),
+                        [],
+                    )
+                )
+
+        if 'GetCostCategories' in operations:
+            resources.extend(
+                {
+                    'type': 'cost_category',
+                    'name': category,
+                }
+                for category in _safe_value(
+                    lambda: _paginate(ce, 'get_cost_categories', 'CostCategoryNames', TimePeriod=time_period),
+                    [],
+                )
+            )
+
+        return resources
+
+    def transcribe_resources() -> list[dict[str, Any]]:
+        transcribe = factory.client('transcribe')
+        operations = set(transcribe.meta.service_model.operation_names)
+        resources: list[dict[str, Any]] = []
+
+        if 'ListTranscriptionJobs' in operations:
+            resources.extend(
+                {
+                    'type': 'transcription_job',
+                    'name': job.get('TranscriptionJobName'),
+                    'status': job.get('TranscriptionJobStatus'),
+                    'language_code': job.get('LanguageCode'),
+                }
+                for job in _safe_value(
+                    lambda: _paginate(transcribe, 'list_transcription_jobs', 'TranscriptionJobSummaries'),
+                    [],
+                )
+            )
+
+        if 'ListVocabularies' in operations:
+            resources.extend(
+                {
+                    'type': 'vocabulary',
+                    'name': vocabulary.get('VocabularyName'),
+                    'state': vocabulary.get('VocabularyState'),
+                    'language_code': vocabulary.get('LanguageCode'),
+                }
+                for vocabulary in _safe_value(lambda: _paginate(transcribe, 'list_vocabularies', 'Vocabularies'), [])
+            )
+
+        if 'ListVocabularyFilters' in operations:
+            resources.extend(
+                {
+                    'type': 'vocabulary_filter',
+                    'name': vocabulary_filter.get('VocabularyFilterName'),
+                    'language_code': vocabulary_filter.get('LanguageCode'),
+                }
+                for vocabulary_filter in _safe_value(
+                    lambda: _paginate(transcribe, 'list_vocabulary_filters', 'VocabularyFilters'),
+                    [],
+                )
+            )
+
+        return resources
+
     def textract_resources() -> list[dict[str, Any]]:
         textract = factory.client('textract')
         operations = set(textract.meta.service_model.operation_names)
@@ -7920,6 +8200,7 @@ def list_resources() -> list[ResourceResult]:
         ('opensearch-resources', 'OpenSearch resources', opensearch_resources),
         ('pipes-resources', 'EventBridge Pipes resources', pipes_resources),
         ('pricing-resources', 'AWS Price List resources', pricing_resources),
+        ('costexplorer-resources', 'Cost Explorer resources', costexplorer_resources),
         ('resourcegroupstagging-resources', 'Resource Groups Tagging resources', resourcegroupstagging_resources),
         ('ssm-resources', 'SSM resources', ssm_resources),
         ('cloudformation-resources', 'CloudFormation resources', cloudformation_resources),
@@ -7939,6 +8220,7 @@ def list_resources() -> list[ResourceResult]:
         ('scheduler-resources', 'EventBridge Scheduler resources', scheduler_resources),
         ('stepfunctions-resources', 'Step Functions resources', stepfunctions_resources),
         ('textract-resources', 'Textract resources', textract_resources),
+        ('transcribe-resources', 'Transcribe resources', transcribe_resources),
         ('transfer-resources', 'Transfer Family resources', transfer_resources),
         ('lambda-functions', 'Lambda functions', lambda_functions),
         ('kms-keys', 'KMS keys', kms_keys),
