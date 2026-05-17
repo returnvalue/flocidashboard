@@ -14,6 +14,8 @@ A small Django UI for inspecting a local [Floci](https://floci.io/) AWS-compatib
 
 ## Run Locally On macOS
 
+These steps are written for macOS. The dashboard will likely work fine on Windows as well, but Windows has not been tested yet.
+
 Clone the project first:
 
 ```bash
