@@ -12,6 +12,7 @@ const iamSummary = document.querySelector('#iam-summary');
 const s3Grid = document.querySelector('#s3-grid');
 const s3Summary = document.querySelector('#s3-summary');
 const s3LoadedAt = document.querySelector('#s3-loaded-at');
+const s3ConsoleRoot = document.getElementById('s3-console-root');
 const ec2Grid = document.querySelector('#ec2-grid');
 const ec2Summary = document.querySelector('#ec2-summary');
 const ec2LoadedAt = document.querySelector('#ec2-loaded-at');
@@ -540,6 +541,94 @@ function renderIam(data) {
   iamLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
 }
 
+function getCsrfToken() {
+  const meta = document.querySelector('meta[name="csrf-token"]');
+  return meta ? meta.getAttribute('content') : '';
+}
+
+function renderS3CreateBucketPanel() {
+  const panel = document.createElement('section');
+  panel.className = 'iam-panel s3-create-panel';
+
+  const heading = document.createElement('h3');
+  heading.textContent = 'Create bucket';
+  panel.append(heading);
+
+  const form = document.createElement('form');
+  form.className = 's3-create-form';
+  form.noValidate = true;
+
+  const nameLabel = document.createElement('label');
+  nameLabel.textContent = 'Bucket name';
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.name = 'name';
+  nameInput.required = true;
+  nameInput.minLength = 3;
+  nameInput.maxLength = 63;
+  nameInput.pattern = '[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]';
+  nameInput.placeholder = 'my-bucket';
+  nameInput.autocomplete = 'off';
+
+  const regionLabel = document.createElement('label');
+  regionLabel.textContent = 'Region (optional)';
+  const regionInput = document.createElement('input');
+  regionInput.type = 'text';
+  regionInput.name = 'region';
+  regionInput.placeholder = 'us-east-1';
+  regionInput.maxLength = 32;
+
+  const message = document.createElement('p');
+  message.className = 'message error';
+  message.hidden = true;
+
+  const submit = document.createElement('button');
+  submit.type = 'submit';
+  submit.textContent = 'Create bucket';
+
+  form.append(nameLabel, nameInput, regionLabel, regionInput, message, submit);
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    message.hidden = true;
+    submit.disabled = true;
+    submit.textContent = 'Creating...';
+
+    const payload = { name: nameInput.value.trim() };
+    const region = regionInput.value.trim();
+    if (region) {
+      payload.region = region;
+    }
+
+    try {
+      const response = await fetch('/api/s3/buckets/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCsrfToken(),
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      if (!response.ok || data.error) {
+        throw new Error(data.error || 'Unable to create bucket');
+      }
+      nameInput.value = '';
+      regionInput.value = '';
+      await refresh();
+    } catch (error) {
+      message.textContent = error.message;
+      message.hidden = false;
+    } finally {
+      submit.disabled = false;
+      submit.textContent = 'Create bucket';
+    }
+  });
+
+  panel.append(form);
+  return panel;
+}
+
 function renderS3(data) {
   s3Grid.textContent = '';
   renderSummary(data.summary, s3Summary);
@@ -579,7 +668,7 @@ function renderS3(data) {
     ['Object versions', 'object_versions'],
   ]);
 
-  s3Grid.append(supportPanel, bucketPanel);
+  s3Grid.append(renderS3CreateBucketPanel(), supportPanel, bucketPanel);
   s3LoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
 }
 
@@ -4282,6 +4371,11 @@ async function loadIdentity() {
   identity.textContent = data.identity?.arn || data.identity?.user_id || 'Unknown';
 }
 
+async function loadStatusTiles() {
+  await loadHealth();
+  await loadIdentity();
+}
+
 async function loadHealth() {
   const response = await fetch('/api/health/');
   const data = await response.json();
@@ -4392,6 +4486,9 @@ const servicePages = [
 ];
 
 function activeServicePage() {
+  if (s3ConsoleRoot) {
+    return { key: 's3', label: 'S3', isConsole: true };
+  }
   return servicePages.find((service) => service.grid);
 }
 
@@ -4422,15 +4519,16 @@ async function refresh() {
   showLoadingStates();
 
   try {
-    await loadHealth();
-    await loadIdentity();
+    await loadStatusTiles();
 
     if (serviceGrid) {
       await loadHome(loadingStartedAt);
     }
 
     const service = activeServicePage();
-    if (service) {
+    if (service?.isConsole && window.S3Console) {
+      await window.S3Console.refresh();
+    } else if (service) {
       await loadServicePage(service);
     }
   } catch (error) {
@@ -4449,4 +4547,12 @@ if (backToTopButton) {
 }
 
 refreshButton.addEventListener('click', refresh);
-refresh();
+if (s3ConsoleRoot) {
+  loadStatusTiles().catch((error) => {
+    if (health) {
+      health.textContent = error.message;
+    }
+  });
+} else {
+  refresh();
+}

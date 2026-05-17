@@ -1,0 +1,507 @@
+"""HTTP views for the S3 console API."""
+
+from __future__ import annotations
+
+import json
+import re
+
+from botocore.exceptions import BotoCoreError, ClientError
+from django.http import HttpResponse, JsonResponse
+from django.views.decorators.http import require_http_methods
+
+from .aws import create_s3_bucket
+from .s3_api import (
+    client_error_payload,
+    copy_s3_object,
+    create_s3_folder,
+    delete_s3_bucket,
+    delete_s3_cors,
+    delete_s3_lifecycle,
+    delete_s3_objects,
+    download_s3_object,
+    empty_s3_bucket,
+    get_s3_bucket,
+    get_s3_bucket_tags,
+    get_s3_cors,
+    get_s3_encryption,
+    get_s3_lifecycle,
+    get_s3_notifications,
+    get_s3_object_tags,
+    get_s3_policy,
+    get_s3_public_access_block,
+    get_s3_versioning,
+    head_s3_object,
+    list_s3_buckets,
+    list_s3_objects,
+    presign_s3_object,
+    put_s3_bucket_tags,
+    put_s3_cors,
+    put_s3_encryption,
+    put_s3_lifecycle,
+    put_s3_notifications,
+    put_s3_object_tags,
+    put_s3_policy,
+    put_s3_public_access_block,
+    put_s3_versioning,
+    upload_s3_object,
+)
+
+S3_BUCKET_NAME_RE = re.compile(r'^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$')
+S3_KEY_MAX_LEN = 1024
+
+
+def _json_error(message: str, status: int = 400, code: str | None = None) -> JsonResponse:
+    payload: dict = {'error': message}
+    if code:
+        payload['code'] = code
+    return JsonResponse(payload, status=status)
+
+
+def _handle_s3(exc: Exception) -> JsonResponse:
+    if isinstance(exc, ValueError):
+        return _json_error(str(exc), 400)
+    if isinstance(exc, ClientError):
+        payload = client_error_payload(exc)
+        status = 404 if payload.get('code') in ('NoSuchBucket', 'NoSuchKey', '404') else 502
+        return JsonResponse(payload, status=status)
+    if isinstance(exc, BotoCoreError):
+        return JsonResponse({'error': str(exc)}, status=502)
+    return JsonResponse({'error': str(exc)}, status=500)
+
+
+def _validate_bucket(name: str) -> str | None:
+    if not name or len(name) < 3 or len(name) > 63:
+        return 'Invalid bucket name'
+    if not S3_BUCKET_NAME_RE.match(name):
+        return 'Invalid bucket name'
+    return None
+
+
+def _validate_key(key: str) -> str | None:
+    if not key or len(key) > S3_KEY_MAX_LEN:
+        return 'Invalid object key'
+    return None
+
+
+def _parse_json_body(request) -> dict:
+    try:
+        body = json.loads(request.body)
+    except json.JSONDecodeError as exc:
+        raise ValueError('Invalid JSON body') from exc
+    if not isinstance(body, dict):
+        raise ValueError('Invalid JSON body')
+    return body
+
+
+def _parse_s3_create_body(request) -> tuple[str, str | None]:
+    body = _parse_json_body(request)
+    name = str(body.get('name', '')).strip()
+    region = body.get('region')
+    if region is not None:
+        region = str(region).strip() or None
+
+    err = _validate_bucket(name)
+    if err:
+        raise ValueError(err)
+
+    if region is not None and (len(region) < 1 or len(region) > 32):
+        raise ValueError('Invalid region')
+
+    return name, region
+
+
+@require_http_methods(['GET', 'POST'])
+def s3_buckets_list(request):
+    if request.method == 'POST':
+        try:
+            name, region = _parse_s3_create_body(request)
+            return JsonResponse(create_s3_bucket(name, region))
+        except Exception as exc:
+            return _handle_s3(exc)
+
+    try:
+        return JsonResponse({'buckets': list_s3_buckets()})
+    except Exception as exc:
+        return _handle_s3(exc)
+
+
+@require_http_methods(['GET', 'DELETE'])
+def s3_bucket_detail(request, bucket_name: str):
+    err = _validate_bucket(bucket_name)
+    if err:
+        return _json_error(err)
+
+    if request.method == 'DELETE':
+        try:
+            return JsonResponse(delete_s3_bucket(bucket_name))
+        except Exception as exc:
+            return _handle_s3(exc)
+
+    try:
+        return JsonResponse(get_s3_bucket(bucket_name))
+    except Exception as exc:
+        return _handle_s3(exc)
+
+
+@require_http_methods(['POST'])
+def s3_bucket_empty(request, bucket_name: str):
+    err = _validate_bucket(bucket_name)
+    if err:
+        return _json_error(err)
+    try:
+        return JsonResponse(empty_s3_bucket(bucket_name))
+    except Exception as exc:
+        return _handle_s3(exc)
+
+
+@require_http_methods(['GET', 'POST', 'DELETE'])
+def s3_bucket_objects(request, bucket_name: str):
+    err = _validate_bucket(bucket_name)
+    if err:
+        return _json_error(err)
+
+    if request.method == 'GET':
+        prefix = request.GET.get('prefix', '')
+        delimiter = request.GET.get('delimiter', '/')
+        token = request.GET.get('continuation_token') or None
+        try:
+            max_keys = int(request.GET.get('max_keys', '100'))
+        except ValueError:
+            return _json_error('Invalid max_keys')
+        max_keys = max(1, min(max_keys, 1000))
+        versions = request.GET.get('versions', '').lower() in ('1', 'true', 'yes')
+        try:
+            return JsonResponse(list_s3_objects(
+                bucket_name,
+                prefix=prefix,
+                delimiter=delimiter,
+                continuation_token=token,
+                max_keys=max_keys,
+                versions=versions,
+            ))
+        except Exception as exc:
+            return _handle_s3(exc)
+
+    if request.method == 'POST':
+        key = request.POST.get('key', '').strip()
+        if not key:
+            return _json_error('key is required')
+        key_err = _validate_key(key)
+        if key_err:
+            return _json_error(key_err)
+        upload_file = request.FILES.get('file')
+        if not upload_file:
+            return _json_error('file is required')
+        try:
+            body = upload_file.read()
+            content_type = upload_file.content_type or None
+            return JsonResponse(upload_s3_object(bucket_name, key, body, content_type))
+        except Exception as exc:
+            return _handle_s3(exc)
+
+    try:
+        body = _parse_json_body(request)
+        keys = body.get('keys', [])
+        if not isinstance(keys, list) or not keys:
+            return _json_error('keys array is required')
+        for item in keys:
+            if not isinstance(item, dict) or not item.get('key'):
+                return _json_error('Each key entry must include key')
+        return JsonResponse(delete_s3_objects(bucket_name, keys))
+    except Exception as exc:
+        return _handle_s3(exc)
+
+
+def s3_object_download(request, bucket_name: str):
+    err = _validate_bucket(bucket_name)
+    if err:
+        return _json_error(err)
+    key = request.GET.get('key', '')
+    key_err = _validate_key(key)
+    if key_err:
+        return _json_error(key_err)
+    version_id = request.GET.get('versionId') or request.GET.get('version_id')
+    try:
+        body, meta = download_s3_object(bucket_name, key, version_id)
+        response = HttpResponse(body, content_type=meta.get('content_type') or 'application/octet-stream')
+        filename = key.split('/')[-1] or 'download'
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        if meta.get('content_length') is not None:
+            response['Content-Length'] = str(meta['content_length'])
+        return response
+    except Exception as exc:
+        return _handle_s3(exc)
+
+
+@require_http_methods(['POST'])
+def s3_object_copy(request, bucket_name: str):
+    err = _validate_bucket(bucket_name)
+    if err:
+        return _json_error(err)
+    try:
+        body = _parse_json_body(request)
+        source_key = str(body.get('source_key', '')).strip()
+        dest_key = str(body.get('dest_key', '')).strip()
+        dest_bucket = body.get('dest_bucket')
+        if dest_bucket:
+            dest_bucket = str(dest_bucket).strip()
+            if _validate_bucket(dest_bucket):
+                return _json_error('Invalid dest_bucket')
+        for k in (source_key, dest_key):
+            if _validate_key(k):
+                return _json_error('Invalid key')
+        return JsonResponse(copy_s3_object(
+            bucket_name,
+            source_key,
+            dest_key,
+            dest_bucket,
+            body.get('source_version_id'),
+        ))
+    except Exception as exc:
+        return _handle_s3(exc)
+
+
+@require_http_methods(['PUT'])
+def s3_folder_create(request, bucket_name: str):
+    err = _validate_bucket(bucket_name)
+    if err:
+        return _json_error(err)
+    try:
+        body = _parse_json_body(request)
+        folder = str(body.get('folder', '')).strip()
+        if not folder:
+            return _json_error('folder is required')
+        return JsonResponse(create_s3_folder(bucket_name, folder))
+    except Exception as exc:
+        return _handle_s3(exc)
+
+
+def s3_object_head(request, bucket_name: str):
+    err = _validate_bucket(bucket_name)
+    if err:
+        return _json_error(err)
+    key = request.GET.get('key', '')
+    if _validate_key(key):
+        return _json_error('Invalid key')
+    version_id = request.GET.get('versionId') or request.GET.get('version_id')
+    try:
+        return JsonResponse(head_s3_object(bucket_name, key, version_id))
+    except Exception as exc:
+        return _handle_s3(exc)
+
+
+@require_http_methods(['GET', 'PUT'])
+def s3_object_tags(request, bucket_name: str):
+    err = _validate_bucket(bucket_name)
+    if err:
+        return _json_error(err)
+    key = request.GET.get('key', '') if request.method == 'GET' else ''
+    if request.method == 'PUT':
+        try:
+            body = _parse_json_body(request)
+            key = str(body.get('key', '')).strip()
+            tags = body.get('tags', [])
+            version_id = body.get('version_id')
+        except Exception as exc:
+            return _handle_s3(exc)
+        if _validate_key(key):
+            return _json_error('Invalid key')
+        if not isinstance(tags, list):
+            return _json_error('tags must be an array')
+        try:
+            return JsonResponse({'tags': put_s3_object_tags(bucket_name, key, tags, version_id)})
+        except Exception as exc:
+            return _handle_s3(exc)
+
+    if _validate_key(key):
+        return _json_error('Invalid key')
+    version_id = request.GET.get('versionId') or request.GET.get('version_id')
+    try:
+        return JsonResponse({'tags': get_s3_object_tags(bucket_name, key, version_id)})
+    except Exception as exc:
+        return _handle_s3(exc)
+
+
+@require_http_methods(['POST'])
+def s3_object_presign(request, bucket_name: str):
+    err = _validate_bucket(bucket_name)
+    if err:
+        return _json_error(err)
+    try:
+        body = _parse_json_body(request)
+        key = str(body.get('key', '')).strip()
+        if _validate_key(key):
+            return _json_error('Invalid key')
+        expires = int(body.get('expires_in', 3600))
+        expires = max(60, min(expires, 604800))
+        version_id = body.get('version_id')
+        url = presign_s3_object(bucket_name, key, version_id, expires)
+        return JsonResponse({'url': url, 'expires_in': expires})
+    except Exception as exc:
+        return _handle_s3(exc)
+
+
+@require_http_methods(['GET', 'PUT'])
+def s3_bucket_versioning(request, bucket_name: str):
+    err = _validate_bucket(bucket_name)
+    if err:
+        return _json_error(err)
+    if request.method == 'GET':
+        try:
+            return JsonResponse(get_s3_versioning(bucket_name) or {})
+        except Exception as exc:
+            return _handle_s3(exc)
+    try:
+        body = _parse_json_body(request)
+        status = str(body.get('status', '')).strip()
+        return JsonResponse(put_s3_versioning(bucket_name, status))
+    except Exception as exc:
+        return _handle_s3(exc)
+
+
+@require_http_methods(['GET', 'PUT'])
+def s3_bucket_policy(request, bucket_name: str):
+    err = _validate_bucket(bucket_name)
+    if err:
+        return _json_error(err)
+    if request.method == 'GET':
+        try:
+            policy = get_s3_policy(bucket_name)
+            return JsonResponse({'policy': policy})
+        except Exception as exc:
+            return _handle_s3(exc)
+    try:
+        body = _parse_json_body(request)
+        policy = body.get('policy')
+        if not isinstance(policy, dict):
+            return _json_error('policy object is required')
+        return JsonResponse({'policy': put_s3_policy(bucket_name, policy)})
+    except Exception as exc:
+        return _handle_s3(exc)
+
+
+@require_http_methods(['GET', 'PUT', 'DELETE'])
+def s3_bucket_cors(request, bucket_name: str):
+    err = _validate_bucket(bucket_name)
+    if err:
+        return _json_error(err)
+    if request.method == 'GET':
+        try:
+            return JsonResponse({'rules': get_s3_cors(bucket_name)})
+        except Exception as exc:
+            return _handle_s3(exc)
+    if request.method == 'DELETE':
+        try:
+            return JsonResponse(delete_s3_cors(bucket_name))
+        except Exception as exc:
+            return _handle_s3(exc)
+    try:
+        body = _parse_json_body(request)
+        rules = body.get('rules', [])
+        if not isinstance(rules, list):
+            return _json_error('rules must be an array')
+        return JsonResponse({'rules': put_s3_cors(bucket_name, rules)})
+    except Exception as exc:
+        return _handle_s3(exc)
+
+
+@require_http_methods(['GET', 'PUT', 'DELETE'])
+def s3_bucket_lifecycle(request, bucket_name: str):
+    err = _validate_bucket(bucket_name)
+    if err:
+        return _json_error(err)
+    if request.method == 'GET':
+        try:
+            return JsonResponse({'rules': get_s3_lifecycle(bucket_name)})
+        except Exception as exc:
+            return _handle_s3(exc)
+    if request.method == 'DELETE':
+        try:
+            return JsonResponse(delete_s3_lifecycle(bucket_name))
+        except Exception as exc:
+            return _handle_s3(exc)
+    try:
+        body = _parse_json_body(request)
+        rules = body.get('rules', [])
+        if not isinstance(rules, list):
+            return _json_error('rules must be an array')
+        return JsonResponse({'rules': put_s3_lifecycle(bucket_name, rules)})
+    except Exception as exc:
+        return _handle_s3(exc)
+
+
+@require_http_methods(['GET', 'PUT'])
+def s3_bucket_encryption(request, bucket_name: str):
+    err = _validate_bucket(bucket_name)
+    if err:
+        return _json_error(err)
+    if request.method == 'GET':
+        try:
+            return JsonResponse({'configuration': get_s3_encryption(bucket_name)})
+        except Exception as exc:
+            return _handle_s3(exc)
+    try:
+        body = _parse_json_body(request)
+        config = body.get('configuration')
+        if not isinstance(config, dict):
+            return _json_error('configuration object is required')
+        return JsonResponse({'configuration': put_s3_encryption(bucket_name, config)})
+    except Exception as exc:
+        return _handle_s3(exc)
+
+
+@require_http_methods(['GET', 'PUT'])
+def s3_bucket_public_access_block(request, bucket_name: str):
+    err = _validate_bucket(bucket_name)
+    if err:
+        return _json_error(err)
+    if request.method == 'GET':
+        try:
+            return JsonResponse({'configuration': get_s3_public_access_block(bucket_name)})
+        except Exception as exc:
+            return _handle_s3(exc)
+    try:
+        body = _parse_json_body(request)
+        config = body.get('configuration')
+        if not isinstance(config, dict):
+            return _json_error('configuration object is required')
+        return JsonResponse({'configuration': put_s3_public_access_block(bucket_name, config)})
+    except Exception as exc:
+        return _handle_s3(exc)
+
+
+@require_http_methods(['GET', 'PUT'])
+def s3_bucket_tags(request, bucket_name: str):
+    err = _validate_bucket(bucket_name)
+    if err:
+        return _json_error(err)
+    if request.method == 'GET':
+        try:
+            return JsonResponse({'tags': get_s3_bucket_tags(bucket_name)})
+        except Exception as exc:
+            return _handle_s3(exc)
+    try:
+        body = _parse_json_body(request)
+        tags = body.get('tags', [])
+        if not isinstance(tags, list):
+            return _json_error('tags must be an array')
+        return JsonResponse({'tags': put_s3_bucket_tags(bucket_name, tags)})
+    except Exception as exc:
+        return _handle_s3(exc)
+
+
+@require_http_methods(['GET', 'PUT'])
+def s3_bucket_notifications(request, bucket_name: str):
+    err = _validate_bucket(bucket_name)
+    if err:
+        return _json_error(err)
+    if request.method == 'GET':
+        try:
+            return JsonResponse(get_s3_notifications(bucket_name))
+        except Exception as exc:
+            return _handle_s3(exc)
+    try:
+        body = _parse_json_body(request)
+        return JsonResponse(put_s3_notifications(bucket_name, body))
+    except Exception as exc:
+        return _handle_s3(exc)

@@ -414,128 +414,26 @@ def _s3_bucket_versions(s3, bucket: str) -> dict[str, Any]:
     }
 
 
-def s3_inventory() -> dict[str, Any]:
+def create_s3_bucket(name: str, region: str | None = None) -> dict[str, Any]:
     factory = FlociClientFactory()
     s3 = factory.client('s3')
-    buckets = s3.list_buckets().get('Buckets', [])
+    resolved_region = (region or factory.region or 'us-east-1').strip()
 
-    def bucket_detail(bucket: dict[str, Any]) -> dict[str, Any]:
-        name = bucket.get('Name')
-        objects = _s3_bucket_objects(s3, name)
-        total_bytes = sum(item.get('size') or 0 for item in objects)
+    if resolved_region == 'us-east-1':
+        s3.create_bucket(Bucket=name)
+    else:
+        s3.create_bucket(
+            Bucket=name,
+            CreateBucketConfiguration={'LocationConstraint': resolved_region},
+        )
 
-        return {
-            'name': name,
-            'arn': f'arn:aws:s3:::{name}',
-            'path_style_url': f'{factory.endpoint_url.rstrip("/")}/{name}',
-            'created': bucket.get('CreationDate'),
-            'location': _s3_optional(
-                lambda: _s3_bucket_location(s3, name),
-                {'NoSuchBucket'},
-            ),
-            'versioning': _s3_optional(
-                lambda: s3.get_bucket_versioning(Bucket=name),
-                {'NoSuchBucket'},
-            ),
-            'tagging': _s3_optional(
-                lambda: s3.get_bucket_tagging(Bucket=name).get('TagSet', []),
-                {'NoSuchTagSet', 'NoSuchBucket'},
-            ),
-            'policy': _s3_optional(
-                lambda: json.loads(s3.get_bucket_policy(Bucket=name).get('Policy', '{}')),
-                {'NoSuchBucketPolicy', 'NoSuchBucket'},
-            ),
-            'cors': _s3_optional(
-                lambda: s3.get_bucket_cors(Bucket=name).get('CORSRules', []),
-                {'NoSuchCORSConfiguration', 'NoSuchBucket'},
-            ),
-            'lifecycle': _s3_optional(
-                lambda: s3.get_bucket_lifecycle(Bucket=name).get('Rules', []),
-                {'NoSuchLifecycleConfiguration', 'NoSuchBucket'},
-            ),
-            'acl': _s3_optional(
-                lambda: s3.get_bucket_acl(Bucket=name),
-                {'NoSuchBucket'},
-            ),
-            'encryption': _s3_optional(
-                lambda: s3.get_bucket_encryption(Bucket=name).get('ServerSideEncryptionConfiguration'),
-                {'ServerSideEncryptionConfigurationNotFoundError', 'NoSuchBucket'},
-            ),
-            'notification': _s3_optional(
-                lambda: s3.get_bucket_notification_configuration(Bucket=name),
-                {'NoSuchBucket'},
-            ),
-            'public_access_block': _s3_optional(
-                lambda: s3.get_public_access_block(Bucket=name).get('PublicAccessBlockConfiguration'),
-                {'NoSuchPublicAccessBlockConfiguration', 'NoSuchBucket'},
-            ),
-            'object_lock': _s3_optional(
-                lambda: s3.get_object_lock_configuration(Bucket=name).get('ObjectLockConfiguration'),
-                {'ObjectLockConfigurationNotFoundError', 'NoSuchBucket'},
-            ),
-            'objects': objects,
-            'object_versions': _s3_bucket_versions(s3, name),
-            'object_count': len(objects),
-            'total_bytes': total_bytes,
-        }
+    return {'name': name, 'region': resolved_region}
 
-    detailed_buckets = [bucket_detail(bucket) for bucket in buckets]
 
-    return {
-        'summary': {
-            'buckets': len(detailed_buckets),
-            'objects': sum(bucket['object_count'] for bucket in detailed_buckets),
-            'total_bytes': sum(bucket['total_bytes'] for bucket in detailed_buckets),
-            'versioned_buckets': sum(
-                1
-                for bucket in detailed_buckets
-                if isinstance(bucket.get('versioning'), dict)
-                and bucket['versioning'].get('Status') == 'Enabled'
-            ),
-        },
-        'buckets': detailed_buckets,
-        'supported': {
-            'bucket_configuration': [
-                'Location',
-                'Versioning',
-                'Tagging',
-                'Policy',
-                'CORS',
-                'Lifecycle',
-                'ACL',
-                'Encryption',
-                'Notifications',
-                'Object Lock',
-                'Public Access Block',
-            ],
-            'objects': [
-                'ListObjectsV2',
-                'ListObjectVersions',
-                'HeadObject',
-                'GetObjectAttributes',
-                'SelectObjectContent',
-                'Object tagging',
-                'Object ACL',
-                'Object retention',
-                'Object legal hold',
-            ],
-            'select_object_content': [
-                'CSV, JSON, and Parquet inputs',
-                'SQL evaluation through floci-duck',
-                'ScanRange filtering',
-                'Records, Stats, and End event stream frames',
-            ],
-            'not_implemented': [
-                'Replication',
-                'Website hosting',
-                'Access logging',
-                'Request payment',
-                'Intelligent-Tiering configurations',
-                'Inventory configurations',
-                'Metrics and Analytics configurations',
-            ],
-        },
-    }
+def s3_inventory() -> dict[str, Any]:
+    from .s3_api import s3_inventory_summary
+
+    return s3_inventory_summary()
 
 
 def costexplorer_inventory() -> dict[str, Any]:

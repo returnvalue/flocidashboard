@@ -3,9 +3,7 @@ from dataclasses import asdict
 from botocore.exceptions import BotoCoreError, ClientError
 from django.http import Http404, JsonResponse
 from django.shortcuts import render
-
 from .aws import FlociClientFactory, acm_inventory, apigateway_inventory, appconfig_inventory, athena_inventory, autoscaling_inventory, backup_inventory, bedrockruntime_inventory, cloudformation_inventory, cloudwatch_inventory, codebuild_inventory, codedeploy_inventory, cognito_inventory, costexplorer_inventory, dynamodb_inventory, ec2_inventory, ecr_inventory, ecs_inventory, eks_inventory, elasticache_inventory, elasticloadbalancing_inventory, eventbridge_inventory, firehose_inventory, glue_inventory, iam_inventory, kafka_inventory, kinesis_inventory, kms_inventory, lambda_inventory, list_resources, opensearch_inventory, pipes_inventory, pricing_inventory, rds_inventory, resourcegroupstagging_inventory, route53_inventory, s3_inventory, scheduler_inventory, secretsmanager_inventory, ses_inventory, sns_inventory, sqs_inventory, ssm_inventory, stepfunctions_inventory, textract_inventory, transcribe_inventory, transfer_inventory
-
 
 SERVICE_PAGES = {
     'acm': {'title': 'ACM', 'eyebrow': 'Certificates and validation state'},
@@ -65,7 +63,8 @@ def service_page(request, service_key: str):
         raise Http404('Service page not found')
 
     service = {'key': service_key, **SERVICE_PAGES[service_key]}
-    return render(request, 'dashboard/service.html', {'service': service})
+    template = 'dashboard/service_s3.html' if service_key == 's3' else 'dashboard/service.html'
+    return render(request, template, {'service': service})
 
 
 def identity(request):

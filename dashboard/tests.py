@@ -1,3 +1,4 @@
+import json
 import os
 from unittest.mock import patch
 
@@ -27,11 +28,15 @@ class DashboardTemplateTests(SimpleTestCase):
                 self.assertContains(response, f'<title>{service["title"]} - Floci Dashboard</title>', html=True)
                 self.assertContains(response, f'<h1>{service["title"]}</h1>', html=True)
                 self.assertContains(response, service['eyebrow'])
-                self.assertContains(response, f'id="{key}-loaded-at"')
-                self.assertContains(response, f'id="{key}-summary"')
-                self.assertContains(response, f'id="{key}-grid"')
                 self.assertContains(response, 'dashboard/styles.css')
                 self.assertContains(response, 'dashboard/dashboard.js')
+                if key == 's3':
+                    self.assertContains(response, 'id="s3-console-root"')
+                    self.assertContains(response, 'dashboard/s3-console.js')
+                else:
+                    self.assertContains(response, f'id="{key}-loaded-at"')
+                    self.assertContains(response, f'id="{key}-summary"')
+                    self.assertContains(response, f'id="{key}-grid"')
 
     def test_unknown_service_page_404s(self):
         response = self.client.get(reverse('dashboard:service-page', kwargs={'service_key': 'not-a-service'}))
@@ -59,3 +64,5 @@ class FlociClientFactoryTests(SimpleTestCase):
         with patch.dict(os.environ, {'FLOCI_AWS_ENDPOINT_URL': 'https://aws.amazon.com'}):
             with self.assertRaisesMessage(ValueError, 'Refusing to use a non-local AWS endpoint'):
                 FlociClientFactory()
+
+

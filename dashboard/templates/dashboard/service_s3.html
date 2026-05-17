@@ -1,0 +1,40 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+
+{% block title %}{{ service.title }} - Floci Dashboard{% endblock %}
+
+{% block extrahead %}
+  <link rel="stylesheet" href="{% static 'dashboard/s3-console.css' %}">
+{% endblock %}
+
+{% block content %}
+  <div class="s3-console-shell">
+    <header class="s3-console-header topbar">
+      <div class="s3-console-header-left">
+        <a class="back-link" href="/">Services</a>
+        <p class="eyebrow">{{ service.eyebrow }}</p>
+        <h1>{{ service.title }}</h1>
+        <nav id="s3-breadcrumbs" class="s3-breadcrumbs" aria-label="S3 navigation"></nav>
+      </div>
+      <div class="s3-console-header-right">
+        <span id="s3-loaded-at" class="s3-loaded-at"></span>
+        <button id="refresh" type="button" aria-label="Refresh S3">Refresh</button>
+      </div>
+    </header>
+
+    {% include 'dashboard/_status.html' %}
+
+    <div id="s3-console-root" class="s3-console-root" aria-live="polite"></div>
+
+    <details class="s3-about-floci">
+      <summary>About Floci S3</summary>
+      <p>Local S3 emulator. Bucket policies and lifecycle rules are stored but not enforced at access time. Replication, access logging, and inventory are not available.</p>
+    </details>
+  </div>
+
+  <button class="back-to-top" type="button" aria-label="Scroll to top">↑</button>
+{% endblock %}
+
+{% block extrascripts %}
+  <script src="{% static 'dashboard/s3-console.js' %}"></script>
+{% endblock %}
