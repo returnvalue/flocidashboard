@@ -1,6 +1,13 @@
 {% extends 'dashboard/base.html' %}
+{% load static %}
 
 {% block title %}{{ service.title }} - Floci Dashboard{% endblock %}
+
+{% block extrahead %}
+  {% if service.key == 's3' %}
+    <link rel="stylesheet" href="{% static 'dashboard/s3-console.css' %}">
+  {% endif %}
+{% endblock %}
 
 {% block content %}
   <header class="topbar">
@@ -16,12 +23,33 @@
 
   <section class="section-block">
     <div class="section-heading">
-      <h2>{{ service.title }} inventory</h2>
+      <div>
+        <h2>{{ service.title }} inventory</h2>
+        {% if service.key == 's3' %}
+          <nav id="s3-breadcrumbs" class="s3-breadcrumbs" aria-label="S3 navigation"></nav>
+        {% endif %}
+      </div>
       <span id="{{ service.key }}-loaded-at"></span>
     </div>
     <div id="{{ service.key }}-summary" class="summary-grid"></div>
-    <div id="{{ service.key }}-grid" class="iam-grid"></div>
+    {% if service.key == 's3' %}
+      <div id="s3-console-root" class="s3-console-root" aria-live="polite"></div>
+      <details class="s3-about-floci">
+        <summary>About Floci S3</summary>
+        <p>Local S3 emulator. Bucket policies and lifecycle rules are stored but not enforced at access time. Replication, access logging, and inventory are not available.</p>
+      </details>
+      <div id="s3-readonly-grid" class="iam-grid s3-readonly-grid"></div>
+    {% else %}
+      <div id="{{ service.key }}-grid" class="iam-grid"></div>
+    {% endif %}
   </section>
 
   <button class="back-to-top" type="button" aria-label="Scroll to top">↑</button>
+{% endblock %}
+
+{% block extrascripts %}
+  {% if service.key == 's3' %}
+    <script src="{% static 'dashboard/service-console.js' %}"></script>
+    <script src="{% static 'dashboard/s3-console.js' %}"></script>
+  {% endif %}
 {% endblock %}

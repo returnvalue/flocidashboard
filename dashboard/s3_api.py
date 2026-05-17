@@ -7,7 +7,16 @@ from typing import Any
 
 from botocore.exceptions import BotoCoreError, ClientError
 
-from .aws import FlociClientFactory, _clean_response, _error_code, _paginate, _s3_bucket_location, _s3_optional
+from .aws import (
+    FlociClientFactory,
+    _clean_response,
+    _error_code,
+    _paginate,
+    _s3_bucket_location,
+    _s3_bucket_objects,
+    _s3_bucket_versions,
+    _s3_optional,
+)
 
 MULTIPART_THRESHOLD = 5 * 1024 * 1024
 MULTIPART_PART_SIZE = 5 * 1024 * 1024
@@ -56,11 +65,18 @@ def get_s3_bucket(name: str) -> dict[str, Any]:
         )
 
     bucket = buckets[name]
+    objects = _s3_bucket_objects(s3, name)
+    total_bytes = sum(item.get('size') or 0 for item in objects)
+
     return {
         'name': name,
         'arn': f'arn:aws:s3:::{name}',
         'path_style_url': f'{factory.endpoint_url.rstrip("/")}/{name}',
         'created': bucket.get('CreationDate'),
+        'location': _s3_optional(
+            lambda: _s3_bucket_location(s3, name),
+            {'NoSuchBucket'},
+        ),
         'region': _s3_optional(
             lambda: _s3_bucket_location(s3, name),
             {'NoSuchBucket'},
@@ -85,6 +101,10 @@ def get_s3_bucket(name: str) -> dict[str, Any]:
             lambda: s3.get_bucket_lifecycle_configuration(Bucket=name).get('Rules', []),
             {'NoSuchLifecycleConfiguration', 'NoSuchBucket'},
         ),
+        'acl': _s3_optional(
+            lambda: s3.get_bucket_acl(Bucket=name),
+            {'NoSuchBucket'},
+        ),
         'encryption': _s3_optional(
             lambda: s3.get_bucket_encryption(Bucket=name).get('ServerSideEncryptionConfiguration'),
             {'ServerSideEncryptionConfigurationNotFoundError', 'NoSuchBucket'},
@@ -101,6 +121,10 @@ def get_s3_bucket(name: str) -> dict[str, Any]:
             lambda: s3.get_object_lock_configuration(Bucket=name).get('ObjectLockConfiguration'),
             {'ObjectLockConfigurationNotFoundError', 'NoSuchBucket'},
         ),
+        'objects': objects,
+        'object_versions': _s3_bucket_versions(s3, name),
+        'object_count': len(objects),
+        'total_bytes': total_bytes,
     }
 
 
@@ -579,36 +603,55 @@ def put_s3_notifications(bucket: str, config: dict[str, Any]) -> dict[str, Any]:
 
 def s3_inventory_summary() -> dict[str, Any]:
     buckets = list_s3_buckets()
-    versioned = 0
-    s3 = _s3_client()
-    for bucket in buckets:
-        versioning = _s3_optional(
-            lambda n=bucket['name']: s3.get_bucket_versioning(Bucket=n),
-            {'NoSuchBucket'},
-        )
-        if isinstance(versioning, dict) and versioning.get('Status') == 'Enabled':
-            versioned += 1
+    detailed_buckets = [
+        get_s3_bucket(bucket['name'])
+        for bucket in buckets
+        if bucket.get('name')
+    ]
 
     return {
         'summary': {
-            'buckets': len(buckets),
-            'objects': None,
-            'total_bytes': None,
-            'versioned_buckets': versioned,
+            'buckets': len(detailed_buckets),
+            'objects': sum(bucket['object_count'] for bucket in detailed_buckets),
+            'total_bytes': sum(bucket['total_bytes'] for bucket in detailed_buckets),
+            'versioned_buckets': sum(
+                1
+                for bucket in detailed_buckets
+                if isinstance(bucket.get('versioning'), dict)
+                and bucket['versioning'].get('Status') == 'Enabled'
+            ),
         },
-        'buckets': buckets,
+        'buckets': detailed_buckets,
         'supported': {
             'bucket_configuration': [
                 'Location', 'Versioning', 'Tagging', 'Policy', 'CORS', 'Lifecycle',
-                'Encryption', 'Notifications', 'Public Access Block',
+                'ACL', 'Encryption', 'Notifications', 'Object Lock', 'Public Access Block',
             ],
             'objects': [
-                'ListObjectsV2', 'PutObject', 'GetObject', 'DeleteObject', 'CopyObject',
-                'Multipart upload', 'Object tagging', 'ListObjectVersions',
+                'ListObjectsV2',
+                'ListObjectVersions',
+                'HeadObject',
+                'GetObjectAttributes',
+                'SelectObjectContent',
+                'Object tagging',
+                'Object ACL',
+                'Object retention',
+                'Object legal hold',
+            ],
+            'select_object_content': [
+                'CSV, JSON, and Parquet inputs',
+                'SQL evaluation through floci-duck',
+                'ScanRange filtering',
+                'Records, Stats, and End event stream frames',
             ],
             'not_implemented': [
-                'Replication', 'Access logging', 'Request payment',
-                'Inventory configurations', 'Metrics and Analytics configurations',
+                'Replication',
+                'Website hosting',
+                'Access logging',
+                'Request payment',
+                'Intelligent-Tiering configurations',
+                'Inventory configurations',
+                'Metrics and Analytics configurations',
             ],
         },
     }

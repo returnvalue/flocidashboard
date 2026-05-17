@@ -63,8 +63,7 @@ def service_page(request, service_key: str):
         raise Http404('Service page not found')
 
     service = {'key': service_key, **SERVICE_PAGES[service_key]}
-    template = 'dashboard/service_s3.html' if service_key == 's3' else 'dashboard/service.html'
-    return render(request, template, {'service': service})
+    return render(request, 'dashboard/service.html', {'service': service})
 
 
 def identity(request):

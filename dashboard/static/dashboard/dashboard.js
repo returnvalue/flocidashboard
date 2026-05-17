@@ -4507,6 +4507,10 @@ function renderRefreshError(error) {
   }
 
   const service = activeServicePage();
+  if (service?.isConsole && s3ConsoleRoot) {
+    renderInventoryError(s3ConsoleRoot, error.message);
+    return;
+  }
   if (service) {
     renderInventoryError(service.grid, error.message);
   }

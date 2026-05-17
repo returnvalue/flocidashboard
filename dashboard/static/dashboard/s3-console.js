@@ -1,34 +1,36 @@
-/* global refreshButton, loadHealth, loadIdentity */
+/* global ServiceConsole */
 
 const S3Console = (() => {
+  const consoleUi = window.ServiceConsole;
   const root = document.getElementById('s3-console-root');
   const breadcrumbsEl = document.getElementById('s3-breadcrumbs');
   const loadedAtEl = document.getElementById('s3-loaded-at');
+  const summaryEl = document.getElementById('s3-summary');
+  const readOnlyGrid = document.getElementById('s3-readonly-grid');
 
   const state = {
     buckets: [],
     bucketDetail: null,
     objects: null,
+    inventory: null,
+    bucketDetails: [],
     selected: new Set(),
     showVersions: false,
     continuationToken: null,
   };
 
-  function el(tag, className, text) {
-    const node = document.createElement(tag);
-    if (className) {
-      node.className = className;
-    }
-    if (text != null) {
-      node.textContent = text;
-    }
-    return node;
-  }
-
-  function getCsrfToken() {
-    const meta = document.querySelector('meta[name="csrf-token"]');
-    return meta ? meta.getAttribute('content') : '';
-  }
+  const el = consoleUi.el;
+  const apiJson = consoleUi.apiJson;
+  const formatDate = consoleUi.formatDate;
+  const formatBytes = consoleUi.formatBytes;
+  const btn = consoleUi.button;
+  const toast = (message, isError = false) => consoleUi.toast(message, isError, 's3');
+  const toolbar = (leftItems, rightItems) => consoleUi.toolbar(leftItems, rightItems, 's3');
+  const openModal = (title, bodyNode, confirmLabel, onConfirm) =>
+    consoleUi.openModal(title, bodyNode, confirmLabel, onConfirm, {
+      classPrefix: 's3',
+      toast,
+    });
 
   function getRoute() {
     const params = new URLSearchParams(window.location.search);
@@ -71,52 +73,74 @@ const S3Console = (() => {
     render();
   }
 
-  async function apiJson(path, options = {}) {
-    const headers = {
-      Accept: 'application/json',
-      ...(options.body && !(options.body instanceof FormData)
-        ? { 'Content-Type': 'application/json' }
-        : {}),
-      ...(options.method && options.method !== 'GET' ? { 'X-CSRFToken': getCsrfToken() } : {}),
-      ...options.headers,
-    };
-    const response = await fetch(path, { ...options, headers });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(data.error || `Request failed (${response.status})`);
-    }
-    return data;
+  function renderSummary(summary) {
+    consoleUi.renderSummary(summary, summaryEl, {
+      serviceKey: 's3',
+      targets: {
+        buckets: 'Buckets',
+        objects: 'Object operations',
+        total_bytes: 'Buckets',
+        versioned_buckets: 'Buckets',
+      },
+    });
   }
 
-  function toast(message, isError = false) {
-    const node = el('div', `s3-toast${isError ? ' s3-toast-error' : ''}`, message);
-    document.body.append(node);
-    setTimeout(() => node.remove(), 3200);
+  function renderDetailList(title, items, fields) {
+    return consoleUi.renderDetailList('s3', title, items, fields);
   }
 
-  function formatDate(value) {
-    if (!value) {
-      return '—';
+  function renderReadOnlyInventory() {
+    if (!readOnlyGrid || !state.inventory) {
+      return;
     }
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
-  }
+    readOnlyGrid.textContent = '';
+    const supported = state.inventory.supported || {};
+    const supportPanel = renderDetailList('Floci S3 support notes', [
+      {
+        name: 'Supported locally',
+        bucket_configuration: supported.bucket_configuration || [],
+        objects: supported.objects || [],
+        select_object_content: supported.select_object_content || [],
+        not_implemented: supported.not_implemented || [],
+      },
+    ], [
+      ['Bucket configuration', 'bucket_configuration'],
+      ['Object operations', 'objects'],
+      ['S3 SelectObjectContent', 'select_object_content'],
+      ['Not implemented', 'not_implemented'],
+    ]);
 
-  function formatBytes(bytes) {
-    if (bytes == null || bytes === '') {
-      return '—';
-    }
-    const n = Number(bytes);
-    if (n < 1024) {
-      return `${n} B`;
-    }
-    if (n < 1024 * 1024) {
-      return `${(n / 1024).toFixed(1)} KB`;
-    }
-    if (n < 1024 * 1024 * 1024) {
-      return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-    }
-    return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+    const objectPanel = renderDetailList('Object operations', [
+      {
+        name: 'Console and API operations',
+        operations: supported.objects || [],
+      },
+    ], [
+      ['Supported operations', 'operations'],
+    ]);
+
+    const bucketPanel = renderDetailList('Buckets', state.bucketDetails, [
+      ['ARN', 'arn'],
+      ['Path-style URL', 'path_style_url'],
+      ['Location', 'location'],
+      ['Created', 'created'],
+      ['Versioning', 'versioning'],
+      ['Tags', 'tagging'],
+      ['Bucket policy', 'policy'],
+      ['CORS', 'cors'],
+      ['Lifecycle', 'lifecycle'],
+      ['ACL', 'acl'],
+      ['Encryption', 'encryption'],
+      ['Notifications', 'notification'],
+      ['Public access block', 'public_access_block'],
+      ['Object lock', 'object_lock'],
+      ['Object count', 'object_count'],
+      ['Total bytes', 'total_bytes'],
+      ['Objects', 'objects'],
+      ['Object versions', 'object_versions'],
+    ]);
+
+    readOnlyGrid.append(supportPanel, objectPanel, bucketPanel);
   }
 
   function selectionKey(item) {
@@ -163,54 +187,6 @@ const S3Console = (() => {
       addSep();
       breadcrumbsEl.append(el('span', null, route.key.split('/').pop()));
     }
-  }
-
-  function openModal(title, bodyNode, confirmLabel, onConfirm) {
-    const overlay = el('div', 's3-modal-overlay');
-    const modal = el('div', 's3-modal');
-    modal.append(el('h3', null, title), bodyNode);
-    const actions = el('div', 's3-modal-actions');
-    const cancel = el('button', 's3-btn-secondary', 'Cancel');
-    const confirm = el('button', null, confirmLabel || 'Confirm');
-    const close = () => overlay.remove();
-    cancel.addEventListener('click', close);
-    overlay.addEventListener('click', (event) => {
-      if (event.target === overlay) {
-        close();
-      }
-    });
-    confirm.addEventListener('click', async () => {
-      confirm.disabled = true;
-      try {
-        await onConfirm(close);
-      } catch (error) {
-        toast(error.message, true);
-        confirm.disabled = false;
-      }
-    });
-    actions.append(cancel, confirm);
-    modal.append(actions);
-    overlay.append(modal);
-    document.body.append(overlay);
-  }
-
-  function toolbar(leftItems, rightItems) {
-    const bar = el('div', 's3-toolbar');
-    const left = el('div', 's3-toolbar-left');
-    const right = el('div', 's3-toolbar-right');
-    leftItems.forEach((item) => left.append(item));
-    rightItems.forEach((item) => right.append(item));
-    bar.append(left, right);
-    return bar;
-  }
-
-  function btn(label, className, onClick) {
-    const button = el('button', className, label);
-    button.type = 'button';
-    if (onClick) {
-      button.addEventListener('click', onClick);
-    }
-    return button;
   }
 
   function showCreateBucketModal() {
@@ -976,8 +952,15 @@ const S3Console = (() => {
 
   async function refresh() {
     const route = getRoute();
-    const data = await apiJson('/api/s3/buckets/');
-    state.buckets = data.buckets || [];
+    const [bucketData, inventoryData] = await Promise.all([
+      apiJson('/api/s3/buckets/'),
+      apiJson('/api/s3/'),
+    ]);
+    state.buckets = bucketData.buckets || [];
+    state.inventory = inventoryData;
+    state.bucketDetails = inventoryData.buckets || [];
+    renderSummary(inventoryData.summary || {});
+    renderReadOnlyInventory();
     if (route.bucket) {
       state.bucketDetail = await apiJson(`/api/s3/buckets/${encodeURIComponent(route.bucket)}/`);
       if (route.tab === 'objects' || !route.tab) {

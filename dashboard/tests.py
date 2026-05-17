@@ -31,7 +31,11 @@ class DashboardTemplateTests(SimpleTestCase):
                 self.assertContains(response, 'dashboard/styles.css')
                 self.assertContains(response, 'dashboard/dashboard.js')
                 if key == 's3':
+                    self.assertContains(response, 'id="s3-loaded-at"')
+                    self.assertContains(response, 'id="s3-summary"')
                     self.assertContains(response, 'id="s3-console-root"')
+                    self.assertContains(response, 'id="s3-readonly-grid"')
+                    self.assertContains(response, 'dashboard/service-console.js')
                     self.assertContains(response, 'dashboard/s3-console.js')
                 else:
                     self.assertContains(response, f'id="{key}-loaded-at"')
@@ -64,5 +68,3 @@ class FlociClientFactoryTests(SimpleTestCase):
         with patch.dict(os.environ, {'FLOCI_AWS_ENDPOINT_URL': 'https://aws.amazon.com'}):
             with self.assertRaisesMessage(ValueError, 'Refusing to use a non-local AWS endpoint'):
                 FlociClientFactory()
-
-
