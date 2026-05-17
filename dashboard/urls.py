@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import s3_views, views
 
 app_name = 'dashboard'
 
@@ -44,6 +44,24 @@ urlpatterns = [
     path('api/rds/', views.rds, name='rds'),
     path('api/route53/', views.route53, name='route53'),
     path('api/s3/', views.s3, name='s3'),
+    path('api/s3/buckets/', s3_views.s3_buckets_list, name='s3-buckets'),
+    path('api/s3/buckets/<str:bucket_name>/', s3_views.s3_bucket_detail, name='s3-bucket-detail'),
+    path('api/s3/buckets/<str:bucket_name>/empty/', s3_views.s3_bucket_empty, name='s3-bucket-empty'),
+    path('api/s3/buckets/<str:bucket_name>/objects/', s3_views.s3_bucket_objects, name='s3-bucket-objects'),
+    path('api/s3/buckets/<str:bucket_name>/objects/download/', s3_views.s3_object_download, name='s3-object-download'),
+    path('api/s3/buckets/<str:bucket_name>/objects/copy/', s3_views.s3_object_copy, name='s3-object-copy'),
+    path('api/s3/buckets/<str:bucket_name>/objects/head/', s3_views.s3_object_head, name='s3-object-head'),
+    path('api/s3/buckets/<str:bucket_name>/objects/tags/', s3_views.s3_object_tags, name='s3-object-tags'),
+    path('api/s3/buckets/<str:bucket_name>/objects/presign/', s3_views.s3_object_presign, name='s3-object-presign'),
+    path('api/s3/buckets/<str:bucket_name>/folders/', s3_views.s3_folder_create, name='s3-folder-create'),
+    path('api/s3/buckets/<str:bucket_name>/versioning/', s3_views.s3_bucket_versioning, name='s3-bucket-versioning'),
+    path('api/s3/buckets/<str:bucket_name>/policy/', s3_views.s3_bucket_policy, name='s3-bucket-policy'),
+    path('api/s3/buckets/<str:bucket_name>/cors/', s3_views.s3_bucket_cors, name='s3-bucket-cors'),
+    path('api/s3/buckets/<str:bucket_name>/lifecycle/', s3_views.s3_bucket_lifecycle, name='s3-bucket-lifecycle'),
+    path('api/s3/buckets/<str:bucket_name>/encryption/', s3_views.s3_bucket_encryption, name='s3-bucket-encryption'),
+    path('api/s3/buckets/<str:bucket_name>/public-access-block/', s3_views.s3_bucket_public_access_block, name='s3-bucket-pab'),
+    path('api/s3/buckets/<str:bucket_name>/tags/', s3_views.s3_bucket_tags, name='s3-bucket-tags'),
+    path('api/s3/buckets/<str:bucket_name>/notifications/', s3_views.s3_bucket_notifications, name='s3-bucket-notifications'),
     path('api/scheduler/', views.scheduler, name='scheduler'),
     path('api/secretsmanager/', views.secretsmanager, name='secretsmanager'),
     path('api/ses/', views.ses, name='ses'),
