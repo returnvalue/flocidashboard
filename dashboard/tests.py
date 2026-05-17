@@ -6,7 +6,7 @@ from django.test import SimpleTestCase
 from django.urls import reverse
 
 from .aws import FlociClientFactory
-from .views import SERVICE_PAGES
+from .services import SERVICE_PAGES, SERVICE_REGISTRY, SERVICES
 
 
 class DashboardTemplateTests(SimpleTestCase):
@@ -46,6 +46,33 @@ class DashboardTemplateTests(SimpleTestCase):
         response = self.client.get(reverse('dashboard:service-page', kwargs={'service_key': 'not-a-service'}))
 
         self.assertEqual(response.status_code, 404)
+
+    def test_services_api_exposes_registry_metadata(self):
+        response = self.client.get(reverse('dashboard:services'))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        services = {service['key']: service for service in payload['services']}
+        self.assertEqual(len(services), len(SERVICES))
+        self.assertIn('interactive_workbench', payload['maturity_levels'])
+        self.assertEqual(services['s3']['maturity'], 'interactive_workbench')
+        self.assertTrue(services['s3']['shared_console'])
+        self.assertEqual(services['s3']['console_js'], 'dashboard/s3-console.js')
+        s3_actions = {action['name']: action for action in services['s3']['actions']}
+        self.assertEqual(s3_actions['create_bucket']['method'], 'POST')
+        self.assertEqual(s3_actions['delete_bucket']['safety'], 'destructive')
+        self.assertEqual(s3_actions['upload_object']['fields'][1]['field_type'], 'file')
+        self.assertEqual(services['sqs']['maturity'], 'interactive_workbench')
+        self.assertEqual(services['sqs']['console_js'], 'dashboard/sqs-console.js')
+        sqs_actions = {action['name']: action for action in services['sqs']['actions']}
+        self.assertEqual(sqs_actions['send_message']['method'], 'POST')
+        self.assertEqual(sqs_actions['receive_messages']['safety'], 'safe')
+        self.assertEqual(sqs_actions['purge_queue']['safety'], 'destructive')
+        self.assertEqual(services['lambda']['api_path'], '/api/lambda/')
+
+    def test_service_pages_are_derived_from_registry(self):
+        self.assertEqual(set(SERVICE_PAGES), set(SERVICE_REGISTRY))
+        self.assertEqual(SERVICE_PAGES['s3']['title'], SERVICE_REGISTRY['s3'].title)
 
 
 class FlociClientFactoryTests(SimpleTestCase):

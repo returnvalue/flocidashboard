@@ -4,54 +4,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from django.http import Http404, JsonResponse
 from django.shortcuts import render
 from .aws import FlociClientFactory, acm_inventory, apigateway_inventory, appconfig_inventory, athena_inventory, autoscaling_inventory, backup_inventory, bedrockruntime_inventory, cloudformation_inventory, cloudwatch_inventory, codebuild_inventory, codedeploy_inventory, cognito_inventory, costexplorer_inventory, dynamodb_inventory, ec2_inventory, ecr_inventory, ecs_inventory, eks_inventory, elasticache_inventory, elasticloadbalancing_inventory, eventbridge_inventory, firehose_inventory, glue_inventory, iam_inventory, kafka_inventory, kinesis_inventory, kms_inventory, lambda_inventory, list_resources, opensearch_inventory, pipes_inventory, pricing_inventory, rds_inventory, resourcegroupstagging_inventory, route53_inventory, s3_inventory, scheduler_inventory, secretsmanager_inventory, ses_inventory, sns_inventory, sqs_inventory, ssm_inventory, stepfunctions_inventory, textract_inventory, transcribe_inventory, transfer_inventory
-
-SERVICE_PAGES = {
-    'acm': {'title': 'ACM', 'eyebrow': 'Certificates and validation state'},
-    'apigateway': {'title': 'API Gateway', 'eyebrow': 'REST and HTTP APIs'},
-    'appconfig': {'title': 'AppConfig', 'eyebrow': 'Application configuration management'},
-    'athena': {'title': 'Athena', 'eyebrow': 'SQL queries and workgroups'},
-    'autoscaling': {'title': 'Auto Scaling', 'eyebrow': 'Groups, policies, and scaling activity'},
-    'backup': {'title': 'Backup', 'eyebrow': 'Backup vaults, plans, jobs, and protected resources'},
-    'bedrockruntime': {'title': 'Bedrock Runtime', 'eyebrow': 'Model runtime stub'},
-    'cloudformation': {'title': 'CloudFormation', 'eyebrow': 'Stacks and change sets'},
-    'cloudwatch': {'title': 'CloudWatch', 'eyebrow': 'Logs and metrics'},
-    'codebuild': {'title': 'CodeBuild', 'eyebrow': 'Build projects and execution history'},
-    'codedeploy': {'title': 'CodeDeploy', 'eyebrow': 'Deployment applications and history'},
-    'cognito': {'title': 'Cognito', 'eyebrow': 'User pools and auth'},
-    'costexplorer': {'title': 'Cost Explorer', 'eyebrow': 'Cost and usage dimensions'},
-    'dynamodb': {'title': 'DynamoDB', 'eyebrow': 'NoSQL tables'},
-    'ec2': {'title': 'EC2', 'eyebrow': 'Compute and networking'},
-    'ecr': {'title': 'ECR', 'eyebrow': 'Repositories and OCI images'},
-    'ecs': {'title': 'ECS', 'eyebrow': 'Clusters, tasks, and services'},
-    'eks': {'title': 'EKS', 'eyebrow': 'Kubernetes control plane inventory'},
-    'elasticache': {'title': 'ElastiCache', 'eyebrow': 'Cache clusters and replication groups'},
-    'elasticloadbalancing': {'title': 'Elastic Load Balancing', 'eyebrow': 'Classic and v2 load balancers'},
-    'eventbridge': {'title': 'EventBridge', 'eyebrow': 'Event buses and rules'},
-    'firehose': {'title': 'Data Firehose', 'eyebrow': 'Delivery streams and destinations'},
-    'glue': {'title': 'Glue', 'eyebrow': 'Data catalog metadata'},
-    'iam': {'title': 'IAM', 'eyebrow': 'Identity and access management'},
-    'kafka': {'title': 'MSK / Kafka', 'eyebrow': 'Managed Kafka clusters and configuration'},
-    'kinesis': {'title': 'Kinesis', 'eyebrow': 'Streams, shards, and consumers'},
-    'kms': {'title': 'KMS', 'eyebrow': 'Key management'},
-    'lambda': {'title': 'Lambda', 'eyebrow': 'Functions and event sources'},
-    'opensearch': {'title': 'OpenSearch', 'eyebrow': 'Search domains, packages, endpoints, and maintenance'},
-    'pipes': {'title': 'EventBridge Pipes', 'eyebrow': 'EventBridge pipe sources, enrichment, targets, and state'},
-    'pricing': {'title': 'AWS Price List', 'eyebrow': 'Pricing services, attributes, and price lists'},
-    'rds': {'title': 'RDS', 'eyebrow': 'Database instances and proxy endpoints'},
-    'resourcegroupstagging': {'title': 'Resource Groups Tagging', 'eyebrow': 'Tagged resources, tag keys, tag values, and compliance'},
-    'route53': {'title': 'Route 53', 'eyebrow': 'Hosted zones, records, health checks, and DNS policies'},
-    's3': {'title': 'S3', 'eyebrow': 'Object storage'},
-    'scheduler': {'title': 'EventBridge Scheduler', 'eyebrow': 'Schedule groups and targets'},
-    'secretsmanager': {'title': 'Secrets Manager', 'eyebrow': 'Secret storage'},
-    'ses': {'title': 'SES', 'eyebrow': 'Email identities and captured messages'},
-    'sns': {'title': 'SNS', 'eyebrow': 'Topics and subscriptions'},
-    'sqs': {'title': 'SQS', 'eyebrow': 'Message queues'},
-    'ssm': {'title': 'SSM', 'eyebrow': 'Parameter Store, documents, sessions, automation, and managed instances'},
-    'stepfunctions': {'title': 'Step Functions', 'eyebrow': 'State machines and executions'},
-    'textract': {'title': 'Textract', 'eyebrow': 'Document analysis, OCR, adapters, and async jobs'},
-    'transcribe': {'title': 'Transcribe', 'eyebrow': 'Speech transcription jobs and vocabularies'},
-    'transfer': {'title': 'Transfer Family', 'eyebrow': 'SFTP, FTPS, FTP, and AS2 transfer resources'},
-}
+from .services import SERVICE_PAGES, get_service, services_payload
 
 
 def index(request):
@@ -59,11 +12,15 @@ def index(request):
 
 
 def service_page(request, service_key: str):
-    if service_key not in SERVICE_PAGES:
+    service_definition = get_service(service_key)
+    if not service_definition:
         raise Http404('Service page not found')
 
-    service = {'key': service_key, **SERVICE_PAGES[service_key]}
-    return render(request, 'dashboard/service.html', {'service': service})
+    return render(request, 'dashboard/service.html', {'service': service_definition.page_context()})
+
+
+def services(request):
+    return JsonResponse(services_payload())
 
 
 def identity(request):

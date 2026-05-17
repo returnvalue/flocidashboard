@@ -4,8 +4,8 @@
 {% block title %}{{ service.title }} - Floci Dashboard{% endblock %}
 
 {% block extrahead %}
-  {% if service.key == 's3' %}
-    <link rel="stylesheet" href="{% static 'dashboard/s3-console.css' %}">
+  {% if service.console_css %}
+    <link rel="stylesheet" href="{% static service.console_css %}">
   {% endif %}
 {% endblock %}
 
@@ -27,6 +27,8 @@
         <h2>{{ service.title }} inventory</h2>
         {% if service.key == 's3' %}
           <nav id="s3-breadcrumbs" class="s3-breadcrumbs" aria-label="S3 navigation"></nav>
+        {% elif service.key == 'sqs' %}
+          <nav id="sqs-breadcrumbs" class="sqs-breadcrumbs" aria-label="SQS navigation"></nav>
         {% endif %}
       </div>
       <span id="{{ service.key }}-loaded-at"></span>
@@ -37,8 +39,19 @@
       <details class="s3-about-floci">
         <summary>About Floci S3</summary>
         <p>Local S3 emulator. Bucket policies and lifecycle rules are stored but not enforced at access time. Replication, access logging, and inventory are not available.</p>
+        <p>S3 is most often used as durable object storage for uploads, generated files, backups, static assets, data lake inputs, and service-to-service handoffs. In Floci, a good learning flow is to create a bucket, upload a file, organize objects with folder-style prefixes, inspect metadata and tags, then generate a presigned URL to test temporary access.</p>
+        <p>Common local test cases include upload and download paths, overwrite behavior, empty bucket cleanup, versioning changes, object tagging, copy operations, prefix browsing, and app behavior when a bucket or object does not exist.</p>
       </details>
       <div id="s3-readonly-grid" class="iam-grid s3-readonly-grid"></div>
+    {% elif service.key == 'sqs' %}
+      <div id="sqs-console-root" class="sqs-console-root" aria-live="polite"></div>
+      <details class="sqs-about-floci">
+        <summary>About Floci SQS</summary>
+        <p>Local SQS emulator for queue-driven workflows. Polling messages makes them temporarily invisible until the visibility timeout expires or they are deleted.</p>
+        <p>SQS is most often used to decouple producers from background workers, smooth traffic spikes, retry failed work, and connect services without requiring them to run at the same time. In Floci, a good learning flow is to create a queue, send a test message, poll it from the UI, inspect the body and attributes, then delete it after your worker logic succeeds.</p>
+        <p>Common local test cases include producer message format, consumer retry behavior, visibility timeout handling, delete-after-success behavior, purge cleanup, FIFO ordering, duplicate handling, and dead-letter queue flows.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid sqs-readonly-grid"></div>
     {% else %}
       <div id="{{ service.key }}-grid" class="iam-grid"></div>
     {% endif %}
@@ -48,8 +61,10 @@
 {% endblock %}
 
 {% block extrascripts %}
-  {% if service.key == 's3' %}
+  {% if service.shared_console %}
     <script src="{% static 'dashboard/service-console.js' %}"></script>
-    <script src="{% static 'dashboard/s3-console.js' %}"></script>
+  {% endif %}
+  {% if service.console_js %}
+    <script src="{% static service.console_js %}"></script>
   {% endif %}
 {% endblock %}

@@ -25,6 +25,7 @@ const lambdaLoadedAt = document.querySelector('#lambda-loaded-at');
 const sqsGrid = document.querySelector('#sqs-grid');
 const sqsSummary = document.querySelector('#sqs-summary');
 const sqsLoadedAt = document.querySelector('#sqs-loaded-at');
+const sqsConsoleRoot = document.getElementById('sqs-console-root');
 const secretsmanagerGrid = document.querySelector('#secretsmanager-grid');
 const secretsmanagerSummary = document.querySelector('#secretsmanager-summary');
 const secretsmanagerLoadedAt = document.querySelector('#secretsmanager-loaded-at');
@@ -4534,6 +4535,9 @@ async function refresh() {
       await window.S3Console.refresh();
     } else if (service) {
       await loadServicePage(service);
+      if (service.key === 'sqs' && sqsConsoleRoot && window.SQSConsole) {
+        await window.SQSConsole.refresh();
+      }
     }
   } catch (error) {
     renderRefreshError(error);

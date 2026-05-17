@@ -32,10 +32,16 @@ const ServiceConsole = (() => {
     return data;
   }
 
-  function toast(message, isError = false, classPrefix = 'service') {
-    const node = el('div', `${classPrefix}-toast${isError ? ` ${classPrefix}-toast-error` : ''}`, message);
+  function toast(message, options = {}) {
+    const type = options.type || (options.isError ? 'error' : 'success');
+    const classPrefix = options.classPrefix || 'service';
+    const timeout = options.timeout ?? 3200;
+    const existing = Array.from(document.querySelectorAll(`.${classPrefix}-toast`));
+    const node = el('div', `${classPrefix}-toast ${classPrefix}-toast-${type}`, message);
+    node.setAttribute('role', type === 'error' ? 'alert' : 'status');
     document.body.append(node);
-    setTimeout(() => node.remove(), 3200);
+    node.style.bottom = `${22 + existing.length * 54}px`;
+    setTimeout(() => node.remove(), timeout);
   }
 
   function formatDate(value) {
@@ -184,7 +190,10 @@ const ServiceConsole = (() => {
 
   function openModal(title, bodyNode, confirmLabel, onConfirm, options = {}) {
     const classPrefix = options.classPrefix || 'service';
-    const showToast = options.toast || ((message, isError) => toast(message, isError, classPrefix));
+    const showToast = options.toast || ((message, isError) => toast(message, {
+      classPrefix,
+      type: isError ? 'error' : 'success',
+    }));
     const overlay = el('div', `${classPrefix}-modal-overlay`);
     const modal = el('div', `${classPrefix}-modal`);
     modal.append(el('h3', null, title), bodyNode);

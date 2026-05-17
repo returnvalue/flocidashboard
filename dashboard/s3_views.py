@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-import json
 import re
 
-from botocore.exceptions import BotoCoreError, ClientError
 from django.http import HttpResponse, JsonResponse
 from django.views.decorators.http import require_http_methods
 
+from .actions import handle_action_error, json_error, parse_json_body
 from .aws import create_s3_bucket
 from .s3_api import (
-    client_error_payload,
     copy_s3_object,
     create_s3_folder,
     delete_s3_bucket,
@@ -51,22 +49,11 @@ S3_KEY_MAX_LEN = 1024
 
 
 def _json_error(message: str, status: int = 400, code: str | None = None) -> JsonResponse:
-    payload: dict = {'error': message}
-    if code:
-        payload['code'] = code
-    return JsonResponse(payload, status=status)
+    return json_error(message, status=status, code=code, service='s3')
 
 
 def _handle_s3(exc: Exception) -> JsonResponse:
-    if isinstance(exc, ValueError):
-        return _json_error(str(exc), 400)
-    if isinstance(exc, ClientError):
-        payload = client_error_payload(exc)
-        status = 404 if payload.get('code') in ('NoSuchBucket', 'NoSuchKey', '404') else 502
-        return JsonResponse(payload, status=status)
-    if isinstance(exc, BotoCoreError):
-        return JsonResponse({'error': str(exc)}, status=502)
-    return JsonResponse({'error': str(exc)}, status=500)
+    return handle_action_error(exc, service='s3')
 
 
 def _validate_bucket(name: str) -> str | None:
@@ -84,13 +71,7 @@ def _validate_key(key: str) -> str | None:
 
 
 def _parse_json_body(request) -> dict:
-    try:
-        body = json.loads(request.body)
-    except json.JSONDecodeError as exc:
-        raise ValueError('Invalid JSON body') from exc
-    if not isinstance(body, dict):
-        raise ValueError('Invalid JSON body')
-    return body
+    return parse_json_body(request)
 
 
 def _parse_s3_create_body(request) -> tuple[str, str | None]:

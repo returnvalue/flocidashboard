@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import s3_views, views
+from . import s3_views, sqs_views, views
 
 app_name = 'dashboard'
 
@@ -31,6 +31,7 @@ urlpatterns = [
     path('api/elasticache/', views.elasticache, name='elasticache'),
     path('api/elasticloadbalancing/', views.elasticloadbalancing, name='elasticloadbalancing'),
     path('api/identity/', views.identity, name='identity'),
+    path('api/services/', views.services, name='services'),
     path('api/firehose/', views.firehose, name='firehose'),
     path('api/iam/', views.iam, name='iam'),
     path('api/kafka/', views.kafka, name='kafka'),
@@ -67,6 +68,12 @@ urlpatterns = [
     path('api/ses/', views.ses, name='ses'),
     path('api/sns/', views.sns, name='sns'),
     path('api/sqs/', views.sqs, name='sqs'),
+    path('api/sqs/queues/', sqs_views.sqs_queues_create, name='sqs-queues'),
+    path('api/sqs/queues/<str:queue_name>/', sqs_views.sqs_queue_delete, name='sqs-queue-delete'),
+    path('api/sqs/queues/<str:queue_name>/purge/', sqs_views.sqs_queue_purge, name='sqs-queue-purge'),
+    path('api/sqs/queues/<str:queue_name>/messages/', sqs_views.sqs_messages_receive, name='sqs-messages-receive'),
+    path('api/sqs/queues/<str:queue_name>/messages/send/', sqs_views.sqs_messages_send, name='sqs-messages-send'),
+    path('api/sqs/queues/<str:queue_name>/messages/delete/', sqs_views.sqs_message_delete, name='sqs-message-delete'),
     path('api/ssm/', views.ssm, name='ssm'),
     path('api/stepfunctions/', views.stepfunctions, name='stepfunctions'),
     path('api/textract/', views.textract, name='textract'),

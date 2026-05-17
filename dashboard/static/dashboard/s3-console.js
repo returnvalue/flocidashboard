@@ -24,7 +24,10 @@ const S3Console = (() => {
   const formatDate = consoleUi.formatDate;
   const formatBytes = consoleUi.formatBytes;
   const btn = consoleUi.button;
-  const toast = (message, isError = false) => consoleUi.toast(message, isError, 's3');
+  const toast = (message, isError = false) => consoleUi.toast(message, {
+    classPrefix: 's3',
+    type: isError ? 'error' : 'success',
+  });
   const toolbar = (leftItems, rightItems) => consoleUi.toolbar(leftItems, rightItems, 's3');
   const openModal = (title, bodyNode, confirmLabel, onConfirm) =>
     consoleUi.openModal(title, bodyNode, confirmLabel, onConfirm, {

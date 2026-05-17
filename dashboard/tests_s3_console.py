@@ -33,6 +33,7 @@ class S3BucketsApiTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn('error', response.json())
+        self.assertEqual(response.json()['service'], 's3')
 
     @patch('dashboard.s3_views.list_s3_buckets')
     def test_list_buckets(self, list_mock):
