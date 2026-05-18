@@ -79,6 +79,16 @@ class DashboardTemplateTests(SimpleTestCase):
         lambda_actions = {action['name']: action for action in services['lambda']['actions']}
         self.assertEqual(lambda_actions['invoke_function']['method'], 'POST')
         self.assertEqual(lambda_actions['invoke_function']['kind'], 'execute')
+        self.assertEqual(services['dynamodb']['maturity'], 'interactive_workbench')
+        self.assertEqual(services['dynamodb']['console_js'], 'dashboard/dynamodb-console.js')
+        dynamodb_actions = {action['name']: action for action in services['dynamodb']['actions']}
+        self.assertEqual(dynamodb_actions['scan_table']['safety'], 'safe')
+        self.assertEqual(dynamodb_actions['execute_select_statement']['fields'][0]['field_type'], 'textarea')
+        self.assertEqual(services['cloudwatch']['maturity'], 'interactive_workbench')
+        self.assertEqual(services['cloudwatch']['console_js'], 'dashboard/cloudwatch-console.js')
+        cloudwatch_actions = {action['name']: action for action in services['cloudwatch']['actions']}
+        self.assertEqual(cloudwatch_actions['list_log_streams']['safety'], 'safe')
+        self.assertEqual(cloudwatch_actions['get_log_events']['fields'][1]['name'], 'log_stream_name')
         self.assertEqual(services['lambda']['api_path'], '/api/lambda/')
 
     def test_service_pages_are_derived_from_registry(self):

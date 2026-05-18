@@ -312,6 +312,64 @@ LAMBDA_ACTIONS = (
 )
 
 
+DYNAMODB_ACTIONS = (
+    action(
+        'scan_table',
+        'Scan table',
+        'POST',
+        '/api/dynamodb/tables/{table}/scan/',
+        'read',
+        safety='safe',
+        fields=(
+            action_field('limit', 'Limit', field_type='number'),
+            action_field('exclusive_start_key', 'Exclusive start key JSON', field_type='object'),
+        ),
+    ),
+    action(
+        'execute_select_statement',
+        'Execute SELECT',
+        'POST',
+        '/api/dynamodb/partiql/',
+        'read',
+        safety='safe',
+        fields=(
+            action_field('statement', 'SELECT statement', required=True, field_type='textarea'),
+            action_field('limit', 'Limit', field_type='number'),
+        ),
+    ),
+)
+
+
+CLOUDWATCH_ACTIONS = (
+    action(
+        'list_log_streams',
+        'List log streams',
+        'POST',
+        '/api/cloudwatch/log-streams/',
+        'read',
+        safety='safe',
+        fields=(
+            action_field('log_group_name', 'Log group name', required=True),
+            action_field('limit', 'Limit', field_type='number'),
+        ),
+    ),
+    action(
+        'get_log_events',
+        'Get log events',
+        'POST',
+        '/api/cloudwatch/log-events/',
+        'read',
+        safety='safe',
+        fields=(
+            action_field('log_group_name', 'Log group name', required=True),
+            action_field('log_stream_name', 'Log stream name', required=True),
+            action_field('limit', 'Limit', field_type='number'),
+            action_field('start_time', 'Start time milliseconds', field_type='number'),
+        ),
+    ),
+)
+
+
 SERVICES: tuple[ServiceDefinition, ...] = (
     service('acm', 'ACM', 'Certificates and validation state', 'Security'),
     service('apigateway', 'API Gateway', 'REST and HTTP APIs', 'Application Integration'),
@@ -322,13 +380,35 @@ SERVICES: tuple[ServiceDefinition, ...] = (
     service('bcmdataexports', 'BCM Data Exports', 'Billing and cost management exports', 'Management'),
     service('bedrockruntime', 'Bedrock Runtime', 'Model runtime stub', 'AI'),
     service('cloudformation', 'CloudFormation', 'Stacks and change sets', 'Management'),
-    service('cloudwatch', 'CloudWatch', 'Logs and metrics', 'Observability'),
+    service(
+        'cloudwatch',
+        'CloudWatch',
+        'Logs and metrics',
+        'Observability',
+        maturity='interactive_workbench',
+        console_css='dashboard/cloudwatch-console.css',
+        console_js='dashboard/cloudwatch-console.js',
+        shared_console=True,
+        tags=('layered-workbench',),
+        actions=CLOUDWATCH_ACTIONS,
+    ),
     service('codebuild', 'CodeBuild', 'Build projects and execution history', 'Developer Tools'),
     service('codedeploy', 'CodeDeploy', 'Deployment applications and history', 'Developer Tools'),
     service('cognito', 'Cognito', 'User pools and auth', 'Security'),
     service('costexplorer', 'Cost Explorer', 'Cost and usage dimensions', 'Management'),
     service('cur', 'Cost and Usage Reports', 'Billing report definitions', 'Management'),
-    service('dynamodb', 'DynamoDB', 'NoSQL tables', 'Database'),
+    service(
+        'dynamodb',
+        'DynamoDB',
+        'NoSQL tables',
+        'Database',
+        maturity='interactive_workbench',
+        console_css='dashboard/dynamodb-console.css',
+        console_js='dashboard/dynamodb-console.js',
+        shared_console=True,
+        tags=('layered-workbench',),
+        actions=DYNAMODB_ACTIONS,
+    ),
     service('ec2', 'EC2', 'Compute and networking', 'Compute'),
     service('ecr', 'ECR', 'Repositories and OCI images', 'Containers'),
     service('ecs', 'ECS', 'Clusters, tasks, and services', 'Containers'),

@@ -33,6 +33,10 @@
           <nav id="sns-breadcrumbs" class="sns-breadcrumbs" aria-label="SNS navigation"></nav>
         {% elif service.key == 'lambda' %}
           <nav id="lambda-breadcrumbs" class="lambda-breadcrumbs" aria-label="Lambda navigation"></nav>
+        {% elif service.key == 'dynamodb' %}
+          <nav id="dynamodb-breadcrumbs" class="dynamodb-breadcrumbs" aria-label="DynamoDB navigation"></nav>
+        {% elif service.key == 'cloudwatch' %}
+          <nav id="cloudwatch-breadcrumbs" class="cloudwatch-breadcrumbs" aria-label="CloudWatch navigation"></nav>
         {% endif %}
       </div>
       <span id="{{ service.key }}-loaded-at"></span>
@@ -74,6 +78,24 @@
         <p>Common local test cases include handler payload parsing, environment variables, timeout behavior, function errors, event-source integration payloads, and log output.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid lambda-readonly-grid"></div>
+    {% elif service.key == 'dynamodb' %}
+      <div id="dynamodb-console-root" class="dynamodb-console-root" aria-live="polite"></div>
+      <details class="dynamodb-about-floci">
+        <summary>About Floci DynamoDB</summary>
+        <p>Local DynamoDB stores application state in tables with AWS-compatible key, index, stream, and item APIs. PartiQL SELECT support is available in Floci 1.5.17 and newer.</p>
+        <p>DynamoDB is most often used for low-latency application records, counters, job state, idempotency keys, and event projections. In Floci, a good learning flow is to inspect a table schema, scan a bounded set of items, select an item for JSON detail, then try a read-only PartiQL SELECT query.</p>
+        <p>Common local test cases include key design, item shape, stream enablement, TTL configuration, index projections, and app behavior when records are missing or malformed.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid dynamodb-readonly-grid"></div>
+    {% elif service.key == 'cloudwatch' %}
+      <div id="cloudwatch-console-root" class="cloudwatch-console-root" aria-live="polite"></div>
+      <details class="cloudwatch-about-floci">
+        <summary>About Floci CloudWatch Logs</summary>
+        <p>Local CloudWatch Logs captures log groups, log streams, and log events produced by services such as Lambda. This viewer focuses on recent logs for local debugging rather than the full CloudWatch Console surface.</p>
+        <p>A good learning flow is to select a Lambda log group, open the newest stream, refresh recent events, and compare the messages with the request or event that triggered the function.</p>
+        <p>Common local test cases include handler errors, async event processing, retry behavior, missing environment configuration, and log messages emitted by background workers.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid cloudwatch-readonly-grid"></div>
     {% else %}
       <div id="{{ service.key }}-grid" class="iam-grid"></div>
     {% endif %}

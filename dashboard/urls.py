@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import lambda_views, s3_views, sns_views, sqs_views, views
+from . import cloudwatch_logs_views, dynamodb_views, lambda_views, s3_views, sns_views, sqs_views, views
 
 app_name = 'dashboard'
 
@@ -22,7 +22,11 @@ urlpatterns = [
     path('api/costexplorer/', views.costexplorer, name='costexplorer'),
     path('api/cur/', views.cur, name='cur'),
     path('api/cloudwatch/', views.cloudwatch, name='cloudwatch'),
+    path('api/cloudwatch/log-streams/', cloudwatch_logs_views.cloudwatch_log_streams, name='cloudwatch-log-streams'),
+    path('api/cloudwatch/log-events/', cloudwatch_logs_views.cloudwatch_log_events, name='cloudwatch-log-events'),
     path('api/dynamodb/', views.dynamodb, name='dynamodb'),
+    path('api/dynamodb/tables/<str:table_name>/scan/', dynamodb_views.dynamodb_table_scan, name='dynamodb-table-scan'),
+    path('api/dynamodb/partiql/', dynamodb_views.dynamodb_partiql_execute, name='dynamodb-partiql'),
     path('api/eventbridge/', views.eventbridge, name='eventbridge'),
     path('api/health/', views.health, name='health'),
     path('api/glue/', views.glue, name='glue'),

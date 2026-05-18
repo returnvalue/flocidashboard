@@ -191,9 +191,13 @@ const LambdaConsole = (() => {
     consoleUi.addField(details, 'Memory', fn.memory_size);
     consoleUi.addField(details, 'Timeout', fn.timeout);
     consoleUi.addField(details, 'Role', fn.role);
-    consoleUi.addField(details, 'Log group', logGroupName(fn));
     consoleUi.addField(details, 'Event source mappings', fn.event_source_mappings || []);
     content.append(details);
+    const logLink = document.createElement('a');
+    logLink.className = 'lambda-log-link';
+    logLink.href = `/service/cloudwatch/?logGroup=${encodeURIComponent(logGroupName(fn))}`;
+    logLink.textContent = `Open logs: ${logGroupName(fn)}`;
+    content.append(logLink);
     content.append(renderInvokeResult(fn));
     panel.append(content);
     return panel;

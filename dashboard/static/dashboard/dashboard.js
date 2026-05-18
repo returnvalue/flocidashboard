@@ -33,9 +33,11 @@ const secretsmanagerLoadedAt = document.querySelector('#secretsmanager-loaded-at
 const dynamodbGrid = document.querySelector('#dynamodb-grid');
 const dynamodbSummary = document.querySelector('#dynamodb-summary');
 const dynamodbLoadedAt = document.querySelector('#dynamodb-loaded-at');
+const dynamodbConsoleRoot = document.getElementById('dynamodb-console-root');
 const cloudwatchGrid = document.querySelector('#cloudwatch-grid');
 const cloudwatchSummary = document.querySelector('#cloudwatch-summary');
 const cloudwatchLoadedAt = document.querySelector('#cloudwatch-loaded-at');
+const cloudwatchConsoleRoot = document.getElementById('cloudwatch-console-root');
 const codebuildGrid = document.querySelector('#codebuild-grid');
 const codebuildSummary = document.querySelector('#codebuild-summary');
 const codebuildLoadedAt = document.querySelector('#codebuild-loaded-at');
@@ -4726,6 +4728,10 @@ async function refresh() {
         await window.SNSConsole.refresh();
       } else if (service.key === 'lambda' && lambdaConsoleRoot && window.LambdaConsole) {
         await window.LambdaConsole.refresh();
+      } else if (service.key === 'dynamodb' && dynamodbConsoleRoot && window.DynamoDBConsole) {
+        await window.DynamoDBConsole.refresh();
+      } else if (service.key === 'cloudwatch' && cloudwatchConsoleRoot && window.CloudWatchConsole) {
+        await window.CloudWatchConsole.refresh();
       }
     }
   } catch (error) {
