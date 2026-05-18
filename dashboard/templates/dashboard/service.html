@@ -29,6 +29,8 @@
           <nav id="s3-breadcrumbs" class="s3-breadcrumbs" aria-label="S3 navigation"></nav>
         {% elif service.key == 'sqs' %}
           <nav id="sqs-breadcrumbs" class="sqs-breadcrumbs" aria-label="SQS navigation"></nav>
+        {% elif service.key == 'sns' %}
+          <nav id="sns-breadcrumbs" class="sns-breadcrumbs" aria-label="SNS navigation"></nav>
         {% endif %}
       </div>
       <span id="{{ service.key }}-loaded-at"></span>
@@ -52,6 +54,15 @@
         <p>Common local test cases include producer message format, consumer retry behavior, visibility timeout handling, delete-after-success behavior, purge cleanup, FIFO ordering, duplicate handling, and dead-letter queue flows.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid sqs-readonly-grid"></div>
+    {% elif service.key == 'sns' %}
+      <div id="sns-console-root" class="sns-console-root" aria-live="polite"></div>
+      <details class="sns-about-floci">
+        <summary>About Floci SNS</summary>
+        <p>Local SNS emulator for topic-based pub/sub workflows. Published messages are delivered immediately to supported local subscriptions, including SQS queues.</p>
+        <p>SNS is most often used to fan out events to queues, functions, webhooks, and notification handlers. In Floci, a good learning flow is to create a topic with your app or CLI, subscribe an SQS queue, publish a test event here, then inspect the delivered message in the SQS workbench.</p>
+        <p>Common local test cases include message shape, attributes, subject handling, subscription filter policies, FIFO group and deduplication behavior, and SNS-to-SQS fanout.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid sns-readonly-grid"></div>
     {% else %}
       <div id="{{ service.key }}-grid" class="iam-grid"></div>
     {% endif %}

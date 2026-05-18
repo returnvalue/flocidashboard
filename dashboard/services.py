@@ -275,6 +275,27 @@ SQS_ACTIONS = (
 )
 
 
+SNS_ACTIONS = (
+    action(
+        'publish_message',
+        'Publish message',
+        'POST',
+        '/api/sns/messages/publish/',
+        'create',
+        fields=(
+            action_field('topic_arn', 'Topic ARN', required=True),
+            action_field('message', 'Message body', required=True, field_type='textarea'),
+            action_field('subject', 'Subject'),
+            action_field('message_attributes', 'Message attributes JSON', field_type='object'),
+            action_field('message_structure', 'Message structure'),
+            action_field('message_group_id', 'FIFO message group ID'),
+            action_field('message_deduplication_id', 'FIFO deduplication ID'),
+        ),
+        success_message='Message published',
+    ),
+)
+
+
 SERVICES: tuple[ServiceDefinition, ...] = (
     service('acm', 'ACM', 'Certificates and validation state', 'Security'),
     service('apigateway', 'API Gateway', 'REST and HTTP APIs', 'Application Integration'),
@@ -282,6 +303,7 @@ SERVICES: tuple[ServiceDefinition, ...] = (
     service('athena', 'Athena', 'SQL queries and workgroups', 'Analytics'),
     service('autoscaling', 'Auto Scaling', 'Groups, policies, and scaling activity', 'Compute'),
     service('backup', 'Backup', 'Backup vaults, plans, jobs, and protected resources', 'Storage'),
+    service('bcmdataexports', 'BCM Data Exports', 'Billing and cost management exports', 'Management'),
     service('bedrockruntime', 'Bedrock Runtime', 'Model runtime stub', 'AI'),
     service('cloudformation', 'CloudFormation', 'Stacks and change sets', 'Management'),
     service('cloudwatch', 'CloudWatch', 'Logs and metrics', 'Observability'),
@@ -289,6 +311,7 @@ SERVICES: tuple[ServiceDefinition, ...] = (
     service('codedeploy', 'CodeDeploy', 'Deployment applications and history', 'Developer Tools'),
     service('cognito', 'Cognito', 'User pools and auth', 'Security'),
     service('costexplorer', 'Cost Explorer', 'Cost and usage dimensions', 'Management'),
+    service('cur', 'Cost and Usage Reports', 'Billing report definitions', 'Management'),
     service('dynamodb', 'DynamoDB', 'NoSQL tables', 'Database'),
     service('ec2', 'EC2', 'Compute and networking', 'Compute'),
     service('ecr', 'ECR', 'Repositories and OCI images', 'Containers'),
@@ -304,6 +327,7 @@ SERVICES: tuple[ServiceDefinition, ...] = (
     service('kinesis', 'Kinesis', 'Streams, shards, and consumers', 'Application Integration'),
     service('kms', 'KMS', 'Key management', 'Security'),
     service('lambda', 'Lambda', 'Functions and event sources', 'Compute'),
+    service('neptune', 'Neptune', 'Graph database clusters and instances', 'Database'),
     service('opensearch', 'OpenSearch', 'Search domains, packages, endpoints, and maintenance', 'Analytics'),
     service('pipes', 'EventBridge Pipes', 'EventBridge pipe sources, enrichment, targets, and state', 'Application Integration'),
     service('pricing', 'AWS Price List', 'Pricing services, attributes, and price lists', 'Management'),
@@ -325,7 +349,18 @@ SERVICES: tuple[ServiceDefinition, ...] = (
     service('scheduler', 'EventBridge Scheduler', 'Schedule groups and targets', 'Application Integration'),
     service('secretsmanager', 'Secrets Manager', 'Secret storage', 'Security'),
     service('ses', 'SES', 'Email identities and captured messages', 'Application Integration'),
-    service('sns', 'SNS', 'Topics and subscriptions', 'Application Integration'),
+    service(
+        'sns',
+        'SNS',
+        'Topics and subscriptions',
+        'Application Integration',
+        maturity='interactive_workbench',
+        console_css='dashboard/sns-console.css',
+        console_js='dashboard/sns-console.js',
+        shared_console=True,
+        tags=('layered-workbench', 'message-workbench'),
+        actions=SNS_ACTIONS,
+    ),
     service(
         'sqs',
         'SQS',

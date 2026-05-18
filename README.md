@@ -9,7 +9,7 @@ A small Django UI for inspecting a local [Floci](https://floci.io/) AWS-compatib
 - Local Floci health and version
 - AWS endpoint, profile, and caller identity
 - Clickable service cards for supported local services
-- Detail pages for services such as S3, IAM, EC2, AppConfig, Bedrock Runtime, Cost Explorer, EKS, OpenSearch, Pricing, Transcribe, SSM, and more
+- Detail pages for services such as S3, IAM, EC2, AppConfig, Bedrock Runtime, Cost Explorer, Cost and Usage Reports, BCM Data Exports, Neptune, EKS, OpenSearch, Pricing, Transcribe, SSM, and more
 - Loading state with the Floci cloud image while service data is fetched
 
 ## Run Locally On macOS
@@ -54,7 +54,7 @@ export AWS_ACCESS_KEY_ID=test
 export AWS_SECRET_ACCESS_KEY=test
 ```
 
-Floci 1.5.16 supports the public localhost DNS suffix for virtual-hosted-style S3. The dashboard accepts `localhost.floci.io`, `*.localhost.floci.io`, and the LocalStack-compatible `*.localhost.localstack.cloud` aliases as local endpoints:
+Floci 1.5.16 and newer support the public localhost DNS suffix for virtual-hosted-style S3. The dashboard accepts `localhost.floci.io`, `*.localhost.floci.io`, and the LocalStack-compatible `*.localhost.localstack.cloud` aliases as local endpoints:
 
 ```bash
 export FLOCI_AWS_ENDPOINT_URL=http://s3.localhost.floci.io:4566
@@ -107,7 +107,7 @@ Core files:
 - `dashboard/templates/dashboard/service.html`: common service page shell. Interactive workbenches should be layered into this page while keeping the original read-only inventory visible.
 - `dashboard/static/dashboard/service-console.js`: shared browser-side helpers for API calls, summary cards, read-only cards, toolbars, modals, formatting, and lower-right toasts.
 - `dashboard/static/dashboard/dashboard.js`: generic read-only inventory rendering for service pages.
-- Service-specific files such as `s3_api.py`, `s3_views.py`, `s3-console.js`, and `s3-console.css` or `sqs_api.py`, `sqs_views.py`, `sqs-console.js`, and `sqs-console.css`: focused behavior for one service only.
+- Service-specific files such as `s3_api.py`, `s3_views.py`, `s3-console.js`, and `s3-console.css`, `sqs_api.py`, `sqs_views.py`, `sqs-console.js`, and `sqs-console.css`, or `sns_api.py`, `sns_views.py`, `sns-console.js`, and `sns-console.css`: focused behavior for one service only.
 
 Important conventions:
 

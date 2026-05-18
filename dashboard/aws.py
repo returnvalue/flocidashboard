@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import json
 from concurrent.futures import ThreadPoolExecutor
@@ -143,6 +145,14 @@ def _resource(
 def _paginate(client, operation_name: str, result_key: str, **kwargs) -> list[Any]:
     paginator = client.get_paginator(operation_name)
     return paginator.paginate(**kwargs).build_full_result().get(result_key, [])
+
+
+def _operation_items(client, operation_name: str, result_key: str, **kwargs) -> list[Any]:
+    if client.can_paginate(operation_name):
+        return _paginate(client, operation_name, result_key, **kwargs)
+
+    operation = getattr(client, operation_name)
+    return operation(**kwargs).get(result_key, [])
 
 
 def _safe_value(loader: Callable[[], Any], fallback: Any = None) -> Any:
@@ -513,6 +523,100 @@ def costexplorer_inventory() -> dict[str, Any]:
         'notes': [
             'Floci 1.5.16 adds Cost Explorer support under the ce service name.',
             'The dashboard samples the current month to keep Cost Explorer reads bounded.',
+        ],
+    }
+
+
+def cur_inventory() -> dict[str, Any]:
+    factory = FlociClientFactory()
+    cur = factory.client('cur')
+    operations = set(cur.meta.service_model.operation_names)
+
+    report_definitions = _safe_value(
+        lambda: _operation_items(cur, 'describe_report_definitions', 'ReportDefinitions'),
+        [],
+    ) if 'DescribeReportDefinitions' in operations else []
+
+    return {
+        'summary': {
+            'report_definitions': len(report_definitions),
+            'available_sdk_operations': len(operations),
+        },
+        'report_definitions': _clean_response(report_definitions),
+        'supported_from_sdk': [
+            operation
+            for operation in [
+                'DescribeReportDefinitions',
+                'PutReportDefinition',
+                'ModifyReportDefinition',
+                'DeleteReportDefinition',
+            ]
+            if operation in operations
+        ],
+        'available_sdk_operations': sorted(operations),
+        'notes': [
+            'Floci 1.5.17 adds Cost and Usage Reports support under the cur service name.',
+            'Report definitions connect billing export metadata to local S3-style delivery settings.',
+        ],
+    }
+
+
+def bcmdataexports_inventory() -> dict[str, Any]:
+    factory = FlociClientFactory()
+    exports = factory.client('bcm-data-exports')
+    operations = set(exports.meta.service_model.operation_names)
+
+    export_summaries = _safe_value(
+        lambda: _operation_items(exports, 'list_exports', 'Exports'),
+        [],
+    ) if 'ListExports' in operations else []
+
+    def export_detail(export: dict[str, Any]) -> dict[str, Any]:
+        export_arn = export.get('ExportArn') or export.get('Arn')
+        details = _safe_value(
+            lambda: exports.get_export(ExportArn=export_arn).get('Export', {}),
+            None,
+        ) if export_arn and 'GetExport' in operations else None
+
+        return {
+            'name': export.get('Name') or export_arn,
+            'arn': export_arn,
+            'description': export.get('Description'),
+            'status': export.get('Status'),
+            'created_at': export.get('CreatedAt'),
+            'last_updated_at': export.get('LastUpdatedAt'),
+            'details': _clean_response(details),
+        }
+
+    tables = _safe_value(
+        lambda: _operation_items(exports, 'list_tables', 'Tables'),
+        [],
+    ) if 'ListTables' in operations else []
+
+    return {
+        'summary': {
+            'exports': len(export_summaries),
+            'tables': len(tables),
+            'available_sdk_operations': len(operations),
+        },
+        'exports': [export_detail(export) for export in export_summaries],
+        'tables': _clean_response(tables),
+        'supported_from_sdk': [
+            operation
+            for operation in [
+                'CreateExport',
+                'DeleteExport',
+                'GetExport',
+                'ListExports',
+                'ListTables',
+                'UpdateExport',
+            ]
+            if operation in operations
+        ],
+        'available_sdk_operations': sorted(operations),
+        'notes': [
+            'Floci 1.5.17 adds BCM Data Exports support under the bcm-data-exports service name.',
+            'BCM exports round out the local cost-services flow alongside Pricing, Cost Explorer, and CUR.',
         ],
     }
 
@@ -1289,11 +1393,18 @@ def dynamodb_inventory() -> dict[str, Any]:
             'BatchGetItem',
             'TransactWriteItems',
             'TransactGetItems',
+            'ExecuteStatement',
+            'ExecuteTransaction',
+            'BatchExecuteStatement',
             'DescribeTimeToLive',
             'UpdateTimeToLive',
             'TagResource',
             'UntagResource',
             'ListTagsOfResource',
+        ],
+        'notes': [
+            'Floci 1.5.17 adds DynamoDB PartiQL support for ExecuteStatement, ExecuteTransaction, and BatchExecuteStatement.',
+            'UpdateItem now honors the legacy Expected condition shape for compatibility with older clients.',
         ],
         'streams_supported': [
             'ListStreams',
@@ -1700,6 +1811,7 @@ def cognito_inventory() -> dict[str, Any]:
             'floci:override-id can pin a user pool ID at creation time and is stripped from persisted tags.',
             'OAuth client_credentials is emulator-friendly and does not require a Cognito domain.',
             'Tokens use the local emulator base URL plus pool ID as issuer.',
+            'Floci 1.5.17 fires PreSignUp and PostConfirmation Lambda triggers for local auth flows.',
         ],
     }
 
@@ -1889,11 +2001,11 @@ def apigateway_inventory() -> dict[str, Any]:
             'Documentation parts and versions',
             'VPC Links',
             'Client Certificates',
-            'Account operations',
             'GetExport',
         ],
         'notes': [
             'Floci supports API Gateway v1 REST APIs and API Gateway v2 HTTP APIs.',
+            'Floci 1.5.17 adds API Gateway v1 account management endpoints and API Gateway v2 HTTP_PROXY integrations with request parameter mapping.',
             'The v1 execute plane is served under /restapis/{id}/{stage}/_user_request_/...',
             'This page shows management-plane resources; proxied traffic remains available through Floci directly.',
         ],
@@ -4084,6 +4196,62 @@ def pricing_inventory() -> dict[str, Any]:
     }
 
 
+def neptune_inventory() -> dict[str, Any]:
+    factory = FlociClientFactory()
+    neptune = factory.client('neptune')
+    operations = set(neptune.meta.service_model.operation_names)
+
+    clusters = _safe_value(
+        lambda: _operation_items(neptune, 'describe_db_clusters', 'DBClusters'),
+        [],
+    ) if 'DescribeDBClusters' in operations else []
+    instances = _safe_value(
+        lambda: _operation_items(neptune, 'describe_db_instances', 'DBInstances'),
+        [],
+    ) if 'DescribeDBInstances' in operations else []
+    subnet_groups = _safe_value(
+        lambda: _operation_items(neptune, 'describe_db_subnet_groups', 'DBSubnetGroups'),
+        [],
+    ) if 'DescribeDBSubnetGroups' in operations else []
+    cluster_snapshots = _safe_value(
+        lambda: _operation_items(neptune, 'describe_db_cluster_snapshots', 'DBClusterSnapshots'),
+        [],
+    ) if 'DescribeDBClusterSnapshots' in operations else []
+
+    return {
+        'summary': {
+            'clusters': len(clusters),
+            'instances': len(instances),
+            'subnet_groups': len(subnet_groups),
+            'cluster_snapshots': len(cluster_snapshots),
+            'available_sdk_operations': len(operations),
+        },
+        'clusters': _clean_response(clusters),
+        'instances': _clean_response(instances),
+        'subnet_groups': _clean_response(subnet_groups),
+        'cluster_snapshots': _clean_response(cluster_snapshots),
+        'supported_from_sdk': [
+            operation
+            for operation in [
+                'CreateDBCluster',
+                'DeleteDBCluster',
+                'DescribeDBClusters',
+                'CreateDBInstance',
+                'DeleteDBInstance',
+                'DescribeDBInstances',
+                'DescribeDBSubnetGroups',
+                'DescribeDBClusterSnapshots',
+            ]
+            if operation in operations
+        ],
+        'available_sdk_operations': sorted(operations),
+        'notes': [
+            'Floci 1.5.17 adds Neptune graph database support under the neptune service name.',
+            'This page follows the Neptune management API and shows local graph database clusters, instances, subnet groups, and snapshots.',
+        ],
+    }
+
+
 def resourcegroupstagging_inventory() -> dict[str, Any]:
     factory = FlociClientFactory()
     tagging = factory.client('resourcegroupstaggingapi')
@@ -5340,6 +5508,7 @@ def sns_inventory() -> dict[str, Any]:
         'fanout': [
             'Floci supports SNS to SQS fan-out and delivers published messages immediately.',
             'Supported subscription protocols include sqs, lambda, http, and https.',
+            'Floci 1.5.17 supports FilterPolicyScope=MessageBody for body-based subscription filtering.',
         ],
         'protocols': ['Query XML', 'JSON 1.0'],
     }
@@ -5522,6 +5691,7 @@ def ses_inventory() -> dict[str, Any]:
             'SendEmail',
             'GetAccount',
             'PutAccountSendingAttributes',
+            'PutAccountSuppressionAttributes',
             'CreateEmailTemplate',
             'ListEmailTemplates',
             'GetEmailTemplate',
@@ -5551,6 +5721,7 @@ def ses_inventory() -> dict[str, Any]:
             'Emails are always stored locally and can be inspected through /_aws/ses.',
             'SMTP relay failures are logged but do not affect the SES API response.',
             'SES v1 and SES v2 share identity, template, and sent-message state.',
+            'Floci 1.5.17 adds SES v2 PutAccountSuppressionAttributes.',
         ],
     }
 
@@ -7966,6 +8137,72 @@ def list_resources() -> list[ResourceResult]:
 
         return resources
 
+    def cur_resources() -> list[dict[str, Any]]:
+        cur = factory.client('cur')
+        operations = set(cur.meta.service_model.operation_names)
+
+        if 'DescribeReportDefinitions' not in operations:
+            return []
+
+        return [
+            {
+                'type': 'report_definition',
+                'name': report.get('ReportName'),
+                's3_bucket': report.get('S3Bucket'),
+                'time_unit': report.get('TimeUnit'),
+            }
+            for report in _safe_value(
+                lambda: _operation_items(cur, 'describe_report_definitions', 'ReportDefinitions'),
+                [],
+            )
+        ]
+
+    def bcmdataexports_resources() -> list[dict[str, Any]]:
+        exports = factory.client('bcm-data-exports')
+        operations = set(exports.meta.service_model.operation_names)
+
+        if 'ListExports' not in operations:
+            return []
+
+        return [
+            {
+                'type': 'export',
+                'name': export.get('Name') or export.get('ExportArn') or export.get('Arn'),
+                'arn': export.get('ExportArn') or export.get('Arn'),
+                'status': export.get('Status'),
+            }
+            for export in _safe_value(lambda: _operation_items(exports, 'list_exports', 'Exports'), [])
+        ]
+
+    def neptune_resources() -> list[dict[str, Any]]:
+        neptune = factory.client('neptune')
+        operations = set(neptune.meta.service_model.operation_names)
+        resources: list[dict[str, Any]] = []
+
+        if 'DescribeDBClusters' in operations:
+            resources.extend(
+                {
+                    'type': 'db_cluster',
+                    'name': cluster.get('DBClusterIdentifier'),
+                    'arn': cluster.get('DBClusterArn'),
+                    'status': cluster.get('Status'),
+                }
+                for cluster in _safe_value(lambda: _operation_items(neptune, 'describe_db_clusters', 'DBClusters'), [])
+            )
+
+        if 'DescribeDBInstances' in operations:
+            resources.extend(
+                {
+                    'type': 'db_instance',
+                    'name': instance.get('DBInstanceIdentifier'),
+                    'arn': instance.get('DBInstanceArn'),
+                    'status': instance.get('DBInstanceStatus'),
+                }
+                for instance in _safe_value(lambda: _operation_items(neptune, 'describe_db_instances', 'DBInstances'), [])
+            )
+
+        return resources
+
     def transcribe_resources() -> list[dict[str, Any]]:
         transcribe = factory.client('transcribe')
         operations = set(transcribe.meta.service_model.operation_names)
@@ -8099,6 +8336,9 @@ def list_resources() -> list[ResourceResult]:
         ('pipes-resources', 'EventBridge Pipes resources', pipes_resources),
         ('pricing-resources', 'AWS Price List resources', pricing_resources),
         ('costexplorer-resources', 'Cost Explorer resources', costexplorer_resources),
+        ('cur-resources', 'Cost and Usage Reports', cur_resources),
+        ('bcmdataexports-resources', 'BCM Data Exports', bcmdataexports_resources),
+        ('neptune-resources', 'Neptune resources', neptune_resources),
         ('resourcegroupstagging-resources', 'Resource Groups Tagging resources', resourcegroupstagging_resources),
         ('ssm-resources', 'SSM resources', ssm_resources),
         ('cloudformation-resources', 'CloudFormation resources', cloudformation_resources),

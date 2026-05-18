@@ -101,6 +101,9 @@ const autoscalingLoadedAt = document.querySelector('#autoscaling-loaded-at');
 const backupGrid = document.querySelector('#backup-grid');
 const backupSummary = document.querySelector('#backup-summary');
 const backupLoadedAt = document.querySelector('#backup-loaded-at');
+const bcmdataexportsGrid = document.querySelector('#bcmdataexports-grid');
+const bcmdataexportsSummary = document.querySelector('#bcmdataexports-summary');
+const bcmdataexportsLoadedAt = document.querySelector('#bcmdataexports-loaded-at');
 const bedrockruntimeGrid = document.querySelector('#bedrockruntime-grid');
 const bedrockruntimeSummary = document.querySelector('#bedrockruntime-summary');
 const bedrockruntimeLoadedAt = document.querySelector('#bedrockruntime-loaded-at');
@@ -143,6 +146,12 @@ const textractLoadedAt = document.querySelector('#textract-loaded-at');
 const transcribeGrid = document.querySelector('#transcribe-grid');
 const transcribeSummary = document.querySelector('#transcribe-summary');
 const transcribeLoadedAt = document.querySelector('#transcribe-loaded-at');
+const curGrid = document.querySelector('#cur-grid');
+const curSummary = document.querySelector('#cur-summary');
+const curLoadedAt = document.querySelector('#cur-loaded-at');
+const neptuneGrid = document.querySelector('#neptune-grid');
+const neptuneSummary = document.querySelector('#neptune-summary');
+const neptuneLoadedAt = document.querySelector('#neptune-loaded-at');
 
 let latestHealthData = null;
 
@@ -254,6 +263,8 @@ const serviceDetailPages = {
   'auto-scaling': '/service/autoscaling/',
   autoscaling: '/service/autoscaling/',
   backup: '/service/backup/',
+  'bcm-data-exports': '/service/bcmdataexports/',
+  bcmdataexports: '/service/bcmdataexports/',
   'bedrock-runtime': '/service/bedrockruntime/',
   bedrockruntime: '/service/bedrockruntime/',
   codebuild: '/service/codebuild/',
@@ -262,6 +273,7 @@ const serviceDetailPages = {
   'cognito-idp': '/service/cognito/',
   ce: '/service/costexplorer/',
   costexplorer: '/service/costexplorer/',
+  cur: '/service/cur/',
   monitoring: '/service/cloudwatch/',
   logs: '/service/cloudwatch/',
   dynamodb: '/service/dynamodb/',
@@ -281,6 +293,7 @@ const serviceDetailPages = {
   kinesis: '/service/kinesis/',
   kms: '/service/kms/',
   lambda: '/service/lambda/',
+  neptune: '/service/neptune/',
   es: '/service/opensearch/',
   opensearch: '/service/opensearch/',
   pipes: '/service/pipes/',
@@ -311,6 +324,7 @@ function canonicalServiceKey(name) {
     appconfigdata: 'appconfig',
     'auto-scaling': 'autoscaling',
     bedrockruntime: 'bedrock-runtime',
+    'bcm-data-exports': 'bcmdataexports',
     ce: 'costexplorer',
     codebuild: 'codebuild',
     codedeploy: 'codedeploy',
@@ -348,6 +362,8 @@ const servicePriorityOrder = [
   'scheduler',
   'pricing',
   'ce',
+  'cur',
+  'bcm-data-exports',
   'acm',
   'ecs',
   'ecr',
@@ -356,6 +372,7 @@ const servicePriorityOrder = [
   'glue',
   'sns',
   'elasticache',
+  'neptune',
   'kinesis',
   'firehose',
   'codedeploy',
@@ -1028,6 +1045,12 @@ function renderDynamoDB(data) {
       action,
     })), [
       ['Action', 'action'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
     ]),
   ];
 
@@ -2629,6 +2652,157 @@ function renderCostExplorer(data) {
   costexplorerLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
 }
 
+function renderCur(data) {
+  curGrid.textContent = '';
+  renderSummary(data.summary, curSummary);
+
+  const panels = [
+    renderDetailList('Report definitions', data.report_definitions || [], [
+      ['Report name', 'ReportName'],
+      ['Time unit', 'TimeUnit'],
+      ['Format', 'Format'],
+      ['Compression', 'Compression'],
+      ['Additional schema elements', 'AdditionalSchemaElements'],
+      ['S3 bucket', 'S3Bucket'],
+      ['S3 prefix', 'S3Prefix'],
+      ['S3 region', 'S3Region'],
+      ['Refresh closed reports', 'RefreshClosedReports'],
+      ['Report versioning', 'ReportVersioning'],
+    ]),
+    renderDetailList('Supported from SDK', (data.supported_from_sdk || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Available SDK operations', (data.available_sdk_operations || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
+  ];
+
+  curGrid.append(...panels);
+  curLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+}
+
+function renderBcmDataExports(data) {
+  bcmdataexportsGrid.textContent = '';
+  renderSummary(data.summary, bcmdataexportsSummary);
+
+  const panels = [
+    renderDetailList('Exports', data.exports || [], [
+      ['Name', 'name'],
+      ['ARN', 'arn'],
+      ['Description', 'description'],
+      ['Status', 'status'],
+      ['Created', 'created_at'],
+      ['Last updated', 'last_updated_at'],
+      ['Details', 'details'],
+    ]),
+    renderDetailList('Tables', data.tables || [], [
+      ['Table name', 'TableName'],
+      ['Table description', 'TableDescription'],
+      ['Description', 'Description'],
+      ['Properties', 'Properties'],
+    ]),
+    renderDetailList('Supported from SDK', (data.supported_from_sdk || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Available SDK operations', (data.available_sdk_operations || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
+  ];
+
+  bcmdataexportsGrid.append(...panels);
+  bcmdataexportsLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+}
+
+function renderNeptune(data) {
+  neptuneGrid.textContent = '';
+  renderSummary(data.summary, neptuneSummary);
+
+  const panels = [
+    renderDetailList('Clusters', data.clusters || [], [
+      ['Cluster identifier', 'DBClusterIdentifier'],
+      ['ARN', 'DBClusterArn'],
+      ['Status', 'Status'],
+      ['Engine', 'Engine'],
+      ['Engine version', 'EngineVersion'],
+      ['Endpoint', 'Endpoint'],
+      ['Reader endpoint', 'ReaderEndpoint'],
+      ['Port', 'Port'],
+      ['Members', 'DBClusterMembers'],
+    ]),
+    renderDetailList('Instances', data.instances || [], [
+      ['Instance identifier', 'DBInstanceIdentifier'],
+      ['ARN', 'DBInstanceArn'],
+      ['Status', 'DBInstanceStatus'],
+      ['Class', 'DBInstanceClass'],
+      ['Engine', 'Engine'],
+      ['Endpoint', 'Endpoint'],
+      ['Cluster identifier', 'DBClusterIdentifier'],
+    ]),
+    renderDetailList('Subnet groups', data.subnet_groups || [], [
+      ['Name', 'DBSubnetGroupName'],
+      ['ARN', 'DBSubnetGroupArn'],
+      ['Status', 'SubnetGroupStatus'],
+      ['Description', 'DBSubnetGroupDescription'],
+      ['VPC ID', 'VpcId'],
+      ['Subnets', 'Subnets'],
+    ]),
+    renderDetailList('Cluster snapshots', data.cluster_snapshots || [], [
+      ['Snapshot identifier', 'DBClusterSnapshotIdentifier'],
+      ['Cluster identifier', 'DBClusterIdentifier'],
+      ['ARN', 'DBClusterSnapshotArn'],
+      ['Status', 'Status'],
+      ['Type', 'SnapshotType'],
+      ['Engine', 'Engine'],
+      ['Created', 'SnapshotCreateTime'],
+    ]),
+    renderDetailList('Supported from SDK', (data.supported_from_sdk || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Available SDK operations', (data.available_sdk_operations || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
+  ];
+
+  neptuneGrid.append(...panels);
+  neptuneLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+}
+
 function renderTranscribe(data) {
   transcribeGrid.textContent = '';
   renderSummary(data.summary, transcribeSummary);
@@ -4078,10 +4252,13 @@ function titleCaseService(name) {
     autoscaling: 'Auto Scaling',
     'bedrock-runtime': 'Bedrock Runtime',
     bedrockruntime: 'Bedrock Runtime',
+    'bcm-data-exports': 'BCM Data Exports',
+    bcmdataexports: 'BCM Data Exports',
     codebuild: 'CodeBuild',
     codedeploy: 'CodeDeploy',
     cloudformation: 'CloudFormation',
     'cognito-idp': 'Cognito IDP',
+    cur: 'Cost and Usage Reports',
     dynamodb: 'DynamoDB',
     ec2: 'EC2',
     ecr: 'ECR',
@@ -4102,6 +4279,7 @@ function titleCaseService(name) {
     kms: 'KMS',
     lambda: 'Lambda',
     logs: 'CloudWatch Logs',
+    neptune: 'Neptune',
     opensearch: 'OpenSearch',
     monitoring: 'CloudWatch Metrics',
     pipes: 'EventBridge Pipes',
@@ -4193,13 +4371,16 @@ function resourceServiceKey(resource) {
     'appconfig-resources': 'appconfig',
     'apigateway-apis': 'apigateway',
     'bedrockruntime-resources': 'bedrock-runtime',
+    'bcmdataexports-resources': 'bcmdataexports',
     'codebuild-resources': 'codebuild',
     'codedeploy-resources': 'codedeploy',
+    'cur-resources': 'cur',
     'iam-roles': 'iam',
     'iam-users': 'iam',
     'kms-keys': 'kms',
     'lambda-functions': 'lambda',
     'log-groups': 'logs',
+    'neptune-resources': 'neptune',
     'rds-resources': 'rds',
     's3-buckets': 's3',
     'secrets': 'secretsmanager',
@@ -4451,6 +4632,8 @@ const servicePages = [
   { key: 'codebuild', label: 'CodeBuild', grid: codebuildGrid, apiPath: '/api/codebuild/', render: renderCodeBuild },
   { key: 'codedeploy', label: 'CodeDeploy', grid: codedeployGrid, apiPath: '/api/codedeploy/', render: renderCodeDeploy },
   { key: 'costexplorer', label: 'Cost Explorer', grid: costexplorerGrid, apiPath: '/api/costexplorer/', render: renderCostExplorer },
+  { key: 'cur', label: 'Cost and Usage Reports', grid: curGrid, apiPath: '/api/cur/', render: renderCur },
+  { key: 'bcmdataexports', label: 'BCM Data Exports', grid: bcmdataexportsGrid, apiPath: '/api/bcmdataexports/', render: renderBcmDataExports },
   { key: 'eventbridge', label: 'EventBridge', grid: eventbridgeGrid, apiPath: '/api/eventbridge/', render: renderEventBridge },
   { key: 'cognito', label: 'Cognito', grid: cognitoGrid, apiPath: '/api/cognito/', render: renderCognito },
   { key: 'apigateway', label: 'API Gateway', grid: apigatewayGrid, apiPath: '/api/apigateway/', render: renderApiGateway },
@@ -4462,6 +4645,7 @@ const servicePages = [
   { key: 'firehose', label: 'Data Firehose', grid: firehoseGrid, apiPath: '/api/firehose/', render: renderFirehose },
   { key: 'kinesis', label: 'Kinesis', grid: kinesisGrid, apiPath: '/api/kinesis/', render: renderKinesis },
   { key: 'kafka', label: 'MSK / Kafka', grid: kafkaGrid, apiPath: '/api/kafka/', render: renderKafka },
+  { key: 'neptune', label: 'Neptune', grid: neptuneGrid, apiPath: '/api/neptune/', render: renderNeptune },
   { key: 'opensearch', label: 'OpenSearch', grid: opensearchGrid, apiPath: '/api/opensearch/', render: renderOpenSearch },
   { key: 'pipes', label: 'EventBridge Pipes', grid: pipesGrid, apiPath: '/api/pipes/', render: renderPipes },
   { key: 'pricing', label: 'AWS Price List', grid: pricingGrid, apiPath: '/api/pricing/', render: renderPricing },
@@ -4537,6 +4721,8 @@ async function refresh() {
       await loadServicePage(service);
       if (service.key === 'sqs' && sqsConsoleRoot && window.SQSConsole) {
         await window.SQSConsole.refresh();
+      } else if (service.key === 'sns' && window.SNSConsole) {
+        await window.SNSConsole.refresh();
       }
     }
   } catch (error) {

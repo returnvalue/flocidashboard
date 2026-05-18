@@ -56,7 +56,9 @@ Core architecture files:
 - Registered S3 action metadata.
 - Built the SQS Queue Workbench with create, delete, purge, send, receive, and delete-message actions.
 - Registered SQS as an interactive workbench.
-- Added tutorial-style "About Floci S3" and "About Floci SQS" notes.
+- Built the SNS Publish Workbench with topic/subscription browsing and publish-message actions.
+- Registered SNS as an interactive message workbench.
+- Added tutorial-style "About Floci S3", "About Floci SQS", and "About Floci SNS" notes.
 - Added contributor architecture notes and an AI-assisted contributor prompt to `README.md`.
 
 ## Near-Term Priorities
@@ -146,24 +148,7 @@ Why it matters:
 - Many local debugging problems start with endpoint or credential confusion.
 - This is practical and low-risk.
 
-### 6. SNS Publish Workbench
-
-Add the next small message-oriented workbench after SQS.
-
-Feasible first version:
-
-- List topics and subscriptions from the existing SNS inventory.
-- Publish a message to a selected topic.
-- Show lower-right toast feedback.
-- Keep read-only SNS inventory visible underneath.
-- Add action metadata for publish.
-
-Why it matters:
-
-- It pairs naturally with SQS.
-- It enables a realistic local fanout flow without needing a large UI.
-
-### 7. Lambda Invoke Workbench
+### 6. Lambda Invoke Workbench
 
 Add a focused Lambda testing panel.
 
@@ -180,7 +165,7 @@ Why it matters:
 - Lambda is central to many local AWS workflows.
 - It pairs with SQS, SNS, S3 notifications, API Gateway, and EventBridge.
 
-### 8. S3 Follow-Ups
+### 7. S3 Follow-Ups
 
 Keep improving the existing S3 workbench.
 
@@ -268,11 +253,10 @@ This order is intentionally modest and can change:
 3. Shared Console Shell hardening.
 4. Action API follow-through.
 5. Environment Details page.
-6. SNS Publish Workbench.
-7. Lambda Invoke Workbench.
-8. S3 follow-ups.
-9. DynamoDB Table Explorer.
-10. CloudWatch Logs Viewer.
+6. Lambda Invoke Workbench.
+7. S3 follow-ups.
+8. DynamoDB Table Explorer.
+9. CloudWatch Logs Viewer.
 
 ## Contributor Checklist
 
@@ -295,5 +279,5 @@ When adding or improving a service page:
 - Should service docs links and operation counts remain manually maintained in the dashboard registry?
 - How much should `dashboard.js` be reduced in favor of declarative panel configs?
 - Should tutorial definitions live in this repo, Floci docs, or both?
-- Which service should become the third reference workbench after S3 and SQS: SNS, Lambda, or DynamoDB?
+- Which service should become the fourth reference workbench after S3, SQS, and SNS: Lambda or DynamoDB?
 - What health fields are stable enough in Floci to expose on an Environment Details page?

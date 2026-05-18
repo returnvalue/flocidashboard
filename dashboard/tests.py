@@ -68,6 +68,12 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertEqual(sqs_actions['send_message']['method'], 'POST')
         self.assertEqual(sqs_actions['receive_messages']['safety'], 'safe')
         self.assertEqual(sqs_actions['purge_queue']['safety'], 'destructive')
+        self.assertEqual(services['sns']['maturity'], 'interactive_workbench')
+        self.assertTrue(services['sns']['shared_console'])
+        self.assertEqual(services['sns']['console_js'], 'dashboard/sns-console.js')
+        sns_actions = {action['name']: action for action in services['sns']['actions']}
+        self.assertEqual(sns_actions['publish_message']['method'], 'POST')
+        self.assertEqual(sns_actions['publish_message']['fields'][1]['field_type'], 'textarea')
         self.assertEqual(services['lambda']['api_path'], '/api/lambda/')
 
     def test_service_pages_are_derived_from_registry(self):

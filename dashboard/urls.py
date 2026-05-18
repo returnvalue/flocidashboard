@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import s3_views, sqs_views, views
+from . import s3_views, sns_views, sqs_views, views
 
 app_name = 'dashboard'
 
@@ -13,12 +13,14 @@ urlpatterns = [
     path('api/athena/', views.athena, name='athena'),
     path('api/autoscaling/', views.autoscaling, name='autoscaling'),
     path('api/backup/', views.backup, name='backup'),
+    path('api/bcmdataexports/', views.bcmdataexports, name='bcmdataexports'),
     path('api/bedrockruntime/', views.bedrockruntime, name='bedrockruntime'),
     path('api/codebuild/', views.codebuild, name='codebuild'),
     path('api/codedeploy/', views.codedeploy, name='codedeploy'),
     path('api/cloudformation/', views.cloudformation, name='cloudformation'),
     path('api/cognito/', views.cognito, name='cognito'),
     path('api/costexplorer/', views.costexplorer, name='costexplorer'),
+    path('api/cur/', views.cur, name='cur'),
     path('api/cloudwatch/', views.cloudwatch, name='cloudwatch'),
     path('api/dynamodb/', views.dynamodb, name='dynamodb'),
     path('api/eventbridge/', views.eventbridge, name='eventbridge'),
@@ -38,6 +40,7 @@ urlpatterns = [
     path('api/kinesis/', views.kinesis, name='kinesis'),
     path('api/kms/', views.kms, name='kms'),
     path('api/lambda/', views.lambda_, name='lambda'),
+    path('api/neptune/', views.neptune, name='neptune'),
     path('api/opensearch/', views.opensearch, name='opensearch'),
     path('api/pipes/', views.pipes, name='pipes'),
     path('api/pricing/', views.pricing, name='pricing'),
@@ -67,6 +70,7 @@ urlpatterns = [
     path('api/secretsmanager/', views.secretsmanager, name='secretsmanager'),
     path('api/ses/', views.ses, name='ses'),
     path('api/sns/', views.sns, name='sns'),
+    path('api/sns/messages/publish/', sns_views.sns_messages_publish, name='sns-messages-publish'),
     path('api/sqs/', views.sqs, name='sqs'),
     path('api/sqs/queues/', sqs_views.sqs_queues_create, name='sqs-queues'),
     path('api/sqs/queues/<str:queue_name>/', sqs_views.sqs_queue_delete, name='sqs-queue-delete'),
