@@ -22,6 +22,7 @@ const kmsLoadedAt = document.querySelector('#kms-loaded-at');
 const lambdaGrid = document.querySelector('#lambda-grid');
 const lambdaSummary = document.querySelector('#lambda-summary');
 const lambdaLoadedAt = document.querySelector('#lambda-loaded-at');
+const lambdaConsoleRoot = document.getElementById('lambda-console-root');
 const sqsGrid = document.querySelector('#sqs-grid');
 const sqsSummary = document.querySelector('#sqs-summary');
 const sqsLoadedAt = document.querySelector('#sqs-loaded-at');
@@ -4723,6 +4724,8 @@ async function refresh() {
         await window.SQSConsole.refresh();
       } else if (service.key === 'sns' && window.SNSConsole) {
         await window.SNSConsole.refresh();
+      } else if (service.key === 'lambda' && lambdaConsoleRoot && window.LambdaConsole) {
+        await window.LambdaConsole.refresh();
       }
     }
   } catch (error) {

@@ -296,6 +296,22 @@ SNS_ACTIONS = (
 )
 
 
+LAMBDA_ACTIONS = (
+    action(
+        'invoke_function',
+        'Invoke function',
+        'POST',
+        '/api/lambda/functions/{function}/invoke/',
+        'execute',
+        fields=(
+            action_field('payload', 'JSON payload', field_type='textarea'),
+            action_field('qualifier', 'Version or alias'),
+        ),
+        success_message='Function invoked',
+    ),
+)
+
+
 SERVICES: tuple[ServiceDefinition, ...] = (
     service('acm', 'ACM', 'Certificates and validation state', 'Security'),
     service('apigateway', 'API Gateway', 'REST and HTTP APIs', 'Application Integration'),
@@ -326,7 +342,18 @@ SERVICES: tuple[ServiceDefinition, ...] = (
     service('kafka', 'MSK / Kafka', 'Managed Kafka clusters and configuration', 'Application Integration'),
     service('kinesis', 'Kinesis', 'Streams, shards, and consumers', 'Application Integration'),
     service('kms', 'KMS', 'Key management', 'Security'),
-    service('lambda', 'Lambda', 'Functions and event sources', 'Compute'),
+    service(
+        'lambda',
+        'Lambda',
+        'Functions and event sources',
+        'Compute',
+        maturity='interactive_workbench',
+        console_css='dashboard/lambda-console.css',
+        console_js='dashboard/lambda-console.js',
+        shared_console=True,
+        tags=('layered-workbench',),
+        actions=LAMBDA_ACTIONS,
+    ),
     service('neptune', 'Neptune', 'Graph database clusters and instances', 'Database'),
     service('opensearch', 'OpenSearch', 'Search domains, packages, endpoints, and maintenance', 'Analytics'),
     service('pipes', 'EventBridge Pipes', 'EventBridge pipe sources, enrichment, targets, and state', 'Application Integration'),

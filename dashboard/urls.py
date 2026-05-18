@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import s3_views, sns_views, sqs_views, views
+from . import lambda_views, s3_views, sns_views, sqs_views, views
 
 app_name = 'dashboard'
 
@@ -40,6 +40,7 @@ urlpatterns = [
     path('api/kinesis/', views.kinesis, name='kinesis'),
     path('api/kms/', views.kms, name='kms'),
     path('api/lambda/', views.lambda_, name='lambda'),
+    path('api/lambda/functions/<str:function_name>/invoke/', lambda_views.lambda_functions_invoke, name='lambda-functions-invoke'),
     path('api/neptune/', views.neptune, name='neptune'),
     path('api/opensearch/', views.opensearch, name='opensearch'),
     path('api/pipes/', views.pipes, name='pipes'),

@@ -31,6 +31,8 @@
           <nav id="sqs-breadcrumbs" class="sqs-breadcrumbs" aria-label="SQS navigation"></nav>
         {% elif service.key == 'sns' %}
           <nav id="sns-breadcrumbs" class="sns-breadcrumbs" aria-label="SNS navigation"></nav>
+        {% elif service.key == 'lambda' %}
+          <nav id="lambda-breadcrumbs" class="lambda-breadcrumbs" aria-label="Lambda navigation"></nav>
         {% endif %}
       </div>
       <span id="{{ service.key }}-loaded-at"></span>
@@ -63,6 +65,15 @@
         <p>Common local test cases include message shape, attributes, subject handling, subscription filter policies, FIFO group and deduplication behavior, and SNS-to-SQS fanout.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid sns-readonly-grid"></div>
+    {% elif service.key == 'lambda' %}
+      <div id="lambda-console-root" class="lambda-console-root" aria-live="polite"></div>
+      <details class="lambda-about-floci">
+        <summary>About Floci Lambda</summary>
+        <p>Local Lambda runs function code in Docker-backed execution environments. Invocations can return response payloads, function errors, and a tail of execution logs.</p>
+        <p>Lambda is most often used to handle API Gateway requests, consume SQS messages, react to S3 or EventBridge events, and run small background tasks. In Floci, a good learning flow is to select a function, invoke it with representative JSON, inspect the payload and log tail, then follow the related CloudWatch log group.</p>
+        <p>Common local test cases include handler payload parsing, environment variables, timeout behavior, function errors, event-source integration payloads, and log output.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid lambda-readonly-grid"></div>
     {% else %}
       <div id="{{ service.key }}-grid" class="iam-grid"></div>
     {% endif %}

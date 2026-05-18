@@ -58,7 +58,9 @@ Core architecture files:
 - Registered SQS as an interactive workbench.
 - Built the SNS Publish Workbench with topic/subscription browsing and publish-message actions.
 - Registered SNS as an interactive message workbench.
-- Added tutorial-style "About Floci S3", "About Floci SQS", and "About Floci SNS" notes.
+- Built the Lambda Invoke Workbench with function selection, JSON payload invocation, response payloads, error details, log tails, and CloudWatch log group hints.
+- Registered Lambda as an interactive workbench.
+- Added tutorial-style "About Floci S3", "About Floci SQS", "About Floci SNS", and "About Floci Lambda" notes.
 - Added contributor architecture notes and an AI-assisted contributor prompt to `README.md`.
 
 ## Near-Term Priorities
@@ -148,24 +150,7 @@ Why it matters:
 - Many local debugging problems start with endpoint or credential confusion.
 - This is practical and low-risk.
 
-### 6. Lambda Invoke Workbench
-
-Add a focused Lambda testing panel.
-
-Feasible first version:
-
-- List functions from existing inventory.
-- Invoke a selected function with editable JSON payload.
-- Show response payload, status, and error details.
-- Link to CloudWatch log group names already shown in inventory where possible.
-- Keep read-only Lambda inventory visible underneath.
-
-Why it matters:
-
-- Lambda is central to many local AWS workflows.
-- It pairs with SQS, SNS, S3 notifications, API Gateway, and EventBridge.
-
-### 7. S3 Follow-Ups
+### 6. S3 Follow-Ups
 
 Keep improving the existing S3 workbench.
 
@@ -253,10 +238,9 @@ This order is intentionally modest and can change:
 3. Shared Console Shell hardening.
 4. Action API follow-through.
 5. Environment Details page.
-6. Lambda Invoke Workbench.
-7. S3 follow-ups.
-8. DynamoDB Table Explorer.
-9. CloudWatch Logs Viewer.
+6. S3 follow-ups.
+7. DynamoDB Table Explorer.
+8. CloudWatch Logs Viewer.
 
 ## Contributor Checklist
 
@@ -279,5 +263,5 @@ When adding or improving a service page:
 - Should service docs links and operation counts remain manually maintained in the dashboard registry?
 - How much should `dashboard.js` be reduced in favor of declarative panel configs?
 - Should tutorial definitions live in this repo, Floci docs, or both?
-- Which service should become the fourth reference workbench after S3, SQS, and SNS: Lambda or DynamoDB?
+- Which service should become the next reference workbench after S3, SQS, SNS, and Lambda: DynamoDB, CloudWatch Logs, or Step Functions?
 - What health fields are stable enough in Floci to expose on an Environment Details page?
