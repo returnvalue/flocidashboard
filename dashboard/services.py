@@ -370,6 +370,39 @@ CLOUDWATCH_ACTIONS = (
 )
 
 
+STEPFUNCTIONS_ACTIONS = (
+    action(
+        'start_execution',
+        'Start execution',
+        'POST',
+        '/api/stepfunctions/executions/start/',
+        'execute',
+        fields=(
+            action_field('state_machine_arn', 'State machine ARN', required=True),
+            action_field('name', 'Execution name'),
+            action_field('input', 'JSON input', field_type='textarea'),
+            action_field('trace_header', 'Trace header'),
+        ),
+        success_message='Execution started',
+    ),
+    action(
+        'stop_execution',
+        'Stop execution',
+        'POST',
+        '/api/stepfunctions/executions/stop/',
+        'delete',
+        safety='destructive',
+        fields=(
+            action_field('execution_arn', 'Execution ARN', required=True),
+            action_field('error', 'Error'),
+            action_field('cause', 'Cause'),
+        ),
+        confirm='Stop this running execution?',
+        success_message='Execution stopped',
+    ),
+)
+
+
 SERVICES: tuple[ServiceDefinition, ...] = (
     service('acm', 'ACM', 'Certificates and validation state', 'Security'),
     service('apigateway', 'API Gateway', 'REST and HTTP APIs', 'Application Integration'),
@@ -481,7 +514,18 @@ SERVICES: tuple[ServiceDefinition, ...] = (
         actions=SQS_ACTIONS,
     ),
     service('ssm', 'SSM', 'Parameter Store, documents, sessions, automation, and managed instances', 'Management'),
-    service('stepfunctions', 'Step Functions', 'State machines and executions', 'Application Integration'),
+    service(
+        'stepfunctions',
+        'Step Functions',
+        'State machines and executions',
+        'Application Integration',
+        maturity='interactive_workbench',
+        console_css='dashboard/stepfunctions-console.css',
+        console_js='dashboard/stepfunctions-console.js',
+        shared_console=True,
+        tags=('layered-workbench', 'workflow-workbench'),
+        actions=STEPFUNCTIONS_ACTIONS,
+    ),
     service('textract', 'Textract', 'Document analysis, OCR, adapters, and async jobs', 'AI'),
     service('transcribe', 'Transcribe', 'Speech transcription jobs and vocabularies', 'AI'),
     service('transfer', 'Transfer Family', 'SFTP, FTPS, FTP, and AS2 transfer resources', 'Storage'),

@@ -6,6 +6,12 @@ const endpoint = document.querySelector('#endpoint');
 const profile = document.querySelector('#profile');
 const identity = document.querySelector('#identity');
 const serviceGrid = document.querySelector('#service-grid');
+const serviceFilter = document.querySelector('#service-filter');
+const serviceFilterSummary = document.querySelector('#service-filter-summary');
+const serviceFilterOptions = document.querySelector('#service-filter-options');
+const serviceFilterTop = document.querySelector('#service-filter-top');
+const serviceFilterInteractive = document.querySelector('#service-filter-interactive');
+const serviceFilterAll = document.querySelector('#service-filter-all');
 const backToTopButton = document.querySelector('.back-to-top');
 const iamGrid = document.querySelector('#iam-grid');
 const iamSummary = document.querySelector('#iam-summary');
@@ -137,6 +143,7 @@ const acmLoadedAt = document.querySelector('#acm-loaded-at');
 const stepfunctionsGrid = document.querySelector('#stepfunctions-grid');
 const stepfunctionsSummary = document.querySelector('#stepfunctions-summary');
 const stepfunctionsLoadedAt = document.querySelector('#stepfunctions-loaded-at');
+const stepfunctionsConsoleRoot = document.getElementById('stepfunctions-console-root');
 const schedulerGrid = document.querySelector('#scheduler-grid');
 const schedulerSummary = document.querySelector('#scheduler-summary');
 const schedulerLoadedAt = document.querySelector('#scheduler-loaded-at');
@@ -273,6 +280,8 @@ const serviceDetailPages = {
   codebuild: '/service/codebuild/',
   codedeploy: '/service/codedeploy/',
   cloudformation: '/service/cloudformation/',
+  cloudwatch: '/service/cloudwatch/',
+  cognito: '/service/cognito/',
   'cognito-idp': '/service/cognito/',
   ce: '/service/costexplorer/',
   costexplorer: '/service/costexplorer/',
@@ -288,6 +297,7 @@ const serviceDetailPages = {
   elb: '/service/elasticloadbalancing/',
   elbv2: '/service/elasticloadbalancing/',
   elasticloadbalancing: '/service/elasticloadbalancing/',
+  eventbridge: '/service/eventbridge/',
   events: '/service/eventbridge/',
   firehose: '/service/firehose/',
   glue: '/service/glue/',
@@ -329,12 +339,16 @@ function canonicalServiceKey(name) {
     bedrockruntime: 'bedrock-runtime',
     'bcm-data-exports': 'bcmdataexports',
     ce: 'costexplorer',
+    'cognito-idp': 'cognito',
     codebuild: 'codebuild',
     codedeploy: 'codedeploy',
     elb: 'elasticloadbalancing',
     elbv2: 'elasticloadbalancing',
     es: 'opensearch',
     email: 'ses',
+    events: 'eventbridge',
+    logs: 'cloudwatch',
+    monitoring: 'cloudwatch',
     resourcegroupstaggingapi: 'resourcegroupstagging',
     tagging: 'resourcegroupstagging',
     states: 'stepfunctions',
@@ -346,61 +360,97 @@ function canonicalServiceKey(name) {
 
 const servicePriorityOrder = [
   'iam',
-  's3',
   'ec2',
+  's3',
+  'lambda',
   'rds',
+  'dynamodb',
+  'apigateway',
   'autoscaling',
   'elasticloadbalancing',
-  'lambda',
-  'dynamodb',
-  'sqs',
   'route53',
+  'cloudwatch',
   'kms',
-  'monitoring',
-  'logs',
   'secretsmanager',
-  'ssm',
-  'cloudformation',
-  'events',
+  'sqs',
+  'sns',
+  'eventbridge',
+  'stepfunctions',
   'scheduler',
-  'pricing',
-  'ce',
-  'cur',
-  'bcm-data-exports',
+  'pipes',
+  'cloudformation',
+  'ssm',
+  'cognito',
+  'cognito-idp',
   'acm',
   'ecs',
   'ecr',
   'eks',
+  'elasticache',
+  'opensearch',
   'athena',
   'glue',
-  'sns',
-  'elasticache',
-  'neptune',
   'kinesis',
   'firehose',
-  'codedeploy',
-  'codebuild',
-  'bedrock-runtime',
-  'stepfunctions',
-  'cognito-idp',
-  'apigateway',
-  'transfer',
+  'kafka',
+  'neptune',
+  'pricing',
+  'ce',
+  'cur',
+  'bcm-data-exports',
+  'resourcegroupstagging',
   'backup',
+  'transfer',
+  'ses',
+  'bedrock-runtime',
   'textract',
   'transcribe',
-  'ses',
+  'codebuild',
+  'codedeploy',
+  'appconfig',
 ];
 
 const servicePriorityRank = new Map(
   servicePriorityOrder.map((service, index) => [canonicalServiceKey(service), index])
 );
+const defaultHomeServiceCount = 12;
+const serviceFilterStorageKey = 'floci.dashboard.home.selectedServices';
+
+let selectedHomeServices = null;
+
+function parsedJsonString(value) {
+  const trimmed = String(value || '').trim();
+  if (!trimmed || !['{', '['].includes(trimmed[0])) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(trimmed);
+  } catch (error) {
+    return null;
+  }
+}
+
+function displayValue(value) {
+  if (Array.isArray(value)) {
+    return value.map(displayValue);
+  }
+  if (typeof value === 'string') {
+    const parsed = parsedJsonString(value);
+    return parsed ? displayValue(parsed) : value;
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, item]) => item !== null && item !== undefined && item !== '')
+        .map(([key, item]) => [key, displayValue(item)])
+    );
+  }
+  return value;
+}
 
 function stringifyItem(item) {
-  const compact = Object.fromEntries(
-    Object.entries(item).filter(([, value]) => value !== null && value !== undefined && value !== '')
-  );
-
-  return JSON.stringify(compact, null, 2);
+  return JSON.stringify(displayValue(item), null, 2);
 }
 
 function valueText(value) {
@@ -411,7 +461,8 @@ function valueText(value) {
 
     return value.map((item) => {
       if (typeof item === 'string') {
-        return item;
+        const parsed = parsedJsonString(item);
+        return parsed ? JSON.stringify(parsed, null, 2) : item;
       }
 
       return stringifyItem(item);
@@ -420,6 +471,13 @@ function valueText(value) {
 
   if (value && typeof value === 'object') {
     return stringifyItem(value);
+  }
+
+  if (typeof value === 'string') {
+    const parsed = parsedJsonString(value);
+    if (parsed) {
+      return JSON.stringify(parsed, null, 2);
+    }
   }
 
   return value || 'None';
@@ -4397,22 +4455,175 @@ function resourceServiceKey(resource) {
     'transfer-resources': 'transfer',
   };
 
-  if (keys[resource.name]) {
-    return keys[resource.name];
-  }
+  const key = keys[resource.name] || (
+    resource.name.startsWith('iam-')
+      ? 'iam'
+      : resource.name.replace(/-.*/, '')
+  );
 
-  if (resource.name.startsWith('iam-')) {
-    return 'iam';
-  }
-
-  return canonicalServiceKey(resource.name.replace(/-.*/, ''));
+  return canonicalServiceKey(key);
 }
 
-function mergeServiceCards(resources, healthServices = {}) {
+function serviceMetadataMap(serviceMetadata = []) {
+  return new Map(
+    serviceMetadata.map((service) => [canonicalServiceKey(service.key), service])
+  );
+}
+
+function serviceExperience(service) {
+  return service.maturity === 'interactive_workbench' || service.maturity === 'tutorial_ready'
+    ? 'Interactive'
+    : 'Read Only';
+}
+
+function sortedServiceMetadata(serviceMetadata = []) {
+  return [...serviceMetadata].sort((left, right) => {
+    const leftRank = servicePriorityRank.get(canonicalServiceKey(left.key));
+    const rightRank = servicePriorityRank.get(canonicalServiceKey(right.key));
+    const leftHasPriority = Number.isInteger(leftRank);
+    const rightHasPriority = Number.isInteger(rightRank);
+
+    if (leftHasPriority && rightHasPriority && leftRank !== rightRank) {
+      return leftRank - rightRank;
+    }
+    if (leftHasPriority !== rightHasPriority) {
+      return leftHasPriority ? -1 : 1;
+    }
+    return left.title.localeCompare(right.title);
+  });
+}
+
+function defaultHomeServices(serviceMetadata = []) {
+  return new Set(
+    sortedServiceMetadata(serviceMetadata)
+      .slice(0, defaultHomeServiceCount)
+      .map((service) => service.key)
+  );
+}
+
+function readStoredHomeServices(serviceMetadata = []) {
+  const validKeys = new Set(serviceMetadata.map((service) => service.key));
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(serviceFilterStorageKey) || 'null');
+    if (!Array.isArray(stored)) {
+      return null;
+    }
+    return new Set(stored.filter((key) => validKeys.has(key)));
+  } catch (error) {
+    return null;
+  }
+}
+
+function writeStoredHomeServices(keys) {
+  try {
+    window.localStorage.setItem(serviceFilterStorageKey, JSON.stringify([...keys]));
+  } catch (error) {
+    // Ignore storage failures; the filter still works for the current page load.
+  }
+}
+
+function selectedHomeServiceKeys(serviceMetadata = []) {
+  if (!selectedHomeServices) {
+    selectedHomeServices = readStoredHomeServices(serviceMetadata) || defaultHomeServices(serviceMetadata);
+  }
+  return selectedHomeServices;
+}
+
+function selectedHomeServiceMetadata(serviceMetadata = []) {
+  const selected = selectedHomeServiceKeys(serviceMetadata);
+  return serviceMetadata.filter((service) => selected.has(service.key));
+}
+
+function selectedHomeServiceQuery(serviceMetadata = []) {
+  const selected = selectedHomeServiceKeys(serviceMetadata);
+  return [...selected].sort().map(encodeURIComponent).join(',');
+}
+
+function filteredHealthServices(healthServices = {}, serviceMetadata = []) {
+  const selected = selectedHomeServiceKeys(serviceMetadata);
+  const selectedCanonical = new Set([...selected].map(canonicalServiceKey));
+  return Object.fromEntries(
+    Object.entries(healthServices).filter(([key]) => selectedCanonical.has(canonicalServiceKey(key)))
+  );
+}
+
+function updateServiceFilterSummary(serviceMetadata = []) {
+  if (!serviceFilterSummary) {
+    return;
+  }
+  const selectedCount = selectedHomeServiceKeys(serviceMetadata).size;
+  serviceFilterSummary.textContent = `${selectedCount} service${selectedCount === 1 ? '' : 's'}`;
+}
+
+function renderServiceFilter(serviceMetadata = []) {
+  if (!serviceFilter || !serviceFilterOptions) {
+    return;
+  }
+
+  const selected = selectedHomeServiceKeys(serviceMetadata);
+  updateServiceFilterSummary(serviceMetadata);
+  serviceFilterOptions.textContent = '';
+
+  sortedServiceMetadata(serviceMetadata).forEach((service) => {
+    const label = document.createElement('label');
+    label.className = 'service-filter-option';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.value = service.key;
+    checkbox.checked = selected.has(service.key);
+    checkbox.addEventListener('change', () => {
+      if (checkbox.checked) {
+        selected.add(service.key);
+      } else {
+        selected.delete(service.key);
+      }
+      writeStoredHomeServices(selected);
+      updateServiceFilterSummary(serviceMetadata);
+      refresh();
+    });
+    const name = document.createElement('span');
+    name.textContent = service.title;
+    label.append(checkbox, name);
+    serviceFilterOptions.append(label);
+  });
+
+  if (serviceFilterTop) {
+    serviceFilterTop.onclick = () => {
+      selectedHomeServices = defaultHomeServices(serviceMetadata);
+      writeStoredHomeServices(selectedHomeServices);
+      renderServiceFilter(serviceMetadata);
+      refresh();
+    };
+  }
+  if (serviceFilterInteractive) {
+    serviceFilterInteractive.onclick = () => {
+      selectedHomeServices = new Set(
+        serviceMetadata
+          .filter((service) => serviceExperience(service) === 'Interactive')
+          .map((service) => service.key)
+      );
+      writeStoredHomeServices(selectedHomeServices);
+      renderServiceFilter(serviceMetadata);
+      refresh();
+    };
+  }
+  if (serviceFilterAll) {
+    serviceFilterAll.onclick = () => {
+      selectedHomeServices = new Set(serviceMetadata.map((service) => service.key));
+      writeStoredHomeServices(selectedHomeServices);
+      renderServiceFilter(serviceMetadata);
+      refresh();
+    };
+  }
+}
+
+function mergeServiceCards(resources, healthServices = {}, serviceMetadata = []) {
   const services = new Map();
+  const metadata = serviceMetadataMap(serviceMetadata);
 
   Object.entries(healthServices).forEach(([name, status]) => {
     const key = canonicalServiceKey(name);
+    const serviceMeta = metadata.get(key);
     const existing = services.get(key);
 
     if (existing) {
@@ -4428,12 +4639,14 @@ function mergeServiceCards(resources, healthServices = {}) {
       count: 0,
       error: null,
       href: serviceHref(key),
+      maturity: serviceMeta?.maturity || 'inventory_only',
       descriptions: [`Service status: ${status}`],
     });
   });
 
   resources.forEach((resource) => {
     const key = resourceServiceKey(resource);
+    const serviceMeta = metadata.get(key);
     const existing = services.get(key);
     const count = Number.isInteger(resource.count) ? resource.count : 0;
 
@@ -4445,6 +4658,7 @@ function mergeServiceCards(resources, healthServices = {}) {
         count,
         error: resource.error,
         href: serviceHref(key),
+        maturity: serviceMeta?.maturity || 'inventory_only',
         descriptions: [serviceDescription(resource)],
       });
       return;
@@ -4456,13 +4670,6 @@ function mergeServiceCards(resources, healthServices = {}) {
   });
 
   return Array.from(services.values()).sort((left, right) => {
-    const leftIsActive = !left.error && left.count > 0;
-    const rightIsActive = !right.error && right.count > 0;
-
-    if (leftIsActive !== rightIsActive) {
-      return leftIsActive ? -1 : 1;
-    }
-
     const leftRank = servicePriorityRank.get(canonicalServiceKey(left.key));
     const rightRank = servicePriorityRank.get(canonicalServiceKey(right.key));
     const leftHasPriority = Number.isInteger(leftRank);
@@ -4487,11 +4694,11 @@ function mergeServiceCards(resources, healthServices = {}) {
   });
 }
 
-function renderServices(resources, healthServices = {}) {
+function renderServices(resources, healthServices = {}, serviceMetadata = []) {
   serviceGrid.textContent = '';
   serviceGrid.setAttribute('aria-busy', 'false');
 
-  mergeServiceCards(resources, healthServices).forEach((service) => {
+  mergeServiceCards(resources, healthServices, serviceMetadata).forEach((service) => {
     const card = document.createElement(service.href ? 'a' : 'article');
     card.className = 'service-card';
     card.dataset.service = service.key;
@@ -4526,10 +4733,16 @@ function renderServices(resources, healthServices = {}) {
     meta.textContent = service.error ? 'Resource count unavailable' : `${service.count} tracked resource${service.count === 1 ? '' : 's'}`;
 
     if (service.href) {
+      const footer = document.createElement('span');
+      footer.className = 'service-card-footer';
       const open = document.createElement('span');
       open.className = 'service-open';
       open.textContent = 'Open details';
-      card.append(heading, message, meta, open);
+      const experience = document.createElement('span');
+      experience.className = `service-experience service-experience-${serviceExperience(service).toLowerCase().replaceAll(' ', '-')}`;
+      experience.textContent = serviceExperience(service);
+      footer.append(open, experience);
+      card.append(heading, message, meta, footer);
       serviceGrid.append(card);
       return;
     }
@@ -4578,10 +4791,23 @@ async function loadHealth() {
 }
 
 async function loadHome(loadingStartedAt) {
-  const resourcesPromise = fetch('/api/resources/');
+  const servicesPromise = fetch('/api/services/');
+  const minimumLoadingPromise = waitForMinimumLoadingTime(loadingStartedAt);
+  const servicesResponse = await servicesPromise;
+  const servicesData = await servicesResponse.json();
+
+  if (!servicesResponse.ok || servicesData.error) {
+    throw new Error(servicesData.error || 'Unable to load service metadata');
+  }
+
+  const serviceMetadata = servicesData.services || [];
+  renderServiceFilter(serviceMetadata);
+
+  const resourcesPath = `/api/resources/?services=${selectedHomeServiceQuery(serviceMetadata)}`;
+  const resourcesPromise = fetch(resourcesPath);
   const [response] = await Promise.all([
     resourcesPromise,
-    waitForMinimumLoadingTime(loadingStartedAt),
+    minimumLoadingPromise,
   ]);
   const data = await response.json();
 
@@ -4589,7 +4815,11 @@ async function loadHome(loadingStartedAt) {
     throw new Error(data.error || 'Unable to load service resources');
   }
 
-  renderServices(data.resources || [], latestHealthData?.services || {});
+  renderServices(
+    data.resources || [],
+    filteredHealthServices(latestHealthData?.services || {}, serviceMetadata),
+    selectedHomeServiceMetadata(serviceMetadata),
+  );
 }
 
 async function loadJson(path, errorMessage) {
@@ -4732,6 +4962,8 @@ async function refresh() {
         await window.DynamoDBConsole.refresh();
       } else if (service.key === 'cloudwatch' && cloudwatchConsoleRoot && window.CloudWatchConsole) {
         await window.CloudWatchConsole.refresh();
+      } else if (service.key === 'stepfunctions' && stepfunctionsConsoleRoot && window.StepFunctionsConsole) {
+        await window.StepFunctionsConsole.refresh();
       }
     }
   } catch (error) {

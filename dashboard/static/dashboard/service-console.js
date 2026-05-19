@@ -104,11 +104,39 @@ const ServiceConsole = (() => {
     });
   }
 
+  function parsedJsonString(value) {
+    const trimmed = String(value || '').trim();
+    if (!trimmed || !['{', '['].includes(trimmed[0])) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(trimmed);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function displayValue(value) {
+    if (Array.isArray(value)) {
+      return value.map(displayValue);
+    }
+    if (typeof value === 'string') {
+      const parsed = parsedJsonString(value);
+      return parsed ? displayValue(parsed) : value;
+    }
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(
+        Object.entries(value)
+          .filter(([, item]) => item !== null && item !== undefined && item !== '')
+          .map(([key, item]) => [key, displayValue(item)]),
+      );
+    }
+    return value;
+  }
+
   function stringifyItem(item) {
-    const compact = Object.fromEntries(
-      Object.entries(item).filter(([, value]) => value !== null && value !== undefined && value !== ''),
-    );
-    return JSON.stringify(compact, null, 2);
+    return JSON.stringify(displayValue(item), null, 2);
   }
 
   function valueText(value) {
@@ -116,10 +144,22 @@ const ServiceConsole = (() => {
       if (value.length === 0) {
         return 'None';
       }
-      return value.map((item) => (typeof item === 'string' ? item : stringifyItem(item))).join('\n');
+      return value.map((item) => {
+        if (typeof item === 'string') {
+          const parsed = parsedJsonString(item);
+          return parsed ? JSON.stringify(parsed, null, 2) : item;
+        }
+        return stringifyItem(item);
+      }).join('\n');
     }
     if (value && typeof value === 'object') {
       return stringifyItem(value);
+    }
+    if (typeof value === 'string') {
+      const parsed = parsedJsonString(value);
+      if (parsed) {
+        return JSON.stringify(parsed, null, 2);
+      }
     }
     return value ?? 'None';
   }
@@ -230,7 +270,9 @@ const ServiceConsole = (() => {
     formatBytes,
     formatDate,
     getCsrfToken,
+    displayValue,
     openModal,
+    parsedJsonString,
     renderDetailList,
     renderSummary,
     sectionIdForLabel,

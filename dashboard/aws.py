@@ -142,6 +142,60 @@ def _resource(
         )
 
 
+def _resource_service_key(name: str) -> str:
+    keys = {
+        'acm-certificates': 'acm',
+        'apigateway-apis': 'apigateway',
+        'appconfig-resources': 'appconfig',
+        'athena-resources': 'athena',
+        'autoscaling-resources': 'autoscaling',
+        'backup-resources': 'backup',
+        'bcmdataexports-resources': 'bcmdataexports',
+        'bedrockruntime-resources': 'bedrockruntime',
+        'cloudformation-resources': 'cloudformation',
+        'cloudwatch-metrics': 'cloudwatch',
+        'cognito-resources': 'cognito',
+        'costexplorer-resources': 'costexplorer',
+        'cur-resources': 'cur',
+        'dynamodb-tables': 'dynamodb',
+        'ec2-resources': 'ec2',
+        'ecr-resources': 'ecr',
+        'ecs-resources': 'ecs',
+        'eks-resources': 'eks',
+        'elasticache-resources': 'elasticache',
+        'elasticloadbalancing-resources': 'elasticloadbalancing',
+        'eventbridge-resources': 'eventbridge',
+        'firehose-resources': 'firehose',
+        'glue-resources': 'glue',
+        'iam-roles': 'iam',
+        'iam-users': 'iam',
+        'kafka-resources': 'kafka',
+        'kinesis-resources': 'kinesis',
+        'kms-keys': 'kms',
+        'lambda-functions': 'lambda',
+        'log-groups': 'cloudwatch',
+        'neptune-resources': 'neptune',
+        'opensearch-resources': 'opensearch',
+        'pipes-resources': 'pipes',
+        'pricing-resources': 'pricing',
+        'rds-resources': 'rds',
+        'resourcegroupstagging-resources': 'resourcegroupstagging',
+        'route53-resources': 'route53',
+        's3-buckets': 's3',
+        'scheduler-resources': 'scheduler',
+        'secrets': 'secretsmanager',
+        'ses-resources': 'ses',
+        'sns-topics': 'sns',
+        'sqs-queues': 'sqs',
+        'ssm-resources': 'ssm',
+        'stepfunctions-resources': 'stepfunctions',
+        'textract-resources': 'textract',
+        'transcribe-resources': 'transcribe',
+        'transfer-resources': 'transfer',
+    }
+    return keys.get(name, name.replace('-resources', ''))
+
+
 def _paginate(client, operation_name: str, result_key: str, **kwargs) -> list[Any]:
     paginator = client.get_paginator(operation_name)
     return paginator.paginate(**kwargs).build_full_result().get(result_key, [])
@@ -6753,7 +6807,7 @@ def glue_inventory() -> dict[str, Any]:
     }
 
 
-def list_resources() -> list[ResourceResult]:
+def list_resources(service_keys: set[str] | None = None) -> list[ResourceResult]:
     factory = FlociClientFactory()
 
     def iam_users() -> list[dict[str, Any]]:
@@ -8368,6 +8422,16 @@ def list_resources() -> list[ResourceResult]:
         ('cognito-resources', 'Cognito resources', cognito_resources),
         ('eventbridge-resources', 'EventBridge resources', eventbridge_resources),
     ]
+
+    if service_keys is not None:
+        resource_loaders = [
+            loader
+            for loader in resource_loaders
+            if _resource_service_key(loader[0]) in service_keys
+        ]
+
+    if not resource_loaders:
+        return []
 
     with ThreadPoolExecutor(max_workers=min(12, len(resource_loaders))) as executor:
         return list(executor.map(

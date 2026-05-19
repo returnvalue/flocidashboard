@@ -3,8 +3,7 @@
 {% block content %}
   <header class="topbar">
     <div>
-      <p class="eyebrow">Local AWS-compatible environment</p>
-      <h1>Floci Dashboard</h1>
+      <p class="eyebrow">Floci Dashboard / Local AWS-compatible environment</p>
     </div>
     <button id="refresh" type="button" aria-label="Refresh services">Refresh</button>
   </header>
@@ -14,7 +13,20 @@
   <section>
     <div class="section-heading">
       <h2>Services</h2>
-      <span id="loaded-at"></span>
+      <div class="service-heading-actions">
+        <details id="service-filter" class="service-filter">
+          <summary id="service-filter-summary">Services</summary>
+          <div class="service-filter-panel">
+            <div class="service-filter-actions">
+              <button id="service-filter-top" type="button">Top 12</button>
+              <button id="service-filter-interactive" type="button">Interactive</button>
+              <button id="service-filter-all" type="button">All</button>
+            </div>
+            <div id="service-filter-options" class="service-filter-options"></div>
+          </div>
+        </details>
+        <span id="loaded-at"></span>
+      </div>
     </div>
     <div id="service-grid" class="service-grid"></div>
   </section>

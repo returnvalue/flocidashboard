@@ -37,6 +37,13 @@ class DashboardTemplateTests(SimpleTestCase):
                     self.assertContains(response, 'id="s3-readonly-grid"')
                     self.assertContains(response, 'dashboard/service-console.js')
                     self.assertContains(response, 'dashboard/s3-console.js')
+                elif key == 'stepfunctions':
+                    self.assertContains(response, 'id="stepfunctions-loaded-at"')
+                    self.assertContains(response, 'id="stepfunctions-summary"')
+                    self.assertContains(response, 'id="stepfunctions-console-root"')
+                    self.assertContains(response, 'id="stepfunctions-grid"')
+                    self.assertContains(response, 'dashboard/service-console.js')
+                    self.assertContains(response, 'dashboard/stepfunctions-console.js')
                 else:
                     self.assertContains(response, f'id="{key}-loaded-at"')
                     self.assertContains(response, f'id="{key}-summary"')
@@ -89,11 +96,38 @@ class DashboardTemplateTests(SimpleTestCase):
         cloudwatch_actions = {action['name']: action for action in services['cloudwatch']['actions']}
         self.assertEqual(cloudwatch_actions['list_log_streams']['safety'], 'safe')
         self.assertEqual(cloudwatch_actions['get_log_events']['fields'][1]['name'], 'log_stream_name')
+        self.assertEqual(services['stepfunctions']['maturity'], 'interactive_workbench')
+        self.assertEqual(services['stepfunctions']['console_js'], 'dashboard/stepfunctions-console.js')
+        stepfunctions_actions = {action['name']: action for action in services['stepfunctions']['actions']}
+        self.assertEqual(stepfunctions_actions['start_execution']['kind'], 'execute')
+        self.assertEqual(stepfunctions_actions['start_execution']['fields'][2]['field_type'], 'textarea')
+        self.assertEqual(stepfunctions_actions['stop_execution']['safety'], 'destructive')
         self.assertEqual(services['lambda']['api_path'], '/api/lambda/')
 
     def test_service_pages_are_derived_from_registry(self):
         self.assertEqual(set(SERVICE_PAGES), set(SERVICE_REGISTRY))
         self.assertEqual(SERVICE_PAGES['s3']['title'], SERVICE_REGISTRY['s3'].title)
+
+    @patch('dashboard.views.list_resources')
+    def test_resources_api_passes_selected_services(self, list_resources):
+        list_resources.return_value = []
+
+        response = self.client.get(
+            reverse('dashboard:resources'),
+            {'services': 's3,lambda,not-a-service,logs'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        list_resources.assert_called_once_with({'s3', 'lambda', 'cloudwatch'})
+
+    @patch('dashboard.views.list_resources')
+    def test_resources_api_without_selection_loads_all_services(self, list_resources):
+        list_resources.return_value = []
+
+        response = self.client.get(reverse('dashboard:resources'))
+
+        self.assertEqual(response.status_code, 200)
+        list_resources.assert_called_once_with(None)
 
 
 class FlociClientFactoryTests(SimpleTestCase):
@@ -116,3 +150,56 @@ class FlociClientFactoryTests(SimpleTestCase):
         with patch.dict(os.environ, {'FLOCI_AWS_ENDPOINT_URL': 'https://aws.amazon.com'}):
             with self.assertRaisesMessage(ValueError, 'Refusing to use a non-local AWS endpoint'):
                 FlociClientFactory()
+
+
+class StepFunctionsActionTests(SimpleTestCase):
+    @patch('dashboard.stepfunctions_views.start_execution')
+    def test_start_execution_endpoint_uses_action_helper(self, start_execution):
+        start_execution.return_value = {
+            'state_machine_arn': 'arn:aws:states:us-east-1:000000000000:stateMachine:orders',
+            'execution_arn': 'arn:aws:states:us-east-1:000000000000:execution:orders:test',
+        }
+
+        response = self.client.post(
+            reverse('dashboard:stepfunctions-executions-start'),
+            data=json.dumps({
+                'state_machine_arn': 'arn:aws:states:us-east-1:000000000000:stateMachine:orders',
+                'name': 'test',
+                'input': {'order_id': '123'},
+                'trace_header': 'trace-1',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['execution_arn'], 'arn:aws:states:us-east-1:000000000000:execution:orders:test')
+        start_execution.assert_called_once_with(
+            'arn:aws:states:us-east-1:000000000000:stateMachine:orders',
+            {'order_id': '123'},
+            name='test',
+            trace_header='trace-1',
+        )
+
+    @patch('dashboard.stepfunctions_views.stop_execution')
+    def test_stop_execution_endpoint_uses_action_helper(self, stop_execution):
+        stop_execution.return_value = {
+            'execution_arn': 'arn:aws:states:us-east-1:000000000000:execution:orders:test',
+        }
+
+        response = self.client.post(
+            reverse('dashboard:stepfunctions-executions-stop'),
+            data=json.dumps({
+                'execution_arn': 'arn:aws:states:us-east-1:000000000000:execution:orders:test',
+                'error': 'StoppedByDashboard',
+                'cause': 'local test',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['execution_arn'], 'arn:aws:states:us-east-1:000000000000:execution:orders:test')
+        stop_execution.assert_called_once_with(
+            'arn:aws:states:us-east-1:000000000000:execution:orders:test',
+            error='StoppedByDashboard',
+            cause='local test',
+        )

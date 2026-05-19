@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import cloudwatch_logs_views, dynamodb_views, lambda_views, s3_views, sns_views, sqs_views, views
+from . import cloudwatch_logs_views, dynamodb_views, lambda_views, s3_views, sns_views, sqs_views, stepfunctions_views, views
 
 app_name = 'dashboard'
 
@@ -85,6 +85,8 @@ urlpatterns = [
     path('api/sqs/queues/<str:queue_name>/messages/delete/', sqs_views.sqs_message_delete, name='sqs-message-delete'),
     path('api/ssm/', views.ssm, name='ssm'),
     path('api/stepfunctions/', views.stepfunctions, name='stepfunctions'),
+    path('api/stepfunctions/executions/start/', stepfunctions_views.stepfunctions_executions_start, name='stepfunctions-executions-start'),
+    path('api/stepfunctions/executions/stop/', stepfunctions_views.stepfunctions_executions_stop, name='stepfunctions-executions-stop'),
     path('api/textract/', views.textract, name='textract'),
     path('api/transcribe/', views.transcribe, name='transcribe'),
     path('api/transfer/', views.transfer, name='transfer'),

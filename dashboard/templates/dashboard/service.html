@@ -37,6 +37,8 @@
           <nav id="dynamodb-breadcrumbs" class="dynamodb-breadcrumbs" aria-label="DynamoDB navigation"></nav>
         {% elif service.key == 'cloudwatch' %}
           <nav id="cloudwatch-breadcrumbs" class="cloudwatch-breadcrumbs" aria-label="CloudWatch navigation"></nav>
+        {% elif service.key == 'stepfunctions' %}
+          <nav id="stepfunctions-breadcrumbs" class="stepfunctions-breadcrumbs" aria-label="Step Functions navigation"></nav>
         {% endif %}
       </div>
       <span id="{{ service.key }}-loaded-at"></span>
@@ -96,6 +98,15 @@
         <p>Common local test cases include handler errors, async event processing, retry behavior, missing environment configuration, and log messages emitted by background workers.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid cloudwatch-readonly-grid"></div>
+    {% elif service.key == 'stepfunctions' %}
+      <div id="stepfunctions-console-root" class="stepfunctions-console-root" aria-live="polite"></div>
+      <details class="stepfunctions-about-floci">
+        <summary>About Floci Step Functions</summary>
+        <p>Local Step Functions runs state machine workflows through the AWS-compatible Amazon States API. This workbench focuses on starting executions and inspecting their status, input, output, and recent history.</p>
+        <p>Step Functions is most often used to coordinate Lambda functions, service integrations, retries, waits, and branching workflows. In Floci, a good learning flow is to select a state machine, start an execution with representative JSON, inspect the event history, then stop a running execution when testing cancellation behavior.</p>
+        <p>Common local test cases include input shape, Choice state routing, Lambda task payloads, retry and catch paths, timeout behavior, failure output, and task-token callback flows.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid stepfunctions-readonly-grid"></div>
     {% else %}
       <div id="{{ service.key }}-grid" class="iam-grid"></div>
     {% endif %}
