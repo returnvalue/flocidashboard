@@ -1,6 +1,6 @@
 # Floci Dashboard
 
-A small Django UI for inspecting a local [Floci](https://floci.io/) AWS-compatible environment. The dashboard shows Floci health, endpoint/profile/identity details, service cards, resource counts, and service-specific inventory pages.
+A small Django UI for inspecting and testing a local [Floci](https://floci.io/) AWS-compatible environment. The dashboard shows Floci health, endpoint/profile/identity details, selectable service cards, resource counts, service-specific inventory pages, and interactive workbenches for common local AWS workflows.
 
 ![Floci Dashboard UI](./djangofloci.png)
 
@@ -8,8 +8,9 @@ A small Django UI for inspecting a local [Floci](https://floci.io/) AWS-compatib
 
 - Local Floci health and version
 - AWS endpoint, profile, and caller identity
-- Clickable service cards for supported local services
-- Detail pages for services such as S3, IAM, EC2, AppConfig, Bedrock Runtime, Cost Explorer, Cost and Usage Reports, BCM Data Exports, Neptune, EKS, OpenSearch, Pricing, Transcribe, SSM, and more
+- Clickable service cards for supported local services, with persisted home-page service filtering to keep resource probes focused
+- Interactive workbenches for S3, IAM, SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, and Step Functions
+- Detail pages for services such as EC2, AppConfig, Bedrock Runtime, Cost Explorer, Cost and Usage Reports, BCM Data Exports, Neptune, EKS, OpenSearch, Pricing, Transcribe, SSM, and more
 - Loading state with the Floci cloud image while service data is fetched
 
 ## Run Locally On macOS
@@ -107,7 +108,7 @@ Core files:
 - `dashboard/templates/dashboard/service.html`: common service page shell. Interactive workbenches should be layered into this page while keeping the original read-only inventory visible.
 - `dashboard/static/dashboard/service-console.js`: shared browser-side helpers for API calls, summary cards, read-only cards, toolbars, modals, formatting, and lower-right toasts.
 - `dashboard/static/dashboard/dashboard.js`: generic read-only inventory rendering for service pages.
-- Service-specific files such as `s3_api.py`, `s3_views.py`, `s3-console.js`, and `s3-console.css`, `sqs_api.py`, `sqs_views.py`, `sqs-console.js`, and `sqs-console.css`, `sns_api.py`, `sns_views.py`, `sns-console.js`, and `sns-console.css`, `lambda_api.py`, `lambda_views.py`, `lambda-console.js`, and `lambda-console.css`, `dynamodb_api.py`, `dynamodb_views.py`, `dynamodb-console.js`, and `dynamodb-console.css`, or `cloudwatch_logs_api.py`, `cloudwatch_logs_views.py`, `cloudwatch-console.js`, and `cloudwatch-console.css`: focused behavior for one service only.
+- Service-specific files such as `s3_api.py`, `s3_views.py`, `s3-console.js`, and `s3-console.css`, `iam_api.py`, `iam_views.py`, `iam-console.js`, and `iam-console.css`, `sqs_api.py`, `sqs_views.py`, `sqs-console.js`, and `sqs-console.css`, `sns_api.py`, `sns_views.py`, `sns-console.js`, and `sns-console.css`, `lambda_api.py`, `lambda_views.py`, `lambda-console.js`, and `lambda-console.css`, `dynamodb_api.py`, `dynamodb_views.py`, `dynamodb-console.js`, and `dynamodb-console.css`, `cloudwatch_logs_api.py`, `cloudwatch_logs_views.py`, `cloudwatch-console.js`, and `cloudwatch-console.css`, or `stepfunctions_api.py`, `stepfunctions_views.py`, `stepfunctions-console.js`, and `stepfunctions-console.css`: focused behavior for one service only.
 
 Important conventions:
 
@@ -132,7 +133,9 @@ Use the service page in the browser as a final sanity check, for example:
 
 ```text
 http://127.0.0.1:8000/service/s3/
+http://127.0.0.1:8000/service/iam/
 http://127.0.0.1:8000/service/sqs/
+http://127.0.0.1:8000/service/stepfunctions/
 ```
 
 ## Prompt For AI-Assisted Contributors
@@ -140,7 +143,7 @@ http://127.0.0.1:8000/service/sqs/
 If you are using Codex, Claude, or another local coding assistant to add a dashboard feature, start with a prompt like this:
 
 ```text
-You are contributing to the Floci Dashboard Django app. Before editing, read README.md, ROADMAP.md, dashboard/services.py, dashboard/actions.py, dashboard/templates/dashboard/service.html, dashboard/static/dashboard/service-console.js, and the closest existing workbench implementation, currently S3 and SQS.
+You are contributing to the Floci Dashboard Django app. Before editing, read README.md, ROADMAP.md, dashboard/services.py, dashboard/actions.py, dashboard/templates/dashboard/service.html, dashboard/static/dashboard/service-console.js, and the closest existing workbench implementation. Good references are S3 for object browsing, IAM for identity and policy workflows, SQS/SNS for messaging, Lambda for invoke/test workflows, DynamoDB for read-only data exploration, CloudWatch Logs for recent event viewing, and Step Functions for execution workflows.
 
 Goal: add or improve the <SERVICE> dashboard feature.
 
