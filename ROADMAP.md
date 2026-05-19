@@ -31,7 +31,7 @@ Core architecture files:
 - `dashboard/actions.py`: shared action metadata, JSON parsing, and normalized action errors.
 - `dashboard/templates/dashboard/service.html`: common service page shell.
 - `dashboard/static/dashboard/service-console.js`: shared frontend helpers for API calls, summary cards, read-only cards, toolbars, modals, formatting, and lower-right toasts.
-- Service-specific modules such as `s3_api.py`, `s3_views.py`, `s3-console.js`, and `s3-console.css`, `iam_api.py`, `iam_views.py`, `iam-console.js`, and `iam-console.css`, `stepfunctions_api.py`, `stepfunctions_views.py`, `stepfunctions-console.js`, and `stepfunctions-console.css`, or the equivalent files for SQS, SNS, Lambda, DynamoDB, and CloudWatch Logs.
+- Service-specific modules such as `s3_api.py`, `s3_views.py`, `s3-console.js`, and `s3-console.css`, `iam_api.py`, `iam_views.py`, `iam-console.js`, and `iam-console.css`, `ec2_api.py`, `ec2_views.py`, `ec2-console.js`, and `ec2-console.css`, `stepfunctions_api.py`, `stepfunctions_views.py`, `stepfunctions-console.js`, and `stepfunctions-console.css`, `eventbridge_api.py`, `eventbridge_views.py`, `eventbridge-console.js`, and `eventbridge-console.css`, or the equivalent files for SQS, SNS, Lambda, DynamoDB, and CloudWatch Logs.
 
 ## Guiding Principles
 
@@ -68,9 +68,13 @@ Core architecture files:
 - Registered Step Functions as an interactive workflow workbench.
 - Built the IAM Identity Workbench with principal exploration, policy document viewing, statement summaries, access key management, assume-role testing, managed policy attachment, inline policy editing, and managed policy creation.
 - Registered IAM as an interactive identity workbench.
+- Built the EventBridge Event Sender with event bus selection, rule and target context, JSON event detail submission, PutEvents result rendering, and EventBridge tutorial notes.
+- Registered EventBridge as an interactive event workbench.
+- Built the EC2 Instance Workbench with instance selection, launch and key import modals, start/stop/reboot/terminate actions, CLI snippets, IMDS hints, richer instance inventory, and EC2 tutorial notes.
+- Registered EC2 as an interactive compute workbench.
 - Added a home-page service selector that defaults to the top 12 common AWS services, persists user selections, labels cards as Interactive or Read Only, and limits `/api/resources/` calls to selected services for faster loads.
 - Replaced the dashboard README screenshot image.
-- Added tutorial-style "About Floci S3", "About Floci IAM", "About Floci SQS", "About Floci SNS", "About Floci Lambda", "About Floci DynamoDB", "About Floci CloudWatch Logs", and "About Floci Step Functions" notes.
+- Added tutorial-style "About Floci S3", "About Floci IAM", "About Floci EC2", "About Floci SQS", "About Floci SNS", "About Floci Lambda", "About Floci DynamoDB", "About Floci CloudWatch Logs", "About Floci Step Functions", and "About Floci EventBridge" notes.
 - Added contributor architecture notes and an AI-assisted contributor prompt to `README.md`.
 
 ## Near-Term Priorities
@@ -224,6 +228,40 @@ Why it matters:
 
 - S3 is the reference workbench and likely a high-traffic page.
 
+### 10. EC2 Follow-Ups
+
+Keep improving the new EC2 instance workbench.
+
+Feasible follow-ups:
+
+- Surface Docker container identifiers, SSH host ports, and UserData output when Floci exposes them.
+- Add security group ingress and egress editing with explicit revoke confirmations.
+- Add Elastic IP allocate, associate, disassociate, and release actions.
+- Add VPC and subnet creation flows for local networking tests.
+- Add IAM instance profile selection from IAM inventory where the relationship is easy to infer.
+
+Why it matters:
+
+- EC2 is now a real local compute workflow in Floci.
+- Launch, lifecycle, key import, IMDS, and networking hints make the dashboard a better local debugger than raw inventory alone.
+
+### 11. EventBridge Follow-Ups
+
+Keep improving the new EventBridge event sender.
+
+Feasible follow-ups:
+
+- Add rule enable and disable actions.
+- Add simple rule creation for event pattern tests.
+- Add target summaries that deep-link to Lambda, SQS, SNS, or Step Functions pages where ARNs are recognizable.
+- Add recent sent-event history in browser state for quick replay.
+- Add event pattern helper presets for common local app events.
+
+Why it matters:
+
+- EventBridge sits between many existing interactive workbenches.
+- Better cross-service links would turn it into a practical event-routing debugger.
+
 ## Later, But Still Plausible
 
 These are useful, but should wait until the shared service architecture has one or two more workbenches behind it.
@@ -273,6 +311,8 @@ This order is intentionally modest and can change:
 7. IAM follow-ups.
 8. Step Functions follow-ups.
 9. S3 follow-ups.
+10. EC2 follow-ups.
+11. EventBridge follow-ups.
 
 ## Contributor Checklist
 
@@ -295,5 +335,5 @@ When adding or improving a service page:
 - Should service docs links and operation counts remain manually maintained in the dashboard registry?
 - How much should `dashboard.js` be reduced in favor of declarative panel configs?
 - Should tutorial definitions live in this repo, Floci docs, or both?
-- Which service should become the next reference workbench after S3, IAM, SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, and Step Functions: API Gateway, EventBridge, or ECR?
+- Which service should become the next reference workbench after S3, IAM, EC2, SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, and EventBridge: API Gateway or ECR?
 - What health fields are stable enough in Floci to expose on an Environment Details page?

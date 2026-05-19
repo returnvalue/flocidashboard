@@ -1,0 +1,356 @@
+.eventbridge-breadcrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 0.88rem;
+}
+
+.eventbridge-breadcrumbs button {
+  min-height: auto;
+  padding: 2px 6px;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.eventbridge-breadcrumbs button:hover {
+  background: transparent;
+  text-decoration: underline;
+}
+
+.eventbridge-breadcrumbs span {
+  color: var(--muted);
+}
+
+.eventbridge-console-root {
+  margin-top: 16px;
+}
+
+.eventbridge-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.eventbridge-toolbar-left,
+.eventbridge-toolbar-right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.eventbridge-btn-secondary {
+  background: #fff;
+  color: var(--accent);
+}
+
+.eventbridge-btn-secondary:hover {
+  background: #f0f4fc;
+}
+
+.eventbridge-toolbar button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.eventbridge-workbench {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.9fr) minmax(0, 1.5fr);
+  gap: 14px;
+}
+
+.eventbridge-panel {
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.eventbridge-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e8ebf1;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.eventbridge-bus-list {
+  display: grid;
+}
+
+.eventbridge-bus-row {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  min-height: auto;
+  padding: 12px 14px;
+  border: none;
+  border-bottom: 1px solid #e8ebf1;
+  border-radius: 0;
+  background: #fff;
+  color: var(--text);
+  text-align: left;
+}
+
+.eventbridge-bus-row:hover,
+.eventbridge-bus-row-active {
+  background: #f4f7fd;
+  color: var(--text);
+}
+
+.eventbridge-bus-name {
+  font-weight: 780;
+  overflow-wrap: anywhere;
+}
+
+.eventbridge-bus-meta {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 520;
+}
+
+.eventbridge-bus-detail {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+}
+
+.eventbridge-bus-detail h3,
+.eventbridge-put-result h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.eventbridge-bus-detail dl,
+.eventbridge-rule dl,
+.eventbridge-target dl,
+.eventbridge-put-result dl {
+  display: grid;
+  grid-template-columns: minmax(110px, max-content) minmax(0, 1fr);
+  gap: 6px 12px;
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.eventbridge-bus-detail dt,
+.eventbridge-rule dt,
+.eventbridge-target dt,
+.eventbridge-put-result dt {
+  color: var(--muted);
+  font-weight: 720;
+}
+
+.eventbridge-bus-detail dd,
+.eventbridge-rule dd,
+.eventbridge-target dd,
+.eventbridge-put-result dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.eventbridge-rule-list,
+.eventbridge-target-list {
+  display: grid;
+  gap: 12px;
+}
+
+.eventbridge-rule,
+.eventbridge-target,
+.eventbridge-put-result {
+  border: 1px solid #e8ebf1;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fff;
+}
+
+.eventbridge-rule-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.eventbridge-rule h4,
+.eventbridge-target h4 {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.eventbridge-rule-state {
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #f2f4f8;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.eventbridge-rule-state-enabled {
+  background: #eef7f2;
+  color: #276642;
+}
+
+.eventbridge-rule-state-disabled {
+  background: #fff4e5;
+  color: #8a5300;
+}
+
+.eventbridge-empty {
+  padding: 32px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.eventbridge-empty-compact {
+  padding: 12px;
+  border: 1px dashed #d8deea;
+  border-radius: 8px;
+}
+
+.eventbridge-about-floci {
+  margin-top: 24px;
+  padding: 12px 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.eventbridge-about-floci summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.eventbridge-about-floci p {
+  margin-top: 12px;
+  line-height: 1.5;
+}
+
+.eventbridge-readonly-grid {
+  margin-top: 14px;
+}
+
+.eventbridge-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(23, 32, 51, 0.45);
+}
+
+.eventbridge-modal {
+  width: min(620px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  padding: 20px;
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.eventbridge-modal h3 {
+  margin: 0 0 14px;
+}
+
+.eventbridge-modal label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.78rem;
+  font-weight: 780;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.eventbridge-modal input,
+.eventbridge-modal textarea {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+}
+
+.eventbridge-modal textarea {
+  min-height: 150px;
+  resize: vertical;
+}
+
+.eventbridge-modal .eventbridge-detail-input,
+.eventbridge-bus-preview {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+}
+
+.eventbridge-bus-preview {
+  overflow: auto;
+  margin: 0 0 12px;
+  padding: 10px;
+  border-radius: 6px;
+  background: #f7f8fb;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.eventbridge-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.eventbridge-toast {
+  position: fixed;
+  right: 22px;
+  z-index: 120;
+  max-width: min(360px, calc(100vw - 44px));
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #172033;
+  color: #fff;
+  box-shadow: var(--shadow);
+}
+
+.eventbridge-toast-error {
+  background: #8f1d2c;
+}
+
+@media (max-width: 820px) {
+  .eventbridge-toolbar,
+  .eventbridge-workbench {
+    grid-template-columns: 1fr;
+  }
+
+  .eventbridge-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .eventbridge-toolbar-left,
+  .eventbridge-toolbar-right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}

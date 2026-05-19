@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import cloudwatch_logs_views, dynamodb_views, iam_views, lambda_views, s3_views, sns_views, sqs_views, stepfunctions_views, views
+from . import cloudwatch_logs_views, dynamodb_views, ec2_views, eventbridge_views, iam_views, lambda_views, s3_views, sns_views, sqs_views, stepfunctions_views, views
 
 app_name = 'dashboard'
 
@@ -28,9 +28,16 @@ urlpatterns = [
     path('api/dynamodb/tables/<str:table_name>/scan/', dynamodb_views.dynamodb_table_scan, name='dynamodb-table-scan'),
     path('api/dynamodb/partiql/', dynamodb_views.dynamodb_partiql_execute, name='dynamodb-partiql'),
     path('api/eventbridge/', views.eventbridge, name='eventbridge'),
+    path('api/eventbridge/events/put/', eventbridge_views.eventbridge_events_put, name='eventbridge-events-put'),
     path('api/health/', views.health, name='health'),
     path('api/glue/', views.glue, name='glue'),
     path('api/ec2/', views.ec2, name='ec2'),
+    path('api/ec2/instances/', ec2_views.ec2_instances_run, name='ec2-instances-run'),
+    path('api/ec2/instances/<str:instance_id>/start/', ec2_views.ec2_instance_start, name='ec2-instance-start'),
+    path('api/ec2/instances/<str:instance_id>/stop/', ec2_views.ec2_instance_stop, name='ec2-instance-stop'),
+    path('api/ec2/instances/<str:instance_id>/reboot/', ec2_views.ec2_instance_reboot, name='ec2-instance-reboot'),
+    path('api/ec2/instances/<str:instance_id>/terminate/', ec2_views.ec2_instance_terminate, name='ec2-instance-terminate'),
+    path('api/ec2/key-pairs/import/', ec2_views.ec2_key_pairs_import, name='ec2-key-pairs-import'),
     path('api/ecr/', views.ecr, name='ecr'),
     path('api/ecs/', views.ecs, name='ecs'),
     path('api/eks/', views.eks, name='eks'),

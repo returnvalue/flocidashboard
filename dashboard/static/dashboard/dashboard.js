@@ -23,6 +23,7 @@ const s3ConsoleRoot = document.getElementById('s3-console-root');
 const ec2Grid = document.querySelector('#ec2-grid');
 const ec2Summary = document.querySelector('#ec2-summary');
 const ec2LoadedAt = document.querySelector('#ec2-loaded-at');
+const ec2ConsoleRoot = document.getElementById('ec2-console-root');
 const kmsGrid = document.querySelector('#kms-grid');
 const kmsSummary = document.querySelector('#kms-summary');
 const kmsLoadedAt = document.querySelector('#kms-loaded-at');
@@ -57,6 +58,7 @@ const costexplorerLoadedAt = document.querySelector('#costexplorer-loaded-at');
 const eventbridgeGrid = document.querySelector('#eventbridge-grid');
 const eventbridgeSummary = document.querySelector('#eventbridge-summary');
 const eventbridgeLoadedAt = document.querySelector('#eventbridge-loaded-at');
+const eventbridgeConsoleRoot = document.getElementById('eventbridge-console-root');
 const cognitoGrid = document.querySelector('#cognito-grid');
 const cognitoSummary = document.querySelector('#cognito-summary');
 const cognitoLoadedAt = document.querySelector('#cognito-loaded-at');
@@ -766,11 +768,21 @@ function renderEC2(data) {
       ['Image ID', 'image_id'],
       ['Instance type', 'instance_type'],
       ['State', 'state'],
+      ['State code', 'state_code'],
+      ['Key name', 'key_name'],
+      ['Architecture', 'architecture'],
       ['VPC', 'vpc_id'],
       ['Subnet', 'subnet_id'],
       ['Private IP', 'private_ip'],
       ['Public IP', 'public_ip'],
+      ['Private DNS', 'private_dns'],
+      ['Public DNS', 'public_dns'],
       ['Security groups', 'security_groups'],
+      ['Network interfaces', 'network_interfaces'],
+      ['Placement', 'placement'],
+      ['Root device', 'root_device_name'],
+      ['Root device type', 'root_device_type'],
+      ['Monitoring', 'monitoring'],
       ['Launch time', 'launch_time'],
       ['Tags', 'tags'],
     ]),
@@ -4967,6 +4979,10 @@ async function refresh() {
         await window.CloudWatchConsole.refresh();
       } else if (service.key === 'stepfunctions' && stepfunctionsConsoleRoot && window.StepFunctionsConsole) {
         await window.StepFunctionsConsole.refresh();
+      } else if (service.key === 'eventbridge' && eventbridgeConsoleRoot && window.EventBridgeConsole) {
+        await window.EventBridgeConsole.refresh();
+      } else if (service.key === 'ec2' && ec2ConsoleRoot && window.EC2Console) {
+        await window.EC2Console.refresh();
       }
     }
   } catch (error) {

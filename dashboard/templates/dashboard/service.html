@@ -41,6 +41,10 @@
           <nav id="cloudwatch-breadcrumbs" class="cloudwatch-breadcrumbs" aria-label="CloudWatch navigation"></nav>
         {% elif service.key == 'stepfunctions' %}
           <nav id="stepfunctions-breadcrumbs" class="stepfunctions-breadcrumbs" aria-label="Step Functions navigation"></nav>
+        {% elif service.key == 'eventbridge' %}
+          <nav id="eventbridge-breadcrumbs" class="eventbridge-breadcrumbs" aria-label="EventBridge navigation"></nav>
+        {% elif service.key == 'ec2' %}
+          <nav id="ec2-breadcrumbs" class="ec2-breadcrumbs" aria-label="EC2 navigation"></nav>
         {% endif %}
       </div>
       <span id="{{ service.key }}-loaded-at"></span>
@@ -118,6 +122,24 @@
         <p>Common local test cases include input shape, Choice state routing, Lambda task payloads, retry and catch paths, timeout behavior, failure output, and task-token callback flows.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid stepfunctions-readonly-grid"></div>
+    {% elif service.key == 'eventbridge' %}
+      <div id="eventbridge-console-root" class="eventbridge-console-root" aria-live="polite"></div>
+      <details class="eventbridge-about-floci">
+        <summary>About Floci EventBridge</summary>
+        <p>Local EventBridge routes application events from event buses through rules and targets such as Lambda, SQS, SNS, and Step Functions.</p>
+        <p>EventBridge is most often used to decouple event producers from downstream workflows. In Floci, a good learning flow is to select an event bus, inspect the matching rules and targets, send a representative JSON event, then follow the delivered message or invocation in the target service workbench.</p>
+        <p>Common local test cases include event source naming, detail-type conventions, event pattern matching, disabled rules, target wiring, and app behavior when events are accepted but no rule matches.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid eventbridge-readonly-grid"></div>
+    {% elif service.key == 'ec2' %}
+      <div id="ec2-console-root" class="ec2-console-root" aria-live="polite"></div>
+      <details class="ec2-about-floci">
+        <summary>About Floci EC2</summary>
+        <p>Local EC2 can launch Docker-backed instances, manage lifecycle state, inject imported SSH public keys, run UserData, and expose IMDS-compatible metadata for local compute workflows.</p>
+        <p>EC2 is most often used to test software that expects an instance-like runtime, VPC placement, security group metadata, or IAM instance profile credentials. In Floci, a good learning flow is to import a key, launch an instance from a built-in AMI, inspect its network placement, then stop, start, reboot, or terminate it from the workbench.</p>
+        <p>Common local test cases include UserData bootstrapping, instance metadata calls, IAM instance profile credential wiring, security group inventory, and app behavior across stop/start or termination.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid ec2-readonly-grid"></div>
     {% else %}
       <div id="{{ service.key }}-grid" class="iam-grid"></div>
     {% endif %}

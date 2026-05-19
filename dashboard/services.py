@@ -370,6 +370,91 @@ CLOUDWATCH_ACTIONS = (
 )
 
 
+EVENTBRIDGE_ACTIONS = (
+    action(
+        'put_event',
+        'Put event',
+        'POST',
+        '/api/eventbridge/events/put/',
+        'execute',
+        fields=(
+            action_field('event_bus_name', 'Event bus name'),
+            action_field('source', 'Source', required=True),
+            action_field('detail_type', 'Detail type', required=True),
+            action_field('detail', 'Event detail JSON', field_type='textarea'),
+        ),
+        success_message='Event sent',
+    ),
+)
+
+
+EC2_ACTIONS = (
+    action(
+        'run_instances',
+        'Launch instance',
+        'POST',
+        '/api/ec2/instances/',
+        'create',
+        fields=(
+            action_field('image_id', 'AMI ID', required=True),
+            action_field('instance_type', 'Instance type', required=True),
+            action_field('subnet_id', 'Subnet ID'),
+            action_field('security_group_ids', 'Security group IDs', field_type='array'),
+            action_field('key_name', 'Key name'),
+            action_field('user_data', 'UserData script', field_type='textarea'),
+            action_field('iam_instance_profile_arn', 'IAM instance profile ARN'),
+        ),
+        success_message='Instance launched',
+    ),
+    action(
+        'start_instance',
+        'Start instance',
+        'POST',
+        '/api/ec2/instances/{instance}/start/',
+        'execute',
+        success_message='Instance started',
+    ),
+    action(
+        'stop_instance',
+        'Stop instance',
+        'POST',
+        '/api/ec2/instances/{instance}/stop/',
+        'execute',
+        success_message='Instance stopped',
+    ),
+    action(
+        'reboot_instance',
+        'Reboot instance',
+        'POST',
+        '/api/ec2/instances/{instance}/reboot/',
+        'execute',
+        success_message='Instance rebooted',
+    ),
+    action(
+        'terminate_instance',
+        'Terminate instance',
+        'POST',
+        '/api/ec2/instances/{instance}/terminate/',
+        'delete',
+        safety='destructive',
+        confirm='Terminate this instance?',
+        success_message='Instance terminated',
+    ),
+    action(
+        'import_key_pair',
+        'Import key pair',
+        'POST',
+        '/api/ec2/key-pairs/import/',
+        'create',
+        fields=(
+            action_field('key_name', 'Key name', required=True),
+            action_field('public_key_material', 'Public key material', required=True, field_type='textarea'),
+        ),
+        success_message='Key pair imported',
+    ),
+)
+
+
 IAM_ACTIONS = (
     action(
         'create_access_key',
@@ -547,13 +632,35 @@ SERVICES: tuple[ServiceDefinition, ...] = (
         tags=('layered-workbench',),
         actions=DYNAMODB_ACTIONS,
     ),
-    service('ec2', 'EC2', 'Compute and networking', 'Compute'),
+    service(
+        'ec2',
+        'EC2',
+        'Compute and networking',
+        'Compute',
+        maturity='interactive_workbench',
+        console_css='dashboard/ec2-console.css',
+        console_js='dashboard/ec2-console.js',
+        shared_console=True,
+        tags=('layered-workbench', 'compute-workbench'),
+        actions=EC2_ACTIONS,
+    ),
     service('ecr', 'ECR', 'Repositories and OCI images', 'Containers'),
     service('ecs', 'ECS', 'Clusters, tasks, and services', 'Containers'),
     service('eks', 'EKS', 'Kubernetes control plane inventory', 'Containers'),
     service('elasticache', 'ElastiCache', 'Cache clusters and replication groups', 'Database'),
     service('elasticloadbalancing', 'Elastic Load Balancing', 'Classic and v2 load balancers', 'Networking'),
-    service('eventbridge', 'EventBridge', 'Event buses and rules', 'Application Integration'),
+    service(
+        'eventbridge',
+        'EventBridge',
+        'Event buses and rules',
+        'Application Integration',
+        maturity='interactive_workbench',
+        console_css='dashboard/eventbridge-console.css',
+        console_js='dashboard/eventbridge-console.js',
+        shared_console=True,
+        tags=('layered-workbench', 'event-workbench'),
+        actions=EVENTBRIDGE_ACTIONS,
+    ),
     service('firehose', 'Data Firehose', 'Delivery streams and destinations', 'Analytics'),
     service('glue', 'Glue', 'Data catalog metadata', 'Analytics'),
     service(

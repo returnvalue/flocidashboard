@@ -51,6 +51,20 @@ class DashboardTemplateTests(SimpleTestCase):
                     self.assertContains(response, 'id="stepfunctions-grid"')
                     self.assertContains(response, 'dashboard/service-console.js')
                     self.assertContains(response, 'dashboard/stepfunctions-console.js')
+                elif key == 'eventbridge':
+                    self.assertContains(response, 'id="eventbridge-loaded-at"')
+                    self.assertContains(response, 'id="eventbridge-summary"')
+                    self.assertContains(response, 'id="eventbridge-console-root"')
+                    self.assertContains(response, 'id="eventbridge-grid"')
+                    self.assertContains(response, 'dashboard/service-console.js')
+                    self.assertContains(response, 'dashboard/eventbridge-console.js')
+                elif key == 'ec2':
+                    self.assertContains(response, 'id="ec2-loaded-at"')
+                    self.assertContains(response, 'id="ec2-summary"')
+                    self.assertContains(response, 'id="ec2-console-root"')
+                    self.assertContains(response, 'id="ec2-grid"')
+                    self.assertContains(response, 'dashboard/service-console.js')
+                    self.assertContains(response, 'dashboard/ec2-console.js')
                 else:
                     self.assertContains(response, f'id="{key}-loaded-at"')
                     self.assertContains(response, f'id="{key}-summary"')
@@ -116,6 +130,19 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertEqual(stepfunctions_actions['start_execution']['kind'], 'execute')
         self.assertEqual(stepfunctions_actions['start_execution']['fields'][2]['field_type'], 'textarea')
         self.assertEqual(stepfunctions_actions['stop_execution']['safety'], 'destructive')
+        self.assertEqual(services['eventbridge']['maturity'], 'interactive_workbench')
+        self.assertEqual(services['eventbridge']['console_js'], 'dashboard/eventbridge-console.js')
+        eventbridge_actions = {action['name']: action for action in services['eventbridge']['actions']}
+        self.assertEqual(eventbridge_actions['put_event']['method'], 'POST')
+        self.assertEqual(eventbridge_actions['put_event']['kind'], 'execute')
+        self.assertEqual(eventbridge_actions['put_event']['fields'][3]['field_type'], 'textarea')
+        self.assertEqual(services['ec2']['maturity'], 'interactive_workbench')
+        self.assertEqual(services['ec2']['console_js'], 'dashboard/ec2-console.js')
+        ec2_actions = {action['name']: action for action in services['ec2']['actions']}
+        self.assertEqual(ec2_actions['run_instances']['kind'], 'create')
+        self.assertEqual(ec2_actions['run_instances']['fields'][5]['field_type'], 'textarea')
+        self.assertEqual(ec2_actions['terminate_instance']['safety'], 'destructive')
+        self.assertEqual(ec2_actions['import_key_pair']['fields'][1]['field_type'], 'textarea')
         self.assertEqual(services['lambda']['api_path'], '/api/lambda/')
 
     def test_service_pages_are_derived_from_registry(self):
@@ -217,6 +244,137 @@ class StepFunctionsActionTests(SimpleTestCase):
             error='StoppedByDashboard',
             cause='local test',
         )
+
+
+class EventBridgeActionTests(SimpleTestCase):
+    @patch('dashboard.eventbridge_views.put_event')
+    def test_put_event_endpoint_uses_action_helper(self, put_event):
+        put_event.return_value = {
+            'event_bus_name': 'default',
+            'failed_entry_count': 0,
+            'event_id': 'event-123',
+            'entries': [{'EventId': 'event-123'}],
+        }
+
+        response = self.client.post(
+            reverse('dashboard:eventbridge-events-put'),
+            data=json.dumps({
+                'event_bus_name': 'default',
+                'source': 'com.example.orders',
+                'detail_type': 'OrderCreated',
+                'detail': {'order_id': '123'},
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['event_id'], 'event-123')
+        put_event.assert_called_once_with(
+            'default',
+            'com.example.orders',
+            'OrderCreated',
+            {'order_id': '123'},
+            resources=None,
+        )
+
+    def test_put_event_endpoint_rejects_invalid_json_detail(self):
+        response = self.client.post(
+            reverse('dashboard:eventbridge-events-put'),
+            data=json.dumps({
+                'event_bus_name': 'default',
+                'source': 'com.example.orders',
+                'detail_type': 'OrderCreated',
+                'detail': '{bad json',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['service'], 'eventbridge')
+        self.assertEqual(response.json()['operation'], 'put_event')
+
+
+class EC2ActionTests(SimpleTestCase):
+    @patch('dashboard.ec2_views.run_instances')
+    def test_run_instances_endpoint_uses_action_helper(self, run_instances):
+        run_instances.return_value = {
+            'reservation_id': 'r-123',
+            'instance_id': 'i-123',
+            'instances': [{'id': 'i-123'}],
+        }
+
+        response = self.client.post(
+            reverse('dashboard:ec2-instances-run'),
+            data=json.dumps({
+                'image_id': 'ami-amazonlinux2023',
+                'instance_type': 't2.micro',
+                'subnet_id': 'subnet-default-c',
+                'security_group_ids': ['sg-default'],
+                'key_name': 'floci-key',
+                'user_data': '#!/bin/sh\necho hello',
+                'iam_instance_profile_arn': 'arn:aws:iam::000000000000:instance-profile/app',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['instance_id'], 'i-123')
+        run_instances.assert_called_once_with(
+            'ami-amazonlinux2023',
+            't2.micro',
+            subnet_id='subnet-default-c',
+            security_group_ids=['sg-default'],
+            key_name='floci-key',
+            user_data='#!/bin/sh\necho hello',
+            iam_instance_profile_arn='arn:aws:iam::000000000000:instance-profile/app',
+        )
+
+    def test_run_instances_endpoint_rejects_missing_image_id(self):
+        response = self.client.post(
+            reverse('dashboard:ec2-instances-run'),
+            data=json.dumps({'instance_type': 't2.micro'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['service'], 'ec2')
+        self.assertEqual(response.json()['operation'], 'run_instances')
+
+    @patch('dashboard.ec2_views.stop_instance')
+    def test_stop_instance_endpoint_uses_action_helper(self, stop_instance):
+        stop_instance.return_value = {'instance_id': 'i-123', 'state_changes': []}
+
+        response = self.client.post(reverse('dashboard:ec2-instance-stop', kwargs={'instance_id': 'i-123'}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['instance_id'], 'i-123')
+        stop_instance.assert_called_once_with('i-123')
+
+    @patch('dashboard.ec2_views.terminate_instance')
+    def test_terminate_instance_endpoint_uses_action_helper(self, terminate_instance):
+        terminate_instance.return_value = {'instance_id': 'i-123', 'state_changes': []}
+
+        response = self.client.post(reverse('dashboard:ec2-instance-terminate', kwargs={'instance_id': 'i-123'}))
+
+        self.assertEqual(response.status_code, 200)
+        terminate_instance.assert_called_once_with('i-123')
+
+    @patch('dashboard.ec2_views.import_key_pair')
+    def test_import_key_pair_endpoint_uses_action_helper(self, import_key_pair):
+        import_key_pair.return_value = {'key_name': 'floci-key', 'fingerprint': 'aa:bb'}
+
+        response = self.client.post(
+            reverse('dashboard:ec2-key-pairs-import'),
+            data=json.dumps({
+                'key_name': 'floci-key',
+                'public_key_material': 'ssh-rsa AAAA user@host',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['key_name'], 'floci-key')
+        import_key_pair.assert_called_once_with('floci-key', 'ssh-rsa AAAA user@host')
 
 
 class IAMActionTests(SimpleTestCase):
