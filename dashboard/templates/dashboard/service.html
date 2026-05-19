@@ -27,6 +27,8 @@
         <h2>{{ service.title }} inventory</h2>
         {% if service.key == 's3' %}
           <nav id="s3-breadcrumbs" class="s3-breadcrumbs" aria-label="S3 navigation"></nav>
+        {% elif service.key == 'iam' %}
+          <nav id="iam-breadcrumbs" class="iam-breadcrumbs-console" aria-label="IAM navigation"></nav>
         {% elif service.key == 'sqs' %}
           <nav id="sqs-breadcrumbs" class="sqs-breadcrumbs" aria-label="SQS navigation"></nav>
         {% elif service.key == 'sns' %}
@@ -53,6 +55,15 @@
         <p>Common local test cases include upload and download paths, overwrite behavior, empty bucket cleanup, versioning changes, object tagging, copy operations, prefix browsing, and app behavior when a bucket or object does not exist.</p>
       </details>
       <div id="s3-readonly-grid" class="iam-grid s3-readonly-grid"></div>
+    {% elif service.key == 'iam' %}
+      <div id="iam-console-root" class="iam-console-root" aria-live="polite"></div>
+      <details class="iam-about-floci">
+        <summary>About Floci IAM</summary>
+        <p>Local IAM stores users, roles, groups, policies, access keys, and trust relationships for AWS-compatible development workflows.</p>
+        <p>IAM is most often used to shape what local SDK calls are allowed to do and to test role-based credentials. In Floci, a good learning flow is to inspect a principal, review its attached and inline policies, create a temporary access key or assume a role, then test those credentials from your app.</p>
+        <p>Common local test cases include missing permissions, incorrect trust policies, inactive access keys, group policy inheritance, permission boundaries, and role-session credential wiring.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid iam-readonly-grid"></div>
     {% elif service.key == 'sqs' %}
       <div id="sqs-console-root" class="sqs-console-root" aria-live="polite"></div>
       <details class="sqs-about-floci">

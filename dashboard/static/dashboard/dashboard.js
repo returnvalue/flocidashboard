@@ -15,6 +15,7 @@ const serviceFilterAll = document.querySelector('#service-filter-all');
 const backToTopButton = document.querySelector('.back-to-top');
 const iamGrid = document.querySelector('#iam-grid');
 const iamSummary = document.querySelector('#iam-summary');
+const iamConsoleRoot = document.getElementById('iam-console-root');
 const s3Grid = document.querySelector('#s3-grid');
 const s3Summary = document.querySelector('#s3-summary');
 const s3LoadedAt = document.querySelector('#s3-loaded-at');
@@ -4952,7 +4953,9 @@ async function refresh() {
       await window.S3Console.refresh();
     } else if (service) {
       await loadServicePage(service);
-      if (service.key === 'sqs' && sqsConsoleRoot && window.SQSConsole) {
+      if (service.key === 'iam' && iamConsoleRoot && window.IAMConsole) {
+        await window.IAMConsole.refresh();
+      } else if (service.key === 'sqs' && sqsConsoleRoot && window.SQSConsole) {
         await window.SQSConsole.refresh();
       } else if (service.key === 'sns' && window.SNSConsole) {
         await window.SNSConsole.refresh();

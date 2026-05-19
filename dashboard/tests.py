@@ -37,6 +37,13 @@ class DashboardTemplateTests(SimpleTestCase):
                     self.assertContains(response, 'id="s3-readonly-grid"')
                     self.assertContains(response, 'dashboard/service-console.js')
                     self.assertContains(response, 'dashboard/s3-console.js')
+                elif key == 'iam':
+                    self.assertContains(response, 'id="iam-loaded-at"')
+                    self.assertContains(response, 'id="iam-summary"')
+                    self.assertContains(response, 'id="iam-console-root"')
+                    self.assertContains(response, 'id="iam-grid"')
+                    self.assertContains(response, 'dashboard/service-console.js')
+                    self.assertContains(response, 'dashboard/iam-console.js')
                 elif key == 'stepfunctions':
                     self.assertContains(response, 'id="stepfunctions-loaded-at"')
                     self.assertContains(response, 'id="stepfunctions-summary"')
@@ -86,6 +93,13 @@ class DashboardTemplateTests(SimpleTestCase):
         lambda_actions = {action['name']: action for action in services['lambda']['actions']}
         self.assertEqual(lambda_actions['invoke_function']['method'], 'POST')
         self.assertEqual(lambda_actions['invoke_function']['kind'], 'execute')
+        self.assertEqual(services['iam']['maturity'], 'interactive_workbench')
+        self.assertEqual(services['iam']['console_js'], 'dashboard/iam-console.js')
+        iam_actions = {action['name']: action for action in services['iam']['actions']}
+        self.assertEqual(iam_actions['create_access_key']['kind'], 'create')
+        self.assertEqual(iam_actions['assume_role']['kind'], 'execute')
+        self.assertEqual(iam_actions['delete_access_key']['safety'], 'destructive')
+        self.assertEqual(iam_actions['put_inline_policy']['fields'][1]['field_type'], 'textarea')
         self.assertEqual(services['dynamodb']['maturity'], 'interactive_workbench')
         self.assertEqual(services['dynamodb']['console_js'], 'dashboard/dynamodb-console.js')
         dynamodb_actions = {action['name']: action for action in services['dynamodb']['actions']}
@@ -203,3 +217,69 @@ class StepFunctionsActionTests(SimpleTestCase):
             error='StoppedByDashboard',
             cause='local test',
         )
+
+
+class IAMActionTests(SimpleTestCase):
+    @patch('dashboard.iam_views.create_access_key')
+    def test_create_access_key_endpoint_uses_action_helper(self, create_access_key):
+        create_access_key.return_value = {
+            'user_name': 'alice',
+            'access_key_id': 'AKIAEXAMPLE',
+            'secret_access_key': 'secret',
+        }
+
+        response = self.client.post(reverse('dashboard:iam-user-access-keys', kwargs={'user_name': 'alice'}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['access_key_id'], 'AKIAEXAMPLE')
+        create_access_key.assert_called_once_with('alice')
+
+    @patch('dashboard.iam_views.assume_role')
+    def test_assume_role_endpoint_uses_action_helper(self, assume_role):
+        assume_role.return_value = {
+            'role_arn': 'arn:aws:iam::000000000000:role/app',
+            'session_name': 'dashboard',
+            'credentials': {'access_key_id': 'ASIAEXAMPLE'},
+        }
+
+        response = self.client.post(
+            reverse('dashboard:iam-role-assume', kwargs={'role_name': 'app'}),
+            data=json.dumps({
+                'role_arn': 'arn:aws:iam::000000000000:role/app',
+                'session_name': 'dashboard',
+                'duration_seconds': 900,
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['credentials']['access_key_id'], 'ASIAEXAMPLE')
+        assume_role.assert_called_once_with(
+            'arn:aws:iam::000000000000:role/app',
+            'dashboard',
+            duration_seconds=900,
+        )
+
+    @patch('dashboard.iam_views.put_inline_policy')
+    def test_put_inline_policy_endpoint_uses_action_helper(self, put_inline_policy):
+        put_inline_policy.return_value = {
+            'principal_type': 'role',
+            'principal_name': 'app',
+            'policy_name': 'local',
+            'saved': True,
+        }
+
+        document = {'Version': '2012-10-17', 'Statement': []}
+        response = self.client.put(
+            reverse('dashboard:iam-inline-policy-detail', kwargs={
+                'principal_type': 'role',
+                'principal_name': 'app',
+                'policy_name': 'local',
+            }),
+            data=json.dumps({'document': document}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['saved'])
+        put_inline_policy.assert_called_once_with('role', 'app', 'local', document)

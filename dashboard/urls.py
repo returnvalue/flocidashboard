@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import cloudwatch_logs_views, dynamodb_views, lambda_views, s3_views, sns_views, sqs_views, stepfunctions_views, views
+from . import cloudwatch_logs_views, dynamodb_views, iam_views, lambda_views, s3_views, sns_views, sqs_views, stepfunctions_views, views
 
 app_name = 'dashboard'
 
@@ -40,6 +40,14 @@ urlpatterns = [
     path('api/services/', views.services, name='services'),
     path('api/firehose/', views.firehose, name='firehose'),
     path('api/iam/', views.iam, name='iam'),
+    path('api/iam/users/<str:user_name>/access-keys/', iam_views.iam_user_access_keys_create, name='iam-user-access-keys'),
+    path('api/iam/users/<str:user_name>/access-keys/<str:access_key_id>/', iam_views.iam_user_access_key_detail, name='iam-user-access-key-detail'),
+    path('api/iam/roles/<str:role_name>/assume/', iam_views.iam_role_assume, name='iam-role-assume'),
+    path('api/iam/principals/<str:principal_type>/<str:principal_name>/attached-policies/', iam_views.iam_attached_policies, name='iam-attached-policies'),
+    path('api/iam/principals/<str:principal_type>/<str:principal_name>/inline-policies/<str:policy_name>/', iam_views.iam_inline_policy_detail, name='iam-inline-policy-detail'),
+    path('api/iam/principals/<str:principal_type>/<str:principal_name>/inline-policies/<str:policy_name>/document/', iam_views.iam_inline_policy_document, name='iam-inline-policy-document'),
+    path('api/iam/policies/', iam_views.iam_managed_policies_create, name='iam-managed-policies'),
+    path('api/iam/policies/document/', iam_views.iam_managed_policy_document, name='iam-managed-policy-document'),
     path('api/kafka/', views.kafka, name='kafka'),
     path('api/kinesis/', views.kinesis, name='kinesis'),
     path('api/kms/', views.kms, name='kms'),
