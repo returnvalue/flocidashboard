@@ -166,6 +166,8 @@ Architecture rules:
 - Use the shared ServiceConsole helpers for API calls, summary rendering, modals, toolbars, formatting, and lower-right toasts.
 - Keep service-specific JS/CSS focused on the service workflow only.
 - Use destructive action confirmations for delete, purge, reset, empty, or cleanup actions.
+- Preserve fresh local startup behavior. The dashboard must work with AWS_ENDPOINT_URL, AWS_DEFAULT_REGION, AWS_ACCESS_KEY_ID=test, and AWS_SECRET_ACCESS_KEY=test, and must not assume a floci-admin profile exists.
+- If changing auth, identity, health, or homepage loading behavior, keep missing Floci and missing/partial AWS credentials graceful: show helpful status messages and display any inventory that can still be loaded.
 - Add focused tests for registry metadata, service page rendering, and action endpoints.
 
 Implementation request:
@@ -173,6 +175,6 @@ Implementation request:
 2. Propose the smallest useful interactive workbench for common local development workflows.
 3. Implement it in the shared architecture.
 4. Keep the original read-only cards visible under the new workbench.
-5. Run python3 manage.py test dashboard, python3 manage.py check, and node --check for any changed console JS.
+5. Run python3 manage.py test dashboard, python3 manage.py check, and node --check for any changed console JS or dashboard JS.
 6. Summarize changed files, behavior, tests run, and any known follow-ups.
 ```
