@@ -217,6 +217,55 @@
   padding: 0 14px;
 }
 
+.kinesis-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(23, 32, 51, 0.45);
+}
+
+.kinesis-modal {
+  width: min(560px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  padding: 20px;
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.kinesis-modal h3 {
+  margin: 0 0 14px;
+}
+
+.kinesis-modal label {
+  display: block;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 720;
+}
+
+.kinesis-modal input,
+.kinesis-modal select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #d8deea;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font: inherit;
+}
+
+.kinesis-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
 .kinesis-empty {
   padding: 32px;
   text-align: center;
