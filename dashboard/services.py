@@ -388,6 +388,172 @@ EVENTBRIDGE_ACTIONS = (
 )
 
 
+APIGATEWAY_ACTIONS = (
+    action(
+        'test_request',
+        'Test request',
+        'POST',
+        '/api/apigateway/requests/test/',
+        'execute',
+        safety='safe',
+        fields=(
+            action_field('api_type', 'API type', required=True),
+            action_field('api_id', 'API ID', required=True),
+            action_field('stage', 'Stage'),
+            action_field('method', 'HTTP method', required=True),
+            action_field('path', 'Path', required=True),
+            action_field('query', 'Query JSON', field_type='object'),
+            action_field('headers', 'Headers JSON', field_type='object'),
+            action_field('body', 'Request body', field_type='textarea'),
+        ),
+        success_message='Request sent',
+    ),
+)
+
+
+KINESIS_ACTIONS = (
+    action(
+        'create_stream',
+        'Create stream',
+        'POST',
+        '/api/kinesis/streams/',
+        'create',
+        fields=(
+            action_field('name', 'Stream name', required=True),
+            action_field('mode', 'Stream mode', required=True),
+            action_field('shard_count', 'Shard count', field_type='number'),
+        ),
+        success_message='Stream created',
+    ),
+    action(
+        'put_record',
+        'Put record',
+        'POST',
+        '/api/kinesis/streams/{stream}/records/',
+        'execute',
+        fields=(
+            action_field('partition_key', 'Partition key', required=True),
+            action_field('data', 'Record data', required=True, field_type='textarea'),
+        ),
+        success_message='Record written',
+    ),
+    action(
+        'get_records',
+        'Get records',
+        'POST',
+        '/api/kinesis/streams/{stream}/shards/{shard}/records/',
+        'read',
+        safety='safe',
+        fields=(
+            action_field('iterator_type', 'Iterator type'),
+            action_field('limit', 'Limit', field_type='number'),
+            action_field('sequence_number', 'Sequence number'),
+        ),
+    ),
+)
+
+
+SECRETSMANAGER_ACTIONS = (
+    action(
+        'create_secret',
+        'Create secret',
+        'POST',
+        '/api/secretsmanager/secrets/',
+        'create',
+        fields=(
+            action_field('name', 'Secret name', required=True),
+            action_field('value', 'Secret value', required=True, field_type='textarea'),
+            action_field('description', 'Description'),
+            action_field('kms_key_id', 'KMS key ID'),
+        ),
+        success_message='Secret created',
+    ),
+    action(
+        'get_secret_value',
+        'Reveal value',
+        'GET',
+        '/api/secretsmanager/secrets/{secret}/value/',
+        'read',
+        safety='safe',
+        success_message='Secret value loaded',
+    ),
+    action(
+        'put_secret_value',
+        'Update value',
+        'PUT',
+        '/api/secretsmanager/secrets/{secret}/value/',
+        'update',
+        fields=(action_field('value', 'Secret value', required=True, field_type='textarea'),),
+        success_message='Secret value updated',
+    ),
+    action(
+        'delete_secret',
+        'Delete secret',
+        'DELETE',
+        '/api/secretsmanager/secrets/{secret}/value/',
+        'delete',
+        safety='destructive',
+        confirm='Schedule this secret for deletion?',
+        fields=(
+            action_field('recovery_window_days', 'Recovery window days', field_type='number'),
+            action_field('force_delete_without_recovery', 'Force delete without recovery', field_type='boolean'),
+        ),
+        success_message='Secret deletion scheduled',
+    ),
+)
+
+
+SSM_ACTIONS = (
+    action(
+        'put_parameter',
+        'Create parameter',
+        'POST',
+        '/api/ssm/parameters/',
+        'create',
+        fields=(
+            action_field('name', 'Parameter name', required=True),
+            action_field('type', 'Parameter type', required=True),
+            action_field('value', 'Parameter value', required=True, field_type='textarea'),
+            action_field('description', 'Description'),
+            action_field('overwrite', 'Overwrite existing parameter', field_type='boolean'),
+        ),
+        success_message='Parameter saved',
+    ),
+    action(
+        'get_parameter',
+        'Reveal value',
+        'GET',
+        '/api/ssm/parameters/{parameter}/value/',
+        'read',
+        safety='safe',
+        success_message='Parameter value loaded',
+    ),
+    action(
+        'update_parameter',
+        'Update value',
+        'PUT',
+        '/api/ssm/parameters/{parameter}/value/',
+        'update',
+        fields=(
+            action_field('type', 'Parameter type', required=True),
+            action_field('value', 'Parameter value', required=True, field_type='textarea'),
+            action_field('description', 'Description'),
+        ),
+        success_message='Parameter updated',
+    ),
+    action(
+        'delete_parameter',
+        'Delete parameter',
+        'DELETE',
+        '/api/ssm/parameters/{parameter}/value/',
+        'delete',
+        safety='destructive',
+        confirm='Delete this parameter?',
+        success_message='Parameter deleted',
+    ),
+)
+
+
 EC2_ACTIONS = (
     action(
         'run_instances',
@@ -595,7 +761,18 @@ STEPFUNCTIONS_ACTIONS = (
 
 SERVICES: tuple[ServiceDefinition, ...] = (
     service('acm', 'ACM', 'Certificates and validation state', 'Security'),
-    service('apigateway', 'API Gateway', 'REST and HTTP APIs', 'Application Integration'),
+    service(
+        'apigateway',
+        'API Gateway',
+        'REST and HTTP APIs',
+        'Application Integration',
+        maturity='interactive_workbench',
+        console_css='dashboard/apigateway-console.css',
+        console_js='dashboard/apigateway-console.js',
+        shared_console=True,
+        tags=('layered-workbench', 'request-workbench'),
+        actions=APIGATEWAY_ACTIONS,
+    ),
     service('appconfig', 'AppConfig', 'Application configuration management', 'Developer Tools'),
     service('athena', 'Athena', 'SQL queries and workgroups', 'Analytics'),
     service('autoscaling', 'Auto Scaling', 'Groups, policies, and scaling activity', 'Compute'),
@@ -676,7 +853,18 @@ SERVICES: tuple[ServiceDefinition, ...] = (
         actions=IAM_ACTIONS,
     ),
     service('kafka', 'MSK / Kafka', 'Managed Kafka clusters and configuration', 'Application Integration'),
-    service('kinesis', 'Kinesis', 'Streams, shards, and consumers', 'Application Integration'),
+    service(
+        'kinesis',
+        'Kinesis',
+        'Streams, shards, and consumers',
+        'Application Integration',
+        maturity='interactive_workbench',
+        console_css='dashboard/kinesis-console.css',
+        console_js='dashboard/kinesis-console.js',
+        shared_console=True,
+        tags=('layered-workbench', 'stream-workbench'),
+        actions=KINESIS_ACTIONS,
+    ),
     service('kms', 'KMS', 'Key management', 'Security'),
     service(
         'lambda',
@@ -710,7 +898,18 @@ SERVICES: tuple[ServiceDefinition, ...] = (
         actions=S3_ACTIONS,
     ),
     service('scheduler', 'EventBridge Scheduler', 'Schedule groups and targets', 'Application Integration'),
-    service('secretsmanager', 'Secrets Manager', 'Secret storage', 'Security'),
+    service(
+        'secretsmanager',
+        'Secrets Manager',
+        'Secret storage',
+        'Security',
+        maturity='interactive_workbench',
+        console_css='dashboard/secretsmanager-console.css',
+        console_js='dashboard/secretsmanager-console.js',
+        shared_console=True,
+        tags=('layered-workbench', 'secret-workbench'),
+        actions=SECRETSMANAGER_ACTIONS,
+    ),
     service('ses', 'SES', 'Email identities and captured messages', 'Application Integration'),
     service(
         'sns',
@@ -736,7 +935,18 @@ SERVICES: tuple[ServiceDefinition, ...] = (
         tags=('layered-workbench', 'message-workbench'),
         actions=SQS_ACTIONS,
     ),
-    service('ssm', 'SSM', 'Parameter Store, documents, sessions, automation, and managed instances', 'Management'),
+    service(
+        'ssm',
+        'SSM',
+        'Parameter Store, documents, sessions, automation, and managed instances',
+        'Management',
+        maturity='interactive_workbench',
+        console_css='dashboard/ssm-console.css',
+        console_js='dashboard/ssm-console.js',
+        shared_console=True,
+        tags=('layered-workbench', 'parameter-workbench'),
+        actions=SSM_ACTIONS,
+    ),
     service(
         'stepfunctions',
         'Step Functions',

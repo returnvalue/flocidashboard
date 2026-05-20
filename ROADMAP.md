@@ -31,7 +31,7 @@ Core architecture files:
 - `dashboard/actions.py`: shared action metadata, JSON parsing, and normalized action errors.
 - `dashboard/templates/dashboard/service.html`: common service page shell.
 - `dashboard/static/dashboard/service-console.js`: shared frontend helpers for API calls, summary cards, read-only cards, toolbars, modals, formatting, and lower-right toasts.
-- Service-specific modules such as `s3_api.py`, `s3_views.py`, `s3-console.js`, and `s3-console.css`, `iam_api.py`, `iam_views.py`, `iam-console.js`, and `iam-console.css`, `ec2_api.py`, `ec2_views.py`, `ec2-console.js`, and `ec2-console.css`, `stepfunctions_api.py`, `stepfunctions_views.py`, `stepfunctions-console.js`, and `stepfunctions-console.css`, `eventbridge_api.py`, `eventbridge_views.py`, `eventbridge-console.js`, and `eventbridge-console.css`, or the equivalent files for SQS, SNS, Lambda, DynamoDB, and CloudWatch Logs.
+- Service-specific modules such as `s3_api.py`, `s3_views.py`, `s3-console.js`, and `s3-console.css`, `iam_api.py`, `iam_views.py`, `iam-console.js`, and `iam-console.css`, `ec2_api.py`, `ec2_views.py`, `ec2-console.js`, and `ec2-console.css`, `stepfunctions_api.py`, `stepfunctions_views.py`, `stepfunctions-console.js`, and `stepfunctions-console.css`, `eventbridge_api.py`, `eventbridge_views.py`, `eventbridge-console.js`, and `eventbridge-console.css`, or the equivalent files for SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, API Gateway, Kinesis, Secrets Manager, and SSM Parameter Store.
 
 ## Guiding Principles
 
@@ -72,9 +72,17 @@ Core architecture files:
 - Registered EventBridge as an interactive event workbench.
 - Built the EC2 Instance Workbench with instance selection, launch and key import modals, start/stop/reboot/terminate actions, CLI snippets, IMDS hints, richer instance inventory, and EC2 tutorial notes.
 - Registered EC2 as an interactive compute workbench.
+- Built the API Gateway Request Workbench with REST/HTTP API selection, stage and route hints, local request execution, and response rendering.
+- Registered API Gateway as an interactive request workbench.
+- Built the Kinesis Stream Workbench with stream creation, stream and shard selection, PutRecord testing, GetRecords reads, and decoded record rendering.
+- Registered Kinesis as an interactive stream workbench.
+- Built the Secrets Manager Workbench with secret creation, explicit value reveal, value updates, scheduled deletion, and masked read-only inventory underneath.
+- Registered Secrets Manager as an interactive secret workbench.
+- Built the SSM Parameter Store Workbench with parameter creation, explicit value reveal, value updates, delete confirmations, and broad SSM read-only inventory underneath.
+- Registered SSM as an interactive parameter workbench.
 - Added a home-page service selector that defaults to the top 12 common AWS services, persists user selections, labels cards as Interactive or Read Only, and limits `/api/resources/` calls to selected services for faster loads.
 - Replaced the dashboard README screenshot image.
-- Added tutorial-style "About Floci S3", "About Floci IAM", "About Floci EC2", "About Floci SQS", "About Floci SNS", "About Floci Lambda", "About Floci DynamoDB", "About Floci CloudWatch Logs", "About Floci Step Functions", and "About Floci EventBridge" notes.
+- Added tutorial-style "About Floci S3", "About Floci IAM", "About Floci EC2", "About Floci SQS", "About Floci SNS", "About Floci Lambda", "About Floci DynamoDB", "About Floci CloudWatch Logs", "About Floci Step Functions", "About Floci EventBridge", "About Floci API Gateway", "About Floci Kinesis", "About Floci Secrets Manager", and "About Floci SSM Parameter Store" notes.
 - Added contributor architecture notes and an AI-assisted contributor prompt to `README.md`.
 
 ## Near-Term Priorities
@@ -262,18 +270,57 @@ Why it matters:
 - EventBridge sits between many existing interactive workbenches.
 - Better cross-service links would turn it into a practical event-routing debugger.
 
+### 12. API Gateway Follow-Ups
+
+Keep improving the new API Gateway request workbench.
+
+Feasible follow-ups:
+
+- Add route/resource filtering and clearer integration summaries inside the workbench.
+- Add request history in browser state for quick replay.
+- Add deep links to Lambda and CloudWatch Logs when integrations or log groups are recognizable.
+- Add helper presets for common JSON, query string, and header test cases.
+
+Why it matters:
+
+- API Gateway is now the local HTTP front door for Lambda and HTTP proxy workflows.
+- Replay and cross-service links would make it a stronger request debugger.
+
+### 13. Kinesis Follow-Ups
+
+Keep improving the new Kinesis stream workbench.
+
+Feasible follow-ups:
+
+- Add stream deletion with explicit destructive confirmation.
+- Add enhanced monitoring toggles where Floci supports them.
+- Add stream consumer registration and deregistration.
+- Add simple record replay from recently read records.
+- Add links from EventBridge Pipes or Lambda event source mappings when a stream ARN is recognizable.
+
+Why it matters:
+
+- Kinesis now completes the event/data-stream testing loop alongside SQS, SNS, EventBridge, Lambda, and CloudWatch.
+
+### 14. Secrets Manager And SSM Follow-Ups
+
+Keep improving local configuration and secret debugging.
+
+Feasible follow-ups:
+
+- Add Secrets Manager resource policy editing and tag editing.
+- Add secret restore/cancel-delete flows if Floci exposes them.
+- Add SSM parameter path browsing and parameter history.
+- Add bulk parameter reads by path.
+- Improve SecureString/KMS edge-case messaging.
+
+Why it matters:
+
+- Local apps commonly fail because configuration or credentials are missing, malformed, stale, or read from the wrong path.
+
 ## Later, But Still Plausible
 
 These are useful, but should wait until the shared service architecture has one or two more workbenches behind it.
-
-### API Gateway Inspector
-
-Feasible first version:
-
-- REST and HTTP API list.
-- Route/resource detail panels.
-- Integration view.
-- Later: local test invoke.
 
 ### ECR Repository Viewer
 
@@ -313,6 +360,10 @@ This order is intentionally modest and can change:
 9. S3 follow-ups.
 10. EC2 follow-ups.
 11. EventBridge follow-ups.
+12. API Gateway follow-ups.
+13. Kinesis follow-ups.
+14. Secrets Manager and SSM follow-ups.
+15. ECR Repository Viewer.
 
 ## Contributor Checklist
 
@@ -335,5 +386,5 @@ When adding or improving a service page:
 - Should service docs links and operation counts remain manually maintained in the dashboard registry?
 - How much should `dashboard.js` be reduced in favor of declarative panel configs?
 - Should tutorial definitions live in this repo, Floci docs, or both?
-- Which service should become the next reference workbench after S3, IAM, EC2, SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, and EventBridge: API Gateway or ECR?
+- Which inventory-only service should become the next interactive workbench after API Gateway, Kinesis, Secrets Manager, and SSM: ECR, EventBridge Pipes, Route 53, or CodeBuild?
 - What health fields are stable enough in Floci to expose on an Environment Details page?

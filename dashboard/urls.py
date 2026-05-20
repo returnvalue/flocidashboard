@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import cloudwatch_logs_views, dynamodb_views, ec2_views, eventbridge_views, iam_views, lambda_views, s3_views, sns_views, sqs_views, stepfunctions_views, views
+from . import apigateway_views, cloudwatch_logs_views, dynamodb_views, ec2_views, eventbridge_views, iam_views, kinesis_views, lambda_views, s3_views, secretsmanager_views, sns_views, sqs_views, ssm_views, stepfunctions_views, views
 
 app_name = 'dashboard'
 
@@ -9,6 +9,7 @@ urlpatterns = [
     path('service/<slug:service_key>/', views.service_page, name='service-page'),
     path('api/acm/', views.acm, name='acm'),
     path('api/apigateway/', views.apigateway, name='apigateway'),
+    path('api/apigateway/requests/test/', apigateway_views.apigateway_requests_test, name='apigateway-requests-test'),
     path('api/appconfig/', views.appconfig, name='appconfig'),
     path('api/athena/', views.athena, name='athena'),
     path('api/autoscaling/', views.autoscaling, name='autoscaling'),
@@ -57,6 +58,9 @@ urlpatterns = [
     path('api/iam/policies/document/', iam_views.iam_managed_policy_document, name='iam-managed-policy-document'),
     path('api/kafka/', views.kafka, name='kafka'),
     path('api/kinesis/', views.kinesis, name='kinesis'),
+    path('api/kinesis/streams/', kinesis_views.kinesis_streams_create, name='kinesis-streams'),
+    path('api/kinesis/streams/<str:stream_name>/records/', kinesis_views.kinesis_records_put, name='kinesis-records-put'),
+    path('api/kinesis/streams/<str:stream_name>/shards/<str:shard_id>/records/', kinesis_views.kinesis_records_get, name='kinesis-records-get'),
     path('api/kms/', views.kms, name='kms'),
     path('api/lambda/', views.lambda_, name='lambda'),
     path('api/lambda/functions/<str:function_name>/invoke/', lambda_views.lambda_functions_invoke, name='lambda-functions-invoke'),
@@ -88,6 +92,8 @@ urlpatterns = [
     path('api/s3/buckets/<str:bucket_name>/notifications/', s3_views.s3_bucket_notifications, name='s3-bucket-notifications'),
     path('api/scheduler/', views.scheduler, name='scheduler'),
     path('api/secretsmanager/', views.secretsmanager, name='secretsmanager'),
+    path('api/secretsmanager/secrets/', secretsmanager_views.secretsmanager_secrets_create, name='secretsmanager-secrets'),
+    path('api/secretsmanager/secrets/<path:secret_id>/value/', secretsmanager_views.secretsmanager_secret_value, name='secretsmanager-secret-value'),
     path('api/ses/', views.ses, name='ses'),
     path('api/sns/', views.sns, name='sns'),
     path('api/sns/messages/publish/', sns_views.sns_messages_publish, name='sns-messages-publish'),
@@ -99,6 +105,8 @@ urlpatterns = [
     path('api/sqs/queues/<str:queue_name>/messages/send/', sqs_views.sqs_messages_send, name='sqs-messages-send'),
     path('api/sqs/queues/<str:queue_name>/messages/delete/', sqs_views.sqs_message_delete, name='sqs-message-delete'),
     path('api/ssm/', views.ssm, name='ssm'),
+    path('api/ssm/parameters/', ssm_views.ssm_parameters_create, name='ssm-parameters'),
+    path('api/ssm/parameters/<path:parameter_name>/value/', ssm_views.ssm_parameter_value, name='ssm-parameter-value'),
     path('api/stepfunctions/', views.stepfunctions, name='stepfunctions'),
     path('api/stepfunctions/executions/start/', stepfunctions_views.stepfunctions_executions_start, name='stepfunctions-executions-start'),
     path('api/stepfunctions/executions/stop/', stepfunctions_views.stepfunctions_executions_stop, name='stepfunctions-executions-stop'),

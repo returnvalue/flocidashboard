@@ -38,6 +38,7 @@ const sqsConsoleRoot = document.getElementById('sqs-console-root');
 const secretsmanagerGrid = document.querySelector('#secretsmanager-grid');
 const secretsmanagerSummary = document.querySelector('#secretsmanager-summary');
 const secretsmanagerLoadedAt = document.querySelector('#secretsmanager-loaded-at');
+const secretsmanagerConsoleRoot = document.getElementById('secretsmanager-console-root');
 const dynamodbGrid = document.querySelector('#dynamodb-grid');
 const dynamodbSummary = document.querySelector('#dynamodb-summary');
 const dynamodbLoadedAt = document.querySelector('#dynamodb-loaded-at');
@@ -65,6 +66,7 @@ const cognitoLoadedAt = document.querySelector('#cognito-loaded-at');
 const apigatewayGrid = document.querySelector('#apigateway-grid');
 const apigatewaySummary = document.querySelector('#apigateway-summary');
 const apigatewayLoadedAt = document.querySelector('#apigateway-loaded-at');
+const apigatewayConsoleRoot = document.getElementById('apigateway-console-root');
 const appconfigGrid = document.querySelector('#appconfig-grid');
 const appconfigSummary = document.querySelector('#appconfig-summary');
 const appconfigLoadedAt = document.querySelector('#appconfig-loaded-at');
@@ -86,6 +88,7 @@ const firehoseLoadedAt = document.querySelector('#firehose-loaded-at');
 const kinesisGrid = document.querySelector('#kinesis-grid');
 const kinesisSummary = document.querySelector('#kinesis-summary');
 const kinesisLoadedAt = document.querySelector('#kinesis-loaded-at');
+const kinesisConsoleRoot = document.getElementById('kinesis-console-root');
 const kafkaGrid = document.querySelector('#kafka-grid');
 const kafkaSummary = document.querySelector('#kafka-summary');
 const kafkaLoadedAt = document.querySelector('#kafka-loaded-at');
@@ -104,6 +107,7 @@ const resourcegroupstaggingLoadedAt = document.querySelector('#resourcegroupstag
 const ssmGrid = document.querySelector('#ssm-grid');
 const ssmSummary = document.querySelector('#ssm-summary');
 const ssmLoadedAt = document.querySelector('#ssm-loaded-at');
+const ssmConsoleRoot = document.getElementById('ssm-console-root');
 const athenaGrid = document.querySelector('#athena-grid');
 const athenaSummary = document.querySelector('#athena-summary');
 const athenaLoadedAt = document.querySelector('#athena-loaded-at');
@@ -4983,6 +4987,14 @@ async function refresh() {
         await window.EventBridgeConsole.refresh();
       } else if (service.key === 'ec2' && ec2ConsoleRoot && window.EC2Console) {
         await window.EC2Console.refresh();
+      } else if (service.key === 'apigateway' && apigatewayConsoleRoot && window.ApiGatewayConsole) {
+        await window.ApiGatewayConsole.refresh();
+      } else if (service.key === 'kinesis' && kinesisConsoleRoot && window.KinesisConsole) {
+        await window.KinesisConsole.refresh();
+      } else if (service.key === 'secretsmanager' && secretsmanagerConsoleRoot && window.SecretsManagerConsole) {
+        await window.SecretsManagerConsole.refresh();
+      } else if (service.key === 'ssm' && ssmConsoleRoot && window.SSMConsole) {
+        await window.SSMConsole.refresh();
       }
     }
   } catch (error) {

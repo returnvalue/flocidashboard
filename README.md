@@ -9,8 +9,8 @@ A small Django UI for inspecting and testing a local [Floci](https://floci.io/) 
 - Local Floci health and version
 - AWS endpoint, profile, and caller identity
 - Clickable service cards for supported local services, with persisted home-page service filtering to keep resource probes focused
-- Interactive workbenches for S3, IAM, EC2, SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, and EventBridge
-- Detail pages for services such as AppConfig, Bedrock Runtime, Cost Explorer, Cost and Usage Reports, BCM Data Exports, Neptune, EKS, OpenSearch, Pricing, Transcribe, SSM, and more
+- Interactive workbenches for S3, IAM, EC2, SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, EventBridge, API Gateway, Kinesis, Secrets Manager, and SSM Parameter Store
+- Detail pages for services such as AppConfig, Bedrock Runtime, Cost Explorer, Cost and Usage Reports, BCM Data Exports, Neptune, EKS, OpenSearch, Pricing, Transcribe, and more
 - Loading state with the Floci cloud image while service data is fetched
 
 ## Run Locally On macOS
@@ -108,7 +108,7 @@ Core files:
 - `dashboard/templates/dashboard/service.html`: common service page shell. Interactive workbenches should be layered into this page while keeping the original read-only inventory visible.
 - `dashboard/static/dashboard/service-console.js`: shared browser-side helpers for API calls, summary cards, read-only cards, toolbars, modals, formatting, and lower-right toasts.
 - `dashboard/static/dashboard/dashboard.js`: generic read-only inventory rendering for service pages.
-- Service-specific files such as `s3_api.py`, `s3_views.py`, `s3-console.js`, and `s3-console.css`, `iam_api.py`, `iam_views.py`, `iam-console.js`, and `iam-console.css`, `ec2_api.py`, `ec2_views.py`, `ec2-console.js`, and `ec2-console.css`, `sqs_api.py`, `sqs_views.py`, `sqs-console.js`, and `sqs-console.css`, `sns_api.py`, `sns_views.py`, `sns-console.js`, and `sns-console.css`, `lambda_api.py`, `lambda_views.py`, `lambda-console.js`, and `lambda-console.css`, `dynamodb_api.py`, `dynamodb_views.py`, `dynamodb-console.js`, and `dynamodb-console.css`, `cloudwatch_logs_api.py`, `cloudwatch_logs_views.py`, `cloudwatch-console.js`, and `cloudwatch-console.css`, `stepfunctions_api.py`, `stepfunctions_views.py`, `stepfunctions-console.js`, and `stepfunctions-console.css`, or `eventbridge_api.py`, `eventbridge_views.py`, `eventbridge-console.js`, and `eventbridge-console.css`: focused behavior for one service only.
+- Service-specific files such as `s3_api.py`, `s3_views.py`, `s3-console.js`, and `s3-console.css`, `iam_api.py`, `iam_views.py`, `iam-console.js`, and `iam-console.css`, `ec2_api.py`, `ec2_views.py`, `ec2-console.js`, and `ec2-console.css`, `sqs_api.py`, `sqs_views.py`, `sqs-console.js`, and `sqs-console.css`, `sns_api.py`, `sns_views.py`, `sns-console.js`, and `sns-console.css`, `lambda_api.py`, `lambda_views.py`, `lambda-console.js`, and `lambda-console.css`, `dynamodb_api.py`, `dynamodb_views.py`, `dynamodb-console.js`, and `dynamodb-console.css`, `cloudwatch_logs_api.py`, `cloudwatch_logs_views.py`, `cloudwatch-console.js`, and `cloudwatch-console.css`, `stepfunctions_api.py`, `stepfunctions_views.py`, `stepfunctions-console.js`, and `stepfunctions-console.css`, `eventbridge_api.py`, `eventbridge_views.py`, `eventbridge-console.js`, and `eventbridge-console.css`, `apigateway_api.py`, `apigateway_views.py`, `apigateway-console.js`, and `apigateway-console.css`, `kinesis_api.py`, `kinesis_views.py`, `kinesis-console.js`, and `kinesis-console.css`, `secretsmanager_api.py`, `secretsmanager_views.py`, `secretsmanager-console.js`, and `secretsmanager-console.css`, or `ssm_api.py`, `ssm_views.py`, `ssm-console.js`, and `ssm-console.css`: focused behavior for one service only.
 
 Important conventions:
 
@@ -138,6 +138,10 @@ http://127.0.0.1:8000/service/ec2/
 http://127.0.0.1:8000/service/sqs/
 http://127.0.0.1:8000/service/stepfunctions/
 http://127.0.0.1:8000/service/eventbridge/
+http://127.0.0.1:8000/service/apigateway/
+http://127.0.0.1:8000/service/kinesis/
+http://127.0.0.1:8000/service/secretsmanager/
+http://127.0.0.1:8000/service/ssm/
 ```
 
 ## Prompt For AI-Assisted Contributors
@@ -145,7 +149,7 @@ http://127.0.0.1:8000/service/eventbridge/
 If you are using Codex, Claude, or another local coding assistant to add a dashboard feature, start with a prompt like this:
 
 ```text
-You are contributing to the Floci Dashboard Django app. Before editing, read README.md, ROADMAP.md, dashboard/services.py, dashboard/actions.py, dashboard/templates/dashboard/service.html, dashboard/static/dashboard/service-console.js, and the closest existing workbench implementation. Good references are S3 for object browsing, IAM for identity and policy workflows, EC2 for local compute lifecycle workflows, SQS/SNS for messaging, Lambda for invoke/test workflows, DynamoDB for read-only data exploration, CloudWatch Logs for recent event viewing, Step Functions for execution workflows, and EventBridge for event routing tests.
+You are contributing to the Floci Dashboard Django app. Before editing, read README.md, ROADMAP.md, dashboard/services.py, dashboard/actions.py, dashboard/templates/dashboard/service.html, dashboard/static/dashboard/service-console.js, and the closest existing workbench implementation. Good references are S3 for object browsing, IAM for identity and policy workflows, EC2 for local compute lifecycle workflows, SQS/SNS for messaging, Lambda for invoke/test workflows, DynamoDB for read-only data exploration, CloudWatch Logs for recent event viewing, Step Functions for execution workflows, EventBridge for event routing tests, API Gateway for request testing, Kinesis for stream records, Secrets Manager for secret value workflows, and SSM for Parameter Store workflows.
 
 Goal: add or improve the <SERVICE> dashboard feature.
 
