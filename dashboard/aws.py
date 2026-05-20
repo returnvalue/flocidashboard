@@ -30,15 +30,51 @@ class FlociClientFactory:
     def __init__(self) -> None:
         self.endpoint_url = os.getenv(
             'FLOCI_AWS_ENDPOINT_URL',
-            settings.FLOCI_AWS_ENDPOINT_URL,
+            os.getenv(
+                'AWS_ENDPOINT_URL',
+                settings.FLOCI_AWS_ENDPOINT_URL,
+            ),
         )
         self.region = os.getenv('AWS_DEFAULT_REGION') or os.getenv(
-            'FLOCI_AWS_REGION',
-            settings.FLOCI_AWS_REGION,
+            'AWS_REGION',
+            os.getenv(
+                'FLOCI_AWS_REGION',
+                settings.FLOCI_AWS_REGION,
+            ),
         )
-        self.profile = os.getenv('AWS_PROFILE') or os.getenv(
-            'FLOCI_AWS_PROFILE',
-            settings.FLOCI_AWS_PROFILE,
+        self.has_env_credentials = bool(os.getenv('AWS_ACCESS_KEY_ID') and os.getenv('AWS_SECRET_ACCESS_KEY'))
+        self.profile = os.getenv('AWS_PROFILE') or os.getenv('FLOCI_AWS_PROFILE')
+        self.access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
+        self.secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+        self.credential_source = 'environment' if self.has_env_credentials else 'default_provider_chain'
+        self.profile_source = (
+            'AWS_PROFILE' if os.getenv('AWS_PROFILE')
+            else 'FLOCI_AWS_PROFILE' if os.getenv('FLOCI_AWS_PROFILE')
+            else None
+        )
+
+        if self.profile:
+            self.credential_source = 'profile'
+        elif not self.has_env_credentials:
+            settings_profile = self._available_settings_profile()
+            if settings_profile:
+                self.profile = settings_profile
+                self.credential_source = 'profile'
+                self.profile_source = 'settings'
+            else:
+                self.access_key_id = 'test'
+                self.secret_access_key = 'test'
+                self.credential_source = 'local_default'
+        self.endpoint_source = (
+            'FLOCI_AWS_ENDPOINT_URL' if os.getenv('FLOCI_AWS_ENDPOINT_URL')
+            else 'AWS_ENDPOINT_URL' if os.getenv('AWS_ENDPOINT_URL')
+            else 'settings'
+        )
+        self.region_source = (
+            'AWS_DEFAULT_REGION' if os.getenv('AWS_DEFAULT_REGION')
+            else 'AWS_REGION' if os.getenv('AWS_REGION')
+            else 'FLOCI_AWS_REGION' if os.getenv('FLOCI_AWS_REGION')
+            else 'settings'
         )
         self.config = Config(
             retries={'max_attempts': 2, 'mode': 'standard'},
@@ -46,6 +82,19 @@ class FlociClientFactory:
             read_timeout=5,
         )
         self._validate_local_endpoint()
+
+    def _available_settings_profile(self) -> Optional[str]:
+        profile = settings.FLOCI_AWS_PROFILE
+        if not profile:
+            return None
+
+        try:
+            session = boto3.Session(profile_name=profile, region_name=self.region)
+            if session.get_credentials():
+                return profile
+        except (BotoCoreError, ProfileNotFound):
+            return None
+        return None
 
     def _validate_local_endpoint(self) -> None:
         parsed = urlparse(self.endpoint_url)
@@ -65,9 +114,18 @@ class FlociClientFactory:
 
     def client(self, service_name: str):
         try:
-            session = boto3.Session(profile_name=self.profile, region_name=self.region)
+            session = boto3.Session(
+                profile_name=self.profile,
+                region_name=self.region,
+                aws_access_key_id=self.access_key_id if not self.profile else None,
+                aws_secret_access_key=self.secret_access_key if not self.profile else None,
+            )
         except ProfileNotFound:
-            session = boto3.Session(region_name=self.region)
+            session = boto3.Session(
+                region_name=self.region,
+                aws_access_key_id=self.access_key_id,
+                aws_secret_access_key=self.secret_access_key,
+            )
 
         return session.client(
             service_name,
@@ -80,6 +138,25 @@ class FlociClientFactory:
                 s3={'addressing_style': 'auto'},
             ) if service_name == 's3' else self.config,
         )
+
+    def credential_context(self) -> dict[str, Any]:
+        return {
+            'credential_source': self.credential_source,
+            'endpoint_source': self.endpoint_source,
+            'has_env_credentials': self.has_env_credentials,
+            'profile': self.profile,
+            'profile_source': self.profile_source,
+            'region_source': self.region_source,
+        }
+
+    def local_identity_hint(self) -> Optional[dict[str, Any]]:
+        if self.access_key_id == 'test' and self.secret_access_key == 'test':
+            return {
+                'account': 'local',
+                'arn': 'test (local credentials)',
+                'user_id': 'test',
+            }
+        return None
 
     def identity(self) -> dict[str, Any]:
         response = self.client('sts').get_caller_identity()

@@ -48,17 +48,24 @@ def services(request):
 
 
 def identity(request):
-    factory = FlociClientFactory()
-    payload = {
-        'endpoint_url': factory.endpoint_url,
-        'region': factory.region,
-        'profile': factory.profile,
-    }
-
     try:
+        factory = FlociClientFactory()
+        payload = {
+            'endpoint_url': factory.endpoint_url,
+            'region': factory.region,
+            **factory.credential_context(),
+        }
         payload['identity'] = factory.identity()
         return JsonResponse(payload)
     except (BotoCoreError, ClientError, ValueError) as exc:
+        payload = locals().get('payload', {})
+        factory = locals().get('factory')
+        identity_hint = factory.local_identity_hint() if factory else None
+        if identity_hint:
+            payload['identity'] = identity_hint
+            payload['identity_resolved'] = False
+            payload['identity_error'] = str(exc)
+            return JsonResponse(payload)
         payload['error'] = str(exc)
         return JsonResponse(payload, status=502)
 

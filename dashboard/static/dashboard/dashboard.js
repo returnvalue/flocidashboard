@@ -4771,24 +4771,92 @@ function renderServices(resources, healthServices = {}, serviceMetadata = []) {
   loadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
 }
 
+function renderFlociUnavailable(data = {}) {
+  if (!serviceGrid) {
+    return;
+  }
+
+  serviceGrid.textContent = '';
+  serviceGrid.setAttribute('aria-busy', 'false');
+
+  const card = document.createElement('article');
+  card.className = 'service-card floci-unavailable-card';
+
+  const heading = document.createElement('div');
+  heading.className = 'card-heading';
+  const title = document.createElement('h3');
+  title.textContent = 'Floci is not running';
+  const status = document.createElement('span');
+  status.className = 'service-status service-status-error';
+  status.title = 'unavailable';
+  heading.append(title, status);
+
+  const message = document.createElement('p');
+  message.className = 'message error';
+  message.textContent = 'Floci must be installed and running locally before the dashboard can load AWS-compatible service resources.';
+
+  const detail = document.createElement('p');
+  detail.className = 'service-meta floci-unavailable-detail';
+  detail.textContent = data.error || data.url || 'Start Floci on the configured local endpoint, then refresh.';
+
+  const link = document.createElement('a');
+  link.className = 'service-open';
+  link.href = 'https://github.com/floci-io/floci';
+  link.target = '_blank';
+  link.rel = 'noreferrer';
+  link.textContent = 'Install or start floci-io/floci';
+
+  card.append(heading, message, detail, link);
+  serviceGrid.append(card);
+  loadedAt.textContent = `Checked ${new Date().toLocaleTimeString()}`;
+}
+
+function isMissingCredentialsError(message = '') {
+  const normalized = String(message).toLowerCase();
+  return normalized.includes('unable to locate credentials') || normalized.includes('no credentials');
+}
+
+function credentialLabel(data = {}) {
+  if (data.credential_source === 'environment') {
+    return 'Environment credentials';
+  }
+  if (data.credential_source === 'local_default') {
+    return 'Local test credentials';
+  }
+  if (data.profile) {
+    return data.profile_source ? `${data.profile} (${data.profile_source})` : data.profile;
+  }
+  return 'Default credential chain';
+}
+
 async function loadIdentity() {
   const response = await fetch('/api/identity/');
   const data = await response.json();
 
   endpoint.textContent = data.endpoint_url || 'Unknown';
-  profile.textContent = data.profile || 'Environment credentials';
+  profile.textContent = credentialLabel(data);
 
   if (!response.ok || data.error) {
-    identity.textContent = data.error || 'Unable to resolve identity';
-    return;
+    identity.textContent = isMissingCredentialsError(data.error)
+      ? 'Not resolved. Restart Django after exporting credentials, or create the configured profile.'
+      : data.error || 'Unable to resolve identity';
+    return { ok: false, data };
   }
 
   identity.textContent = data.identity?.arn || data.identity?.user_id || 'Unknown';
+  return { ok: true, data };
 }
 
 async function loadStatusTiles() {
-  await loadHealth();
-  await loadIdentity();
+  const healthResult = await loadHealth();
+  let identityResult = { ok: false, data: { error: 'Unable to resolve identity' } };
+  try {
+    identityResult = await loadIdentity();
+  } catch (error) {
+    identity.textContent = healthResult.ok ? error.message : 'Unavailable until Floci starts';
+    identityResult = { ok: false, data: { error: error.message } };
+  }
+  return { health: healthResult, identity: identityResult };
 }
 
 async function loadHealth() {
@@ -4796,15 +4864,16 @@ async function loadHealth() {
   const data = await response.json();
 
   if (!response.ok || !data.ok) {
-    health.textContent = data.error || 'Unavailable';
-    return false;
+    latestHealthData = null;
+    health.textContent = 'Not running';
+    return { ok: false, data };
   }
 
   const edition = data.data?.edition;
   const version = data.data?.version;
   latestHealthData = data.data || null;
   health.textContent = [edition, version].filter(Boolean).join(' / ') || 'Healthy';
-  return true;
+  return { ok: true, data };
 }
 
 async function loadHome(loadingStartedAt) {
@@ -4958,9 +5027,13 @@ async function refresh() {
   showLoadingStates();
 
   try {
-    await loadStatusTiles();
+    const statusResult = await loadStatusTiles();
 
     if (serviceGrid) {
+      if (!statusResult.health.ok) {
+        renderFlociUnavailable(statusResult.health.data);
+        return;
+      }
       await loadHome(loadingStartedAt);
     }
 

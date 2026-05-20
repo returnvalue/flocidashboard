@@ -374,6 +374,25 @@ a.service-card-active:hover {
   text-transform: uppercase;
 }
 
+.floci-unavailable-card {
+  grid-column: 1 / -1;
+  min-height: 0;
+  border-color: rgba(217, 45, 32, 0.26);
+  background: linear-gradient(135deg, #fff 0%, #fff 62%, #fff4f2 100%);
+}
+
+.floci-unavailable-card .message {
+  margin: 10px 0;
+  max-width: 760px;
+  line-height: 1.5;
+}
+
+.floci-unavailable-detail {
+  margin-bottom: 14px;
+  overflow-wrap: anywhere;
+  text-transform: none;
+}
+
 .loading-card {
   grid-column: 1 / -1;
   display: flex;

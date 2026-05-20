@@ -46,25 +46,31 @@ pip3 install -r requirements.txt
 The requirements install the latest available Django and boto3 releases.
 
 
-Make sure Floci is already running locally on port `4566`.
+Make sure Floci is already running locally on port `4566`. Before starting Django, choose one local AWS credential setup.
+
+For a fresh Floci clone, local `test/test` credentials are enough:
 
 ```bash
-export FLOCI_AWS_ENDPOINT_URL=http://localhost:4566
-export FLOCI_AWS_REGION=us-east-1
+export AWS_ENDPOINT_URL=http://localhost:4566
+export AWS_DEFAULT_REGION=us-east-1
 export AWS_ACCESS_KEY_ID=test
 export AWS_SECRET_ACCESS_KEY=test
 ```
+
+Or create and use your own AWS profile for Floci before running the dashboard:
+
+```bash
+export AWS_PROFILE=floci-admin
+export AWS_DEFAULT_REGION=us-east-1
+export AWS_ENDPOINT_URL=http://localhost:4566
+```
+
+`FLOCI_AWS_ENDPOINT_URL` and `FLOCI_AWS_REGION` are also supported if you prefer Floci-specific names. When no explicit profile or credentials are visible to Django, the dashboard falls back to local `test/test` credentials so a fresh Floci install can still show service inventory.
 
 Floci 1.5.16 and newer support the public localhost DNS suffix for virtual-hosted-style S3. The dashboard accepts `localhost.floci.io`, `*.localhost.floci.io`, and the LocalStack-compatible `*.localhost.localstack.cloud` aliases as local endpoints:
 
 ```bash
 export FLOCI_AWS_ENDPOINT_URL=http://s3.localhost.floci.io:4566
-```
-
-If you use an AWS profile for Floci, you can also set:
-
-```bash
-export AWS_PROFILE=floci-admin
 ```
 
 Start the Django dev server:
@@ -87,7 +93,7 @@ Defaults live in `flocidashboard/settings.py`:
 - `FLOCI_AWS_REGION`: `us-east-1`
 - `FLOCI_AWS_PROFILE`: `floci-admin`
 
-Environment variables override those defaults.
+Environment variables override those defaults. If `floci-admin` is not configured locally, the dashboard uses local `test/test` credentials instead of failing the homepage with missing-credential cards.
 
 ## Quick Check
 

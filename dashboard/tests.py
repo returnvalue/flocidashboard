@@ -2,6 +2,7 @@ import json
 import os
 from unittest.mock import patch
 
+from botocore.exceptions import NoCredentialsError, ProfileNotFound
 from django.test import SimpleTestCase
 from django.urls import reverse
 
@@ -197,6 +198,44 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertEqual(ec2_actions['import_key_pair']['fields'][1]['field_type'], 'textarea')
         self.assertEqual(services['lambda']['api_path'], '/api/lambda/')
 
+    @patch('dashboard.views.FlociClientFactory.identity')
+    def test_identity_api_includes_credential_context(self, identity):
+        identity.return_value = {
+            'account': '000000000000',
+            'arn': 'arn:aws:iam::000000000000:user/test',
+            'user_id': 'AIDAEXAMPLE',
+        }
+
+        with patch.dict(os.environ, {
+            'AWS_ACCESS_KEY_ID': 'test',
+            'AWS_SECRET_ACCESS_KEY': 'test',
+        }, clear=True):
+            response = self.client.get(reverse('dashboard:identity'))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload['credential_source'], 'environment')
+        self.assertTrue(payload['has_env_credentials'])
+        self.assertIsNone(payload['profile'])
+        self.assertIsNone(payload['profile_source'])
+
+    @patch('dashboard.views.FlociClientFactory.identity')
+    def test_identity_api_uses_test_identity_hint_when_sts_is_unresolved(self, identity):
+        identity.side_effect = NoCredentialsError()
+
+        with patch.dict(os.environ, {
+            'AWS_ACCESS_KEY_ID': 'test',
+            'AWS_SECRET_ACCESS_KEY': 'test',
+        }, clear=True):
+            response = self.client.get(reverse('dashboard:identity'))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload['identity']['user_id'], 'test')
+        self.assertEqual(payload['identity']['arn'], 'test (local credentials)')
+        self.assertFalse(payload['identity_resolved'])
+        self.assertIn('Unable to locate credentials', payload['identity_error'])
+
     def test_service_pages_are_derived_from_registry(self):
         self.assertEqual(set(SERVICE_PAGES), set(SERVICE_REGISTRY))
         self.assertEqual(SERVICE_PAGES['s3']['title'], SERVICE_REGISTRY['s3'].title)
@@ -224,6 +263,73 @@ class DashboardTemplateTests(SimpleTestCase):
 
 
 class FlociClientFactoryTests(SimpleTestCase):
+    def test_credential_context_reports_environment_credentials(self):
+        with patch.dict(os.environ, {
+            'AWS_ACCESS_KEY_ID': 'test',
+            'AWS_SECRET_ACCESS_KEY': 'test',
+        }, clear=True):
+            factory = FlociClientFactory()
+
+            self.assertEqual(factory.credential_context(), {
+                'credential_source': 'environment',
+                'endpoint_source': 'settings',
+                'has_env_credentials': True,
+                'profile': None,
+                'profile_source': None,
+                'region_source': 'settings',
+            })
+
+    def test_credential_context_reports_configured_profile(self):
+        with patch.dict(os.environ, {'AWS_PROFILE': 'developer'}, clear=True):
+            factory = FlociClientFactory()
+
+            self.assertEqual(factory.credential_context(), {
+                'credential_source': 'profile',
+                'endpoint_source': 'settings',
+                'has_env_credentials': False,
+                'profile': 'developer',
+                'profile_source': 'AWS_PROFILE',
+                'region_source': 'settings',
+            })
+
+    def test_aws_endpoint_url_is_accepted_for_local_bootstrap(self):
+        with patch.dict(os.environ, {
+            'AWS_ENDPOINT_URL': 'http://localhost:4566',
+            'AWS_DEFAULT_REGION': 'us-east-1',
+            'AWS_ACCESS_KEY_ID': 'test',
+            'AWS_SECRET_ACCESS_KEY': 'test',
+        }, clear=True):
+            factory = FlociClientFactory()
+
+            self.assertEqual(factory.endpoint_url, 'http://localhost:4566')
+            self.assertEqual(factory.endpoint_source, 'AWS_ENDPOINT_URL')
+            self.assertEqual(factory.profile, None)
+            self.assertEqual(factory.credential_context()['credential_source'], 'environment')
+
+    def test_local_test_credentials_are_default_when_profile_is_unavailable(self):
+        with patch.dict(os.environ, {}, clear=True), patch(
+            'dashboard.aws.boto3.Session',
+            side_effect=ProfileNotFound(profile='floci-admin'),
+        ):
+            factory = FlociClientFactory()
+
+            self.assertEqual(factory.profile, None)
+            self.assertEqual(factory.access_key_id, 'test')
+            self.assertEqual(factory.secret_access_key, 'test')
+            self.assertEqual(factory.credential_context()['credential_source'], 'local_default')
+            self.assertEqual(factory.local_identity_hint()['user_id'], 'test')
+
+    def test_settings_profile_is_used_when_available(self):
+        with patch.dict(os.environ, {}, clear=True):
+            with patch('dashboard.aws.boto3.Session') as session:
+                session.return_value.get_credentials.return_value = object()
+                factory = FlociClientFactory()
+
+        self.assertEqual(factory.profile, 'floci-admin')
+        self.assertIsNone(factory.access_key_id)
+        self.assertEqual(factory.credential_context()['credential_source'], 'profile')
+        self.assertEqual(factory.credential_context()['profile_source'], 'settings')
+
     def test_localhost_floci_dns_endpoints_are_allowed(self):
         endpoints = [
             'http://localhost.floci.io:4566',
