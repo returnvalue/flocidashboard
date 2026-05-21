@@ -229,8 +229,10 @@ def _resource_service_key(name: str) -> str:
         'backup-resources': 'backup',
         'bcmdataexports-resources': 'bcmdataexports',
         'bedrockruntime-resources': 'bedrockruntime',
+        'cloudfront-resources': 'cloudfront',
         'cloudformation-resources': 'cloudformation',
         'cloudwatch-metrics': 'cloudwatch',
+        'config-resources': 'config',
         'cognito-resources': 'cognito',
         'costexplorer-resources': 'costexplorer',
         'cur-resources': 'cur',
@@ -284,6 +286,25 @@ def _operation_items(client, operation_name: str, result_key: str, **kwargs) -> 
 
     operation = getattr(client, operation_name)
     return operation(**kwargs).get(result_key, [])
+
+
+def _nested_operation_items(
+    client,
+    operation_name: str,
+    container_key: str,
+    item_key: str = 'Items',
+    **kwargs,
+) -> list[Any]:
+    if client.can_paginate(operation_name):
+        response = client.get_paginator(operation_name).paginate(**kwargs).build_full_result()
+    else:
+        operation = getattr(client, operation_name)
+        response = operation(**kwargs)
+
+    container = response.get(container_key, {})
+    if isinstance(container, dict):
+        return container.get(item_key, []) or []
+    return []
 
 
 def _safe_value(loader: Callable[[], Any], fallback: Any = None) -> Any:
@@ -1030,6 +1051,8 @@ def kms_inventory() -> dict[str, Any]:
             'GenerateDataKeyWithoutPlaintext',
             'Sign',
             'Verify',
+            'GenerateMac',
+            'VerifyMac',
             'CreateAlias',
             'DeleteAlias',
             'ListAliases',
@@ -1048,6 +1071,7 @@ def kms_inventory() -> dict[str, Any]:
             'KMS uses JSON 1.1 with X-Amz-Target: TrentService.* against the local Floci endpoint.',
             'CreateKey accepts creation-time tag floci:override-id for deterministic local test key IDs.',
             'Floci strips reserved floci:* tags from stored resource tags and rejects adding them later.',
+            'Floci 1.5.18 adds KMS GenerateMac and VerifyMac support.',
         ],
     }
 
@@ -1209,6 +1233,7 @@ def lambda_inventory() -> dict[str, Any]:
             'S3-based deployments support reactive hot reload when the source object changes.',
             'Bind-mount hot reload uses S3Bucket=hot-reload and requires explicit configuration.',
             'Reserved concurrency is enforced; provisioned concurrency is not implemented.',
+            'Floci 1.5.18 uses a checkout/release Lambda port pool with clearer exhaustion errors during concurrent invocations.',
             'ListLayers and ListLayerVersions are stubbed and return empty arrays.',
         ],
     }
@@ -1303,12 +1328,18 @@ def sqs_inventory() -> dict[str, Any]:
             'ListDeadLetterSourceQueues',
             'StartMessageMoveTask',
             'ListMessageMoveTasks',
+            'CancelMessageMoveTask',
         ],
         'configuration': {
             'default_visibility_timeout_seconds': 30,
             'max_message_size_bytes': 262144,
             'queue_url_format': f'{factory.endpoint_url.rstrip("/")}/000000000000/<queue-name>',
         },
+        'notes': [
+            'Floci 1.5.18 supports StartMessageMoveTask, ListMessageMoveTasks, and CancelMessageMoveTask with async drain behavior.',
+            'FIFO deduplication is scoped per MessageGroupId when DeduplicationScope=messageGroup.',
+            'AWSTraceHeader is persisted and returned as an SQS system attribute.',
+        ],
     }
 
 
@@ -1666,6 +1697,105 @@ def cloudwatch_inventory() -> dict[str, Any]:
             'logs_protocol': 'JSON 1.1, X-Amz-Target: Logs.*',
             'metrics_protocol': 'Query XML and JSON 1.1',
         },
+    }
+
+
+def config_inventory() -> dict[str, Any]:
+    factory = FlociClientFactory()
+    config = factory.client('config')
+    operations = set(config.meta.service_model.operation_names)
+
+    def items(operation: str, method: str, result_key: str, **kwargs) -> list[Any]:
+        return _safe_value(
+            lambda: _operation_items(config, method, result_key, **kwargs),
+            [],
+        ) if operation in operations else []
+
+    recorders = items('DescribeConfigurationRecorders', 'describe_configuration_recorders', 'ConfigurationRecorders')
+    recorder_statuses = items(
+        'DescribeConfigurationRecorderStatus',
+        'describe_configuration_recorder_status',
+        'ConfigurationRecordersStatus',
+    )
+    delivery_channels = items('DescribeDeliveryChannels', 'describe_delivery_channels', 'DeliveryChannels')
+    delivery_channel_statuses = items(
+        'DescribeDeliveryChannelStatus',
+        'describe_delivery_channel_status',
+        'DeliveryChannelsStatus',
+    )
+    config_rules = items('DescribeConfigRules', 'describe_config_rules', 'ConfigRules')
+    conformance_packs = items(
+        'DescribeConformancePacks',
+        'describe_conformance_packs',
+        'ConformancePackDetails',
+    )
+    aggregators = items(
+        'DescribeConfigurationAggregators',
+        'describe_configuration_aggregators',
+        'ConfigurationAggregators',
+    )
+    remediation_configurations = items(
+        'DescribeRemediationConfigurations',
+        'describe_remediation_configurations',
+        'RemediationConfigurations',
+    )
+    retention_configurations = items(
+        'DescribeRetentionConfigurations',
+        'describe_retention_configurations',
+        'RetentionConfigurations',
+    )
+    compliance_by_rule = _safe_value(
+        lambda: config.get_compliance_summary_by_config_rule(),
+        {},
+    ) if 'GetComplianceSummaryByConfigRule' in operations else {}
+    compliance_by_resource_type = _safe_value(
+        lambda: config.get_compliance_summary_by_resource_type(),
+        {},
+    ) if 'GetComplianceSummaryByResourceType' in operations else {}
+
+    return {
+        'summary': {
+            'configuration_recorders': len(recorders),
+            'delivery_channels': len(delivery_channels),
+            'config_rules': len(config_rules),
+            'conformance_packs': len(conformance_packs),
+            'configuration_aggregators': len(aggregators),
+            'remediation_configurations': len(remediation_configurations),
+            'retention_configurations': len(retention_configurations),
+            'available_sdk_operations': len(operations),
+        },
+        'configuration_recorders': _clean_response(recorders),
+        'configuration_recorder_statuses': _clean_response(recorder_statuses),
+        'delivery_channels': _clean_response(delivery_channels),
+        'delivery_channel_statuses': _clean_response(delivery_channel_statuses),
+        'config_rules': _clean_response(config_rules),
+        'conformance_packs': _clean_response(conformance_packs),
+        'configuration_aggregators': _clean_response(aggregators),
+        'remediation_configurations': _clean_response(remediation_configurations),
+        'retention_configurations': _clean_response(retention_configurations),
+        'compliance_by_rule': _clean_response(compliance_by_rule),
+        'compliance_by_resource_type': _clean_response(compliance_by_resource_type),
+        'supported_from_sdk': [
+            operation
+            for operation in [
+                'PutConfigurationRecorder',
+                'DescribeConfigurationRecorders',
+                'StartConfigurationRecorder',
+                'StopConfigurationRecorder',
+                'PutDeliveryChannel',
+                'DescribeDeliveryChannels',
+                'PutConfigRule',
+                'DescribeConfigRules',
+                'GetComplianceSummaryByConfigRule',
+                'GetComplianceSummaryByResourceType',
+            ]
+            if operation in operations
+        ],
+        'available_sdk_operations': sorted(operations),
+        'notes': [
+            'Floci 1.5.18 adds AWS Config service emulation for configuration recording, compliance rules, and resource tracking workflows.',
+            'This page shows the management-plane inventory most useful for checking local compliance and recorder setup.',
+        ],
     }
 
 
@@ -2148,6 +2278,7 @@ def apigateway_inventory() -> dict[str, Any]:
         ],
         'notes': [
             'Floci supports API Gateway v1 REST APIs and API Gateway v2 HTTP APIs.',
+            'Floci 1.5.18 forwards API Gateway v2 HTTP API requests through ALB listeners.',
             'Floci 1.5.17 adds API Gateway v1 account management endpoints and API Gateway v2 HTTP_PROXY integrations with request parameter mapping.',
             'The v1 execute plane is served under /restapis/{id}/{stage}/_user_request_/...',
             'This page shows management-plane resources; proxied traffic remains available through Floci directly.',
@@ -3442,6 +3573,7 @@ def elasticache_inventory() -> dict[str, Any]:
         ],
         'notes': [
             'This page is inferred from the ElastiCache AWS SDK API because service docs were not provided for this pass.',
+            'Floci 1.5.18 adds Memcached CreateCacheCluster and DescribeCacheClusters support.',
             'Cluster and replication-group detail is normalized; lower-volume supporting resources are shown as cleaned AWS responses.',
         ],
     }
@@ -4389,7 +4521,7 @@ def neptune_inventory() -> dict[str, Any]:
         ],
         'available_sdk_operations': sorted(operations),
         'notes': [
-            'Floci 1.5.17 adds Neptune graph database support under the neptune service name.',
+            'Floci 1.5.18 backs Neptune with a real Gremlin Docker backend and SDK integration.',
             'This page follows the Neptune management API and shows local graph database clusters, instances, subnet groups, and snapshots.',
         ],
     }
@@ -5417,6 +5549,7 @@ def ecs_inventory() -> dict[str, Any]:
         ],
         'notes': [
             'By default Floci ECS launches real Docker containers for tasks.',
+            'Floci 1.5.18 registers ECS service containers as ELBv2 targets.',
             'Set FLOCI_SERVICES_ECS_MOCK=true to run tasks as in-process stubs for CI or tests.',
             'When mock mode is false, Floci needs access to the Docker socket.',
         ],
@@ -5650,7 +5783,7 @@ def sns_inventory() -> dict[str, Any]:
         ],
         'fanout': [
             'Floci supports SNS to SQS fan-out and delivers published messages immediately.',
-            'Supported subscription protocols include sqs, lambda, http, and https.',
+            'Floci 1.5.18 delivers http:// and https:// subscriptions with confirmation handshakes, message POSTs, and signature headers.',
             'Floci 1.5.17 supports FilterPolicyScope=MessageBody for body-based subscription filtering.',
         ],
         'protocols': ['Query XML', 'JSON 1.0'],
@@ -5878,6 +6011,89 @@ def _cloudformation_optional(loader: Callable[[], Any], empty_codes: set[str]) -
         return {'error': str(exc)}
     except (AttributeError, BotoCoreError, KeyError, ValueError, json.JSONDecodeError) as exc:
         return {'error': str(exc)}
+
+
+def cloudfront_inventory() -> dict[str, Any]:
+    factory = FlociClientFactory()
+    cloudfront = factory.client('cloudfront')
+    operations = set(cloudfront.meta.service_model.operation_names)
+
+    def nested(operation: str, method: str, container_key: str, **kwargs) -> list[Any]:
+        return _safe_value(
+            lambda: _nested_operation_items(cloudfront, method, container_key, **kwargs),
+            [],
+        ) if operation in operations else []
+
+    distributions = nested('ListDistributions', 'list_distributions', 'DistributionList')
+    streaming_distributions = nested(
+        'ListStreamingDistributions',
+        'list_streaming_distributions',
+        'StreamingDistributionList',
+    )
+    origin_access_identities = nested(
+        'ListCloudFrontOriginAccessIdentities',
+        'list_cloud_front_origin_access_identities',
+        'CloudFrontOriginAccessIdentityList',
+    )
+    cache_policies = nested('ListCachePolicies', 'list_cache_policies', 'CachePolicyList')
+    origin_request_policies = nested(
+        'ListOriginRequestPolicies',
+        'list_origin_request_policies',
+        'OriginRequestPolicyList',
+    )
+    response_headers_policies = nested(
+        'ListResponseHeadersPolicies',
+        'list_response_headers_policies',
+        'ResponseHeadersPolicyList',
+    )
+    functions = nested('ListFunctions', 'list_functions', 'FunctionList')
+    key_groups = nested('ListKeyGroups', 'list_key_groups', 'KeyGroupList')
+    public_keys = nested('ListPublicKeys', 'list_public_keys', 'PublicKeyList')
+
+    return {
+        'summary': {
+            'distributions': len(distributions),
+            'streaming_distributions': len(streaming_distributions),
+            'origin_access_identities': len(origin_access_identities),
+            'cache_policies': len(cache_policies),
+            'origin_request_policies': len(origin_request_policies),
+            'response_headers_policies': len(response_headers_policies),
+            'functions': len(functions),
+            'key_groups': len(key_groups),
+            'public_keys': len(public_keys),
+            'available_sdk_operations': len(operations),
+        },
+        'distributions': _clean_response(distributions),
+        'streaming_distributions': _clean_response(streaming_distributions),
+        'origin_access_identities': _clean_response(origin_access_identities),
+        'cache_policies': _clean_response(cache_policies),
+        'origin_request_policies': _clean_response(origin_request_policies),
+        'response_headers_policies': _clean_response(response_headers_policies),
+        'functions': _clean_response(functions),
+        'key_groups': _clean_response(key_groups),
+        'public_keys': _clean_response(public_keys),
+        'supported_from_sdk': [
+            operation
+            for operation in [
+                'CreateDistribution',
+                'GetDistribution',
+                'ListDistributions',
+                'UpdateDistribution',
+                'DeleteDistribution',
+                'CreateInvalidation',
+                'ListInvalidations',
+                'ListCachePolicies',
+                'ListOriginRequestPolicies',
+                'ListResponseHeadersPolicies',
+            ]
+            if operation in operations
+        ],
+        'available_sdk_operations': sorted(operations),
+        'notes': [
+            'Floci 1.5.18 adds CloudFront service emulation for distributions, origins, behaviors, and the management API.',
+            'This page focuses on local CloudFront management inventory so CDN infrastructure created by IaC is visible in the dashboard.',
+        ],
+    }
 
 
 def cloudformation_inventory() -> dict[str, Any]:
@@ -6978,6 +7194,57 @@ def list_resources(service_keys: set[str] | None = None) -> list[ResourceResult]
                 )
         return resources
 
+    def cloudfront_resources() -> list[dict[str, Any]]:
+        cloudfront = factory.client('cloudfront')
+        operations = set(cloudfront.meta.service_model.operation_names)
+        resources: list[dict[str, Any]] = []
+
+        if 'ListDistributions' in operations:
+            resources.extend(
+                {
+                    'type': 'distribution',
+                    'id': distribution.get('Id'),
+                    'arn': distribution.get('ARN'),
+                    'domain_name': distribution.get('DomainName'),
+                    'status': distribution.get('Status'),
+                    'enabled': distribution.get('Enabled'),
+                }
+                for distribution in _safe_value(
+                    lambda: _nested_operation_items(cloudfront, 'list_distributions', 'DistributionList'),
+                    [],
+                )
+            )
+
+        if 'ListCachePolicies' in operations:
+            resources.extend(
+                {
+                    'type': 'cache_policy',
+                    'id': (policy.get('CachePolicy') or {}).get('Id'),
+                    'name': ((policy.get('CachePolicy') or {}).get('CachePolicyConfig') or {}).get('Name'),
+                    'policy_type': policy.get('Type'),
+                }
+                for policy in _safe_value(
+                    lambda: _nested_operation_items(cloudfront, 'list_cache_policies', 'CachePolicyList'),
+                    [],
+                )
+            )
+
+        if 'ListOriginRequestPolicies' in operations:
+            resources.extend(
+                {
+                    'type': 'origin_request_policy',
+                    'id': (policy.get('OriginRequestPolicy') or {}).get('Id'),
+                    'name': ((policy.get('OriginRequestPolicy') or {}).get('OriginRequestPolicyConfig') or {}).get('Name'),
+                    'policy_type': policy.get('Type'),
+                }
+                for policy in _safe_value(
+                    lambda: _nested_operation_items(cloudfront, 'list_origin_request_policies', 'OriginRequestPolicyList'),
+                    [],
+                )
+            )
+
+        return resources
+
     def cloudformation_resources() -> list[dict[str, Any]]:
         cloudformation = factory.client('cloudformation')
         resources = [
@@ -7227,6 +7494,53 @@ def list_resources(service_keys: set[str] | None = None) -> list[ResourceResult]
             }
             for alarm in _safe_value(lambda: _paginate(cloudwatch, 'describe_alarms', 'MetricAlarms'), [])
         )
+        return resources
+
+    def config_resources() -> list[dict[str, Any]]:
+        config = factory.client('config')
+        operations = set(config.meta.service_model.operation_names)
+        resources: list[dict[str, Any]] = []
+
+        if 'DescribeConfigurationRecorders' in operations:
+            resources.extend(
+                {
+                    'type': 'configuration_recorder',
+                    'name': recorder.get('name'),
+                    'role_arn': recorder.get('roleARN'),
+                }
+                for recorder in _safe_value(
+                    lambda: _operation_items(config, 'describe_configuration_recorders', 'ConfigurationRecorders'),
+                    [],
+                )
+            )
+
+        if 'DescribeConfigRules' in operations:
+            resources.extend(
+                {
+                    'type': 'config_rule',
+                    'name': rule.get('ConfigRuleName'),
+                    'arn': rule.get('ConfigRuleArn'),
+                    'state': rule.get('ConfigRuleState'),
+                }
+                for rule in _safe_value(
+                    lambda: _operation_items(config, 'describe_config_rules', 'ConfigRules'),
+                    [],
+                )
+            )
+
+        if 'DescribeConformancePacks' in operations:
+            resources.extend(
+                {
+                    'type': 'conformance_pack',
+                    'name': pack.get('ConformancePackName'),
+                    'arn': pack.get('ConformancePackArn'),
+                }
+                for pack in _safe_value(
+                    lambda: _operation_items(config, 'describe_conformance_packs', 'ConformancePackDetails'),
+                    [],
+                )
+            )
+
         return resources
 
     def cognito_resources() -> list[dict[str, Any]]:
@@ -8467,8 +8781,10 @@ def list_resources(service_keys: set[str] | None = None) -> list[ResourceResult]
         ('autoscaling-resources', 'Auto Scaling resources', autoscaling_resources),
         ('backup-resources', 'Backup resources', backup_resources),
         ('bedrockruntime-resources', 'Bedrock Runtime operations', bedrockruntime_resources),
+        ('cloudfront-resources', 'CloudFront resources', cloudfront_resources),
         ('codebuild-resources', 'CodeBuild resources', codebuild_resources),
         ('codedeploy-resources', 'CodeDeploy resources', codedeploy_resources),
+        ('config-resources', 'AWS Config resources', config_resources),
         ('eks-resources', 'EKS resources', eks_resources),
         ('elasticache-resources', 'ElastiCache resources', elasticache_resources),
         ('elasticloadbalancing-resources', 'Elastic Load Balancing resources', elasticloadbalancing_resources),

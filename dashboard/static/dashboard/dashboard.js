@@ -123,6 +123,9 @@ const bcmdataexportsLoadedAt = document.querySelector('#bcmdataexports-loaded-at
 const bedrockruntimeGrid = document.querySelector('#bedrockruntime-grid');
 const bedrockruntimeSummary = document.querySelector('#bedrockruntime-summary');
 const bedrockruntimeLoadedAt = document.querySelector('#bedrockruntime-loaded-at');
+const cloudfrontGrid = document.querySelector('#cloudfront-grid');
+const cloudfrontSummary = document.querySelector('#cloudfront-summary');
+const cloudfrontLoadedAt = document.querySelector('#cloudfront-loaded-at');
 const snsGrid = document.querySelector('#sns-grid');
 const snsSummary = document.querySelector('#sns-summary');
 const snsLoadedAt = document.querySelector('#sns-loaded-at');
@@ -132,6 +135,9 @@ const sesLoadedAt = document.querySelector('#ses-loaded-at');
 const cloudformationGrid = document.querySelector('#cloudformation-grid');
 const cloudformationSummary = document.querySelector('#cloudformation-summary');
 const cloudformationLoadedAt = document.querySelector('#cloudformation-loaded-at');
+const configGrid = document.querySelector('#config-grid');
+const configSummary = document.querySelector('#config-summary');
+const configLoadedAt = document.querySelector('#config-loaded-at');
 const ecrGrid = document.querySelector('#ecr-grid');
 const ecrSummary = document.querySelector('#ecr-summary');
 const ecrLoadedAt = document.querySelector('#ecr-loaded-at');
@@ -284,10 +290,12 @@ const serviceDetailPages = {
   bcmdataexports: '/service/bcmdataexports/',
   'bedrock-runtime': '/service/bedrockruntime/',
   bedrockruntime: '/service/bedrockruntime/',
+  cloudfront: '/service/cloudfront/',
   codebuild: '/service/codebuild/',
   codedeploy: '/service/codedeploy/',
   cloudformation: '/service/cloudformation/',
   cloudwatch: '/service/cloudwatch/',
+  config: '/service/config/',
   cognito: '/service/cognito/',
   'cognito-idp': '/service/cognito/',
   ce: '/service/costexplorer/',
@@ -375,6 +383,7 @@ const servicePriorityOrder = [
   'apigateway',
   'autoscaling',
   'elasticloadbalancing',
+  'cloudfront',
   'route53',
   'cloudwatch',
   'kms',
@@ -386,6 +395,7 @@ const servicePriorityOrder = [
   'scheduler',
   'pipes',
   'cloudformation',
+  'config',
   'ssm',
   'cognito',
   'cognito-idp',
@@ -1035,6 +1045,12 @@ function renderSQS(data) {
       ['Max message size bytes', 'max_message_size_bytes'],
       ['Queue URL format', 'queue_url_format'],
     ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
   ];
 
   sqsGrid.append(...panels);
@@ -1439,6 +1455,100 @@ function renderEventBridge(data) {
 
   eventbridgeGrid.append(...panels);
   eventbridgeLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+}
+
+function renderConfig(data) {
+  configGrid.textContent = '';
+  renderSummary(data.summary, configSummary);
+
+  const panels = [
+    renderDetailList('Configuration recorders', data.configuration_recorders || [], [
+      ['Name', 'name'],
+      ['Role ARN', 'roleARN'],
+      ['Recording group', 'recordingGroup'],
+      ['Recording mode', 'recordingMode'],
+    ]),
+    renderDetailList('Recorder statuses', data.configuration_recorder_statuses || [], [
+      ['Name', 'name'],
+      ['Recording', 'recording'],
+      ['Last status', 'lastStatus'],
+      ['Last status change', 'lastStatusChangeTime'],
+      ['Last error code', 'lastErrorCode'],
+      ['Last error message', 'lastErrorMessage'],
+    ]),
+    renderDetailList('Delivery channels', data.delivery_channels || [], [
+      ['Name', 'name'],
+      ['S3 bucket', 's3BucketName'],
+      ['S3 key prefix', 's3KeyPrefix'],
+      ['SNS topic ARN', 'snsTopicARN'],
+      ['Config snapshot delivery properties', 'configSnapshotDeliveryProperties'],
+    ]),
+    renderDetailList('Config rules', data.config_rules || [], [
+      ['Name', 'ConfigRuleName'],
+      ['ARN', 'ConfigRuleArn'],
+      ['ID', 'ConfigRuleId'],
+      ['State', 'ConfigRuleState'],
+      ['Scope', 'Scope'],
+      ['Source', 'Source'],
+    ]),
+    renderDetailList('Conformance packs', data.conformance_packs || [], [
+      ['Name', 'ConformancePackName'],
+      ['ARN', 'ConformancePackArn'],
+      ['ID', 'ConformancePackId'],
+      ['Input parameters', 'ConformancePackInputParameters'],
+      ['Created', 'CreatedBy'],
+    ]),
+    renderDetailList('Configuration aggregators', data.configuration_aggregators || [], [
+      ['Name', 'ConfigurationAggregatorName'],
+      ['ARN', 'ConfigurationAggregatorArn'],
+      ['Account aggregation sources', 'AccountAggregationSources'],
+      ['Organization aggregation source', 'OrganizationAggregationSource'],
+    ]),
+    renderDetailList('Remediation configurations', data.remediation_configurations || [], [
+      ['Rule name', 'ConfigRuleName'],
+      ['Target type', 'TargetType'],
+      ['Target ID', 'TargetId'],
+      ['Automatic', 'Automatic'],
+      ['Parameters', 'Parameters'],
+    ]),
+    renderDetailList('Retention configurations', data.retention_configurations || [], [
+      ['Name', 'Name'],
+      ['Retention period days', 'RetentionPeriodInDays'],
+    ]),
+    renderDetailList('Compliance summary by rule', data.compliance_by_rule ? [{
+      name: 'Config rule compliance',
+      ...data.compliance_by_rule,
+    }] : [], [
+      ['Compliance summary', 'ComplianceSummary'],
+    ]),
+    renderDetailList('Compliance summary by resource type', data.compliance_by_resource_type ? [{
+      name: 'Resource type compliance',
+      ...data.compliance_by_resource_type,
+    }] : [], [
+      ['Compliance summaries', 'ComplianceSummariesByResourceType'],
+    ]),
+    renderDetailList('Supported from SDK', (data.supported_from_sdk || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Available SDK operations', (data.available_sdk_operations || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
+  ];
+
+  configGrid.append(...panels);
+  configLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
 }
 
 function renderCognito(data) {
@@ -3564,6 +3674,87 @@ function renderSES(data) {
   sesLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
 }
 
+function renderCloudFront(data) {
+  cloudfrontGrid.textContent = '';
+  renderSummary(data.summary, cloudfrontSummary);
+
+  const panels = [
+    renderDetailList('Distributions', data.distributions || [], [
+      ['ID', 'Id'],
+      ['ARN', 'ARN'],
+      ['Status', 'Status'],
+      ['Domain name', 'DomainName'],
+      ['Enabled', 'Enabled'],
+      ['Comment', 'Comment'],
+      ['Origins', 'Origins'],
+      ['Default cache behavior', 'DefaultCacheBehavior'],
+      ['Cache behaviors', 'CacheBehaviors'],
+      ['Aliases', 'Aliases'],
+      ['Viewer certificate', 'ViewerCertificate'],
+      ['Last modified', 'LastModifiedTime'],
+    ]),
+    renderDetailList('Streaming distributions', data.streaming_distributions || [], [
+      ['ID', 'Id'],
+      ['ARN', 'ARN'],
+      ['Status', 'Status'],
+      ['Domain name', 'DomainName'],
+      ['Enabled', 'Enabled'],
+      ['Comment', 'Comment'],
+      ['Last modified', 'LastModifiedTime'],
+    ]),
+    renderDetailList('Origin access identities', data.origin_access_identities || [], [
+      ['ID', 'Id'],
+      ['S3 canonical user ID', 'S3CanonicalUserId'],
+      ['Comment', 'Comment'],
+    ]),
+    renderDetailList('Cache policies', data.cache_policies || [], [
+      ['Type', 'Type'],
+      ['Policy', 'CachePolicy'],
+    ]),
+    renderDetailList('Origin request policies', data.origin_request_policies || [], [
+      ['Type', 'Type'],
+      ['Policy', 'OriginRequestPolicy'],
+    ]),
+    renderDetailList('Response headers policies', data.response_headers_policies || [], [
+      ['Type', 'Type'],
+      ['Policy', 'ResponseHeadersPolicy'],
+    ]),
+    renderDetailList('Functions', data.functions || [], [
+      ['Name', 'Name'],
+      ['Status', 'Status'],
+      ['Function config', 'FunctionConfig'],
+      ['Function metadata', 'FunctionMetadata'],
+    ]),
+    renderDetailList('Key groups', data.key_groups || [], [
+      ['Key group', 'KeyGroup'],
+    ]),
+    renderDetailList('Public keys', data.public_keys || [], [
+      ['Public key', 'PublicKey'],
+    ]),
+    renderDetailList('Supported from SDK', (data.supported_from_sdk || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Available SDK operations', (data.available_sdk_operations || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
+  ];
+
+  cloudfrontGrid.append(...panels);
+  cloudfrontLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+}
+
 function renderCloudFormation(data) {
   cloudformationGrid.textContent = '';
   renderSummary(data.summary, cloudformationSummary);
@@ -4334,7 +4525,9 @@ function titleCaseService(name) {
     bcmdataexports: 'BCM Data Exports',
     codebuild: 'CodeBuild',
     codedeploy: 'CodeDeploy',
+    cloudfront: 'CloudFront',
     cloudformation: 'CloudFormation',
+    config: 'AWS Config',
     'cognito-idp': 'Cognito IDP',
     cur: 'Cost and Usage Reports',
     dynamodb: 'DynamoDB',
@@ -4450,8 +4643,10 @@ function resourceServiceKey(resource) {
     'apigateway-apis': 'apigateway',
     'bedrockruntime-resources': 'bedrock-runtime',
     'bcmdataexports-resources': 'bcmdataexports',
+    'cloudfront-resources': 'cloudfront',
     'codebuild-resources': 'codebuild',
     'codedeploy-resources': 'codedeploy',
+    'config-resources': 'config',
     'cur-resources': 'cur',
     'iam-roles': 'iam',
     'iam-users': 'iam',
@@ -4637,6 +4832,11 @@ function renderServiceFilter(serviceMetadata = []) {
 function mergeServiceCards(resources, healthServices = {}, serviceMetadata = []) {
   const services = new Map();
   const metadata = serviceMetadataMap(serviceMetadata);
+  const addDescription = (service, description) => {
+    if (!service.descriptions.includes(description)) {
+      service.descriptions.push(description);
+    }
+  };
 
   Object.entries(healthServices).forEach(([name, status]) => {
     const key = canonicalServiceKey(name);
@@ -4645,7 +4845,7 @@ function mergeServiceCards(resources, healthServices = {}, serviceMetadata = [])
 
     if (existing) {
       existing.status = existing.status || status;
-      existing.descriptions.push(`Service status: ${status}`);
+      addDescription(existing, `Service status: ${status}`);
       return;
     }
 
@@ -4655,7 +4855,7 @@ function mergeServiceCards(resources, healthServices = {}, serviceMetadata = [])
       status,
       count: 0,
       error: null,
-      href: serviceHref(key),
+      href: serviceMeta?.page_path || serviceHref(key),
       maturity: serviceMeta?.maturity || 'inventory_only',
       descriptions: [`Service status: ${status}`],
     });
@@ -4674,7 +4874,7 @@ function mergeServiceCards(resources, healthServices = {}, serviceMetadata = [])
         status: null,
         count,
         error: resource.error,
-        href: serviceHref(key),
+        href: serviceMeta?.page_path || serviceHref(key),
         maturity: serviceMeta?.maturity || 'inventory_only',
         descriptions: [serviceDescription(resource)],
       });
@@ -4683,7 +4883,7 @@ function mergeServiceCards(resources, healthServices = {}, serviceMetadata = [])
 
     existing.count += count;
     existing.error = existing.error || resource.error;
-    existing.descriptions.push(`${resource.label}: ${serviceDescription(resource)}`);
+    addDescription(existing, `${resource.label}: ${serviceDescription(resource)}`);
   });
 
   return Array.from(services.values()).sort((left, right) => {
@@ -4950,6 +5150,8 @@ const servicePages = [
   { key: 'cloudwatch', label: 'CloudWatch', grid: cloudwatchGrid, apiPath: '/api/cloudwatch/', render: renderCloudWatch },
   { key: 'codebuild', label: 'CodeBuild', grid: codebuildGrid, apiPath: '/api/codebuild/', render: renderCodeBuild },
   { key: 'codedeploy', label: 'CodeDeploy', grid: codedeployGrid, apiPath: '/api/codedeploy/', render: renderCodeDeploy },
+  { key: 'cloudfront', label: 'CloudFront', grid: cloudfrontGrid, apiPath: '/api/cloudfront/', render: renderCloudFront },
+  { key: 'config', label: 'AWS Config', grid: configGrid, apiPath: '/api/config/', render: renderConfig },
   { key: 'costexplorer', label: 'Cost Explorer', grid: costexplorerGrid, apiPath: '/api/costexplorer/', render: renderCostExplorer },
   { key: 'cur', label: 'Cost and Usage Reports', grid: curGrid, apiPath: '/api/cur/', render: renderCur },
   { key: 'bcmdataexports', label: 'BCM Data Exports', grid: bcmdataexportsGrid, apiPath: '/api/bcmdataexports/', render: renderBcmDataExports },

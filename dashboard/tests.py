@@ -197,6 +197,10 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertEqual(ec2_actions['terminate_instance']['safety'], 'destructive')
         self.assertEqual(ec2_actions['import_key_pair']['fields'][1]['field_type'], 'textarea')
         self.assertEqual(services['lambda']['api_path'], '/api/lambda/')
+        self.assertEqual(services['cloudfront']['maturity'], 'inventory_only')
+        self.assertEqual(services['cloudfront']['api_path'], '/api/cloudfront/')
+        self.assertEqual(services['config']['title'], 'AWS Config')
+        self.assertEqual(services['config']['api_path'], '/api/config/')
 
     @patch('dashboard.views.FlociClientFactory.identity')
     def test_identity_api_includes_credential_context(self, identity):
@@ -239,6 +243,24 @@ class DashboardTemplateTests(SimpleTestCase):
     def test_service_pages_are_derived_from_registry(self):
         self.assertEqual(set(SERVICE_PAGES), set(SERVICE_REGISTRY))
         self.assertEqual(SERVICE_PAGES['s3']['title'], SERVICE_REGISTRY['s3'].title)
+
+    @patch('dashboard.views.cloudfront_inventory')
+    def test_cloudfront_api_returns_inventory(self, cloudfront_inventory):
+        cloudfront_inventory.return_value = {'summary': {'distributions': 1}, 'distributions': []}
+
+        response = self.client.get(reverse('dashboard:cloudfront'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['summary']['distributions'], 1)
+
+    @patch('dashboard.views.config_inventory')
+    def test_config_api_returns_inventory(self, config_inventory):
+        config_inventory.return_value = {'summary': {'config_rules': 1}, 'config_rules': []}
+
+        response = self.client.get(reverse('dashboard:config'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['summary']['config_rules'], 1)
 
     @patch('dashboard.views.list_resources')
     def test_resources_api_passes_selected_services(self, list_resources):

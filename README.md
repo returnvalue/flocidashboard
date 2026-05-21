@@ -10,7 +10,7 @@ A small Django UI for inspecting and testing a local [Floci](https://floci.io/) 
 - AWS endpoint, profile, and caller identity
 - Clickable service cards for supported local services, with persisted home-page service filtering to keep resource probes focused
 - Interactive workbenches for S3, IAM, EC2, SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, EventBridge, API Gateway, Kinesis, Secrets Manager, and SSM Parameter Store
-- Detail pages for services such as AppConfig, Bedrock Runtime, Cost Explorer, Cost and Usage Reports, BCM Data Exports, Neptune, EKS, OpenSearch, Pricing, Transcribe, and more
+- Detail pages for services such as CloudFront, AWS Config, AppConfig, Bedrock Runtime, Cost Explorer, Cost and Usage Reports, BCM Data Exports, Neptune, EKS, OpenSearch, Pricing, Transcribe, and more
 - Loading state with the Floci cloud image while service data is fetched
 
 ## Run Locally On macOS
@@ -72,6 +72,8 @@ Floci 1.5.16 and newer support the public localhost DNS suffix for virtual-hoste
 ```bash
 export FLOCI_AWS_ENDPOINT_URL=http://s3.localhost.floci.io:4566
 ```
+
+Floci 1.5.18 adds CloudFront and AWS Config emulation. The dashboard includes read-only inventory pages for both services, and refreshes Neptune, SNS, SQS, Lambda, and API Gateway notes around the 1.5.18 release surface.
 
 Start the Django dev server:
 

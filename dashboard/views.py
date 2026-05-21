@@ -4,7 +4,7 @@ from typing import Optional
 from botocore.exceptions import BotoCoreError, ClientError
 from django.http import Http404, JsonResponse
 from django.shortcuts import render
-from .aws import FlociClientFactory, acm_inventory, apigateway_inventory, appconfig_inventory, athena_inventory, autoscaling_inventory, backup_inventory, bcmdataexports_inventory, bedrockruntime_inventory, cloudformation_inventory, cloudwatch_inventory, codebuild_inventory, codedeploy_inventory, cognito_inventory, costexplorer_inventory, cur_inventory, dynamodb_inventory, ec2_inventory, ecr_inventory, ecs_inventory, eks_inventory, elasticache_inventory, elasticloadbalancing_inventory, eventbridge_inventory, firehose_inventory, glue_inventory, iam_inventory, kafka_inventory, kinesis_inventory, kms_inventory, lambda_inventory, list_resources, neptune_inventory, opensearch_inventory, pipes_inventory, pricing_inventory, rds_inventory, resourcegroupstagging_inventory, route53_inventory, s3_inventory, scheduler_inventory, secretsmanager_inventory, ses_inventory, sns_inventory, sqs_inventory, ssm_inventory, stepfunctions_inventory, textract_inventory, transcribe_inventory, transfer_inventory
+from .aws import FlociClientFactory, acm_inventory, apigateway_inventory, appconfig_inventory, athena_inventory, autoscaling_inventory, backup_inventory, bcmdataexports_inventory, bedrockruntime_inventory, cloudformation_inventory, cloudfront_inventory, cloudwatch_inventory, codebuild_inventory, codedeploy_inventory, config_inventory, cognito_inventory, costexplorer_inventory, cur_inventory, dynamodb_inventory, ec2_inventory, ecr_inventory, ecs_inventory, eks_inventory, elasticache_inventory, elasticloadbalancing_inventory, eventbridge_inventory, firehose_inventory, glue_inventory, iam_inventory, kafka_inventory, kinesis_inventory, kms_inventory, lambda_inventory, list_resources, neptune_inventory, opensearch_inventory, pipes_inventory, pricing_inventory, rds_inventory, resourcegroupstagging_inventory, route53_inventory, s3_inventory, scheduler_inventory, secretsmanager_inventory, ses_inventory, sns_inventory, sqs_inventory, ssm_inventory, stepfunctions_inventory, textract_inventory, transcribe_inventory, transfer_inventory
 from .services import SERVICE_PAGES, get_service, services_payload
 
 
@@ -136,6 +136,13 @@ def dynamodb(request):
 def cloudwatch(request):
     try:
         return JsonResponse(cloudwatch_inventory())
+    except (BotoCoreError, ClientError, ValueError) as exc:
+        return JsonResponse({'error': str(exc)}, status=502)
+
+
+def config(request):
+    try:
+        return JsonResponse(config_inventory())
     except (BotoCoreError, ClientError, ValueError) as exc:
         return JsonResponse({'error': str(exc)}, status=502)
 
@@ -353,6 +360,13 @@ def ses(request):
 def cloudformation(request):
     try:
         return JsonResponse(cloudformation_inventory())
+    except (BotoCoreError, ClientError, ValueError) as exc:
+        return JsonResponse({'error': str(exc)}, status=502)
+
+
+def cloudfront(request):
+    try:
+        return JsonResponse(cloudfront_inventory())
     except (BotoCoreError, ClientError, ValueError) as exc:
         return JsonResponse({'error': str(exc)}, status=502)
 

@@ -84,6 +84,9 @@ Core architecture files:
 - Replaced the dashboard README screenshot image.
 - Added tutorial-style "About Floci S3", "About Floci IAM", "About Floci EC2", "About Floci SQS", "About Floci SNS", "About Floci Lambda", "About Floci DynamoDB", "About Floci CloudWatch Logs", "About Floci Step Functions", "About Floci EventBridge", "About Floci API Gateway", "About Floci Kinesis", "About Floci Secrets Manager", and "About Floci SSM Parameter Store" notes.
 - Added contributor architecture notes and an AI-assisted contributor prompt to `README.md`.
+- Added Floci 1.5.18 read-only inventory pages and homepage cards for CloudFront and AWS Config.
+- Refreshed release-aware notes for Neptune Gremlin backend support, SNS HTTP/HTTPS delivery, SQS message move tasks and FIFO dedup scoping, Lambda port-pool behavior, API Gateway v2 ALB routing, KMS MAC operations, ElastiCache Memcached clusters, and ECS-to-ELBv2 target registration.
+- Made homepage service cards use registry page paths when available and dedupe repeated card description text from service aliases.
 
 ## Near-Term Priorities
 

@@ -779,6 +779,7 @@ SERVICES: tuple[ServiceDefinition, ...] = (
     service('backup', 'Backup', 'Backup vaults, plans, jobs, and protected resources', 'Storage'),
     service('bcmdataexports', 'BCM Data Exports', 'Billing and cost management exports', 'Management'),
     service('bedrockruntime', 'Bedrock Runtime', 'Model runtime stub', 'AI'),
+    service('cloudfront', 'CloudFront', 'Distributions, origins, cache behaviors, and edge policies', 'Networking'),
     service('cloudformation', 'CloudFormation', 'Stacks and change sets', 'Management'),
     service(
         'cloudwatch',
@@ -794,6 +795,7 @@ SERVICES: tuple[ServiceDefinition, ...] = (
     ),
     service('codebuild', 'CodeBuild', 'Build projects and execution history', 'Developer Tools'),
     service('codedeploy', 'CodeDeploy', 'Deployment applications and history', 'Developer Tools'),
+    service('config', 'AWS Config', 'Configuration recorders, rules, compliance, and resource tracking', 'Management'),
     service('cognito', 'Cognito', 'User pools and auth', 'Security'),
     service('costexplorer', 'Cost Explorer', 'Cost and usage dimensions', 'Management'),
     service('cur', 'Cost and Usage Reports', 'Billing report definitions', 'Management'),
