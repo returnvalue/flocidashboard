@@ -75,6 +75,8 @@ export FLOCI_AWS_ENDPOINT_URL=http://s3.localhost.floci.io:4566
 
 Floci 1.5.18 adds CloudFront and AWS Config emulation. The dashboard includes read-only inventory pages for both services, and refreshes Neptune, SNS, SQS, Lambda, and API Gateway notes around the 1.5.18 release surface.
 
+Floci 1.5.19 adds Lambda layer APIs, CloudFormation parity for SQS queues, SNS-to-SQS subscriptions, and Cognito resources, API Gateway REQUEST authorizer fixes, ELBv2 listener attribute and capacity reservation actions, and ECR Public Gallery publishing. The dashboard surfaces attached Lambda layer versions and refreshes release-aware notes across the affected service pages.
+
 Start the Django dev server:
 
 ```bash

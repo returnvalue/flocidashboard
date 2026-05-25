@@ -626,6 +626,7 @@ def s3_inventory_summary() -> dict[str, Any]:
             'bucket_configuration': [
                 'Location', 'Versioning', 'Tagging', 'Policy', 'CORS', 'Lifecycle',
                 'ACL', 'Encryption', 'Notifications', 'Object Lock', 'Public Access Block',
+                'Request payment',
             ],
             'objects': [
                 'ListObjectsV2',
@@ -648,7 +649,6 @@ def s3_inventory_summary() -> dict[str, Any]:
                 'Replication',
                 'Website hosting',
                 'Access logging',
-                'Request payment',
                 'Intelligent-Tiering configurations',
                 'Inventory configurations',
                 'Metrics and Analytics configurations',

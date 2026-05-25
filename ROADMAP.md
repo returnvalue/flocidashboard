@@ -86,6 +86,7 @@ Core architecture files:
 - Added contributor architecture notes and an AI-assisted contributor prompt to `README.md`.
 - Added Floci 1.5.18 read-only inventory pages and homepage cards for CloudFront and AWS Config.
 - Refreshed release-aware notes for Neptune Gremlin backend support, SNS HTTP/HTTPS delivery, SQS message move tasks and FIFO dedup scoping, Lambda port-pool behavior, API Gateway v2 ALB routing, KMS MAC operations, ElastiCache Memcached clusters, and ECS-to-ELBv2 target registration.
+- Reviewed Floci 1.5.19 and refreshed Lambda layer, CloudFormation SQS queue, SNS-to-SQS subscription, and Cognito parity, API Gateway authorizer, ELBv2 action-family, S3 request-payment, SNS batch/binary-attribute, SQS queue-url, Cognito token-claim, and ECR Public Gallery dashboard notes.
 - Made homepage service cards use registry page paths when available and dedupe repeated card description text from service aliases.
 
 ## Near-Term Priorities

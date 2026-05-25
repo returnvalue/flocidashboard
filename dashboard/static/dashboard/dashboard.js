@@ -990,6 +990,9 @@ function renderLambda(data) {
       ['Scaling config', 'ScalingConfig'],
       ['Last modified', 'LastModified'],
     ]),
+    renderDetailList('Layer versions', data.layer_versions || [], [
+      ['Versions', 'versions'],
+    ]),
     renderDetailList('Supported operations', (data.supported || []).map((operation) => ({
       name: operation,
       operation,

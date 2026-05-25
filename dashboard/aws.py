@@ -1166,11 +1166,39 @@ def lambda_inventory() -> dict[str, Any]:
 
     detailed_functions = [function_detail(function) for function in functions]
 
+    def layer_name(layer: dict[str, Any]) -> str | None:
+        arn = layer.get('Arn') or layer.get('LayerVersionArn') or layer.get('LayerArn')
+        if not arn or ':layer:' not in arn:
+            return None
+        return arn.split(':layer:', 1)[1].split(':', 1)[0]
+
+    attached_layer_names = sorted({
+        name
+        for function in detailed_functions
+        for name in [
+            layer_name(layer)
+            for layer in function.get('layers') or []
+            if isinstance(layer, dict)
+        ]
+        if name
+    })
+    layer_versions = [
+        {
+            'name': name,
+            'versions': _lambda_optional(
+                lambda name=name: _paginate(lambda_client, 'list_layer_versions', 'LayerVersions', LayerName=name),
+                {'ResourceNotFoundException'},
+            ),
+        }
+        for name in attached_layer_names
+    ]
+
     return {
         'summary': {
             'functions': len(detailed_functions),
             'event_source_mappings': len(event_source_mappings),
             'function_urls': sum(1 for function in detailed_functions if function.get('function_url')),
+            'attached_layers': len(attached_layer_names),
             'aliases': sum(
                 len(function.get('aliases') or [])
                 for function in detailed_functions
@@ -1184,6 +1212,7 @@ def lambda_inventory() -> dict[str, Any]:
         },
         'functions': detailed_functions,
         'event_source_mappings': _clean_response(event_source_mappings),
+        'layer_versions': layer_versions,
         'supported': [
             'CreateFunction',
             'GetFunction',
@@ -1219,9 +1248,13 @@ def lambda_inventory() -> dict[str, Any]:
             'PutFunctionConcurrency',
             'GetFunctionConcurrency',
             'DeleteFunctionConcurrency',
+            'PublishLayerVersion',
+            'GetLayerVersion',
+            'ListLayerVersions',
+            'DeleteLayerVersion',
         ],
         'not_implemented': [
-            'Layer storage and layer permission operations',
+            'Layer permission operations',
             'Provisioned concurrency operations',
             'Dead-letter and async/event invoke config operations',
             'InvokeWithResponseStream',
@@ -1234,7 +1267,7 @@ def lambda_inventory() -> dict[str, Any]:
             'Bind-mount hot reload uses S3Bucket=hot-reload and requires explicit configuration.',
             'Reserved concurrency is enforced; provisioned concurrency is not implemented.',
             'Floci 1.5.18 uses a checkout/release Lambda port pool with clearer exhaustion errors during concurrent invocations.',
-            'ListLayers and ListLayerVersions are stubbed and return empty arrays.',
+            'Floci 1.5.19 adds Lambda layer publishing, lookup, version listing, and deletion.',
         ],
     }
 
@@ -1336,6 +1369,7 @@ def sqs_inventory() -> dict[str, Any]:
             'queue_url_format': f'{factory.endpoint_url.rstrip("/")}/000000000000/<queue-name>',
         },
         'notes': [
+            'Floci 1.5.19 applies ContentBasedDeduplication from CloudFormation templates and accepts bare queue names in QueueUrl fields.',
             'Floci 1.5.18 supports StartMessageMoveTask, ListMessageMoveTasks, and CancelMessageMoveTask with async drain behavior.',
             'FIFO deduplication is scoped per MessageGroupId when DeduplicationScope=messageGroup.',
             'AWSTraceHeader is persisted and returned as an SQS system attribute.',
@@ -1952,6 +1986,23 @@ def cognito_inventory() -> dict[str, Any]:
             lambda: cognito.list_groups(UserPoolId=pool_id, Limit=60).get('Groups', []),
             {'ResourceNotFoundException'},
         )
+        group_details = []
+        if isinstance(groups, list):
+            for group in groups:
+                group_name = group.get('GroupName')
+                group_users = _cognito_optional(
+                    lambda group_name=group_name: cognito.list_users_in_group(
+                        UserPoolId=pool_id,
+                        GroupName=group_name,
+                        Limit=60,
+                    ).get('Users', []),
+                    {'ResourceNotFoundException', 'GroupNotFoundException'},
+                )
+                group_details.append({
+                    **group,
+                    'users': group_users,
+                    'user_count': len(group_users) if isinstance(group_users, list) else 0,
+                })
 
         client_details = []
         if isinstance(clients, list):
@@ -2008,7 +2059,7 @@ def cognito_inventory() -> dict[str, Any]:
             'clients': client_details,
             'resource_servers': resource_servers,
             'users': user_details,
-            'groups': groups,
+            'groups': group_details if isinstance(groups, list) else groups,
             'discovery_url': f'{factory.endpoint_url.rstrip("/")}/{pool_id}/.well-known/openid-configuration' if pool_id else None,
             'jwks_url': f'{factory.endpoint_url.rstrip("/")}/{pool_id}/.well-known/jwks.json' if pool_id else None,
             'oauth_token_url': f'{factory.endpoint_url.rstrip("/")}/cognito-idp/oauth2/token',
@@ -2055,6 +2106,7 @@ def cognito_inventory() -> dict[str, Any]:
             'AdminDeleteUser',
             'AdminSetUserPassword',
             'AdminUpdateUserAttributes',
+            'AdminConfirmSignUp',
             'SignUp',
             'ConfirmSignUp',
             'GetUser',
@@ -2070,9 +2122,11 @@ def cognito_inventory() -> dict[str, Any]:
             'GetGroup',
             'ListGroups',
             'DeleteGroup',
+            'UpdateGroup',
             'AdminAddUserToGroup',
             'AdminRemoveUserFromGroup',
             'AdminListGroupsForUser',
+            'ListUsersInGroup',
         ],
         'endpoints': [
             'GET /{userPoolId}/.well-known/openid-configuration',
@@ -2084,6 +2138,7 @@ def cognito_inventory() -> dict[str, Any]:
             'floci:override-id can pin a user pool ID at creation time and is stripped from persisted tags.',
             'OAuth client_credentials is emulator-friendly and does not require a Cognito domain.',
             'Tokens use the local emulator base URL plus pool ID as issuer.',
+            'Floci 1.5.19 provisions UserPool and UserPoolClient resources from CloudFormation and includes user attributes in ID token claims.',
             'Floci 1.5.17 fires PreSignUp and PostConfirmation Lambda triggers for local auth flows.',
         ],
     }
@@ -2244,7 +2299,7 @@ def apigateway_inventory() -> dict[str, Any]:
             'Resources': ['CreateResource', 'GetResource', 'GetResources', 'UpdateResource', 'DeleteResource'],
             'Methods': ['PutMethod', 'GetMethod', 'UpdateMethod', 'DeleteMethod'],
             'Integrations': ['PutIntegration', 'GetIntegration', 'UpdateIntegration', 'DeleteIntegration'],
-            'Deployments and stages': ['CreateDeployment', 'GetDeployments', 'CreateStage', 'GetStage', 'GetStages', 'UpdateStage', 'DeleteStage'],
+            'Deployments and stages': ['CreateDeployment', 'GetDeployments', 'DeleteDeployment', 'CreateStage', 'GetStage', 'GetStages', 'UpdateStage', 'DeleteStage'],
             'Authorizers and validation': ['CreateAuthorizer', 'GetAuthorizer', 'GetAuthorizers', 'CreateRequestValidator', 'GetRequestValidator', 'GetRequestValidators', 'DeleteRequestValidator'],
             'Keys and plans': ['CreateApiKey', 'GetApiKeys', 'CreateUsagePlan', 'GetUsagePlans', 'DeleteUsagePlan', 'CreateUsagePlanKey', 'GetUsagePlanKey', 'GetUsagePlanKeys', 'DeleteUsagePlanKey'],
             'Models and domains': ['CreateModel', 'GetModel', 'GetModels', 'DeleteModel', 'CreateDomainName', 'GetDomainName', 'GetDomainNames', 'DeleteDomainName'],
@@ -2260,7 +2315,6 @@ def apigateway_inventory() -> dict[str, Any]:
         'not_implemented_v1': [
             'GetDeployment',
             'UpdateDeployment',
-            'DeleteDeployment',
             'UpdateAuthorizer',
             'DeleteAuthorizer',
             'TestInvokeAuthorizer',
@@ -2278,6 +2332,7 @@ def apigateway_inventory() -> dict[str, Any]:
         ],
         'notes': [
             'Floci supports API Gateway v1 REST APIs and API Gateway v2 HTTP APIs.',
+            'Floci 1.5.19 fills REQUEST authorizer events for REST APIs, supports Lambda REQUEST authorizers on HTTP API v2 routes, and persists v1 UpdateStage methodSettings patch operations.',
             'Floci 1.5.18 forwards API Gateway v2 HTTP API requests through ALB listeners.',
             'Floci 1.5.17 adds API Gateway v1 account management endpoints and API Gateway v2 HTTP_PROXY integrations with request parameter mapping.',
             'The v1 execute plane is served under /restapis/{id}/{stage}/_user_request_/...',
@@ -3775,6 +3830,10 @@ def elasticloadbalancing_inventory() -> dict[str, Any]:
             'DeleteLoadBalancer',
             'CreateListener',
             'DescribeListeners',
+            'DescribeListenerAttributes',
+            'ModifyListenerAttributes',
+            'ModifyCapacityReservation',
+            'DescribeCapacityReservation',
             'CreateRule',
             'DescribeRules',
             'CreateTargetGroup',
@@ -3792,6 +3851,7 @@ def elasticloadbalancing_inventory() -> dict[str, Any]:
         ],
         'notes': [
             'This page combines the AWS elbv2 and classic elb SDK APIs under the Elastic Load Balancing service name.',
+            'Floci 1.5.19 adds ELBv2 listener attribute and capacity reservation action families.',
             'Target health is fetched per target group; listener rules are fetched per listener.',
         ],
     }
@@ -5783,6 +5843,7 @@ def sns_inventory() -> dict[str, Any]:
         ],
         'fanout': [
             'Floci supports SNS to SQS fan-out and delivers published messages immediately.',
+            'Floci 1.5.19 creates SNS to SQS subscriptions from CloudFormation templates, preserves binary message attributes, and reports per-entry PublishBatch failures.',
             'Floci 1.5.18 delivers http:// and https:// subscriptions with confirmation handshakes, message POSTs, and signature headers.',
             'Floci 1.5.17 supports FilterPolicyScope=MessageBody for body-based subscription filtering.',
         ],
@@ -6226,6 +6287,7 @@ def cloudformation_inventory() -> dict[str, Any]:
         'notes': [
             'CloudFormation actions use the Query XML protocol at the Floci root endpoint.',
             'Stacks can expose templates, events, resources, outputs, stack policies, and change sets.',
+            'Floci 1.5.19 provisions SQS ContentBasedDeduplication, SNS to SQS subscriptions, Cognito UserPool resources, and Cognito UserPoolClient resources from templates.',
         ],
     }
 
@@ -6370,6 +6432,7 @@ def ecr_inventory() -> dict[str, Any]:
             'Repository URIs use loopback hostnames like <account>.dkr.ecr.<region>.localhost:<port>/<repo> by default.',
             'GetAuthorizationToken returns a docker login token, but the dashboard only displays proxy endpoints.',
             'Deleted image blobs are reclaimed by POST /_floci/ecr/gc.',
+            'Floci 1.5.19 publishes official Floci images to the AWS ECR Public Gallery as well as Docker Hub.',
         ],
     }
 
