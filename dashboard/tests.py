@@ -52,6 +52,20 @@ class DashboardTemplateTests(SimpleTestCase):
                     self.assertContains(response, 'id="stepfunctions-grid"')
                     self.assertContains(response, 'dashboard/service-console.js')
                     self.assertContains(response, 'dashboard/stepfunctions-console.js')
+                elif key == 'cloudformation':
+                    self.assertContains(response, 'id="cloudformation-loaded-at"')
+                    self.assertContains(response, 'id="cloudformation-summary"')
+                    self.assertContains(response, 'id="cloudformation-console-root"')
+                    self.assertContains(response, 'id="cloudformation-grid"')
+                    self.assertContains(response, 'dashboard/service-console.js')
+                    self.assertContains(response, 'dashboard/cloudformation-console.js')
+                elif key == 'cognito':
+                    self.assertContains(response, 'id="cognito-loaded-at"')
+                    self.assertContains(response, 'id="cognito-summary"')
+                    self.assertContains(response, 'id="cognito-console-root"')
+                    self.assertContains(response, 'id="cognito-grid"')
+                    self.assertContains(response, 'dashboard/service-console.js')
+                    self.assertContains(response, 'dashboard/cognito-console.js')
                 elif key == 'eventbridge':
                     self.assertContains(response, 'id="eventbridge-loaded-at"')
                     self.assertContains(response, 'id="eventbridge-summary"')
@@ -159,6 +173,21 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertEqual(stepfunctions_actions['start_execution']['kind'], 'execute')
         self.assertEqual(stepfunctions_actions['start_execution']['fields'][2]['field_type'], 'textarea')
         self.assertEqual(stepfunctions_actions['stop_execution']['safety'], 'destructive')
+        self.assertEqual(services['cloudformation']['maturity'], 'interactive_workbench')
+        self.assertEqual(services['cloudformation']['console_js'], 'dashboard/cloudformation-console.js')
+        cloudformation_actions = {action['name']: action for action in services['cloudformation']['actions']}
+        self.assertEqual(cloudformation_actions['validate_template']['safety'], 'safe')
+        self.assertEqual(cloudformation_actions['create_stack']['fields'][1]['field_type'], 'textarea')
+        self.assertEqual(cloudformation_actions['delete_stack']['safety'], 'destructive')
+        self.assertEqual(cloudformation_actions['execute_change_set']['kind'], 'execute')
+        self.assertEqual(services['cognito']['maturity'], 'interactive_workbench')
+        self.assertEqual(services['cognito']['console_js'], 'dashboard/cognito-console.js')
+        cognito_actions = {action['name']: action for action in services['cognito']['actions']}
+        self.assertEqual(cognito_actions['create_user_pool']['kind'], 'create')
+        self.assertEqual(cognito_actions['admin_create_user']['fields'][2]['field_type'], 'object')
+        self.assertEqual(cognito_actions['admin_delete_user']['safety'], 'destructive')
+        self.assertEqual(cognito_actions['initiate_auth']['safety'], 'safe')
+        self.assertEqual(cognito_actions['oauth_client_credentials']['kind'], 'execute')
         self.assertEqual(services['eventbridge']['maturity'], 'interactive_workbench')
         self.assertEqual(services['eventbridge']['console_js'], 'dashboard/eventbridge-console.js')
         eventbridge_actions = {action['name']: action for action in services['eventbridge']['actions']}
@@ -472,6 +501,328 @@ class EventBridgeActionTests(SimpleTestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()['service'], 'eventbridge')
         self.assertEqual(response.json()['operation'], 'put_event')
+
+
+class CloudFormationActionTests(SimpleTestCase):
+    @patch('dashboard.cloudformation_views.validate_template')
+    def test_validate_template_endpoint_uses_action_helper(self, validate_template):
+        validate_template.return_value = {'validation': {'Description': 'ok'}}
+
+        response = self.client.post(
+            reverse('dashboard:cloudformation-templates-validate'),
+            data=json.dumps({'template_body': 'Resources: {}'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['validation']['Description'], 'ok')
+        validate_template.assert_called_once_with('Resources: {}')
+
+    @patch('dashboard.cloudformation_views.create_stack')
+    def test_create_stack_endpoint_uses_action_helper(self, create_stack):
+        create_stack.return_value = {'stack_name': 'demo', 'stack_id': 'stack-123'}
+
+        response = self.client.post(
+            reverse('dashboard:cloudformation-stacks'),
+            data=json.dumps({
+                'stack_name': 'demo',
+                'template_body': 'Resources: {}',
+                'parameters': {'Env': 'dev'},
+                'capabilities': 'CAPABILITY_NAMED_IAM',
+                'disable_rollback': True,
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['stack_id'], 'stack-123')
+        create_stack.assert_called_once_with(
+            'demo',
+            'Resources: {}',
+            parameters={'Env': 'dev'},
+            capabilities='CAPABILITY_NAMED_IAM',
+            disable_rollback=True,
+        )
+
+    @patch('dashboard.cloudformation_views.update_stack')
+    def test_update_stack_endpoint_uses_action_helper(self, update_stack):
+        update_stack.return_value = {'stack_name': 'demo', 'stack_id': 'stack-123'}
+
+        response = self.client.put(
+            reverse('dashboard:cloudformation-stack-detail', kwargs={'stack_name': 'demo'}),
+            data=json.dumps({
+                'template_body': 'Resources: {}',
+                'parameters': [{'ParameterKey': 'Env', 'ParameterValue': 'dev'}],
+                'capabilities': ['CAPABILITY_IAM'],
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        update_stack.assert_called_once_with(
+            'demo',
+            'Resources: {}',
+            parameters=[{'ParameterKey': 'Env', 'ParameterValue': 'dev'}],
+            capabilities=['CAPABILITY_IAM'],
+        )
+
+    @patch('dashboard.cloudformation_views.delete_stack')
+    def test_delete_stack_endpoint_uses_action_helper(self, delete_stack):
+        delete_stack.return_value = {'stack_name': 'demo'}
+
+        response = self.client.delete(
+            reverse('dashboard:cloudformation-stack-detail', kwargs={'stack_name': 'demo'}),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        delete_stack.assert_called_once_with('demo')
+
+    @patch('dashboard.cloudformation_views.create_change_set')
+    def test_create_change_set_endpoint_uses_action_helper(self, create_change_set):
+        create_change_set.return_value = {'stack_name': 'demo', 'change_set_name': 'next'}
+
+        response = self.client.post(
+            reverse('dashboard:cloudformation-change-sets'),
+            data=json.dumps({
+                'stack_name': 'demo',
+                'change_set_name': 'next',
+                'change_set_type': 'UPDATE',
+                'template_body': 'Resources: {}',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        create_change_set.assert_called_once_with(
+            'demo',
+            'next',
+            'Resources: {}',
+            change_set_type='UPDATE',
+            parameters=None,
+            capabilities=None,
+        )
+
+    @patch('dashboard.cloudformation_views.describe_change_set')
+    def test_describe_change_set_endpoint_uses_action_helper(self, describe_change_set):
+        describe_change_set.return_value = {'change_set': {'ChangeSetName': 'next'}}
+
+        response = self.client.get(
+            reverse('dashboard:cloudformation-change-set-detail', kwargs={
+                'stack_name': 'demo',
+                'change_set_name': 'next',
+            }),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        describe_change_set.assert_called_once_with('demo', 'next')
+
+    @patch('dashboard.cloudformation_views.execute_change_set')
+    def test_execute_change_set_endpoint_uses_action_helper(self, execute_change_set):
+        execute_change_set.return_value = {'stack_name': 'demo', 'change_set_name': 'next'}
+
+        response = self.client.post(
+            reverse('dashboard:cloudformation-change-set-detail', kwargs={
+                'stack_name': 'demo',
+                'change_set_name': 'next',
+            }),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        execute_change_set.assert_called_once_with('demo', 'next')
+
+    @patch('dashboard.cloudformation_views.delete_change_set')
+    def test_delete_change_set_endpoint_uses_action_helper(self, delete_change_set):
+        delete_change_set.return_value = {'stack_name': 'demo', 'change_set_name': 'next'}
+
+        response = self.client.delete(
+            reverse('dashboard:cloudformation-change-set-detail', kwargs={
+                'stack_name': 'demo',
+                'change_set_name': 'next',
+            }),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        delete_change_set.assert_called_once_with('demo', 'next')
+
+
+class CognitoActionTests(SimpleTestCase):
+    @patch('dashboard.cognito_views.create_user_pool')
+    def test_create_user_pool_endpoint_uses_action_helper(self, create_user_pool):
+        create_user_pool.return_value = {'pool_id': 'local-pool', 'name': 'MyApp'}
+
+        response = self.client.post(
+            reverse('dashboard:cognito-user-pools'),
+            data=json.dumps({'name': 'MyApp', 'tags': {'floci:override-id': 'local-pool'}}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['pool_id'], 'local-pool')
+        create_user_pool.assert_called_once_with('MyApp', tags={'floci:override-id': 'local-pool'})
+
+    @patch('dashboard.cognito_views.delete_user_pool')
+    def test_delete_user_pool_endpoint_uses_action_helper(self, delete_user_pool):
+        delete_user_pool.return_value = {'user_pool_id': 'local-pool'}
+
+        response = self.client.delete(
+            reverse('dashboard:cognito-user-pool-detail', kwargs={'user_pool_id': 'local-pool'}),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        delete_user_pool.assert_called_once_with('local-pool')
+
+    @patch('dashboard.cognito_views.create_user_pool_client')
+    def test_create_user_pool_client_endpoint_uses_action_helper(self, create_client):
+        create_client.return_value = {'client_id': 'client-123', 'client_secret': 'secret'}
+
+        response = self.client.post(
+            reverse('dashboard:cognito-user-pool-clients', kwargs={'user_pool_id': 'local-pool'}),
+            data=json.dumps({
+                'name': 'my-client',
+                'generate_secret': True,
+                'allowed_oauth_scopes': ['notes/read'],
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['client_id'], 'client-123')
+        create_client.assert_called_once_with(
+            'local-pool',
+            'my-client',
+            generate_secret=True,
+            allowed_oauth_scopes=['notes/read'],
+        )
+
+    @patch('dashboard.cognito_views.create_resource_server')
+    def test_create_resource_server_endpoint_uses_action_helper(self, create_resource_server):
+        create_resource_server.return_value = {'resource_server': {'Identifier': 'notes'}}
+
+        response = self.client.post(
+            reverse('dashboard:cognito-resource-servers', kwargs={'user_pool_id': 'local-pool'}),
+            data=json.dumps({
+                'identifier': 'notes',
+                'name': 'Notes API',
+                'scopes': {'read': 'Read notes'},
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        create_resource_server.assert_called_once_with(
+            'local-pool',
+            'notes',
+            'Notes API',
+            scopes={'read': 'Read notes'},
+        )
+
+    @patch('dashboard.cognito_views.admin_create_user')
+    def test_admin_create_user_endpoint_uses_action_helper(self, admin_create_user):
+        admin_create_user.return_value = {'user': {'Username': 'alice@example.com'}}
+
+        response = self.client.post(
+            reverse('dashboard:cognito-users', kwargs={'user_pool_id': 'local-pool'}),
+            data=json.dumps({
+                'username': 'alice@example.com',
+                'temporary_password': 'Temp1234!',
+                'attributes': {'email': 'alice@example.com'},
+                'message_action': 'SUPPRESS',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        admin_create_user.assert_called_once_with(
+            'local-pool',
+            'alice@example.com',
+            temporary_password='Temp1234!',
+            attributes={'email': 'alice@example.com'},
+            message_action='SUPPRESS',
+        )
+
+    @patch('dashboard.cognito_views.admin_set_user_password')
+    def test_set_user_password_endpoint_uses_action_helper(self, set_password):
+        set_password.return_value = {'username': 'alice@example.com', 'permanent': True}
+
+        response = self.client.post(
+            reverse('dashboard:cognito-user-password', kwargs={
+                'user_pool_id': 'local-pool',
+                'username': 'alice@example.com',
+            }),
+            data=json.dumps({'password': 'Perm1234!', 'permanent': True}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        set_password.assert_called_once_with('local-pool', 'alice@example.com', 'Perm1234!', permanent=True)
+
+    @patch('dashboard.cognito_views.create_group')
+    def test_create_group_endpoint_uses_action_helper(self, create_group):
+        create_group.return_value = {'group': {'GroupName': 'admin'}}
+
+        response = self.client.post(
+            reverse('dashboard:cognito-groups', kwargs={'user_pool_id': 'local-pool'}),
+            data=json.dumps({'group_name': 'admin', 'description': 'Admin group'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        create_group.assert_called_once_with('local-pool', 'admin', description='Admin group')
+
+    @patch('dashboard.cognito_views.add_user_to_group')
+    def test_add_user_to_group_endpoint_uses_action_helper(self, add_user_to_group):
+        add_user_to_group.return_value = {'username': 'alice@example.com', 'group_name': 'admin'}
+
+        response = self.client.post(
+            reverse('dashboard:cognito-group-membership', kwargs={
+                'user_pool_id': 'local-pool',
+                'group_name': 'admin',
+                'username': 'alice@example.com',
+            }),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        add_user_to_group.assert_called_once_with('local-pool', 'alice@example.com', 'admin')
+
+    @patch('dashboard.cognito_views.initiate_auth')
+    def test_initiate_auth_endpoint_uses_action_helper(self, initiate_auth):
+        initiate_auth.return_value = {'AuthenticationResult': {'AccessToken': 'token'}}
+
+        response = self.client.post(
+            reverse('dashboard:cognito-auth-initiate'),
+            data=json.dumps({
+                'client_id': 'client-123',
+                'username': 'alice@example.com',
+                'password': 'Perm1234!',
+                'auth_flow': 'USER_PASSWORD_AUTH',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        initiate_auth.assert_called_once_with(
+            'client-123',
+            'alice@example.com',
+            'Perm1234!',
+            auth_flow='USER_PASSWORD_AUTH',
+        )
+
+    @patch('dashboard.cognito_views.oauth_client_credentials')
+    def test_oauth_token_endpoint_uses_action_helper(self, oauth_client_credentials):
+        oauth_client_credentials.return_value = {'access_token': 'token', 'token_type': 'Bearer'}
+
+        response = self.client.post(
+            reverse('dashboard:cognito-oauth-token'),
+            data=json.dumps({
+                'client_id': 'client-123',
+                'client_secret': 'secret',
+                'scope': 'notes/read',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        oauth_client_credentials.assert_called_once_with('client-123', 'secret', scope='notes/read')
 
 
 class EC2ActionTests(SimpleTestCase):

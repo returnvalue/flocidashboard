@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import apigateway_views, cloudwatch_logs_views, dynamodb_views, ec2_views, eventbridge_views, iam_views, kinesis_views, lambda_views, s3_views, secretsmanager_views, sns_views, sqs_views, ssm_views, stepfunctions_views, views
+from . import apigateway_views, cloudformation_views, cloudwatch_logs_views, cognito_views, dynamodb_views, ec2_views, eventbridge_views, iam_views, kinesis_views, lambda_views, s3_views, secretsmanager_views, sns_views, sqs_views, ssm_views, stepfunctions_views, views
 
 app_name = 'dashboard'
 
@@ -20,8 +20,27 @@ urlpatterns = [
     path('api/codedeploy/', views.codedeploy, name='codedeploy'),
     path('api/cloudfront/', views.cloudfront, name='cloudfront'),
     path('api/cloudformation/', views.cloudformation, name='cloudformation'),
+    path('api/cloudformation/templates/validate/', cloudformation_views.cloudformation_templates_validate, name='cloudformation-templates-validate'),
+    path('api/cloudformation/stacks/', cloudformation_views.cloudformation_stacks_create, name='cloudformation-stacks'),
+    path('api/cloudformation/stacks/<str:stack_name>/', cloudformation_views.cloudformation_stack_detail, name='cloudformation-stack-detail'),
+    path('api/cloudformation/change-sets/', cloudformation_views.cloudformation_change_sets_create, name='cloudformation-change-sets'),
+    path('api/cloudformation/stacks/<str:stack_name>/change-sets/<str:change_set_name>/', cloudformation_views.cloudformation_change_set_detail, name='cloudformation-change-set-detail'),
     path('api/config/', views.config, name='config'),
     path('api/cognito/', views.cognito, name='cognito'),
+    path('api/cognito/user-pools/', cognito_views.cognito_user_pools_create, name='cognito-user-pools'),
+    path('api/cognito/user-pools/<str:user_pool_id>/', cognito_views.cognito_user_pool_delete, name='cognito-user-pool-detail'),
+    path('api/cognito/user-pools/<str:user_pool_id>/clients/', cognito_views.cognito_user_pool_clients_create, name='cognito-user-pool-clients'),
+    path('api/cognito/user-pools/<str:user_pool_id>/clients/<str:client_id>/', cognito_views.cognito_user_pool_client_delete, name='cognito-user-pool-client-detail'),
+    path('api/cognito/user-pools/<str:user_pool_id>/resource-servers/', cognito_views.cognito_resource_servers_create, name='cognito-resource-servers'),
+    path('api/cognito/user-pools/<str:user_pool_id>/resource-servers/<path:identifier>/', cognito_views.cognito_resource_server_delete, name='cognito-resource-server-detail'),
+    path('api/cognito/user-pools/<str:user_pool_id>/users/', cognito_views.cognito_users_create, name='cognito-users'),
+    path('api/cognito/user-pools/<str:user_pool_id>/users/<str:username>/', cognito_views.cognito_user_delete, name='cognito-user-detail'),
+    path('api/cognito/user-pools/<str:user_pool_id>/users/<str:username>/password/', cognito_views.cognito_user_password_set, name='cognito-user-password'),
+    path('api/cognito/user-pools/<str:user_pool_id>/groups/', cognito_views.cognito_groups_create, name='cognito-groups'),
+    path('api/cognito/user-pools/<str:user_pool_id>/groups/<str:group_name>/', cognito_views.cognito_group_delete, name='cognito-group-detail'),
+    path('api/cognito/user-pools/<str:user_pool_id>/groups/<str:group_name>/users/<str:username>/', cognito_views.cognito_group_membership, name='cognito-group-membership'),
+    path('api/cognito/auth/initiate/', cognito_views.cognito_auth_initiate, name='cognito-auth-initiate'),
+    path('api/cognito/oauth/token/', cognito_views.cognito_oauth_token, name='cognito-oauth-token'),
     path('api/costexplorer/', views.costexplorer, name='costexplorer'),
     path('api/cur/', views.cur, name='cur'),
     path('api/cloudwatch/', views.cloudwatch, name='cloudwatch'),

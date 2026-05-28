@@ -39,6 +39,10 @@
           <nav id="dynamodb-breadcrumbs" class="dynamodb-breadcrumbs" aria-label="DynamoDB navigation"></nav>
         {% elif service.key == 'cloudwatch' %}
           <nav id="cloudwatch-breadcrumbs" class="cloudwatch-breadcrumbs" aria-label="CloudWatch navigation"></nav>
+        {% elif service.key == 'cloudformation' %}
+          <nav id="cloudformation-breadcrumbs" class="cloudformation-breadcrumbs" aria-label="CloudFormation navigation"></nav>
+        {% elif service.key == 'cognito' %}
+          <nav id="cognito-breadcrumbs" class="cognito-breadcrumbs" aria-label="Cognito navigation"></nav>
         {% elif service.key == 'stepfunctions' %}
           <nav id="stepfunctions-breadcrumbs" class="stepfunctions-breadcrumbs" aria-label="Step Functions navigation"></nav>
         {% elif service.key == 'eventbridge' %}
@@ -130,6 +134,24 @@
         <p>Common local test cases include input shape, Choice state routing, Lambda task payloads, retry and catch paths, timeout behavior, failure output, and task-token callback flows.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid stepfunctions-readonly-grid"></div>
+    {% elif service.key == 'cloudformation' %}
+      <div id="cloudformation-console-root" class="cloudformation-console-root" aria-live="polite"></div>
+      <details class="cloudformation-about-floci">
+        <summary>About Floci CloudFormation</summary>
+        <p>Local CloudFormation deploys templates through the AWS-compatible Query XML API and provisions supported local resources such as S3 buckets, SQS queues, SNS topics, DynamoDB tables, Lambda functions, IAM identities, SSM parameters, KMS keys, Secrets Manager secrets, API Gateway resources, EventBridge rules, and more.</p>
+        <p>CloudFormation is most useful when testing whole local application slices. In Floci, a good learning flow is to validate a template, create a stack, watch stack events, inspect generated resources, then update or delete the stack from the workbench.</p>
+        <p>Unsupported resource types are accepted and assigned synthetic physical IDs so broader templates can deploy while you focus on the local services that Floci emulates.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid cloudformation-readonly-grid"></div>
+    {% elif service.key == 'cognito' %}
+      <div id="cognito-console-root" class="cognito-console-root" aria-live="polite"></div>
+      <details class="cognito-about-floci">
+        <summary>About Floci Cognito</summary>
+        <p>Local Cognito stores user pools, app clients, resource servers, users, groups, and tags for AWS-compatible auth workflows. Floci also serves pool-specific discovery and JWKS endpoints for local JWT validation.</p>
+        <p>Cognito is most useful when testing sign-in, group claims, client credentials, and app code that validates tokens. In Floci, a good learning flow is to create a pool, create a confidential app client, register resource-server scopes, create a user, set a permanent password, then test auth and token validation.</p>
+        <p>The OAuth token endpoint is emulator-friendly: it supports client_credentials without requiring a Cognito domain and returns local RS256-signed access tokens.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid cognito-readonly-grid"></div>
     {% elif service.key == 'eventbridge' %}
       <div id="eventbridge-console-root" class="eventbridge-console-root" aria-live="polite"></div>
       <details class="eventbridge-about-floci">
