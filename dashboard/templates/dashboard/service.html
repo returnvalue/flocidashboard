@@ -57,6 +57,12 @@
           <nav id="secretsmanager-breadcrumbs" class="secretsmanager-breadcrumbs" aria-label="Secrets Manager navigation"></nav>
         {% elif service.key == 'ssm' %}
           <nav id="ssm-breadcrumbs" class="ssm-breadcrumbs" aria-label="SSM navigation"></nav>
+        {% elif service.key == 'rds' %}
+          <nav id="rds-breadcrumbs" class="rds-breadcrumbs" aria-label="RDS navigation"></nav>
+        {% elif service.key == 'autoscaling' %}
+          <nav id="autoscaling-breadcrumbs" class="autoscaling-breadcrumbs" aria-label="Auto Scaling navigation"></nav>
+        {% elif service.key == 'elasticloadbalancing' %}
+          <nav id="elasticloadbalancing-breadcrumbs" class="elasticloadbalancing-breadcrumbs" aria-label="Elastic Load Balancing navigation"></nav>
         {% endif %}
       </div>
       <span id="{{ service.key }}-loaded-at"></span>
@@ -206,6 +212,33 @@
         <p>Common local test cases include missing parameters, stale config versions, malformed JSON values, SecureString decryption, overwrite behavior, and application reloads after updates.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid ssm-readonly-grid"></div>
+    {% elif service.key == 'rds' %}
+      <div id="rds-console-root" class="rds-console-root" aria-live="polite"></div>
+      <details class="rds-about-floci">
+        <summary>About Floci RDS</summary>
+        <p>Local RDS manages real PostgreSQL, MySQL, and MariaDB Docker containers through the AWS-compatible management API, then exposes each database through a localhost TCP proxy port.</p>
+        <p>RDS is most useful when testing application database connection strings, migrations, startup health checks, and IAM database authentication. In Floci, a good learning flow is to create an instance, wait for its proxy endpoint, connect with psql or mysql, reboot it, then delete it when the local scenario is done.</p>
+        <p>Each DB instance or cluster gets its own Docker volume. In memory mode volumes are removed on delete; persistent modes retain data for manual recovery unless pruning is enabled.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid rds-readonly-grid"></div>
+    {% elif service.key == 'autoscaling' %}
+      <div id="autoscaling-console-root" class="autoscaling-console-root" aria-live="polite"></div>
+      <details class="autoscaling-about-floci">
+        <summary>About Floci Auto Scaling</summary>
+        <p>Local Auto Scaling stores launch configurations, groups, lifecycle hooks, policies, target group attachments, and activity history through the AWS-compatible Query API.</p>
+        <p>Auto Scaling is especially useful in Floci because the capacity reconciler launches and terminates local EC2 instances to maintain desired capacity. A good learning flow is to create a launch configuration, create a group with desired capacity, watch instances move toward InService, then scale out or scale in.</p>
+        <p>Attached ELB v2 target groups are registered as instances become InService, and scale-in deregisters targets before terminating instances.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid autoscaling-readonly-grid"></div>
+    {% elif service.key == 'elasticloadbalancing' %}
+      <div id="elasticloadbalancing-console-root" class="elasticloadbalancing-console-root" aria-live="polite"></div>
+      <details class="elasticloadbalancing-about-floci">
+        <summary>About Floci ELB v2</summary>
+        <p>Local ELBv2 supports the Application Load Balancer and Network Load Balancer control plane: load balancers, target groups, targets, listeners, listener rules, tags, SSL policy metadata, and account limits.</p>
+        <p>This is a Phase 1 implementation. The AWS-compatible CRUD APIs are available, but listener data-plane traffic forwarding is planned for a later phase.</p>
+        <p>A good learning flow is to create a load balancer, create a target group, register local EC2 or IP targets, create a listener with a default forward action, then add a path-based rule.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid elasticloadbalancing-readonly-grid"></div>
     {% else %}
       <div id="{{ service.key }}-grid" class="iam-grid"></div>
     {% endif %}

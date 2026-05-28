@@ -108,6 +108,27 @@ class DashboardTemplateTests(SimpleTestCase):
                     self.assertContains(response, 'id="ssm-grid"')
                     self.assertContains(response, 'dashboard/service-console.js')
                     self.assertContains(response, 'dashboard/ssm-console.js')
+                elif key == 'rds':
+                    self.assertContains(response, 'id="rds-loaded-at"')
+                    self.assertContains(response, 'id="rds-summary"')
+                    self.assertContains(response, 'id="rds-console-root"')
+                    self.assertContains(response, 'id="rds-grid"')
+                    self.assertContains(response, 'dashboard/service-console.js')
+                    self.assertContains(response, 'dashboard/rds-console.js')
+                elif key == 'autoscaling':
+                    self.assertContains(response, 'id="autoscaling-loaded-at"')
+                    self.assertContains(response, 'id="autoscaling-summary"')
+                    self.assertContains(response, 'id="autoscaling-console-root"')
+                    self.assertContains(response, 'id="autoscaling-grid"')
+                    self.assertContains(response, 'dashboard/service-console.js')
+                    self.assertContains(response, 'dashboard/autoscaling-console.js')
+                elif key == 'elasticloadbalancing':
+                    self.assertContains(response, 'id="elasticloadbalancing-loaded-at"')
+                    self.assertContains(response, 'id="elasticloadbalancing-summary"')
+                    self.assertContains(response, 'id="elasticloadbalancing-console-root"')
+                    self.assertContains(response, 'id="elasticloadbalancing-grid"')
+                    self.assertContains(response, 'dashboard/service-console.js')
+                    self.assertContains(response, 'dashboard/elasticloadbalancing-console.js')
                 else:
                     self.assertContains(response, f'id="{key}-loaded-at"')
                     self.assertContains(response, f'id="{key}-summary"')
@@ -225,6 +246,30 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertEqual(ec2_actions['run_instances']['fields'][5]['field_type'], 'textarea')
         self.assertEqual(ec2_actions['terminate_instance']['safety'], 'destructive')
         self.assertEqual(ec2_actions['import_key_pair']['fields'][1]['field_type'], 'textarea')
+        self.assertEqual(services['rds']['maturity'], 'interactive_workbench')
+        self.assertEqual(services['rds']['console_js'], 'dashboard/rds-console.js')
+        rds_actions = {action['name']: action for action in services['rds']['actions']}
+        self.assertEqual(rds_actions['create_db_instance']['kind'], 'create')
+        self.assertEqual(rds_actions['create_db_instance']['fields'][4]['field_type'], 'number')
+        self.assertEqual(rds_actions['reboot_db_instance']['kind'], 'execute')
+        self.assertEqual(rds_actions['delete_db_instance']['safety'], 'destructive')
+        self.assertEqual(rds_actions['create_db_parameter_group']['fields'][2]['name'], 'description')
+        self.assertEqual(services['autoscaling']['maturity'], 'interactive_workbench')
+        self.assertEqual(services['autoscaling']['console_js'], 'dashboard/autoscaling-console.js')
+        autoscaling_actions = {action['name']: action for action in services['autoscaling']['actions']}
+        self.assertEqual(autoscaling_actions['create_launch_configuration']['fields'][5]['field_type'], 'textarea')
+        self.assertEqual(autoscaling_actions['create_auto_scaling_group']['fields'][2]['field_type'], 'number')
+        self.assertEqual(autoscaling_actions['set_desired_capacity']['kind'], 'execute')
+        self.assertEqual(autoscaling_actions['detach_instances']['safety'], 'destructive')
+        self.assertEqual(autoscaling_actions['terminate_instance']['safety'], 'destructive')
+        self.assertEqual(services['elasticloadbalancing']['maturity'], 'interactive_workbench')
+        self.assertEqual(services['elasticloadbalancing']['console_js'], 'dashboard/elasticloadbalancing-console.js')
+        elbv2_actions = {action['name']: action for action in services['elasticloadbalancing']['actions']}
+        self.assertEqual(elbv2_actions['create_load_balancer']['kind'], 'create')
+        self.assertEqual(elbv2_actions['create_target_group']['fields'][2]['field_type'], 'number')
+        self.assertEqual(elbv2_actions['register_targets']['fields'][0]['field_type'], 'array')
+        self.assertEqual(elbv2_actions['delete_load_balancer']['safety'], 'destructive')
+        self.assertEqual(elbv2_actions['delete_rule']['safety'], 'destructive')
         self.assertEqual(services['lambda']['api_path'], '/api/lambda/')
         self.assertEqual(services['cloudfront']['maturity'], 'inventory_only')
         self.assertEqual(services['cloudfront']['api_path'], '/api/cloudfront/')
@@ -823,6 +868,514 @@ class CognitoActionTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         oauth_client_credentials.assert_called_once_with('client-123', 'secret', scope='notes/read')
+
+
+class RDSActionTests(SimpleTestCase):
+    @patch('dashboard.rds_views.create_db_instance')
+    def test_create_db_instance_endpoint_uses_action_helper(self, create_db_instance):
+        create_db_instance.return_value = {'identifier': 'mypostgres'}
+
+        response = self.client.post(
+            reverse('dashboard:rds-instances'),
+            data=json.dumps({
+                'identifier': 'mypostgres',
+                'engine': 'postgres',
+                'username': 'admin',
+                'password': 'secret123',
+                'db_instance_class': 'db.t3.micro',
+                'allocated_storage': 20,
+                'db_name': 'appdb',
+                'engine_version': 'postgres:16-alpine',
+                'enable_iam_auth': True,
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['identifier'], 'mypostgres')
+        create_db_instance.assert_called_once_with(
+            'mypostgres',
+            'postgres',
+            'admin',
+            'secret123',
+            db_instance_class='db.t3.micro',
+            allocated_storage=20,
+            db_name='appdb',
+            engine_version='postgres:16-alpine',
+            enable_iam_auth=True,
+            tags=None,
+        )
+
+    @patch('dashboard.rds_views.modify_db_instance')
+    def test_modify_db_instance_endpoint_uses_action_helper(self, modify_db_instance):
+        modify_db_instance.return_value = {'identifier': 'mypostgres'}
+
+        response = self.client.put(
+            reverse('dashboard:rds-instance-detail', kwargs={'identifier': 'mypostgres'}),
+            data=json.dumps({
+                'db_instance_class': 'db.t3.small',
+                'allocated_storage': 30,
+                'master_user_password': 'newsecret123',
+                'apply_immediately': True,
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        modify_db_instance.assert_called_once_with(
+            'mypostgres',
+            db_instance_class='db.t3.small',
+            allocated_storage=30,
+            master_user_password='newsecret123',
+            apply_immediately=True,
+        )
+
+    @patch('dashboard.rds_views.reboot_db_instance')
+    def test_reboot_db_instance_endpoint_uses_action_helper(self, reboot_db_instance):
+        reboot_db_instance.return_value = {'identifier': 'mypostgres'}
+
+        response = self.client.post(
+            reverse('dashboard:rds-instance-reboot', kwargs={'identifier': 'mypostgres'}),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        reboot_db_instance.assert_called_once_with('mypostgres')
+
+    @patch('dashboard.rds_views.delete_db_instance')
+    def test_delete_db_instance_endpoint_uses_action_helper(self, delete_db_instance):
+        delete_db_instance.return_value = {'identifier': 'mypostgres'}
+
+        response = self.client.delete(
+            reverse('dashboard:rds-instance-detail', kwargs={'identifier': 'mypostgres'}),
+            data=json.dumps({
+                'skip_final_snapshot': False,
+                'final_snapshot_identifier': 'mypostgres-final',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        delete_db_instance.assert_called_once_with(
+            'mypostgres',
+            skip_final_snapshot=False,
+            final_snapshot_identifier='mypostgres-final',
+        )
+
+    @patch('dashboard.rds_views.create_db_cluster')
+    def test_create_db_cluster_endpoint_uses_action_helper(self, create_db_cluster):
+        create_db_cluster.return_value = {'identifier': 'mycluster'}
+
+        response = self.client.post(
+            reverse('dashboard:rds-clusters'),
+            data=json.dumps({
+                'identifier': 'mycluster',
+                'engine': 'postgres',
+                'username': 'admin',
+                'password': 'secret123',
+                'database_name': 'appdb',
+                'engine_version': 'postgres:16-alpine',
+                'enable_iam_auth': True,
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        create_db_cluster.assert_called_once_with(
+            'mycluster',
+            'postgres',
+            'admin',
+            'secret123',
+            database_name='appdb',
+            engine_version='postgres:16-alpine',
+            enable_iam_auth=True,
+        )
+
+    @patch('dashboard.rds_views.delete_db_cluster')
+    def test_delete_db_cluster_endpoint_uses_action_helper(self, delete_db_cluster):
+        delete_db_cluster.return_value = {'identifier': 'mycluster'}
+
+        response = self.client.delete(
+            reverse('dashboard:rds-cluster-detail', kwargs={'identifier': 'mycluster'}),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        delete_db_cluster.assert_called_once_with(
+            'mycluster',
+            skip_final_snapshot=True,
+            final_snapshot_identifier='',
+        )
+
+    @patch('dashboard.rds_views.create_db_parameter_group')
+    def test_create_db_parameter_group_endpoint_uses_action_helper(self, create_db_parameter_group):
+        create_db_parameter_group.return_value = {'parameter_group': {'DBParameterGroupName': 'local-postgres'}}
+
+        response = self.client.post(
+            reverse('dashboard:rds-parameter-groups'),
+            data=json.dumps({
+                'name': 'local-postgres',
+                'family': 'postgres16',
+                'description': 'Local PostgreSQL parameters',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        create_db_parameter_group.assert_called_once_with(
+            'local-postgres',
+            'postgres16',
+            'Local PostgreSQL parameters',
+        )
+
+    @patch('dashboard.rds_views.delete_db_parameter_group')
+    def test_delete_db_parameter_group_endpoint_uses_action_helper(self, delete_db_parameter_group):
+        delete_db_parameter_group.return_value = {'name': 'local-postgres'}
+
+        response = self.client.delete(
+            reverse('dashboard:rds-parameter-group-detail', kwargs={'name': 'local-postgres'}),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        delete_db_parameter_group.assert_called_once_with('local-postgres')
+
+
+class AutoScalingActionTests(SimpleTestCase):
+    @patch('dashboard.autoscaling_views.create_launch_configuration')
+    def test_create_launch_configuration_endpoint_uses_action_helper(self, create_launch_configuration):
+        create_launch_configuration.return_value = {'name': 'my-lc'}
+
+        response = self.client.post(
+            reverse('dashboard:autoscaling-launch-configurations'),
+            data=json.dumps({
+                'name': 'my-lc',
+                'image_id': 'ami-12345678',
+                'instance_type': 't3.micro',
+                'key_name': 'floci-key',
+                'security_groups': ['sg-default'],
+                'user_data': '#!/bin/sh\necho hello',
+                'iam_instance_profile': 'app-profile',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        create_launch_configuration.assert_called_once_with(
+            'my-lc',
+            'ami-12345678',
+            't3.micro',
+            key_name='floci-key',
+            security_groups=['sg-default'],
+            user_data='#!/bin/sh\necho hello',
+            iam_instance_profile='app-profile',
+        )
+
+    @patch('dashboard.autoscaling_views.create_auto_scaling_group')
+    def test_create_auto_scaling_group_endpoint_uses_action_helper(self, create_auto_scaling_group):
+        create_auto_scaling_group.return_value = {'name': 'my-asg'}
+
+        response = self.client.post(
+            reverse('dashboard:autoscaling-groups'),
+            data=json.dumps({
+                'name': 'my-asg',
+                'launch_configuration_name': 'my-lc',
+                'min_size': 1,
+                'max_size': 5,
+                'desired_capacity': 2,
+                'availability_zones': ['us-east-1a'],
+                'target_group_arns': ['arn:aws:elasticloadbalancing:us-east-1:000000000000:targetgroup/my-tg/abc'],
+                'tags': {'env': 'local'},
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        create_auto_scaling_group.assert_called_once_with(
+            'my-asg',
+            'my-lc',
+            min_size=1,
+            max_size=5,
+            desired_capacity=2,
+            availability_zones=['us-east-1a'],
+            target_group_arns=['arn:aws:elasticloadbalancing:us-east-1:000000000000:targetgroup/my-tg/abc'],
+            tags={'env': 'local'},
+        )
+
+    @patch('dashboard.autoscaling_views.update_auto_scaling_group')
+    def test_update_auto_scaling_group_endpoint_uses_action_helper(self, update_auto_scaling_group):
+        update_auto_scaling_group.return_value = {'name': 'my-asg'}
+
+        response = self.client.put(
+            reverse('dashboard:autoscaling-group-detail', kwargs={'name': 'my-asg'}),
+            data=json.dumps({'min_size': 1, 'max_size': 6, 'desired_capacity': 3}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        update_auto_scaling_group.assert_called_once_with(
+            'my-asg',
+            launch_configuration_name='',
+            min_size=1,
+            max_size=6,
+            desired_capacity=3,
+            availability_zones=None,
+        )
+
+    @patch('dashboard.autoscaling_views.set_desired_capacity')
+    def test_set_desired_capacity_endpoint_uses_action_helper(self, set_desired_capacity):
+        set_desired_capacity.return_value = {'name': 'my-asg', 'desired_capacity': 3}
+
+        response = self.client.post(
+            reverse('dashboard:autoscaling-group-desired-capacity', kwargs={'name': 'my-asg'}),
+            data=json.dumps({'desired_capacity': 3, 'honor_cooldown': True}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        set_desired_capacity.assert_called_once_with('my-asg', 3, honor_cooldown=True)
+
+    @patch('dashboard.autoscaling_views.attach_instances')
+    def test_attach_instances_endpoint_uses_action_helper(self, attach_instances):
+        attach_instances.return_value = {'name': 'my-asg', 'instance_ids': ['i-123']}
+
+        response = self.client.post(
+            reverse('dashboard:autoscaling-group-instances', kwargs={'name': 'my-asg'}),
+            data=json.dumps({'instance_ids': ['i-123']}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        attach_instances.assert_called_once_with('my-asg', ['i-123'])
+
+    @patch('dashboard.autoscaling_views.detach_instances')
+    def test_detach_instances_endpoint_uses_action_helper(self, detach_instances):
+        detach_instances.return_value = {'name': 'my-asg', 'instance_ids': ['i-123']}
+
+        response = self.client.delete(
+            reverse('dashboard:autoscaling-group-instances', kwargs={'name': 'my-asg'}),
+            data=json.dumps({'instance_ids': ['i-123'], 'decrement_desired_capacity': True}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        detach_instances.assert_called_once_with('my-asg', ['i-123'], decrement_desired_capacity=True)
+
+    @patch('dashboard.autoscaling_views.terminate_instance')
+    def test_terminate_instance_endpoint_uses_action_helper(self, terminate_instance):
+        terminate_instance.return_value = {'instance_id': 'i-123'}
+
+        response = self.client.post(
+            reverse('dashboard:autoscaling-instance-terminate', kwargs={'instance_id': 'i-123'}),
+            data=json.dumps({'decrement_desired_capacity': True}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        terminate_instance.assert_called_once_with('i-123', decrement_desired_capacity=True)
+
+    @patch('dashboard.autoscaling_views.put_lifecycle_hook')
+    def test_put_lifecycle_hook_endpoint_uses_action_helper(self, put_lifecycle_hook):
+        put_lifecycle_hook.return_value = {'name': 'my-asg', 'hook_name': 'launch-wait'}
+
+        response = self.client.post(
+            reverse('dashboard:autoscaling-lifecycle-hooks', kwargs={'name': 'my-asg'}),
+            data=json.dumps({
+                'hook_name': 'launch-wait',
+                'transition': 'autoscaling:EC2_INSTANCE_LAUNCHING',
+                'default_result': 'CONTINUE',
+                'heartbeat_timeout': 120,
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        put_lifecycle_hook.assert_called_once_with(
+            'my-asg',
+            'launch-wait',
+            'autoscaling:EC2_INSTANCE_LAUNCHING',
+            default_result='CONTINUE',
+            heartbeat_timeout=120,
+        )
+
+    @patch('dashboard.autoscaling_views.put_scaling_policy')
+    def test_put_scaling_policy_endpoint_uses_action_helper(self, put_scaling_policy):
+        put_scaling_policy.return_value = {'name': 'my-asg', 'policy_name': 'scale-out-one'}
+
+        response = self.client.post(
+            reverse('dashboard:autoscaling-policies', kwargs={'name': 'my-asg'}),
+            data=json.dumps({
+                'policy_name': 'scale-out-one',
+                'adjustment_type': 'ChangeInCapacity',
+                'scaling_adjustment': 1,
+                'cooldown': 60,
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        put_scaling_policy.assert_called_once_with(
+            'my-asg',
+            'scale-out-one',
+            adjustment_type='ChangeInCapacity',
+            scaling_adjustment=1,
+            cooldown=60,
+        )
+
+
+class ElasticLoadBalancingActionTests(SimpleTestCase):
+    load_balancer_arn = 'arn:aws:elasticloadbalancing:us-east-1:000000000000:loadbalancer/app/my-alb/abc123'
+    target_group_arn = 'arn:aws:elasticloadbalancing:us-east-1:000000000000:targetgroup/my-targets/def456'
+    listener_arn = 'arn:aws:elasticloadbalancing:us-east-1:000000000000:listener/app/my-alb/abc123/ghi789'
+    rule_arn = 'arn:aws:elasticloadbalancing:us-east-1:000000000000:listener-rule/app/my-alb/abc123/ghi789/jkl012'
+
+    @patch('dashboard.elasticloadbalancing_views.create_load_balancer')
+    def test_create_load_balancer_endpoint_uses_action_helper(self, create_load_balancer):
+        create_load_balancer.return_value = {'load_balancers': [{'LoadBalancerName': 'my-alb'}]}
+
+        response = self.client.post(
+            reverse('dashboard:elbv2-load-balancers'),
+            data=json.dumps({
+                'name': 'my-alb',
+                'type': 'application',
+                'scheme': 'internet-facing',
+                'subnets': ['subnet-a'],
+                'security_groups': ['sg-default'],
+                'ip_address_type': 'ipv4',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        create_load_balancer.assert_called_once_with(
+            'my-alb',
+            lb_type='application',
+            scheme='internet-facing',
+            subnets=['subnet-a'],
+            security_groups=['sg-default'],
+            ip_address_type='ipv4',
+        )
+
+    @patch('dashboard.elasticloadbalancing_views.delete_load_balancer')
+    def test_delete_load_balancer_endpoint_uses_action_helper(self, delete_load_balancer):
+        delete_load_balancer.return_value = {'load_balancer_arn': self.load_balancer_arn}
+
+        response = self.client.delete(
+            reverse('dashboard:elbv2-load-balancer-detail', kwargs={'load_balancer_arn': self.load_balancer_arn}),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        delete_load_balancer.assert_called_once_with(self.load_balancer_arn)
+
+    @patch('dashboard.elasticloadbalancing_views.create_target_group')
+    def test_create_target_group_endpoint_uses_action_helper(self, create_target_group):
+        create_target_group.return_value = {'target_groups': [{'TargetGroupName': 'my-targets'}]}
+
+        response = self.client.post(
+            reverse('dashboard:elbv2-target-groups'),
+            data=json.dumps({
+                'name': 'my-targets',
+                'protocol': 'HTTP',
+                'port': 80,
+                'target_type': 'instance',
+                'vpc_id': 'vpc-default',
+                'health_check_path': '/health',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        create_target_group.assert_called_once_with(
+            'my-targets',
+            'HTTP',
+            80,
+            target_type='instance',
+            vpc_id='vpc-default',
+            health_check_path='/health',
+        )
+
+    @patch('dashboard.elasticloadbalancing_views.register_targets')
+    def test_register_targets_endpoint_uses_action_helper(self, register_targets):
+        register_targets.return_value = {'target_group_arn': self.target_group_arn}
+
+        response = self.client.post(
+            reverse('dashboard:elbv2-target-group-targets', kwargs={'target_group_arn': self.target_group_arn}),
+            data=json.dumps({'targets': [{'Id': 'i-123', 'Port': 8080}]}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        register_targets.assert_called_once_with(self.target_group_arn, [{'Id': 'i-123', 'Port': 8080}])
+
+    @patch('dashboard.elasticloadbalancing_views.deregister_targets')
+    def test_deregister_targets_endpoint_uses_action_helper(self, deregister_targets):
+        deregister_targets.return_value = {'target_group_arn': self.target_group_arn}
+
+        response = self.client.delete(
+            reverse('dashboard:elbv2-target-group-targets', kwargs={'target_group_arn': self.target_group_arn}),
+            data=json.dumps({'targets': [{'Id': 'i-123'}]}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        deregister_targets.assert_called_once_with(self.target_group_arn, [{'Id': 'i-123'}])
+
+    @patch('dashboard.elasticloadbalancing_views.create_listener')
+    def test_create_listener_endpoint_uses_action_helper(self, create_listener):
+        create_listener.return_value = {'listeners': [{'Port': 80}]}
+
+        response = self.client.post(
+            reverse('dashboard:elbv2-listeners'),
+            data=json.dumps({
+                'load_balancer_arn': self.load_balancer_arn,
+                'protocol': 'HTTP',
+                'port': 80,
+                'target_group_arn': self.target_group_arn,
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        create_listener.assert_called_once_with(self.load_balancer_arn, 'HTTP', 80, self.target_group_arn)
+
+    @patch('dashboard.elasticloadbalancing_views.create_rule')
+    def test_create_rule_endpoint_uses_action_helper(self, create_rule):
+        create_rule.return_value = {'rules': [{'Priority': '10'}]}
+
+        response = self.client.post(
+            reverse('dashboard:elbv2-rules'),
+            data=json.dumps({
+                'listener_arn': self.listener_arn,
+                'priority': 10,
+                'path_pattern': '/api/*',
+                'target_group_arn': self.target_group_arn,
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        create_rule.assert_called_once_with(self.listener_arn, 10, '/api/*', self.target_group_arn)
+
+    @patch('dashboard.elasticloadbalancing_views.delete_rule')
+    def test_delete_rule_endpoint_uses_action_helper(self, delete_rule):
+        delete_rule.return_value = {'rule_arn': self.rule_arn}
+
+        response = self.client.delete(
+            reverse('dashboard:elbv2-rule-detail', kwargs={'rule_arn': self.rule_arn}),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        delete_rule.assert_called_once_with(self.rule_arn)
+
+    @patch('dashboard.elasticloadbalancing_views.add_tags')
+    def test_add_tags_endpoint_uses_action_helper(self, add_tags):
+        add_tags.return_value = {'resource_arns': [self.load_balancer_arn]}
+
+        response = self.client.post(
+            reverse('dashboard:elbv2-tags'),
+            data=json.dumps({'resource_arns': [self.load_balancer_arn], 'tags': {'env': 'dev'}}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        add_tags.assert_called_once_with([self.load_balancer_arn], {'env': 'dev'})
 
 
 class EC2ActionTests(SimpleTestCase):

@@ -31,7 +31,7 @@ Core architecture files:
 - `dashboard/actions.py`: shared action metadata, JSON parsing, and normalized action errors.
 - `dashboard/templates/dashboard/service.html`: common service page shell.
 - `dashboard/static/dashboard/service-console.js`: shared frontend helpers for API calls, summary cards, read-only cards, toolbars, modals, formatting, and lower-right toasts.
-- Service-specific modules such as `s3_api.py`, `s3_views.py`, `s3-console.js`, and `s3-console.css`, `iam_api.py`, `iam_views.py`, `iam-console.js`, and `iam-console.css`, `ec2_api.py`, `ec2_views.py`, `ec2-console.js`, and `ec2-console.css`, `stepfunctions_api.py`, `stepfunctions_views.py`, `stepfunctions-console.js`, and `stepfunctions-console.css`, `eventbridge_api.py`, `eventbridge_views.py`, `eventbridge-console.js`, and `eventbridge-console.css`, or the equivalent files for SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, API Gateway, Kinesis, Secrets Manager, SSM Parameter Store, CloudFormation, and Cognito.
+- Service-specific modules such as `s3_api.py`, `s3_views.py`, `s3-console.js`, and `s3-console.css`, `iam_api.py`, `iam_views.py`, `iam-console.js`, and `iam-console.css`, `ec2_api.py`, `ec2_views.py`, `ec2-console.js`, and `ec2-console.css`, `stepfunctions_api.py`, `stepfunctions_views.py`, `stepfunctions-console.js`, and `stepfunctions-console.css`, `eventbridge_api.py`, `eventbridge_views.py`, `eventbridge-console.js`, and `eventbridge-console.css`, or the equivalent files for SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, API Gateway, Kinesis, Secrets Manager, SSM Parameter Store, CloudFormation, Cognito, RDS, Auto Scaling, and ELB v2.
 
 ## Guiding Principles
 
@@ -84,9 +84,15 @@ Core architecture files:
 - Registered CloudFormation as an interactive stack workbench.
 - Built the Cognito Auth Workbench with user pool, app client, resource server, user, group, password, user auth, and OAuth token helpers.
 - Registered Cognito as an interactive auth workbench.
+- Built the RDS Database Workbench with DB instance creation, modification, reboot, deletion, cluster creation, parameter group creation, connection snippets, engine notes, and proxy configuration context.
+- Registered RDS as an interactive database workbench.
+- Built the Auto Scaling Capacity Workbench with launch configuration creation, group creation/update/delete, desired-capacity scaling, instance attach/detach/termination, target group attachment, lifecycle hooks, policy helpers, and activity inspection.
+- Registered Auto Scaling as an interactive capacity workbench.
+- Built the ELB v2 Load Balancing Workbench with load balancer and target group creation, target registration, listener and rule helpers, target health inspection, tag updates, and Phase 1 behavior notes.
+- Registered ELB v2 as an interactive load-balancing workbench.
 - Added a home-page service selector that defaults to the top 12 common AWS services, persists user selections, labels cards as Interactive or Read Only, and limits `/api/resources/` calls to selected services for faster loads.
 - Replaced the dashboard README screenshot image.
-- Added tutorial-style "About Floci S3", "About Floci IAM", "About Floci EC2", "About Floci SQS", "About Floci SNS", "About Floci Lambda", "About Floci DynamoDB", "About Floci CloudWatch Logs", "About Floci Step Functions", "About Floci EventBridge", "About Floci API Gateway", "About Floci Kinesis", "About Floci Secrets Manager", "About Floci SSM Parameter Store", "About Floci CloudFormation", and "About Floci Cognito" notes.
+- Added tutorial-style "About Floci S3", "About Floci IAM", "About Floci EC2", "About Floci SQS", "About Floci SNS", "About Floci Lambda", "About Floci DynamoDB", "About Floci CloudWatch Logs", "About Floci Step Functions", "About Floci EventBridge", "About Floci API Gateway", "About Floci Kinesis", "About Floci Secrets Manager", "About Floci SSM Parameter Store", "About Floci CloudFormation", "About Floci Cognito", "About Floci RDS", "About Floci Auto Scaling", and "About Floci ELB v2" notes.
 - Added contributor architecture notes and an AI-assisted contributor prompt to `README.md`.
 - Added Floci 1.5.18 read-only inventory pages and homepage cards for CloudFront and AWS Config.
 - Refreshed release-aware notes for Neptune Gremlin backend support, SNS HTTP/HTTPS delivery, SQS message move tasks and FIFO dedup scoping, Lambda port-pool behavior, API Gateway v2 ALB routing, KMS MAC operations, ElastiCache Memcached clusters, and ECS-to-ELBv2 target registration.

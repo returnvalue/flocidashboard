@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import apigateway_views, cloudformation_views, cloudwatch_logs_views, cognito_views, dynamodb_views, ec2_views, eventbridge_views, iam_views, kinesis_views, lambda_views, s3_views, secretsmanager_views, sns_views, sqs_views, ssm_views, stepfunctions_views, views
+from . import apigateway_views, autoscaling_views, cloudformation_views, cloudwatch_logs_views, cognito_views, dynamodb_views, ec2_views, elasticloadbalancing_views, eventbridge_views, iam_views, kinesis_views, lambda_views, rds_views, s3_views, secretsmanager_views, sns_views, sqs_views, ssm_views, stepfunctions_views, views
 
 app_name = 'dashboard'
 
@@ -13,6 +13,18 @@ urlpatterns = [
     path('api/appconfig/', views.appconfig, name='appconfig'),
     path('api/athena/', views.athena, name='athena'),
     path('api/autoscaling/', views.autoscaling, name='autoscaling'),
+    path('api/autoscaling/launch-configurations/', autoscaling_views.autoscaling_launch_configurations_create, name='autoscaling-launch-configurations'),
+    path('api/autoscaling/launch-configurations/<str:name>/', autoscaling_views.autoscaling_launch_configuration_delete, name='autoscaling-launch-configuration-detail'),
+    path('api/autoscaling/groups/', autoscaling_views.autoscaling_groups_create, name='autoscaling-groups'),
+    path('api/autoscaling/groups/<str:name>/', autoscaling_views.autoscaling_group_detail, name='autoscaling-group-detail'),
+    path('api/autoscaling/groups/<str:name>/desired-capacity/', autoscaling_views.autoscaling_group_desired_capacity, name='autoscaling-group-desired-capacity'),
+    path('api/autoscaling/groups/<str:name>/instances/', autoscaling_views.autoscaling_group_instances, name='autoscaling-group-instances'),
+    path('api/autoscaling/instances/<str:instance_id>/terminate/', autoscaling_views.autoscaling_instance_terminate, name='autoscaling-instance-terminate'),
+    path('api/autoscaling/groups/<str:name>/target-groups/', autoscaling_views.autoscaling_group_target_groups, name='autoscaling-group-target-groups'),
+    path('api/autoscaling/groups/<str:name>/lifecycle-hooks/', autoscaling_views.autoscaling_lifecycle_hooks_put, name='autoscaling-lifecycle-hooks'),
+    path('api/autoscaling/groups/<str:name>/lifecycle-hooks/<str:hook_name>/', autoscaling_views.autoscaling_lifecycle_hook_delete, name='autoscaling-lifecycle-hook-detail'),
+    path('api/autoscaling/groups/<str:name>/policies/', autoscaling_views.autoscaling_policies_put, name='autoscaling-policies'),
+    path('api/autoscaling/groups/<str:name>/policies/<str:policy_name>/', autoscaling_views.autoscaling_policy_delete, name='autoscaling-policy-detail'),
     path('api/backup/', views.backup, name='backup'),
     path('api/bcmdataexports/', views.bcmdataexports, name='bcmdataexports'),
     path('api/bedrockruntime/', views.bedrockruntime, name='bedrockruntime'),
@@ -65,6 +77,16 @@ urlpatterns = [
     path('api/eks/', views.eks, name='eks'),
     path('api/elasticache/', views.elasticache, name='elasticache'),
     path('api/elasticloadbalancing/', views.elasticloadbalancing, name='elasticloadbalancing'),
+    path('api/elasticloadbalancing/load-balancers/', elasticloadbalancing_views.elbv2_load_balancers_create, name='elbv2-load-balancers'),
+    path('api/elasticloadbalancing/load-balancers/<path:load_balancer_arn>/', elasticloadbalancing_views.elbv2_load_balancer_delete, name='elbv2-load-balancer-detail'),
+    path('api/elasticloadbalancing/target-groups/', elasticloadbalancing_views.elbv2_target_groups_create, name='elbv2-target-groups'),
+    path('api/elasticloadbalancing/target-groups/<path:target_group_arn>/targets/', elasticloadbalancing_views.elbv2_target_group_targets, name='elbv2-target-group-targets'),
+    path('api/elasticloadbalancing/target-groups/<path:target_group_arn>/', elasticloadbalancing_views.elbv2_target_group_delete, name='elbv2-target-group-detail'),
+    path('api/elasticloadbalancing/listeners/', elasticloadbalancing_views.elbv2_listeners_create, name='elbv2-listeners'),
+    path('api/elasticloadbalancing/listeners/<path:listener_arn>/', elasticloadbalancing_views.elbv2_listener_delete, name='elbv2-listener-detail'),
+    path('api/elasticloadbalancing/rules/', elasticloadbalancing_views.elbv2_rules_create, name='elbv2-rules'),
+    path('api/elasticloadbalancing/rules/<path:rule_arn>/', elasticloadbalancing_views.elbv2_rule_delete, name='elbv2-rule-detail'),
+    path('api/elasticloadbalancing/tags/', elasticloadbalancing_views.elbv2_tags, name='elbv2-tags'),
     path('api/identity/', views.identity, name='identity'),
     path('api/services/', views.services, name='services'),
     path('api/firehose/', views.firehose, name='firehose'),
@@ -91,6 +113,13 @@ urlpatterns = [
     path('api/pricing/', views.pricing, name='pricing'),
     path('api/resourcegroupstagging/', views.resourcegroupstagging, name='resourcegroupstagging'),
     path('api/rds/', views.rds, name='rds'),
+    path('api/rds/instances/', rds_views.rds_instances_create, name='rds-instances'),
+    path('api/rds/instances/<str:identifier>/', rds_views.rds_instance_detail, name='rds-instance-detail'),
+    path('api/rds/instances/<str:identifier>/reboot/', rds_views.rds_instance_reboot, name='rds-instance-reboot'),
+    path('api/rds/clusters/', rds_views.rds_clusters_create, name='rds-clusters'),
+    path('api/rds/clusters/<str:identifier>/', rds_views.rds_cluster_delete, name='rds-cluster-detail'),
+    path('api/rds/parameter-groups/', rds_views.rds_parameter_groups_create, name='rds-parameter-groups'),
+    path('api/rds/parameter-groups/<str:name>/', rds_views.rds_parameter_group_delete, name='rds-parameter-group-detail'),
     path('api/route53/', views.route53, name='route53'),
     path('api/s3/', views.s3, name='s3'),
     path('api/s3/buckets/', s3_views.s3_buckets_list, name='s3-buckets'),
