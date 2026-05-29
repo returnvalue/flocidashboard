@@ -9,8 +9,8 @@ A small Django UI for inspecting and testing a local [Floci](https://floci.io/) 
 - Local Floci health and version
 - AWS endpoint, profile, and caller identity
 - Clickable service cards for supported local services, with persisted home-page service filtering to keep resource probes focused
-- Interactive workbenches for S3, IAM, EC2, SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, EventBridge, API Gateway, Kinesis, Secrets Manager, SSM Parameter Store, CloudFormation, Cognito, RDS, Auto Scaling, and ELB v2
-- Detail pages for services such as CloudFront, AWS Config, AppConfig, Bedrock Runtime, Cost Explorer, Cost and Usage Reports, BCM Data Exports, Neptune, EKS, OpenSearch, Pricing, Transcribe, and more
+- Interactive workbenches for S3, IAM, EC2, SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, EventBridge, API Gateway, Kinesis, Secrets Manager, SSM Parameter Store, CloudFormation, Cognito, RDS, Auto Scaling, ELB v2, CloudFront, and Route 53
+- Detail pages for services such as AWS Config, AppConfig, Bedrock Runtime, Cost Explorer, Cost and Usage Reports, BCM Data Exports, Neptune, EKS, OpenSearch, Pricing, Transcribe, and more
 - Loading state with the Floci cloud image while service data is fetched
 
 ## Run Locally On macOS
@@ -73,7 +73,7 @@ Floci 1.5.16 and newer support the public localhost DNS suffix for virtual-hoste
 export FLOCI_AWS_ENDPOINT_URL=http://s3.localhost.floci.io:4566
 ```
 
-Floci 1.5.18 adds CloudFront and AWS Config emulation. The dashboard includes read-only inventory pages for both services, and refreshes Neptune, SNS, SQS, Lambda, and API Gateway notes around the 1.5.18 release surface.
+Floci 1.5.18 adds CloudFront and AWS Config emulation. The dashboard includes a CloudFront management workbench plus AWS Config inventory, and refreshes Neptune, SNS, SQS, Lambda, and API Gateway notes around the 1.5.18 release surface.
 
 Floci 1.5.19 adds Lambda layer APIs, CloudFormation parity for SQS queues, SNS-to-SQS subscriptions, and Cognito resources, API Gateway REQUEST authorizer fixes, ELBv2 listener attribute and capacity reservation actions, and ECR Public Gallery publishing. The dashboard surfaces attached Lambda layer versions and refreshes release-aware notes across the affected service pages.
 
@@ -118,7 +118,7 @@ Core files:
 - `dashboard/templates/dashboard/service.html`: common service page shell. Interactive workbenches should be layered into this page while keeping the original read-only inventory visible.
 - `dashboard/static/dashboard/service-console.js`: shared browser-side helpers for API calls, summary cards, read-only cards, toolbars, modals, formatting, and lower-right toasts.
 - `dashboard/static/dashboard/dashboard.js`: generic read-only inventory rendering for service pages.
-- Service-specific files such as `s3_api.py`, `s3_views.py`, `s3-console.js`, and `s3-console.css`, `iam_api.py`, `iam_views.py`, `iam-console.js`, and `iam-console.css`, `ec2_api.py`, `ec2_views.py`, `ec2-console.js`, and `ec2-console.css`, `cloudformation_api.py`, `cloudformation_views.py`, `cloudformation-console.js`, and `cloudformation-console.css`, `cognito_api.py`, `cognito_views.py`, `cognito-console.js`, and `cognito-console.css`, `rds_api.py`, `rds_views.py`, `rds-console.js`, and `rds-console.css`, `autoscaling_api.py`, `autoscaling_views.py`, `autoscaling-console.js`, and `autoscaling-console.css`, `elasticloadbalancing_api.py`, `elasticloadbalancing_views.py`, `elasticloadbalancing-console.js`, and `elasticloadbalancing-console.css`, or the equivalent files for SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, EventBridge, API Gateway, Kinesis, Secrets Manager, and SSM Parameter Store: focused behavior for one service only.
+- Service-specific files such as `s3_api.py`, `s3_views.py`, `s3-console.js`, and `s3-console.css`, `iam_api.py`, `iam_views.py`, `iam-console.js`, and `iam-console.css`, `ec2_api.py`, `ec2_views.py`, `ec2-console.js`, and `ec2-console.css`, `cloudformation_api.py`, `cloudformation_views.py`, `cloudformation-console.js`, and `cloudformation-console.css`, `cognito_api.py`, `cognito_views.py`, `cognito-console.js`, and `cognito-console.css`, `rds_api.py`, `rds_views.py`, `rds-console.js`, and `rds-console.css`, `autoscaling_api.py`, `autoscaling_views.py`, `autoscaling-console.js`, and `autoscaling-console.css`, `elasticloadbalancing_api.py`, `elasticloadbalancing_views.py`, `elasticloadbalancing-console.js`, and `elasticloadbalancing-console.css`, `cloudfront_api.py`, `cloudfront_views.py`, `cloudfront-console.js`, and `cloudfront-console.css`, `route53_api.py`, `route53_views.py`, `route53-console.js`, and `route53-console.css`, or the equivalent files for SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, EventBridge, API Gateway, Kinesis, Secrets Manager, and SSM Parameter Store: focused behavior for one service only.
 
 Important conventions:
 
@@ -157,6 +157,8 @@ http://127.0.0.1:8000/service/cognito/
 http://127.0.0.1:8000/service/rds/
 http://127.0.0.1:8000/service/autoscaling/
 http://127.0.0.1:8000/service/elasticloadbalancing/
+http://127.0.0.1:8000/service/cloudfront/
+http://127.0.0.1:8000/service/route53/
 ```
 
 ## Prompt For AI-Assisted Contributors
@@ -164,7 +166,7 @@ http://127.0.0.1:8000/service/elasticloadbalancing/
 If you are using Codex, Claude, or another local coding assistant to add a dashboard feature, start with a prompt like this:
 
 ```text
-You are contributing to the Floci Dashboard Django app. Before editing, read README.md, ROADMAP.md, dashboard/services.py, dashboard/actions.py, dashboard/templates/dashboard/service.html, dashboard/static/dashboard/service-console.js, and the closest existing workbench implementation. Good references are S3 for object browsing, IAM for identity and policy workflows, EC2 for local compute lifecycle workflows, SQS/SNS for messaging, Lambda for invoke/test workflows, DynamoDB for read-only data exploration, CloudWatch Logs for recent event viewing, Step Functions for execution workflows, EventBridge for event routing tests, API Gateway for request testing, Kinesis for stream records, Secrets Manager for secret value workflows, SSM for Parameter Store workflows, CloudFormation for stack workflows, Cognito for local auth workflows, RDS for database lifecycle workflows, Auto Scaling for capacity workflows, and ELB v2 for load-balancing topology workflows.
+You are contributing to the Floci Dashboard Django app. Before editing, read README.md, ROADMAP.md, dashboard/services.py, dashboard/actions.py, dashboard/templates/dashboard/service.html, dashboard/static/dashboard/service-console.js, and the closest existing workbench implementation. Good references are S3 for object browsing, IAM for identity and policy workflows, EC2 for local compute lifecycle workflows, SQS/SNS for messaging, Lambda for invoke/test workflows, DynamoDB for read-only data exploration, CloudWatch Logs for recent event viewing, Step Functions for execution workflows, EventBridge for event routing tests, API Gateway for request testing, Kinesis for stream records, Secrets Manager for secret value workflows, SSM for Parameter Store workflows, CloudFormation for stack workflows, Cognito for local auth workflows, RDS for database lifecycle workflows, Auto Scaling for capacity workflows, ELB v2 for load-balancing topology workflows, CloudFront for CDN management workflows, and Route 53 for DNS management workflows.
 
 Goal: add or improve the <SERVICE> dashboard feature.
 

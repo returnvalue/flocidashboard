@@ -63,6 +63,10 @@
           <nav id="autoscaling-breadcrumbs" class="autoscaling-breadcrumbs" aria-label="Auto Scaling navigation"></nav>
         {% elif service.key == 'elasticloadbalancing' %}
           <nav id="elasticloadbalancing-breadcrumbs" class="elasticloadbalancing-breadcrumbs" aria-label="Elastic Load Balancing navigation"></nav>
+        {% elif service.key == 'cloudfront' %}
+          <nav id="cloudfront-breadcrumbs" class="cloudfront-breadcrumbs" aria-label="CloudFront navigation"></nav>
+        {% elif service.key == 'route53' %}
+          <nav id="route53-breadcrumbs" class="route53-breadcrumbs" aria-label="Route 53 navigation"></nav>
         {% endif %}
       </div>
       <span id="{{ service.key }}-loaded-at"></span>
@@ -239,6 +243,24 @@
         <p>A good learning flow is to create a load balancer, create a target group, register local EC2 or IP targets, create a listener with a default forward action, then add a path-based rule.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid elasticloadbalancing-readonly-grid"></div>
+    {% elif service.key == 'cloudfront' %}
+      <div id="cloudfront-console-root" class="cloudfront-console-root" aria-live="polite"></div>
+      <details class="cloudfront-about-floci">
+        <summary>About Floci CloudFront</summary>
+        <p>Local CloudFront emulates the management plane for distributions, invalidations, cache policies, origin request policies, response headers policies, origin access identities, origin access controls, functions, and tags.</p>
+        <p>Actual edge delivery is not emulated. This workbench focuses on creating and inspecting CDN configuration so local infrastructure, IaC flows, and SDK calls can be tested without AWS.</p>
+        <p>A good learning flow is to create a distribution for an S3-style origin, update its enabled state or comment, create a cache invalidation, then inspect the generated domain name and global ARN.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid cloudfront-readonly-grid"></div>
+    {% elif service.key == 'route53' %}
+      <div id="route53-console-root" class="route53-console-root" aria-live="polite"></div>
+      <details class="route53-about-floci">
+        <summary>About Floci Route 53</summary>
+        <p>Local Route 53 emulates the management plane for hosted zones, record-set changes, health checks, change tracking, and tags.</p>
+        <p>Actual DNS resolution is not provided. This workbench focuses on creating and inspecting DNS configuration so local infrastructure and SDK flows can be tested without AWS.</p>
+        <p>A good learning flow is to create a hosted zone, add an A or CNAME record, inspect the immediate INSYNC change, create a health check, then tag the zone or health check.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid route53-readonly-grid"></div>
     {% else %}
       <div id="{{ service.key }}-grid" class="iam-grid"></div>
     {% endif %}

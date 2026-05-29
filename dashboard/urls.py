@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import apigateway_views, autoscaling_views, cloudformation_views, cloudwatch_logs_views, cognito_views, dynamodb_views, ec2_views, elasticloadbalancing_views, eventbridge_views, iam_views, kinesis_views, lambda_views, rds_views, s3_views, secretsmanager_views, sns_views, sqs_views, ssm_views, stepfunctions_views, views
+from . import apigateway_views, autoscaling_views, cloudformation_views, cloudfront_views, cloudwatch_logs_views, cognito_views, dynamodb_views, ec2_views, elasticloadbalancing_views, eventbridge_views, iam_views, kinesis_views, lambda_views, rds_views, route53_views, s3_views, secretsmanager_views, sns_views, sqs_views, ssm_views, stepfunctions_views, views
 
 app_name = 'dashboard'
 
@@ -31,6 +31,14 @@ urlpatterns = [
     path('api/codebuild/', views.codebuild, name='codebuild'),
     path('api/codedeploy/', views.codedeploy, name='codedeploy'),
     path('api/cloudfront/', views.cloudfront, name='cloudfront'),
+    path('api/cloudfront/distributions/', cloudfront_views.cloudfront_distributions_create, name='cloudfront-distributions'),
+    path('api/cloudfront/distributions/<str:distribution_id>/', cloudfront_views.cloudfront_distribution_detail, name='cloudfront-distribution-detail'),
+    path('api/cloudfront/distributions/<str:distribution_id>/invalidations/', cloudfront_views.cloudfront_invalidations_create, name='cloudfront-invalidations'),
+    path('api/cloudfront/cache-policies/', cloudfront_views.cloudfront_cache_policies_create, name='cloudfront-cache-policies'),
+    path('api/cloudfront/origin-access-identities/', cloudfront_views.cloudfront_origin_access_identities_create, name='cloudfront-origin-access-identities'),
+    path('api/cloudfront/functions/', cloudfront_views.cloudfront_functions_create, name='cloudfront-functions'),
+    path('api/cloudfront/functions/<str:function_name>/', cloudfront_views.cloudfront_function_detail, name='cloudfront-function-detail'),
+    path('api/cloudfront/tags/', cloudfront_views.cloudfront_tags, name='cloudfront-tags'),
     path('api/cloudformation/', views.cloudformation, name='cloudformation'),
     path('api/cloudformation/templates/validate/', cloudformation_views.cloudformation_templates_validate, name='cloudformation-templates-validate'),
     path('api/cloudformation/stacks/', cloudformation_views.cloudformation_stacks_create, name='cloudformation-stacks'),
@@ -121,6 +129,12 @@ urlpatterns = [
     path('api/rds/parameter-groups/', rds_views.rds_parameter_groups_create, name='rds-parameter-groups'),
     path('api/rds/parameter-groups/<str:name>/', rds_views.rds_parameter_group_delete, name='rds-parameter-group-detail'),
     path('api/route53/', views.route53, name='route53'),
+    path('api/route53/hosted-zones/', route53_views.route53_hosted_zones_create, name='route53-hosted-zones'),
+    path('api/route53/hosted-zones/<str:zone_id>/', route53_views.route53_hosted_zone_delete, name='route53-hosted-zone-detail'),
+    path('api/route53/hosted-zones/<str:zone_id>/record-sets/', route53_views.route53_record_sets_change, name='route53-record-sets'),
+    path('api/route53/health-checks/', route53_views.route53_health_checks_create, name='route53-health-checks'),
+    path('api/route53/health-checks/<str:health_check_id>/', route53_views.route53_health_check_detail, name='route53-health-check-detail'),
+    path('api/route53/tags/<str:resource_type>/<str:resource_id>/', route53_views.route53_tags_change, name='route53-tags'),
     path('api/s3/', views.s3, name='s3'),
     path('api/s3/buckets/', s3_views.s3_buckets_list, name='s3-buckets'),
     path('api/s3/buckets/<str:bucket_name>/', s3_views.s3_bucket_detail, name='s3-bucket-detail'),

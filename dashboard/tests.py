@@ -271,8 +271,13 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertEqual(elbv2_actions['delete_load_balancer']['safety'], 'destructive')
         self.assertEqual(elbv2_actions['delete_rule']['safety'], 'destructive')
         self.assertEqual(services['lambda']['api_path'], '/api/lambda/')
-        self.assertEqual(services['cloudfront']['maturity'], 'inventory_only')
+        self.assertEqual(services['cloudfront']['maturity'], 'interactive_workbench')
         self.assertEqual(services['cloudfront']['api_path'], '/api/cloudfront/')
+        self.assertEqual(services['cloudfront']['console_js'], 'dashboard/cloudfront-console.js')
+        cloudfront_actions = {action['name']: action for action in services['cloudfront']['actions']}
+        self.assertEqual(cloudfront_actions['create_distribution']['kind'], 'create')
+        self.assertEqual(cloudfront_actions['create_invalidation']['kind'], 'execute')
+        self.assertEqual(cloudfront_actions['delete_distribution']['safety'], 'destructive')
         self.assertEqual(services['config']['title'], 'AWS Config')
         self.assertEqual(services['config']['api_path'], '/api/config/')
 
