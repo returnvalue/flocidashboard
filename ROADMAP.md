@@ -94,6 +94,14 @@ Core architecture files:
 - Registered CloudFront as an interactive CDN workbench.
 - Built the Route 53 DNS Workbench with hosted zone creation and deletion, record-set change helpers, health check creation and updates, tagging, and management-plane behavior notes.
 - Registered Route 53 as an interactive DNS workbench.
+- Built the KMS Key Workbench with key and alias creation, encrypt/decrypt helpers, data key generation, rotation toggles, deletion scheduling, and KMS behavior notes.
+- Registered KMS as an interactive key workbench.
+- Built the EventBridge Scheduler Workbench with schedule group creation, schedule create/update/delete helpers, state toggles, target JSON editing, and scheduler invocation notes.
+- Registered EventBridge Scheduler as an interactive schedule workbench.
+- Built the EventBridge Pipes Workbench with pipe creation, source/target and parameter editing, start/stop actions, deletion, tagging endpoints, and pipe routing notes.
+- Registered EventBridge Pipes as an interactive pipe workbench.
+- Built the AWS Config Workbench with config rule, recorder, delivery channel, conformance pack, evaluation, recorder start/stop, delete, and tagging helpers.
+- Registered AWS Config as an interactive compliance workbench.
 - Added a home-page service selector that defaults to the top 12 common AWS services, persists user selections, labels cards as Interactive or Read Only, and limits `/api/resources/` calls to selected services for faster loads.
 - Replaced the dashboard README screenshot image.
 - Added tutorial-style "About Floci S3", "About Floci IAM", "About Floci EC2", "About Floci SQS", "About Floci SNS", "About Floci Lambda", "About Floci DynamoDB", "About Floci CloudWatch Logs", "About Floci Step Functions", "About Floci EventBridge", "About Floci API Gateway", "About Floci Kinesis", "About Floci Secrets Manager", "About Floci SSM Parameter Store", "About Floci CloudFormation", "About Floci Cognito", "About Floci RDS", "About Floci Auto Scaling", "About Floci ELB v2", "About Floci CloudFront", and "About Floci Route 53" notes.
@@ -404,5 +412,5 @@ When adding or improving a service page:
 - Should service docs links and operation counts remain manually maintained in the dashboard registry?
 - How much should `dashboard.js` be reduced in favor of declarative panel configs?
 - Should tutorial definitions live in this repo, Floci docs, or both?
-- Which inventory-only service should become the next interactive workbench after CloudFront and Route 53: ECR, EventBridge Pipes, CodeBuild, or Transfer Family?
+- Which inventory-only service should become the next interactive workbench: ECR, CodeBuild, Transfer Family, or another high-traffic local workflow?
 - What health fields are stable enough in Floci to expose on an Environment Details page?

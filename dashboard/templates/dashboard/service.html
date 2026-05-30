@@ -53,6 +53,8 @@
           <nav id="apigateway-breadcrumbs" class="apigateway-breadcrumbs" aria-label="API Gateway navigation"></nav>
         {% elif service.key == 'kinesis' %}
           <nav id="kinesis-breadcrumbs" class="kinesis-breadcrumbs" aria-label="Kinesis navigation"></nav>
+        {% elif service.key == 'kms' %}
+          <nav id="kms-breadcrumbs" class="kms-breadcrumbs" aria-label="KMS navigation"></nav>
         {% elif service.key == 'secretsmanager' %}
           <nav id="secretsmanager-breadcrumbs" class="secretsmanager-breadcrumbs" aria-label="Secrets Manager navigation"></nav>
         {% elif service.key == 'ssm' %}
@@ -67,6 +69,12 @@
           <nav id="cloudfront-breadcrumbs" class="cloudfront-breadcrumbs" aria-label="CloudFront navigation"></nav>
         {% elif service.key == 'route53' %}
           <nav id="route53-breadcrumbs" class="route53-breadcrumbs" aria-label="Route 53 navigation"></nav>
+        {% elif service.key == 'scheduler' %}
+          <nav id="scheduler-breadcrumbs" class="scheduler-breadcrumbs" aria-label="EventBridge Scheduler navigation"></nav>
+        {% elif service.key == 'pipes' %}
+          <nav id="pipes-breadcrumbs" class="pipes-breadcrumbs" aria-label="EventBridge Pipes navigation"></nav>
+        {% elif service.key == 'config' %}
+          <nav id="config-breadcrumbs" class="config-breadcrumbs" aria-label="AWS Config navigation"></nav>
         {% endif %}
       </div>
       <span id="{{ service.key }}-loaded-at"></span>
@@ -117,6 +125,15 @@
         <p>Common local test cases include handler payload parsing, environment variables, timeout behavior, function errors, event-source integration payloads, and log output.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid lambda-readonly-grid"></div>
+    {% elif service.key == 'kms' %}
+      <div id="kms-console-root" class="kms-console-root" aria-live="polite"></div>
+      <details class="kms-about-floci">
+        <summary>About Floci KMS</summary>
+        <p>Local KMS stores symmetric and asymmetric keys, aliases, tags, policies, rotation state, deletion state, and grant records through the AWS-compatible JSON 1.1 API.</p>
+        <p>KMS is most often used by apps and services to encrypt data, test alias wiring, generate envelope-encryption data keys, and validate key lifecycle paths. In Floci, a good learning flow is to create a symmetric key, add an alias, encrypt a sample payload, decrypt the ciphertext, then try a generated data key.</p>
+        <p>Grant lifecycle APIs are stored and queryable in Floci, but grants are not evaluated for cryptographic authorization. The reserved creation-time tag floci:override-id can make deterministic local key IDs for tests.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid kms-readonly-grid"></div>
     {% elif service.key == 'dynamodb' %}
       <div id="dynamodb-console-root" class="dynamodb-console-root" aria-live="polite"></div>
       <details class="dynamodb-about-floci">
@@ -261,6 +278,33 @@
         <p>A good learning flow is to create a hosted zone, add an A or CNAME record, inspect the immediate INSYNC change, create a health check, then tag the zone or health check.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid route53-readonly-grid"></div>
+    {% elif service.key == 'scheduler' %}
+      <div id="scheduler-console-root" class="scheduler-console-root" aria-live="polite"></div>
+      <details class="scheduler-about-floci">
+        <summary>About Floci EventBridge Scheduler</summary>
+        <p>Local EventBridge Scheduler stores schedule groups and schedules through the AWS-compatible REST JSON API. When invocation is enabled, a local dispatcher fires due schedules on a short polling interval.</p>
+        <p>Scheduler is most often used to trigger Lambda functions, send SQS or SNS messages, or put EventBridge events on a recurring or one-time cadence. In Floci, a good learning flow is to create a group, add a rate or at expression, point the target at a local service, then watch the target service workbench for the fired payload.</p>
+        <p>Supported expressions include at, rate, and six-field cron. Retry policy and dead-letter config are stored for compatibility, but failed-invocation retry behavior is not enforced yet.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid scheduler-readonly-grid"></div>
+    {% elif service.key == 'pipes' %}
+      <div id="pipes-console-root" class="pipes-console-root" aria-live="polite"></div>
+      <details class="pipes-about-floci">
+        <summary>About Floci EventBridge Pipes</summary>
+        <p>Local EventBridge Pipes stores pipe definitions that connect supported sources to supported targets, with optional enrichment and parameter blocks for service-specific behavior.</p>
+        <p>Pipes are most useful for testing local event handoffs such as SQS to Lambda, Kinesis to Step Functions, or DynamoDB stream records to SNS. In Floci, a good learning flow is to create a pipe with source and target ARNs, start it, then inspect the downstream workbench for delivered events.</p>
+        <p>Supported sources include SQS queues, Kinesis streams, DynamoDB streams, and Kafka topics. Supported targets include Lambda, SQS, SNS, Kinesis, and Step Functions.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid pipes-readonly-grid"></div>
+    {% elif service.key == 'config' %}
+      <div id="config-console-root" class="config-console-root" aria-live="polite"></div>
+      <details class="config-about-floci">
+        <summary>About Floci AWS Config</summary>
+        <p>Local AWS Config stores configuration recorders, delivery channels, config rules, conformance packs, tags, and compliance metadata through the AWS-compatible JSON 1.1 API.</p>
+        <p>Config is most useful for testing local compliance setup and infrastructure automation. In Floci, a good learning flow is to create a recorder, add a delivery channel, start recording, create a rule, then trigger a rule evaluation.</p>
+        <p>Compliance status always returns INSUFFICIENT_DATA because Floci stores the management-plane resources but does not perform real resource evaluation or configuration recording.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid config-readonly-grid"></div>
     {% else %}
       <div id="{{ service.key }}-grid" class="iam-grid"></div>
     {% endif %}

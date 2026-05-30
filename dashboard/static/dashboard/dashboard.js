@@ -10,7 +10,8 @@ const serviceFilter = document.querySelector('#service-filter');
 const serviceFilterSummary = document.querySelector('#service-filter-summary');
 const serviceFilterOptions = document.querySelector('#service-filter-options');
 const serviceFilterTop = document.querySelector('#service-filter-top');
-const serviceFilterInteractive = document.querySelector('#service-filter-interactive');
+const serviceFilterTop24 = document.querySelector('#service-filter-top-24');
+const serviceFilterTop36 = document.querySelector('#service-filter-top-36');
 const serviceFilterAll = document.querySelector('#service-filter-all');
 const backToTopButton = document.querySelector('.back-to-top');
 const iamGrid = document.querySelector('#iam-grid');
@@ -27,6 +28,7 @@ const ec2ConsoleRoot = document.getElementById('ec2-console-root');
 const kmsGrid = document.querySelector('#kms-grid');
 const kmsSummary = document.querySelector('#kms-summary');
 const kmsLoadedAt = document.querySelector('#kms-loaded-at');
+const kmsConsoleRoot = document.getElementById('kms-console-root');
 const lambdaGrid = document.querySelector('#lambda-grid');
 const lambdaSummary = document.querySelector('#lambda-summary');
 const lambdaLoadedAt = document.querySelector('#lambda-loaded-at');
@@ -98,6 +100,7 @@ const opensearchLoadedAt = document.querySelector('#opensearch-loaded-at');
 const pipesGrid = document.querySelector('#pipes-grid');
 const pipesSummary = document.querySelector('#pipes-summary');
 const pipesLoadedAt = document.querySelector('#pipes-loaded-at');
+const pipesConsoleRoot = document.getElementById('pipes-console-root');
 const pricingGrid = document.querySelector('#pricing-grid');
 const pricingSummary = document.querySelector('#pricing-summary');
 const pricingLoadedAt = document.querySelector('#pricing-loaded-at');
@@ -138,6 +141,7 @@ const cloudformationLoadedAt = document.querySelector('#cloudformation-loaded-at
 const configGrid = document.querySelector('#config-grid');
 const configSummary = document.querySelector('#config-summary');
 const configLoadedAt = document.querySelector('#config-loaded-at');
+const configConsoleRoot = document.getElementById('config-console-root');
 const ecrGrid = document.querySelector('#ecr-grid');
 const ecrSummary = document.querySelector('#ecr-summary');
 const ecrLoadedAt = document.querySelector('#ecr-loaded-at');
@@ -160,6 +164,7 @@ const stepfunctionsConsoleRoot = document.getElementById('stepfunctions-console-
 const schedulerGrid = document.querySelector('#scheduler-grid');
 const schedulerSummary = document.querySelector('#scheduler-summary');
 const schedulerLoadedAt = document.querySelector('#scheduler-loaded-at');
+const schedulerConsoleRoot = document.getElementById('scheduler-console-root');
 const glueGrid = document.querySelector('#glue-grid');
 const glueSummary = document.querySelector('#glue-summary');
 const glueLoadedAt = document.querySelector('#glue-loaded-at');
@@ -374,6 +379,9 @@ function canonicalServiceKey(name) {
 }
 
 const servicePriorityOrder = [
+  // Most common local AWS workflows first. The top 12 power the default home
+  // selection, and the remaining entries keep "All services" in the same
+  // popularity-oriented order after those first cards.
   'iam',
   'ec2',
   's3',
@@ -398,7 +406,6 @@ const servicePriorityOrder = [
   'config',
   'ssm',
   'cognito',
-  'cognito-idp',
   'acm',
   'ecs',
   'ecr',
@@ -412,14 +419,14 @@ const servicePriorityOrder = [
   'kafka',
   'neptune',
   'pricing',
-  'ce',
+  'costexplorer',
   'cur',
-  'bcm-data-exports',
+  'bcmdataexports',
   'resourcegroupstagging',
   'backup',
   'transfer',
   'ses',
-  'bedrock-runtime',
+  'bedrockruntime',
   'textract',
   'transcribe',
   'codebuild',
@@ -2731,6 +2738,24 @@ function renderPipes(data) {
     })), [
       ['Operation', 'operation'],
     ]),
+    renderDetailList('Supported sources', (data.supported_sources || []).map((source) => ({
+      name: source,
+      source,
+    })), [
+      ['Source', 'source'],
+    ]),
+    renderDetailList('Supported targets', (data.supported_targets || []).map((target) => ({
+      name: target,
+      target,
+    })), [
+      ['Target', 'target'],
+    ]),
+    renderDetailList('Pipe states', (data.pipe_states || []).map((state) => ({
+      name: state,
+      state,
+    })), [
+      ['State', 'state'],
+    ]),
     renderDetailList('Notes', (data.notes || []).map((note, index) => ({
       name: `Note ${index + 1}`,
       note,
@@ -4708,12 +4733,16 @@ function sortedServiceMetadata(serviceMetadata = []) {
   });
 }
 
-function defaultHomeServices(serviceMetadata = []) {
+function topHomeServices(serviceMetadata = [], count = defaultHomeServiceCount) {
   return new Set(
     sortedServiceMetadata(serviceMetadata)
-      .slice(0, defaultHomeServiceCount)
+      .slice(0, count)
       .map((service) => service.key)
   );
+}
+
+function defaultHomeServices(serviceMetadata = []) {
+  return topHomeServices(serviceMetadata, defaultHomeServiceCount);
 }
 
 function readStoredHomeServices(serviceMetadata = []) {
@@ -4802,24 +4831,26 @@ function renderServiceFilter(serviceMetadata = []) {
     serviceFilterOptions.append(label);
   });
 
+  const applyTopPreset = (count) => {
+    selectedHomeServices = topHomeServices(serviceMetadata, count);
+    writeStoredHomeServices(selectedHomeServices);
+    renderServiceFilter(serviceMetadata);
+    refresh();
+  };
+
   if (serviceFilterTop) {
     serviceFilterTop.onclick = () => {
-      selectedHomeServices = defaultHomeServices(serviceMetadata);
-      writeStoredHomeServices(selectedHomeServices);
-      renderServiceFilter(serviceMetadata);
-      refresh();
+      applyTopPreset(12);
     };
   }
-  if (serviceFilterInteractive) {
-    serviceFilterInteractive.onclick = () => {
-      selectedHomeServices = new Set(
-        serviceMetadata
-          .filter((service) => serviceExperience(service) === 'Interactive')
-          .map((service) => service.key)
-      );
-      writeStoredHomeServices(selectedHomeServices);
-      renderServiceFilter(serviceMetadata);
-      refresh();
+  if (serviceFilterTop24) {
+    serviceFilterTop24.onclick = () => {
+      applyTopPreset(24);
+    };
+  }
+  if (serviceFilterTop36) {
+    serviceFilterTop36.onclick = () => {
+      applyTopPreset(36);
     };
   }
   if (serviceFilterAll) {
@@ -5269,10 +5300,18 @@ async function refresh() {
         await window.ApiGatewayConsole.refresh();
       } else if (service.key === 'kinesis' && kinesisConsoleRoot && window.KinesisConsole) {
         await window.KinesisConsole.refresh();
+      } else if (service.key === 'kms' && kmsConsoleRoot && window.KMSConsole) {
+        await window.KMSConsole.refresh();
       } else if (service.key === 'secretsmanager' && secretsmanagerConsoleRoot && window.SecretsManagerConsole) {
         await window.SecretsManagerConsole.refresh();
       } else if (service.key === 'ssm' && ssmConsoleRoot && window.SSMConsole) {
         await window.SSMConsole.refresh();
+      } else if (service.key === 'scheduler' && schedulerConsoleRoot && window.SchedulerConsole) {
+        await window.SchedulerConsole.refresh();
+      } else if (service.key === 'pipes' && pipesConsoleRoot && window.PipesConsole) {
+        await window.PipesConsole.refresh();
+      } else if (service.key === 'config' && configConsoleRoot && window.ConfigConsole) {
+        await window.ConfigConsole.refresh();
       }
     }
   } catch (error) {

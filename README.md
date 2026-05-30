@@ -9,7 +9,7 @@ A small Django UI for inspecting and testing a local [Floci](https://floci.io/) 
 - Local Floci health and version
 - AWS endpoint, profile, and caller identity
 - Clickable service cards for supported local services, with persisted home-page service filtering to keep resource probes focused
-- Interactive workbenches for S3, IAM, EC2, SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, EventBridge, API Gateway, Kinesis, Secrets Manager, SSM Parameter Store, CloudFormation, Cognito, RDS, Auto Scaling, ELB v2, CloudFront, and Route 53
+- Interactive workbenches for S3, IAM, EC2, SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, EventBridge, EventBridge Pipes, EventBridge Scheduler, API Gateway, Kinesis, KMS, Secrets Manager, SSM Parameter Store, CloudFormation, Cognito, AWS Config, RDS, Auto Scaling, ELB v2, CloudFront, and Route 53
 - Detail pages for services such as AWS Config, AppConfig, Bedrock Runtime, Cost Explorer, Cost and Usage Reports, BCM Data Exports, Neptune, EKS, OpenSearch, Pricing, Transcribe, and more
 - Loading state with the Floci cloud image while service data is fetched
 
@@ -148,12 +148,16 @@ http://127.0.0.1:8000/service/ec2/
 http://127.0.0.1:8000/service/sqs/
 http://127.0.0.1:8000/service/stepfunctions/
 http://127.0.0.1:8000/service/eventbridge/
+http://127.0.0.1:8000/service/pipes/
+http://127.0.0.1:8000/service/scheduler/
 http://127.0.0.1:8000/service/apigateway/
 http://127.0.0.1:8000/service/kinesis/
+http://127.0.0.1:8000/service/kms/
 http://127.0.0.1:8000/service/secretsmanager/
 http://127.0.0.1:8000/service/ssm/
 http://127.0.0.1:8000/service/cloudformation/
 http://127.0.0.1:8000/service/cognito/
+http://127.0.0.1:8000/service/config/
 http://127.0.0.1:8000/service/rds/
 http://127.0.0.1:8000/service/autoscaling/
 http://127.0.0.1:8000/service/elasticloadbalancing/
@@ -166,7 +170,7 @@ http://127.0.0.1:8000/service/route53/
 If you are using Codex, Claude, or another local coding assistant to add a dashboard feature, start with a prompt like this:
 
 ```text
-You are contributing to the Floci Dashboard Django app. Before editing, read README.md, ROADMAP.md, dashboard/services.py, dashboard/actions.py, dashboard/templates/dashboard/service.html, dashboard/static/dashboard/service-console.js, and the closest existing workbench implementation. Good references are S3 for object browsing, IAM for identity and policy workflows, EC2 for local compute lifecycle workflows, SQS/SNS for messaging, Lambda for invoke/test workflows, DynamoDB for read-only data exploration, CloudWatch Logs for recent event viewing, Step Functions for execution workflows, EventBridge for event routing tests, API Gateway for request testing, Kinesis for stream records, Secrets Manager for secret value workflows, SSM for Parameter Store workflows, CloudFormation for stack workflows, Cognito for local auth workflows, RDS for database lifecycle workflows, Auto Scaling for capacity workflows, ELB v2 for load-balancing topology workflows, CloudFront for CDN management workflows, and Route 53 for DNS management workflows.
+You are contributing to the Floci Dashboard Django app. Before editing, read README.md, ROADMAP.md, dashboard/services.py, dashboard/actions.py, dashboard/templates/dashboard/service.html, dashboard/static/dashboard/service-console.js, and the closest existing workbench implementation. Good references are S3 for object browsing, IAM for identity and policy workflows, EC2 for local compute lifecycle workflows, SQS/SNS for messaging, Lambda for invoke/test workflows, DynamoDB for read-only data exploration, CloudWatch Logs for recent event viewing, Step Functions for execution workflows, EventBridge for event routing tests, EventBridge Pipes and Scheduler for event routing lifecycle workflows, API Gateway for request testing, Kinesis for stream records, KMS for key workflows, Secrets Manager for secret value workflows, SSM for Parameter Store workflows, CloudFormation for stack workflows, Cognito for local auth workflows, AWS Config for compliance setup workflows, RDS for database lifecycle workflows, Auto Scaling for capacity workflows, ELB v2 for load-balancing topology workflows, CloudFront for CDN management workflows, and Route 53 for DNS management workflows.
 
 Goal: add or improve the <SERVICE> dashboard feature.
 

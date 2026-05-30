@@ -1066,12 +1066,19 @@ def kms_inventory() -> dict[str, Any]:
             'GetKeyRotationStatus',
             'EnableKeyRotation',
             'DisableKeyRotation',
+            'RotateKeyOnDemand',
+            'CreateGrant',
+            'ListGrants',
+            'ListRetirableGrants',
+            'RevokeGrant',
+            'RetireGrant',
         ],
         'notes': [
             'KMS uses JSON 1.1 with X-Amz-Target: TrentService.* against the local Floci endpoint.',
             'CreateKey accepts creation-time tag floci:override-id for deterministic local test key IDs.',
             'Floci strips reserved floci:* tags from stored resource tags and rejects adding them later.',
             'Floci 1.5.18 adds KMS GenerateMac and VerifyMac support.',
+            'Grant lifecycle APIs are stored and queryable but are not evaluated during cryptographic operations.',
         ],
     }
 
@@ -1819,9 +1826,18 @@ def config_inventory() -> dict[str, Any]:
                 'PutDeliveryChannel',
                 'DescribeDeliveryChannels',
                 'PutConfigRule',
+                'DeleteConfigRule',
                 'DescribeConfigRules',
-                'GetComplianceSummaryByConfigRule',
-                'GetComplianceSummaryByResourceType',
+                'DescribeComplianceByConfigRule',
+                'DescribeConfigRuleEvaluationStatus',
+                'StartConfigRulesEvaluation',
+                'PutConformancePack',
+                'DeleteConformancePack',
+                'DescribeConformancePacks',
+                'DescribeConformancePackStatus',
+                'TagResource',
+                'UntagResource',
+                'ListTagsForResource',
             ]
             if operation in operations
         ],
@@ -1829,6 +1845,7 @@ def config_inventory() -> dict[str, Any]:
         'notes': [
             'Floci 1.5.18 adds AWS Config service emulation for configuration recording, compliance rules, and resource tracking workflows.',
             'This page shows the management-plane inventory most useful for checking local compliance and recorder setup.',
+            'Compliance status always returns INSUFFICIENT_DATA because Floci stores resources but does not perform actual evaluation.',
         ],
     }
 
@@ -4449,9 +4466,31 @@ def pipes_inventory() -> dict[str, Any]:
             'TagResource',
             'UntagResource',
         ],
+        'supported_sources': [
+            'SQS queues',
+            'Kinesis streams',
+            'DynamoDB streams',
+            'Kafka topics (MSK)',
+        ],
+        'supported_targets': [
+            'Lambda functions',
+            'SQS queues',
+            'SNS topics',
+            'Kinesis streams',
+            'Step Functions state machines',
+        ],
+        'pipe_states': [
+            'STARTING',
+            'RUNNING',
+            'STOPPING',
+            'STOPPED',
+            'DELETED',
+        ],
         'notes': [
-            'This page is inferred from the EventBridge Pipes AWS SDK API because service docs were not provided for this pass.',
+            'EventBridge Pipes uses a REST-JSON API against the local Floci endpoint.',
             'Pipe summaries are expanded with DescribePipe so source, enrichment, target, logging, role, KMS, and tag data are visible.',
+            'Supported sources include SQS, Kinesis, DynamoDB streams, and Kafka topics.',
+            'Supported targets include Lambda, SQS, SNS, Kinesis, and Step Functions.',
         ],
     }
 
@@ -6893,6 +6932,9 @@ def scheduler_inventory() -> dict[str, Any]:
             'UpdateSchedule',
             'DeleteSchedule',
             'ListSchedules',
+            'TagResource',
+            'UntagResource',
+            'ListTagsForResource',
         ],
         'supported_expressions': [
             'at(YYYY-MM-DDTHH:mm:ss)',
@@ -6906,7 +6948,6 @@ def scheduler_inventory() -> dict[str, Any]:
             'EventBridge PutEvents',
         ],
         'not_supported': [
-            'TagResource, UntagResource, ListTagsForResource',
             'RetryPolicy and DeadLetterConfig enforcement',
             'FlexibleTimeWindow jitter',
             'NextToken-based pagination',
