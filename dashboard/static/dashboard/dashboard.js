@@ -75,6 +75,7 @@ const appconfigLoadedAt = document.querySelector('#appconfig-loaded-at');
 const ecsGrid = document.querySelector('#ecs-grid');
 const ecsSummary = document.querySelector('#ecs-summary');
 const ecsLoadedAt = document.querySelector('#ecs-loaded-at');
+const ecsConsoleRoot = document.getElementById('ecs-console-root');
 const eksGrid = document.querySelector('#eks-grid');
 const eksSummary = document.querySelector('#eks-summary');
 const eksLoadedAt = document.querySelector('#eks-loaded-at');
@@ -145,6 +146,7 @@ const configConsoleRoot = document.getElementById('config-console-root');
 const ecrGrid = document.querySelector('#ecr-grid');
 const ecrSummary = document.querySelector('#ecr-summary');
 const ecrLoadedAt = document.querySelector('#ecr-loaded-at');
+const ecrConsoleRoot = document.getElementById('ecr-console-root');
 const rdsGrid = document.querySelector('#rds-grid');
 const rdsSummary = document.querySelector('#rds-summary');
 const rdsLoadedAt = document.querySelector('#rds-loaded-at');
@@ -157,6 +159,7 @@ const transferLoadedAt = document.querySelector('#transfer-loaded-at');
 const acmGrid = document.querySelector('#acm-grid');
 const acmSummary = document.querySelector('#acm-summary');
 const acmLoadedAt = document.querySelector('#acm-loaded-at');
+const acmConsoleRoot = document.getElementById('acm-console-root');
 const stepfunctionsGrid = document.querySelector('#stepfunctions-grid');
 const stepfunctionsSummary = document.querySelector('#stepfunctions-summary');
 const stepfunctionsLoadedAt = document.querySelector('#stepfunctions-loaded-at');
@@ -5278,7 +5281,9 @@ async function refresh() {
       await window.S3Console.refresh();
     } else if (service) {
       await loadServicePage(service);
-      if (service.key === 'iam' && iamConsoleRoot && window.IAMConsole) {
+      if (service.key === 'acm' && acmConsoleRoot && window.ACMConsole) {
+        await window.ACMConsole.refresh();
+      } else if (service.key === 'iam' && iamConsoleRoot && window.IAMConsole) {
         await window.IAMConsole.refresh();
       } else if (service.key === 'sqs' && sqsConsoleRoot && window.SQSConsole) {
         await window.SQSConsole.refresh();
@@ -5296,6 +5301,10 @@ async function refresh() {
         await window.EventBridgeConsole.refresh();
       } else if (service.key === 'ec2' && ec2ConsoleRoot && window.EC2Console) {
         await window.EC2Console.refresh();
+      } else if (service.key === 'ecr' && ecrConsoleRoot && window.ECRConsole) {
+        await window.ECRConsole.refresh();
+      } else if (service.key === 'ecs' && ecsConsoleRoot && window.ECSConsole) {
+        await window.ECSConsole.refresh();
       } else if (service.key === 'apigateway' && apigatewayConsoleRoot && window.ApiGatewayConsole) {
         await window.ApiGatewayConsole.refresh();
       } else if (service.key === 'kinesis' && kinesisConsoleRoot && window.KinesisConsole) {

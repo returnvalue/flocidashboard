@@ -25,7 +25,9 @@
     <div class="section-heading">
       <div>
         <h2>{{ service.title }} inventory</h2>
-        {% if service.key == 's3' %}
+        {% if service.key == 'acm' %}
+          <nav id="acm-breadcrumbs" class="acm-breadcrumbs" aria-label="ACM navigation"></nav>
+        {% elif service.key == 's3' %}
           <nav id="s3-breadcrumbs" class="s3-breadcrumbs" aria-label="S3 navigation"></nav>
         {% elif service.key == 'iam' %}
           <nav id="iam-breadcrumbs" class="iam-breadcrumbs-console" aria-label="IAM navigation"></nav>
@@ -49,6 +51,10 @@
           <nav id="eventbridge-breadcrumbs" class="eventbridge-breadcrumbs" aria-label="EventBridge navigation"></nav>
         {% elif service.key == 'ec2' %}
           <nav id="ec2-breadcrumbs" class="ec2-breadcrumbs" aria-label="EC2 navigation"></nav>
+        {% elif service.key == 'ecr' %}
+          <nav id="ecr-breadcrumbs" class="ecr-breadcrumbs" aria-label="ECR navigation"></nav>
+        {% elif service.key == 'ecs' %}
+          <nav id="ecs-breadcrumbs" class="ecs-breadcrumbs" aria-label="ECS navigation"></nav>
         {% elif service.key == 'apigateway' %}
           <nav id="apigateway-breadcrumbs" class="apigateway-breadcrumbs" aria-label="API Gateway navigation"></nav>
         {% elif service.key == 'kinesis' %}
@@ -80,7 +86,16 @@
       <span id="{{ service.key }}-loaded-at"></span>
     </div>
     <div id="{{ service.key }}-summary" class="summary-grid"></div>
-    {% if service.key == 's3' %}
+    {% if service.key == 'acm' %}
+      <div id="acm-console-root" class="acm-console-root" aria-live="polite"></div>
+      <details class="acm-about-floci">
+        <summary>About Floci ACM</summary>
+        <p>Local ACM stores AWS-compatible certificate metadata and issues requested certificates immediately for local emulation.</p>
+        <p>ACM is most often used to test TLS certificate wiring for load balancers, CloudFront, API endpoints, and infrastructure automation. In Floci, a good learning flow is to request a certificate, inspect the issued metadata and validation options, add tags, then export a private certificate when testing workflows that need key material.</p>
+        <p>Certificates use real RSA or EC keys and valid X.509 structure. Validation is emulator-friendly, and only PRIVATE certificates can be exported with an encrypted private key.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid acm-readonly-grid"></div>
+    {% elif service.key == 's3' %}
       <div id="s3-console-root" class="s3-console-root" aria-live="polite"></div>
       <details class="s3-about-floci">
         <summary>About Floci S3</summary>
@@ -197,6 +212,24 @@
         <p>Common local test cases include UserData bootstrapping, instance metadata calls, IAM instance profile credential wiring, security group inventory, and app behavior across stop/start or termination.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid ec2-readonly-grid"></div>
+    {% elif service.key == 'ecr' %}
+      <div id="ecr-console-root" class="ecr-console-root" aria-live="polite"></div>
+      <details class="ecr-about-floci">
+        <summary>About Floci ECR</summary>
+        <p>Local ECR combines an AWS-compatible control plane with a real OCI Distribution v2 registry sidecar for Docker push and pull workflows.</p>
+        <p>ECR is most useful when testing image-backed Lambda functions, ECS task definitions, CDK Docker assets, and repository automation. In Floci, a good learning flow is to create a repository, copy the docker login command, push an image, inspect image tags and digests, then delete images or the repository when the local scenario is done.</p>
+        <p>Lifecycle and repository policies are stored for API compatibility but are not enforced. Deleted image blobs are reclaimed by the local garbage-collection admin endpoint.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid ecr-readonly-grid"></div>
+    {% elif service.key == 'ecs' %}
+      <div id="ecs-console-root" class="ecs-console-root" aria-live="polite"></div>
+      <details class="ecs-about-floci">
+        <summary>About Floci ECS</summary>
+        <p>Local ECS stores clusters, task definitions, tasks, services, task sets, container instances, capacity providers, account settings, attributes, and tags through the AWS-compatible JSON API.</p>
+        <p>ECS is most useful when testing containerized local workloads and service orchestration. In Floci, a good learning flow is to create a cluster, register a task definition, run a one-off task, then create a service and adjust its desired count.</p>
+        <p>By default tasks launch as real Docker containers and need Docker socket access. Set FLOCI_SERVICES_ECS_MOCK=true when tests or CI should run without Docker.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid ecs-readonly-grid"></div>
     {% elif service.key == 'apigateway' %}
       <div id="apigateway-console-root" class="apigateway-console-root" aria-live="polite"></div>
       <details class="apigateway-about-floci">

@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import apigateway_views, autoscaling_views, cloudformation_views, cloudfront_views, cloudwatch_logs_views, cognito_views, config_views, dynamodb_views, ec2_views, elasticloadbalancing_views, eventbridge_views, iam_views, kinesis_views, kms_views, lambda_views, pipes_views, rds_views, route53_views, s3_views, scheduler_views, secretsmanager_views, sns_views, sqs_views, ssm_views, stepfunctions_views, views
+from . import acm_views, apigateway_views, autoscaling_views, cloudformation_views, cloudfront_views, cloudwatch_logs_views, cognito_views, config_views, dynamodb_views, ec2_views, ecr_views, ecs_views, elasticloadbalancing_views, eventbridge_views, iam_views, kinesis_views, kms_views, lambda_views, pipes_views, rds_views, route53_views, s3_views, scheduler_views, secretsmanager_views, sns_views, sqs_views, ssm_views, stepfunctions_views, views
 
 app_name = 'dashboard'
 
@@ -8,6 +8,12 @@ urlpatterns = [
     path('', views.index, name='index'),
     path('service/<slug:service_key>/', views.service_page, name='service-page'),
     path('api/acm/', views.acm, name='acm'),
+    path('api/acm/certificates/', acm_views.acm_certificates_create, name='acm-certificates'),
+    path('api/acm/certificates/<path:certificate_arn>/renew/', acm_views.acm_certificate_renew, name='acm-certificate-renew'),
+    path('api/acm/certificates/<path:certificate_arn>/export/', acm_views.acm_certificate_export, name='acm-certificate-export'),
+    path('api/acm/certificates/<path:certificate_arn>/tags/', acm_views.acm_certificate_tags, name='acm-certificate-tags'),
+    path('api/acm/certificates/<path:certificate_arn>/', acm_views.acm_certificate_detail, name='acm-certificate-detail'),
+    path('api/acm/account-configuration/', acm_views.acm_account_configuration, name='acm-account-configuration'),
     path('api/apigateway/', views.apigateway, name='apigateway'),
     path('api/apigateway/requests/test/', apigateway_views.apigateway_requests_test, name='apigateway-requests-test'),
     path('api/appconfig/', views.appconfig, name='appconfig'),
@@ -91,7 +97,26 @@ urlpatterns = [
     path('api/ec2/instances/<str:instance_id>/terminate/', ec2_views.ec2_instance_terminate, name='ec2-instance-terminate'),
     path('api/ec2/key-pairs/import/', ec2_views.ec2_key_pairs_import, name='ec2-key-pairs-import'),
     path('api/ecr/', views.ecr, name='ecr'),
+    path('api/ecr/repositories/', ecr_views.ecr_repositories_create, name='ecr-repositories'),
+    path('api/ecr/repositories/delete/', ecr_views.ecr_repositories_delete, name='ecr-repositories-delete'),
+    path('api/ecr/auth-token/', ecr_views.ecr_authorization_token, name='ecr-auth-token'),
+    path('api/ecr/images/delete/', ecr_views.ecr_images_delete, name='ecr-images-delete'),
+    path('api/ecr/tag-mutability/', ecr_views.ecr_tag_mutability_put, name='ecr-tag-mutability'),
+    path('api/ecr/lifecycle-policy/', ecr_views.ecr_lifecycle_policy, name='ecr-lifecycle-policy'),
+    path('api/ecr/repository-policy/', ecr_views.ecr_repository_policy, name='ecr-repository-policy'),
+    path('api/ecr/tags/', ecr_views.ecr_tags, name='ecr-tags'),
+    path('api/ecr/garbage-collection/', ecr_views.ecr_garbage_collection, name='ecr-garbage-collection'),
     path('api/ecs/', views.ecs, name='ecs'),
+    path('api/ecs/clusters/', ecs_views.ecs_clusters_create, name='ecs-clusters'),
+    path('api/ecs/clusters/delete/', ecs_views.ecs_clusters_delete, name='ecs-clusters-delete'),
+    path('api/ecs/task-definitions/', ecs_views.ecs_task_definitions_register, name='ecs-task-definitions'),
+    path('api/ecs/tasks/run/', ecs_views.ecs_tasks_run, name='ecs-tasks-run'),
+    path('api/ecs/tasks/stop/', ecs_views.ecs_tasks_stop, name='ecs-tasks-stop'),
+    path('api/ecs/services/', ecs_views.ecs_services_create, name='ecs-services'),
+    path('api/ecs/services/update/', ecs_views.ecs_services_update, name='ecs-services-update'),
+    path('api/ecs/services/delete/', ecs_views.ecs_services_delete, name='ecs-services-delete'),
+    path('api/ecs/tags/', ecs_views.ecs_tags, name='ecs-tags'),
+    path('api/ecs/account-settings/', ecs_views.ecs_account_settings_put, name='ecs-account-settings'),
     path('api/eks/', views.eks, name='eks'),
     path('api/elasticache/', views.elasticache, name='elasticache'),
     path('api/elasticloadbalancing/', views.elasticloadbalancing, name='elasticloadbalancing'),
