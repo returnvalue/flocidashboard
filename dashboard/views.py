@@ -1,7 +1,9 @@
 from dataclasses import asdict
+from pathlib import Path
 from typing import Optional
 
 from botocore.exceptions import BotoCoreError, ClientError
+from django.conf import settings
 from django.http import Http404, JsonResponse
 from django.shortcuts import render
 from .aws import FlociClientFactory, acm_inventory, apigateway_inventory, appconfig_inventory, athena_inventory, autoscaling_inventory, backup_inventory, bcmdataexports_inventory, bedrockruntime_inventory, cloudformation_inventory, cloudfront_inventory, cloudwatch_inventory, codebuild_inventory, codedeploy_inventory, config_inventory, cognito_inventory, costexplorer_inventory, cur_inventory, dynamodb_inventory, ec2_inventory, ecr_inventory, ecs_inventory, eks_inventory, elasticache_inventory, elasticloadbalancing_inventory, eventbridge_inventory, firehose_inventory, glue_inventory, iam_inventory, kafka_inventory, kinesis_inventory, kms_inventory, lambda_inventory, list_resources, neptune_inventory, opensearch_inventory, pipes_inventory, pricing_inventory, rds_inventory, resourcegroupstagging_inventory, route53_inventory, s3_inventory, scheduler_inventory, secretsmanager_inventory, ses_inventory, sns_inventory, sqs_inventory, ssm_inventory, stepfunctions_inventory, textract_inventory, transcribe_inventory, transfer_inventory
@@ -40,7 +42,22 @@ def service_page(request, service_key: str):
     if not service_definition:
         raise Http404('Service page not found')
 
-    return render(request, 'dashboard/service.html', {'service': service_definition.page_context()})
+    context = service_definition.page_context()
+    static_assets = [
+        asset
+        for asset in [context.get('console_css'), context.get('console_js'), 'dashboard/service-console.js']
+        if asset and (asset != 'dashboard/service-console.js' or context.get('shared_console'))
+    ]
+    asset_versions = []
+    for asset in static_assets:
+        asset_path = Path(settings.BASE_DIR) / 'dashboard' / 'static' / asset
+        try:
+            asset_versions.append(str(int(asset_path.stat().st_mtime)))
+        except OSError:
+            continue
+    context['asset_version'] = '-'.join(asset_versions) or 'dev'
+
+    return render(request, 'dashboard/service.html', {'service': context})
 
 
 def services(request):

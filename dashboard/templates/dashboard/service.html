@@ -5,7 +5,7 @@
 
 {% block extrahead %}
   {% if service.console_css %}
-    <link rel="stylesheet" href="{% static service.console_css %}">
+    <link rel="stylesheet" href="{% static service.console_css %}?v={{ service.asset_version }}">
   {% endif %}
 {% endblock %}
 
@@ -55,6 +55,14 @@
           <nav id="ecr-breadcrumbs" class="ecr-breadcrumbs" aria-label="ECR navigation"></nav>
         {% elif service.key == 'ecs' %}
           <nav id="ecs-breadcrumbs" class="ecs-breadcrumbs" aria-label="ECS navigation"></nav>
+        {% elif service.key == 'eks' %}
+          <nav id="eks-breadcrumbs" class="eks-breadcrumbs" aria-label="EKS navigation"></nav>
+        {% elif service.key == 'elasticache' %}
+          <nav id="elasticache-breadcrumbs" class="elasticache-breadcrumbs" aria-label="ElastiCache navigation"></nav>
+        {% elif service.key == 'opensearch' %}
+          <nav id="opensearch-breadcrumbs" class="opensearch-breadcrumbs" aria-label="OpenSearch navigation"></nav>
+        {% elif service.key == 'athena' %}
+          <nav id="athena-breadcrumbs" class="athena-breadcrumbs" aria-label="Athena navigation"></nav>
         {% elif service.key == 'apigateway' %}
           <nav id="apigateway-breadcrumbs" class="apigateway-breadcrumbs" aria-label="API Gateway navigation"></nav>
         {% elif service.key == 'kinesis' %}
@@ -293,6 +301,42 @@
         <p>A good learning flow is to create a load balancer, create a target group, register local EC2 or IP targets, create a listener with a default forward action, then add a path-based rule.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid elasticloadbalancing-readonly-grid"></div>
+    {% elif service.key == 'eks' %}
+      <div id="eks-console-root" class="eks-console-root" aria-live="polite"></div>
+      <details class="eks-about-floci">
+        <summary>About Floci EKS</summary>
+        <p>Local EKS uses the AWS-compatible REST JSON API for cluster metadata, tags, and cluster lifecycle calls.</p>
+        <p>In mock mode, clusters become ACTIVE immediately and no Kubernetes API server is started. In real mode, Floci starts a k3s container per cluster and exposes the API server on a host port from the configured range.</p>
+        <p>This first workbench focuses on the supported Phase 1 surface: create clusters, inspect cluster endpoints and metadata, add or remove tags, and delete clusters.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid eks-readonly-grid"></div>
+    {% elif service.key == 'elasticache' %}
+      <div id="elasticache-console-root" class="elasticache-console-root" aria-live="polite"></div>
+      <details class="elasticache-about-floci">
+        <summary>About Floci ElastiCache</summary>
+        <p>Local ElastiCache uses the AWS-compatible Query management API and runs real Valkey or Redis Docker containers behind TCP proxy ports.</p>
+        <p>A good learning flow is to create a replication group, inspect the primary endpoint port, connect with redis-cli or your application, then delete the group when the local cache is no longer needed.</p>
+        <p>Floci also supports ElastiCache users and IAM auth token validation, so local cache clients can test RBAC-style access strings and IAM-authenticated connection flows.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid elasticache-readonly-grid"></div>
+    {% elif service.key == 'opensearch' %}
+      <div id="opensearch-console-root" class="opensearch-console-root" aria-live="polite"></div>
+      <details class="opensearch-about-floci">
+        <summary>About Floci OpenSearch</summary>
+        <p>Local OpenSearch uses the AWS-compatible REST JSON management API. In mock mode, domain metadata is stored in-process; in real mode, Floci starts one OpenSearch or Elasticsearch container per domain.</p>
+        <p>A good learning flow is to create a domain, inspect its endpoint and health, test config changes, add tags, then delete the domain when the local search cluster is no longer needed.</p>
+        <p>Floci validates supported engine versions and exposes instance type details so SDK clients and infrastructure tools can inspect realistic domain metadata while the runtime stays local.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid opensearch-readonly-grid"></div>
+    {% elif service.key == 'athena' %}
+      <div id="athena-console-root" class="athena-console-root" aria-live="polite"></div>
+      <details class="athena-about-floci">
+        <summary>About Floci Athena</summary>
+        <p>Local Athena uses the AWS-compatible JSON 1.1 API and runs SQL through a floci-duck sidecar powered by DuckDB.</p>
+        <p>A good learning flow is to register S3-backed tables in Glue, start a SQL query here, watch the query state, then fetch the completed result rows from the S3-backed CSV output.</p>
+        <p>Mock mode skips DuckDB execution and immediately returns successful empty results, which is useful when tests only need the Athena query state machine.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid athena-readonly-grid"></div>
     {% elif service.key == 'cloudfront' %}
       <div id="cloudfront-console-root" class="cloudfront-console-root" aria-live="polite"></div>
       <details class="cloudfront-about-floci">
@@ -348,9 +392,9 @@
 
 {% block extrascripts %}
   {% if service.shared_console %}
-    <script src="{% static 'dashboard/service-console.js' %}"></script>
+    <script src="{% static 'dashboard/service-console.js' %}?v={{ service.asset_version }}"></script>
   {% endif %}
   {% if service.console_js %}
-    <script src="{% static service.console_js %}"></script>
+    <script src="{% static service.console_js %}?v={{ service.asset_version }}"></script>
   {% endif %}
 {% endblock %}

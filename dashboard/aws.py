@@ -896,6 +896,8 @@ def ec2_inventory() -> dict[str, Any]:
             'public_dns': instance.get('PublicDnsName'),
             'security_groups': instance.get('SecurityGroups', []),
             'network_interfaces': instance.get('NetworkInterfaces', []),
+            'block_device_mappings': instance.get('BlockDeviceMappings', []),
+            'iam_instance_profile': instance.get('IamInstanceProfile'),
             'placement': instance.get('Placement'),
             'root_device_name': instance.get('RootDeviceName'),
             'root_device_type': instance.get('RootDeviceType'),
@@ -917,6 +919,10 @@ def ec2_inventory() -> dict[str, Any]:
     internet_gateways = _clean_response(_safe_value(lambda: ec2.describe_internet_gateways().get('InternetGateways', []), []))
     route_tables = _clean_response(_safe_value(lambda: ec2.describe_route_tables().get('RouteTables', []), []))
     addresses = _clean_response(_safe_value(lambda: ec2.describe_addresses().get('Addresses', []), []))
+    iam_instance_profile_associations = _clean_response(_safe_value(
+        lambda: _paginate(ec2, 'describe_iam_instance_profile_associations', 'IamInstanceProfileAssociations'),
+        [],
+    ))
     availability_zones = _clean_response(_safe_value(lambda: ec2.describe_availability_zones().get('AvailabilityZones', []), []))
     regions = _clean_response(_safe_value(lambda: ec2.describe_regions().get('Regions', []), []))
     account_attributes = _clean_response(_safe_value(lambda: ec2.describe_account_attributes().get('AccountAttributes', []), []))
@@ -932,6 +938,7 @@ def ec2_inventory() -> dict[str, Any]:
             'route_tables': len(route_tables),
             'elastic_ips': len(addresses),
             'key_pairs': len(key_pairs),
+            'iam_instance_profile_associations': len(iam_instance_profile_associations),
         },
         'instances': instances,
         'vpcs': vpcs,
@@ -944,6 +951,7 @@ def ec2_inventory() -> dict[str, Any]:
         'internet_gateways': internet_gateways,
         'route_tables': route_tables,
         'addresses': addresses,
+        'iam_instance_profile_associations': iam_instance_profile_associations,
         'availability_zones': availability_zones,
         'regions': regions,
         'account_attributes': account_attributes,
@@ -964,6 +972,7 @@ def ec2_inventory() -> dict[str, Any]:
             'Use ImportKeyPair with a real public key for working SSH access.',
             'Floci serves IMDS-compatible metadata on the configured host IMDS port, default 9169.',
             'Security group rules are stored and returned but local Docker networking handles enforcement.',
+            'Floci 1.5.21 improves EC2 parity for VPC, subnet, and instance methods, subnet attributes, block-device attachTime, volume throughput, DescribeAddressesAttribute, and IAM instance profiles.',
         ],
     }
 
@@ -1078,6 +1087,7 @@ def kms_inventory() -> dict[str, Any]:
             'CreateKey accepts creation-time tag floci:override-id for deterministic local test key IDs.',
             'Floci strips reserved floci:* tags from stored resource tags and rejects adding them later.',
             'Floci 1.5.18 adds KMS GenerateMac and VerifyMac support.',
+            'Floci 1.5.21 enforces the RotateKeyOnDemand rotation limit.',
             'Grant lifecycle APIs are stored and queryable but are not evaluated during cryptographic operations.',
         ],
     }
@@ -1619,6 +1629,7 @@ def dynamodb_inventory() -> dict[str, Any]:
         ],
         'notes': [
             'Floci 1.5.17 adds DynamoDB PartiQL support for ExecuteStatement, ExecuteTransaction, and BatchExecuteStatement.',
+            'Floci 1.5.21 merges nested map paths correctly in ProjectionExpression.',
             'UpdateItem now honors the legacy Expected condition shape for compatibility with older clients.',
         ],
         'streams_supported': [
@@ -1960,6 +1971,7 @@ def eventbridge_inventory() -> dict[str, Any]:
         'notes': [
             'The default event bus is named default and accepts AWS service events.',
             'Custom event buses are for application events.',
+            'Floci 1.5.21 fixes rule tagging on custom buses whose name contains event-bus.',
         ],
     }
 
@@ -2080,6 +2092,7 @@ def cognito_inventory() -> dict[str, Any]:
             'discovery_url': f'{factory.endpoint_url.rstrip("/")}/{pool_id}/.well-known/openid-configuration' if pool_id else None,
             'jwks_url': f'{factory.endpoint_url.rstrip("/")}/{pool_id}/.well-known/jwks.json' if pool_id else None,
             'oauth_token_url': f'{factory.endpoint_url.rstrip("/")}/cognito-idp/oauth2/token',
+            'oauth_userinfo_url': f'{factory.endpoint_url.rstrip("/")}/cognito-idp/oauth2/userInfo',
         }
 
     detailed_pools = [pool_detail(pool) for pool in pools]
@@ -2149,11 +2162,13 @@ def cognito_inventory() -> dict[str, Any]:
             'GET /{userPoolId}/.well-known/openid-configuration',
             'GET /{userPoolId}/.well-known/jwks.json',
             'POST /cognito-idp/oauth2/token',
+            'GET /cognito-idp/oauth2/userInfo',
         ],
         'notes': [
             'Client secrets are intentionally omitted from dashboard output.',
             'floci:override-id can pin a user pool ID at creation time and is stripped from persisted tags.',
             'OAuth client_credentials is emulator-friendly and does not require a Cognito domain.',
+            'Floci 1.5.21 adds the OAuth2 userInfo endpoint plus custom schema attributes and attribute deletion APIs.',
             'Tokens use the local emulator base URL plus pool ID as issuer.',
             'Floci 1.5.19 provisions UserPool and UserPoolClient resources from CloudFormation and includes user attributes in ID token claims.',
             'Floci 1.5.17 fires PreSignUp and PostConfirmation Lambda triggers for local auth flows.',
@@ -2349,6 +2364,7 @@ def apigateway_inventory() -> dict[str, Any]:
         ],
         'notes': [
             'Floci supports API Gateway v1 REST APIs and API Gateway v2 HTTP APIs.',
+            'Floci 1.5.21 implements the API Gateway v1 DeleteDeployment endpoint and returns JSON 404 errors for missing deployments.',
             'Floci 1.5.19 fills REQUEST authorizer events for REST APIs, supports Lambda REQUEST authorizers on HTTP API v2 routes, and persists v1 UpdateStage methodSettings patch operations.',
             'Floci 1.5.18 forwards API Gateway v2 HTTP API requests through ALB listeners.',
             'Floci 1.5.17 adds API Gateway v1 account management endpoints and API Gateway v2 HTTP_PROXY integrations with request parameter mapping.',
@@ -3476,8 +3492,9 @@ def eks_inventory() -> dict[str, Any]:
             'ListAssociatedAccessPolicies',
         ],
         'notes': [
-            'This page is inferred from the EKS AWS SDK API because service docs were not provided for this pass.',
-            'Nested resources are listed from each cluster and flattened into their own panels for scanning.',
+            'Floci EKS Phase 1 supports cluster create, describe, list, delete, tag, untag, and list-tags operations through the REST JSON API.',
+            'Mock mode stores cluster metadata in-process and marks clusters ACTIVE immediately; real mode starts a k3s container per cluster.',
+            'Node groups, Fargate profiles, add-ons, identity provider configs, access entries, and policy associations are shown when the SDK exposes them, but they are not part of the current interactive workbench.',
         ],
     }
 
@@ -3644,9 +3661,9 @@ def elasticache_inventory() -> dict[str, Any]:
             'DescribeEvents',
         ],
         'notes': [
-            'This page is inferred from the ElastiCache AWS SDK API because service docs were not provided for this pass.',
-            'Floci 1.5.18 adds Memcached CreateCacheCluster and DescribeCacheClusters support.',
-            'Cluster and replication-group detail is normalized; lower-volume supporting resources are shown as cleaned AWS responses.',
+            'Floci ElastiCache uses the AWS-compatible Query management API and Redis RESP for the data plane.',
+            'CreateReplicationGroup starts a real Valkey or Redis Docker container and exposes it through a local TCP proxy port.',
+            'Supported interactive workflows include replication-group lifecycle, ElastiCache users, user access strings, and IAM auth token validation.',
         ],
     }
 
@@ -3963,6 +3980,7 @@ def firehose_inventory() -> dict[str, Any]:
         ],
         'notes': [
             'This page is inferred from the Firehose AWS SDK API because service docs were not provided for this pass.',
+            'Floci 1.5.21 adds TagDeliveryStream, UntagDeliveryStream, and ListTagsForDeliveryStream support.',
             'Destinations are flattened from each delivery stream so S3, OpenSearch, HTTP, Splunk, Redshift, Snowflake, and Iceberg configs can be scanned together.',
         ],
     }
@@ -4398,8 +4416,9 @@ def opensearch_inventory() -> dict[str, Any]:
             'ListTags',
         ],
         'notes': [
-            'This page is inferred from the OpenSearch AWS SDK API because service docs were not provided for this pass.',
-            'OpenSearch is also wired from the es service alias when it appears on the homepage.',
+            'Floci OpenSearch supports mock metadata mode and real container-backed domains exposed on ports 9400-9499.',
+            'Supported interactive workflows include domain lifecycle, config updates, upgrades, tags, versions, and instance type limits.',
+            'Real mode picks an OpenSearch or Elasticsearch image from the requested EngineVersion and marks the domain ready after cluster health is green or yellow.',
         ],
     }
 
@@ -6010,6 +6029,39 @@ def ses_inventory() -> dict[str, Any]:
         lambda: _paginate(sesv2, 'list_email_templates', 'TemplatesMetadata'),
         {'NotFoundException', 'BadRequestException'},
     )
+    v2_configuration_sets = _ses_optional(
+        lambda: sesv2.list_configuration_sets().get('ConfigurationSets', []),
+        {'NotFoundException', 'BadRequestException'},
+    )
+
+    def configuration_set_name(configuration_set: Any) -> str | None:
+        if isinstance(configuration_set, str):
+            return configuration_set
+        if isinstance(configuration_set, dict):
+            return configuration_set.get('Name') or configuration_set.get('ConfigurationSetName')
+        return None
+
+    detailed_v2_configuration_sets: list[dict[str, Any]] | Any = v2_configuration_sets
+    if isinstance(v2_configuration_sets, list):
+        detailed_v2_configuration_sets = []
+        for configuration_set in v2_configuration_sets:
+            name = configuration_set_name(configuration_set)
+            details = _ses_optional(
+                lambda name=name: sesv2.get_configuration_set(ConfigurationSetName=name),
+                {'NotFoundException', 'BadRequestException'},
+            ) if name else None
+            event_destinations = _ses_optional(
+                lambda name=name: sesv2.get_configuration_set_event_destinations(
+                    ConfigurationSetName=name,
+                ).get('EventDestinations', []),
+                {'NotFoundException', 'BadRequestException'},
+            ) if name else []
+            detailed_v2_configuration_sets.append({
+                'name': name,
+                'details': details,
+                'event_destinations': event_destinations,
+                'event_destination_count': len(event_destinations) if isinstance(event_destinations, list) else 0,
+            })
 
     return {
         'summary': {
@@ -6019,6 +6071,13 @@ def ses_inventory() -> dict[str, Any]:
             'captured_messages': len(messages),
             'v2_identities': len(v2_identities) if isinstance(v2_identities, list) else 0,
             'v2_templates': len(v2_templates) if isinstance(v2_templates, list) else 0,
+            'v2_configuration_sets': (
+                len(detailed_v2_configuration_sets) if isinstance(detailed_v2_configuration_sets, list) else 0
+            ),
+            'v2_event_destinations': (
+                sum(item.get('event_destination_count') or 0 for item in detailed_v2_configuration_sets)
+                if isinstance(detailed_v2_configuration_sets, list) else 0
+            ),
         },
         'identities': detailed_identities,
         'verified_email_addresses': _string_items(verified_emails, 'email'),
@@ -6033,6 +6092,7 @@ def ses_inventory() -> dict[str, Any]:
         },
         'v2_identities': v2_identities,
         'v2_templates': v2_templates,
+        'v2_configuration_sets': detailed_v2_configuration_sets,
         'supported_v1': [
             'VerifyEmailIdentity',
             'VerifyEmailAddress',
@@ -6073,6 +6133,14 @@ def ses_inventory() -> dict[str, Any]:
             'GetEmailTemplate',
             'UpdateEmailTemplate',
             'DeleteEmailTemplate',
+            'CreateConfigurationSet',
+            'ListConfigurationSets',
+            'GetConfigurationSet',
+            'DeleteConfigurationSet',
+            'CreateConfigurationSetEventDestination',
+            'GetConfigurationSetEventDestinations',
+            'UpdateConfigurationSetEventDestination',
+            'DeleteConfigurationSetEventDestination',
         ],
         'inspection_endpoints': [
             'GET /_aws/ses',
@@ -6097,6 +6165,7 @@ def ses_inventory() -> dict[str, Any]:
             'Emails are always stored locally and can be inspected through /_aws/ses.',
             'SMTP relay failures are logged but do not affect the SES API response.',
             'SES v1 and SES v2 share identity, template, and sent-message state.',
+            'Floci 1.5.21 adds SES v2 configuration set event destination operations.',
             'Floci 1.5.17 adds SES v2 PutAccountSuppressionAttributes.',
         ],
     }
@@ -6326,6 +6395,7 @@ def cloudformation_inventory() -> dict[str, Any]:
         'notes': [
             'CloudFormation actions use the Query XML protocol at the Floci root endpoint.',
             'Stacks can expose templates, events, resources, outputs, stack policies, and change sets.',
+            'Floci 1.5.21 forwards AWS::ApiGatewayV2::Api properties to the API Gateway v2 service.',
             'Floci 1.5.19 provisions SQS ContentBasedDeduplication, SNS to SQS subscriptions, Cognito UserPool resources, and Cognito UserPoolClient resources from templates.',
         ],
     }
@@ -6619,6 +6689,7 @@ def rds_inventory() -> dict[str, Any]:
             'RDS management uses Query XML and the data plane uses PostgreSQL or MySQL wire protocol.',
             'Floci manages real PostgreSQL, MySQL, and MariaDB Docker containers.',
             'Instances expose local TCP proxy endpoints on localhost:<proxy-port>.',
+            'Floci 1.5.21 restores persisted runtime state on startup for local RDS resources.',
             'IAM database authentication is supported when enabled at instance creation time.',
         ],
     }

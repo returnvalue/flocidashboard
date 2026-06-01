@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import acm_views, apigateway_views, autoscaling_views, cloudformation_views, cloudfront_views, cloudwatch_logs_views, cognito_views, config_views, dynamodb_views, ec2_views, ecr_views, ecs_views, elasticloadbalancing_views, eventbridge_views, iam_views, kinesis_views, kms_views, lambda_views, pipes_views, rds_views, route53_views, s3_views, scheduler_views, secretsmanager_views, sns_views, sqs_views, ssm_views, stepfunctions_views, views
+from . import acm_views, apigateway_views, athena_views, autoscaling_views, cloudformation_views, cloudfront_views, cloudwatch_logs_views, cognito_views, config_views, dynamodb_views, ec2_views, ecr_views, ecs_views, eks_views, elasticache_views, elasticloadbalancing_views, eventbridge_views, iam_views, kinesis_views, kms_views, lambda_views, opensearch_views, pipes_views, rds_views, route53_views, s3_views, scheduler_views, secretsmanager_views, sns_views, sqs_views, ssm_views, stepfunctions_views, views
 
 app_name = 'dashboard'
 
@@ -18,6 +18,11 @@ urlpatterns = [
     path('api/apigateway/requests/test/', apigateway_views.apigateway_requests_test, name='apigateway-requests-test'),
     path('api/appconfig/', views.appconfig, name='appconfig'),
     path('api/athena/', views.athena, name='athena'),
+    path('api/athena/queries/start/', athena_views.athena_queries_start, name='athena-queries-start'),
+    path('api/athena/queries/stop/', athena_views.athena_queries_stop, name='athena-queries-stop'),
+    path('api/athena/queries/results/', athena_views.athena_queries_results, name='athena-queries-results'),
+    path('api/athena/queries/detail/', athena_views.athena_queries_detail, name='athena-queries-detail'),
+    path('api/athena/workgroups/', athena_views.athena_workgroups_create, name='athena-workgroups'),
     path('api/autoscaling/', views.autoscaling, name='autoscaling'),
     path('api/autoscaling/launch-configurations/', autoscaling_views.autoscaling_launch_configurations_create, name='autoscaling-launch-configurations'),
     path('api/autoscaling/launch-configurations/<str:name>/', autoscaling_views.autoscaling_launch_configuration_delete, name='autoscaling-launch-configuration-detail'),
@@ -118,7 +123,17 @@ urlpatterns = [
     path('api/ecs/tags/', ecs_views.ecs_tags, name='ecs-tags'),
     path('api/ecs/account-settings/', ecs_views.ecs_account_settings_put, name='ecs-account-settings'),
     path('api/eks/', views.eks, name='eks'),
+    path('api/eks/clusters/', eks_views.eks_clusters_create, name='eks-clusters'),
+    path('api/eks/clusters/delete/', eks_views.eks_clusters_delete, name='eks-clusters-delete'),
+    path('api/eks/tags/', eks_views.eks_tags, name='eks-tags'),
+    path('api/eks/tags/list/', eks_views.eks_tags_list, name='eks-tags-list'),
     path('api/elasticache/', views.elasticache, name='elasticache'),
+    path('api/elasticache/replication-groups/', elasticache_views.elasticache_replication_groups_create, name='elasticache-replication-groups'),
+    path('api/elasticache/replication-groups/delete/', elasticache_views.elasticache_replication_groups_delete, name='elasticache-replication-groups-delete'),
+    path('api/elasticache/users/', elasticache_views.elasticache_users_create, name='elasticache-users'),
+    path('api/elasticache/users/modify/', elasticache_views.elasticache_users_modify, name='elasticache-users-modify'),
+    path('api/elasticache/users/delete/', elasticache_views.elasticache_users_delete, name='elasticache-users-delete'),
+    path('api/elasticache/iam-auth/validate/', elasticache_views.elasticache_iam_auth_validate, name='elasticache-iam-auth-validate'),
     path('api/elasticloadbalancing/', views.elasticloadbalancing, name='elasticloadbalancing'),
     path('api/elasticloadbalancing/load-balancers/', elasticloadbalancing_views.elbv2_load_balancers_create, name='elbv2-load-balancers'),
     path('api/elasticloadbalancing/load-balancers/<path:load_balancer_arn>/', elasticloadbalancing_views.elbv2_load_balancer_delete, name='elbv2-load-balancer-detail'),
@@ -161,6 +176,16 @@ urlpatterns = [
     path('api/lambda/functions/<str:function_name>/invoke/', lambda_views.lambda_functions_invoke, name='lambda-functions-invoke'),
     path('api/neptune/', views.neptune, name='neptune'),
     path('api/opensearch/', views.opensearch, name='opensearch'),
+    path('api/opensearch/domains/', opensearch_views.opensearch_domains_create, name='opensearch-domains'),
+    path('api/opensearch/domains/update/', opensearch_views.opensearch_domains_update, name='opensearch-domains-update'),
+    path('api/opensearch/domains/delete/', opensearch_views.opensearch_domains_delete, name='opensearch-domains-delete'),
+    path('api/opensearch/domains/upgrade/', opensearch_views.opensearch_domains_upgrade, name='opensearch-domains-upgrade'),
+    path('api/opensearch/tags/', opensearch_views.opensearch_tags, name='opensearch-tags'),
+    path('api/opensearch/tags/list/', opensearch_views.opensearch_tags_list, name='opensearch-tags-list'),
+    path('api/opensearch/versions/', opensearch_views.opensearch_versions, name='opensearch-versions'),
+    path('api/opensearch/compatible-versions/', opensearch_views.opensearch_compatible_versions, name='opensearch-compatible-versions'),
+    path('api/opensearch/instance-type-details/', opensearch_views.opensearch_instance_type_details, name='opensearch-instance-type-details'),
+    path('api/opensearch/instance-type-limits/', opensearch_views.opensearch_instance_type_limits, name='opensearch-instance-type-limits'),
     path('api/pipes/', views.pipes, name='pipes'),
     path('api/pipes/pipes/', pipes_views.pipes_create, name='pipes-pipes'),
     path('api/pipes/pipes/<str:pipe_name>/', pipes_views.pipe_detail, name='pipes-pipe-detail'),

@@ -76,12 +76,14 @@ const ecsGrid = document.querySelector('#ecs-grid');
 const ecsSummary = document.querySelector('#ecs-summary');
 const ecsLoadedAt = document.querySelector('#ecs-loaded-at');
 const ecsConsoleRoot = document.getElementById('ecs-console-root');
+const eksConsoleRoot = document.getElementById('eks-console-root');
 const eksGrid = document.querySelector('#eks-grid');
 const eksSummary = document.querySelector('#eks-summary');
 const eksLoadedAt = document.querySelector('#eks-loaded-at');
 const elasticacheGrid = document.querySelector('#elasticache-grid');
 const elasticacheSummary = document.querySelector('#elasticache-summary');
 const elasticacheLoadedAt = document.querySelector('#elasticache-loaded-at');
+const elasticacheConsoleRoot = document.getElementById('elasticache-console-root');
 const elasticloadbalancingGrid = document.querySelector('#elasticloadbalancing-grid');
 const elasticloadbalancingSummary = document.querySelector('#elasticloadbalancing-summary');
 const elasticloadbalancingLoadedAt = document.querySelector('#elasticloadbalancing-loaded-at');
@@ -98,6 +100,7 @@ const kafkaLoadedAt = document.querySelector('#kafka-loaded-at');
 const opensearchGrid = document.querySelector('#opensearch-grid');
 const opensearchSummary = document.querySelector('#opensearch-summary');
 const opensearchLoadedAt = document.querySelector('#opensearch-loaded-at');
+const opensearchConsoleRoot = document.getElementById('opensearch-console-root');
 const pipesGrid = document.querySelector('#pipes-grid');
 const pipesSummary = document.querySelector('#pipes-summary');
 const pipesLoadedAt = document.querySelector('#pipes-loaded-at');
@@ -115,6 +118,7 @@ const ssmConsoleRoot = document.getElementById('ssm-console-root');
 const athenaGrid = document.querySelector('#athena-grid');
 const athenaSummary = document.querySelector('#athena-summary');
 const athenaLoadedAt = document.querySelector('#athena-loaded-at');
+const athenaConsoleRoot = document.getElementById('athena-console-root');
 const autoscalingGrid = document.querySelector('#autoscaling-grid');
 const autoscalingSummary = document.querySelector('#autoscaling-summary');
 const autoscalingLoadedAt = document.querySelector('#autoscaling-loaded-at');
@@ -753,6 +757,12 @@ function renderS3(data) {
     ['S3 SelectObjectContent', 'select_object_content'],
     ['Not implemented', 'not_implemented'],
   ]);
+  const notesPanel = renderDetailList('Floci S3 release notes', (data.notes || []).map((note, index) => ({
+    name: `Note ${index + 1}`,
+    note,
+  })), [
+    ['Note', 'note'],
+  ]);
 
   const bucketPanel = renderDetailList('Buckets', data.buckets || [], [
     ['ARN', 'arn'],
@@ -774,7 +784,7 @@ function renderS3(data) {
     ['Object versions', 'object_versions'],
   ]);
 
-  s3Grid.append(renderS3CreateBucketPanel(), supportPanel, bucketPanel);
+  s3Grid.append(renderS3CreateBucketPanel(), supportPanel, bucketPanel, notesPanel);
   s3LoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
 }
 
@@ -803,6 +813,8 @@ function renderEC2(data) {
       ['Public DNS', 'public_dns'],
       ['Security groups', 'security_groups'],
       ['Network interfaces', 'network_interfaces'],
+      ['Block device mappings', 'block_device_mappings'],
+      ['IAM instance profile', 'iam_instance_profile'],
       ['Placement', 'placement'],
       ['Root device', 'root_device_name'],
       ['Root device type', 'root_device_type'],
@@ -867,6 +879,13 @@ function renderEC2(data) {
       ['Instance ID', 'InstanceId'],
       ['Network interface', 'NetworkInterfaceId'],
       ['Domain', 'Domain'],
+    ]),
+    renderDetailList('IAM instance profile associations', data.iam_instance_profile_associations || [], [
+      ['Association ID', 'AssociationId'],
+      ['Instance ID', 'InstanceId'],
+      ['State', 'State'],
+      ['Timestamp', 'Timestamp'],
+      ['IAM instance profile', 'IamInstanceProfile'],
     ]),
     renderDetailList('Key pairs', data.key_pairs || [], [
       ['Key name', 'KeyName'],
@@ -3640,6 +3659,11 @@ function renderSES(data) {
     renderDetailList('SES v2 templates', data.v2_templates || [], [
       ['Created', 'CreatedTimestamp'],
     ]),
+    renderDetailList('SES v2 configuration sets', data.v2_configuration_sets || [], [
+      ['Details', 'details'],
+      ['Event destination count', 'event_destination_count'],
+      ['Event destinations', 'event_destinations'],
+    ]),
     renderDetailList('Send quota', data.send_quota ? [{
       name: 'Quota',
       ...data.send_quota,
@@ -5305,6 +5329,14 @@ async function refresh() {
         await window.ECRConsole.refresh();
       } else if (service.key === 'ecs' && ecsConsoleRoot && window.ECSConsole) {
         await window.ECSConsole.refresh();
+      } else if (service.key === 'eks' && eksConsoleRoot && window.EKSConsole) {
+        await window.EKSConsole.refresh();
+      } else if (service.key === 'elasticache' && elasticacheConsoleRoot && window.ElastiCacheConsole) {
+        await window.ElastiCacheConsole.refresh();
+      } else if (service.key === 'opensearch' && opensearchConsoleRoot && window.OpenSearchConsole) {
+        await window.OpenSearchConsole.refresh();
+      } else if (service.key === 'athena' && athenaConsoleRoot && window.AthenaConsole) {
+        await window.AthenaConsole.refresh();
       } else if (service.key === 'apigateway' && apigatewayConsoleRoot && window.ApiGatewayConsole) {
         await window.ApiGatewayConsole.refresh();
       } else if (service.key === 'kinesis' && kinesisConsoleRoot && window.KinesisConsole) {

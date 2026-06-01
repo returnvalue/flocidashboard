@@ -654,4 +654,7 @@ def s3_inventory_summary() -> dict[str, Any]:
                 'Metrics and Analytics configurations',
             ],
         },
+        'notes': [
+            'Floci 1.5.21 rejects response-* overrides on unsigned S3 requests, matching AWS security behavior.',
+        ],
     }

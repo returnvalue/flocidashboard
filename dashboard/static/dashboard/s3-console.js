@@ -142,8 +142,14 @@ const S3Console = (() => {
       ['Objects', 'objects'],
       ['Object versions', 'object_versions'],
     ]);
+    const notesPanel = renderDetailList('Floci S3 release notes', (state.inventory.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]);
 
-    readOnlyGrid.append(supportPanel, objectPanel, bucketPanel);
+    readOnlyGrid.append(supportPanel, objectPanel, bucketPanel, notesPanel);
   }
 
   function selectionKey(item) {
