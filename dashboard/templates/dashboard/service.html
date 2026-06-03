@@ -130,6 +130,15 @@
         <p>Common local test cases include producer message format, consumer retry behavior, visibility timeout handling, delete-after-success behavior, purge cleanup, FIFO ordering, duplicate handling, and dead-letter queue flows.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid sqs-readonly-grid"></div>
+    {% elif service.key == 'ses' %}
+      <div id="ses-console-root" class="ses-console-root" aria-live="polite"></div>
+      <details class="ses-about-floci">
+        <summary>About Floci SES</summary>
+        <p>Local SES supports the classic Query API and a subset of SES v2 REST JSON. Identity verification succeeds immediately, so test senders and recipients can be created without DNS or inbox verification.</p>
+        <p>Emails are always captured locally at /_aws/ses, even when SMTP relay is configured. The workbench focuses on verifying identities, sending sample messages, managing templates, and inspecting or clearing the captured mailbox.</p>
+        <p>SES v1 and v2 share identity, template, configuration set, and sent-message state in Floci. Configuration set event destinations are stored locally, with SNS destinations used for emitted SES events when configured.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid ses-readonly-grid"></div>
     {% elif service.key == 'sns' %}
       <div id="sns-console-root" class="sns-console-root" aria-live="polite"></div>
       <details class="sns-about-floci">
@@ -256,6 +265,24 @@
         <p>Common local test cases include partition key choice, malformed payloads, consumer checkpointing, sequence-number handling, and downstream Lambda or EventBridge Pipes integrations.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid kinesis-readonly-grid"></div>
+    {% elif service.key == 'kafka' %}
+      <div id="kafka-console-root" class="kafka-console-root" aria-live="polite"></div>
+      <details class="kafka-about-floci">
+        <summary>About Floci MSK</summary>
+        <p>Local MSK orchestrates Redpanda containers for Kafka-compatible clusters while keeping the AWS-compatible MSK management API local.</p>
+        <p>When mock mode is disabled, each created cluster starts a Redpanda container with Kafka port 9092 mapped to a dynamic host port. The cluster becomes ACTIVE after the Redpanda readiness endpoint responds.</p>
+        <p>A good learning flow is to create a one-broker cluster, refresh until it becomes ACTIVE, load bootstrap brokers, test a Kafka client against the returned localhost endpoint, then delete the cluster when the scenario is done.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid kafka-readonly-grid"></div>
+    {% elif service.key == 'firehose' %}
+      <div id="firehose-console-root" class="firehose-console-root" aria-live="polite"></div>
+      <details class="firehose-about-floci">
+        <summary>About Floci Data Firehose</summary>
+        <p>Local Data Firehose accepts records through the AWS-compatible JSON 1.1 API and buffers them for delivery to S3.</p>
+        <p>Floci flushes buffered records after every five records for quick local feedback. Delivered objects are raw NDJSON in the floci-firehose-results bucket, which makes the S3 workbench a useful next stop after writing test records.</p>
+        <p>A good learning flow is to create a delivery stream, put one representative JSON record, send a small batch to trigger a flush, then inspect the destination bucket for newline-delimited output.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid firehose-readonly-grid"></div>
     {% elif service.key == 'secretsmanager' %}
       <div id="secretsmanager-console-root" class="secretsmanager-console-root" aria-live="polite"></div>
       <details class="secretsmanager-about-floci">
@@ -283,6 +310,33 @@
         <p>Each DB instance or cluster gets its own Docker volume. In memory mode volumes are removed on delete; persistent modes retain data for manual recovery unless pruning is enabled.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid rds-readonly-grid"></div>
+    {% elif service.key == 'backup' %}
+      <div id="backup-console-root" class="backup-console-root" aria-live="polite"></div>
+      <details class="backup-about-floci">
+        <summary>About Floci AWS Backup</summary>
+        <p>Local AWS Backup stores backup vaults, plans, selections, simulated backup jobs, recovery points, protected resources, and tags through the AWS-compatible REST JSON API.</p>
+        <p>Backup jobs move from CREATED to RUNNING and then COMPLETED after the configured completion delay. Completed jobs create recovery points in the target vault, but no underlying resource data is read or written.</p>
+        <p>A good learning flow is to create a vault, create a plan, add a resource selection, start an on-demand backup job, refresh until it completes, then inspect or delete the generated recovery point.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid backup-readonly-grid"></div>
+    {% elif service.key == 'transfer' %}
+      <div id="transfer-console-root" class="transfer-console-root" aria-live="polite"></div>
+      <details class="transfer-about-floci">
+        <summary>About Floci Transfer Family</summary>
+        <p>Local Transfer Family covers the management-plane API for servers, users, SSH public keys, and tags through the AWS-compatible JSON 1.1 API.</p>
+        <p>Actual SFTP, FTP, FTPS, and AS2 data-plane file transfer is out of scope. Server state is simulated in-process, with StartServer and StopServer moving servers between ONLINE and OFFLINE.</p>
+        <p>A good learning flow is to create an SFTP server, create a user with an IAM role and home directory, import an SSH public key, tag the server, then stop and delete the server when testing is complete.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid transfer-readonly-grid"></div>
+    {% elif service.key == 'neptune' %}
+      <div id="neptune-console-root" class="neptune-console-root" aria-live="polite"></div>
+      <details class="neptune-about-floci">
+        <summary>About Floci Neptune</summary>
+        <p>Local Neptune manages real Apache TinkerPop Gremlin Server containers through the AWS-compatible Query management API.</p>
+        <p>Each cluster exposes a local Gremlin data-plane endpoint through the configured proxy port range. The first cluster usually claims port 8182, and each additional cluster increments from there.</p>
+        <p>A good learning flow is to create a cluster, create an instance in it, copy the Gremlin WebSocket endpoint, add a vertex with gremlin-python, then delete the instance and cluster when the graph scenario is done.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid neptune-readonly-grid"></div>
     {% elif service.key == 'autoscaling' %}
       <div id="autoscaling-console-root" class="autoscaling-console-root" aria-live="polite"></div>
       <details class="autoscaling-about-floci">
@@ -337,6 +391,15 @@
         <p>Mock mode skips DuckDB execution and immediately returns successful empty results, which is useful when tests only need the Athena query state machine.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid athena-readonly-grid"></div>
+    {% elif service.key == 'glue' %}
+      <div id="glue-console-root" class="glue-console-root" aria-live="polite"></div>
+      <details class="glue-about-floci">
+        <summary>About Floci Glue</summary>
+        <p>Local Glue emulates the Data Catalog and Schema Registry so local data lake metadata, schema compatibility workflows, and Athena table resolution can be tested through AWS-compatible APIs.</p>
+        <p>A good learning flow is to create a database, register an S3-backed JSON or Parquet table, add partitions when needed, then query the table from Athena. The dashboard infers which DuckDB reader Athena will use from the table's input format and SerDe library.</p>
+        <p>The Schema Registry flow supports AVRO, JSON, and PROTOBUF definitions with the compatibility modes exposed by Floci, making it useful for testing event producer and consumer schema-version workflows.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid glue-readonly-grid"></div>
     {% elif service.key == 'cloudfront' %}
       <div id="cloudfront-console-root" class="cloudfront-console-root" aria-live="polite"></div>
       <details class="cloudfront-about-floci">

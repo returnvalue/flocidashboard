@@ -31,7 +31,7 @@ Core architecture files:
 - `dashboard/actions.py`: shared action metadata, JSON parsing, and normalized action errors.
 - `dashboard/templates/dashboard/service.html`: common service page shell.
 - `dashboard/static/dashboard/service-console.js`: shared frontend helpers for API calls, summary cards, read-only cards, toolbars, modals, formatting, and lower-right toasts.
-- Service-specific modules such as `s3_api.py`, `s3_views.py`, `s3-console.js`, and `s3-console.css`, `iam_api.py`, `iam_views.py`, `iam-console.js`, and `iam-console.css`, `ec2_api.py`, `ec2_views.py`, `ec2-console.js`, and `ec2-console.css`, `stepfunctions_api.py`, `stepfunctions_views.py`, `stepfunctions-console.js`, and `stepfunctions-console.css`, `eventbridge_api.py`, `eventbridge_views.py`, `eventbridge-console.js`, and `eventbridge-console.css`, or the equivalent files for SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, API Gateway, Kinesis, Secrets Manager, SSM Parameter Store, CloudFormation, Cognito, RDS, Auto Scaling, ELB v2, CloudFront, Route 53, ACM, ECS, ECR, EKS, ElastiCache, OpenSearch, and Athena.
+- Service-specific modules such as `s3_api.py`, `s3_views.py`, `s3-console.js`, and `s3-console.css`, `iam_api.py`, `iam_views.py`, `iam-console.js`, and `iam-console.css`, `ec2_api.py`, `ec2_views.py`, `ec2-console.js`, and `ec2-console.css`, `stepfunctions_api.py`, `stepfunctions_views.py`, `stepfunctions-console.js`, and `stepfunctions-console.css`, `eventbridge_api.py`, `eventbridge_views.py`, `eventbridge-console.js`, and `eventbridge-console.css`, or the equivalent files for SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, API Gateway, Kinesis, Secrets Manager, SSM Parameter Store, CloudFormation, Cognito, RDS, Auto Scaling, ELB v2, CloudFront, Route 53, ACM, ECS, ECR, EKS, ElastiCache, OpenSearch, Athena, Backup, Firehose, Glue, Kafka, Neptune, SES, and Transfer Family.
 
 ## Guiding Principles
 
@@ -116,9 +116,23 @@ Core architecture files:
 - Registered OpenSearch as an interactive search workbench.
 - Built the Athena Query Workbench with workgroup creation, query start/stop, execution details, result previews, and S3 output context.
 - Registered Athena as an interactive SQL workbench.
+- Built the AWS Backup plan and job workbench with plan, selection, vault, and recovery point management.
+- Registered AWS Backup as an interactive backup workbench.
+- Built the Amazon Data Firehose Delivery Stream workbench with stream creation, record ingestion, and S3 delivery buffering details.
+- Registered Firehose as an interactive stream delivery workbench.
+- Built the AWS Glue catalog and registry workbench with databases, tables, partitions, registries, schemas, and versioning flows.
+- Registered Glue as an interactive catalog and schema workbench.
+- Built the MSK Kafka bootstrap broker workbench with cluster lifecycle, broker lookup, and client connectivity configurations.
+- Registered MSK Kafka as an interactive broker workbench.
+- Built the Neptune Graph workbench with cluster and instance creation, Gremlin WebSocket credentials, and connection information.
+- Registered Neptune as an interactive graph workbench.
+- Built the AWS SES Email and Template workbench with domain/email verification, email drafting, templates, and clearing the local mailbox.
+- Registered SES as an interactive email workbench.
+- Built the AWS Transfer Family console with server creation, user setup, SSH public key importing, and management APIs.
+- Registered Transfer Family as an interactive server workbench.
 - Added a home-page service selector that defaults to the top 12 common AWS services, persists user selections, labels cards as Interactive or Read Only, and limits `/api/resources/` calls to selected services for faster loads.
 - Replaced the dashboard README screenshot image.
-- Added tutorial-style "About Floci S3", "About Floci IAM", "About Floci EC2", "About Floci SQS", "About Floci SNS", "About Floci Lambda", "About Floci DynamoDB", "About Floci CloudWatch Logs", "About Floci Step Functions", "About Floci EventBridge", "About Floci API Gateway", "About Floci Kinesis", "About Floci Secrets Manager", "About Floci SSM Parameter Store", "About Floci CloudFormation", "About Floci Cognito", "About Floci RDS", "About Floci Auto Scaling", "About Floci ELB v2", "About Floci CloudFront", "About Floci Route 53", "About Floci ACM", "About Floci ECS", "About Floci ECR", "About Floci EKS", "About Floci ElastiCache", "About Floci OpenSearch", and "About Floci Athena" notes.
+- Added tutorial-style "About Floci S3", "About Floci IAM", "About Floci EC2", "About Floci SQS", "About Floci SNS", "About Floci Lambda", "About Floci DynamoDB", "About Floci CloudWatch Logs", "About Floci Step Functions", "About Floci EventBridge", "About Floci API Gateway", "About Floci Kinesis", "About Floci Secrets Manager", "About Floci SSM Parameter Store", "About Floci CloudFormation", "About Floci Cognito", "About Floci RDS", "About Floci Auto Scaling", "About Floci ELB v2", "About Floci CloudFront", "About Floci Route 53", "About Floci ACM", "About Floci ECS", "About Floci ECR", "About Floci EKS", "About Floci ElastiCache", "About Floci OpenSearch", "About Floci Athena", "About Floci SES", "About Floci MSK", "About Floci Data Firehose", "About Floci AWS Backup", "About Floci Transfer Family", "About Floci Neptune", and "About Floci Glue" notes.
 - Added contributor architecture notes and an AI-assisted contributor prompt to `README.md`.
 - Added Floci 1.5.18 inventory coverage and homepage cards for CloudFront and AWS Config, then promoted CloudFront to an interactive management workbench.
 - Refreshed release-aware notes for Neptune Gremlin backend support, SNS HTTP/HTTPS delivery, SQS message move tasks and FIFO dedup scoping, Lambda port-pool behavior, API Gateway v2 ALB routing, KMS MAC operations, ElastiCache Memcached clusters, and ECS-to-ELBv2 target registration.
@@ -414,5 +428,5 @@ When adding or improving a service page:
 - Should service docs links and operation counts remain manually maintained in the dashboard registry?
 - How much should `dashboard.js` be reduced in favor of declarative panel configs?
 - Should tutorial definitions live in this repo, Floci docs, or both?
-- Which inventory-only service should become the next interactive workbench: CodeBuild, Transfer Family, EKS, or another high-traffic local workflow?
+- Which inventory-only service should become the next interactive workbench: CodeBuild, EKS, or another high-traffic local workflow?
 - What health fields are stable enough in Floci to expose on an Environment Details page?

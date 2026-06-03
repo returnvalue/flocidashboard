@@ -90,6 +90,7 @@ const elasticloadbalancingLoadedAt = document.querySelector('#elasticloadbalanci
 const firehoseGrid = document.querySelector('#firehose-grid');
 const firehoseSummary = document.querySelector('#firehose-summary');
 const firehoseLoadedAt = document.querySelector('#firehose-loaded-at');
+const firehoseConsoleRoot = document.getElementById('firehose-console-root');
 const kinesisGrid = document.querySelector('#kinesis-grid');
 const kinesisSummary = document.querySelector('#kinesis-summary');
 const kinesisLoadedAt = document.querySelector('#kinesis-loaded-at');
@@ -97,6 +98,7 @@ const kinesisConsoleRoot = document.getElementById('kinesis-console-root');
 const kafkaGrid = document.querySelector('#kafka-grid');
 const kafkaSummary = document.querySelector('#kafka-summary');
 const kafkaLoadedAt = document.querySelector('#kafka-loaded-at');
+const kafkaConsoleRoot = document.getElementById('kafka-console-root');
 const opensearchGrid = document.querySelector('#opensearch-grid');
 const opensearchSummary = document.querySelector('#opensearch-summary');
 const opensearchLoadedAt = document.querySelector('#opensearch-loaded-at');
@@ -125,6 +127,7 @@ const autoscalingLoadedAt = document.querySelector('#autoscaling-loaded-at');
 const backupGrid = document.querySelector('#backup-grid');
 const backupSummary = document.querySelector('#backup-summary');
 const backupLoadedAt = document.querySelector('#backup-loaded-at');
+const backupConsoleRoot = document.getElementById('backup-console-root');
 const bcmdataexportsGrid = document.querySelector('#bcmdataexports-grid');
 const bcmdataexportsSummary = document.querySelector('#bcmdataexports-summary');
 const bcmdataexportsLoadedAt = document.querySelector('#bcmdataexports-loaded-at');
@@ -140,6 +143,7 @@ const snsLoadedAt = document.querySelector('#sns-loaded-at');
 const sesGrid = document.querySelector('#ses-grid');
 const sesSummary = document.querySelector('#ses-summary');
 const sesLoadedAt = document.querySelector('#ses-loaded-at');
+const sesConsoleRoot = document.getElementById('ses-console-root');
 const cloudformationGrid = document.querySelector('#cloudformation-grid');
 const cloudformationSummary = document.querySelector('#cloudformation-summary');
 const cloudformationLoadedAt = document.querySelector('#cloudformation-loaded-at');
@@ -160,6 +164,7 @@ const route53LoadedAt = document.querySelector('#route53-loaded-at');
 const transferGrid = document.querySelector('#transfer-grid');
 const transferSummary = document.querySelector('#transfer-summary');
 const transferLoadedAt = document.querySelector('#transfer-loaded-at');
+const transferConsoleRoot = document.getElementById('transfer-console-root');
 const acmGrid = document.querySelector('#acm-grid');
 const acmSummary = document.querySelector('#acm-summary');
 const acmLoadedAt = document.querySelector('#acm-loaded-at');
@@ -175,6 +180,7 @@ const schedulerConsoleRoot = document.getElementById('scheduler-console-root');
 const glueGrid = document.querySelector('#glue-grid');
 const glueSummary = document.querySelector('#glue-summary');
 const glueLoadedAt = document.querySelector('#glue-loaded-at');
+const glueConsoleRoot = document.getElementById('glue-console-root');
 const textractGrid = document.querySelector('#textract-grid');
 const textractSummary = document.querySelector('#textract-summary');
 const textractLoadedAt = document.querySelector('#textract-loaded-at');
@@ -187,6 +193,7 @@ const curLoadedAt = document.querySelector('#cur-loaded-at');
 const neptuneGrid = document.querySelector('#neptune-grid');
 const neptuneSummary = document.querySelector('#neptune-summary');
 const neptuneLoadedAt = document.querySelector('#neptune-loaded-at');
+const neptuneConsoleRoot = document.getElementById('neptune-console-root');
 
 let latestHealthData = null;
 
@@ -386,59 +393,56 @@ function canonicalServiceKey(name) {
 }
 
 const servicePriorityOrder = [
-  // Most common local AWS workflows first. The top 12 power the default home
-  // selection, and the remaining entries keep "All services" in the same
-  // popularity-oriented order after those first cards.
   'iam',
-  'ec2',
   's3',
-  'lambda',
-  'rds',
-  'dynamodb',
-  'apigateway',
-  'autoscaling',
+  'ec2',
   'elasticloadbalancing',
-  'cloudfront',
   'route53',
   'cloudwatch',
-  'kms',
-  'secretsmanager',
+  'rds',
+  'dynamodb',
+  'lambda',
+  'autoscaling',
   'sqs',
   'sns',
-  'eventbridge',
-  'stepfunctions',
-  'scheduler',
-  'pipes',
+  'cloudfront',
+  'kms',
   'cloudformation',
-  'config',
+  'apigateway',
   'ssm',
   'cognito',
-  'acm',
   'ecs',
-  'ecr',
-  'eks',
+  'config',
   'elasticache',
-  'opensearch',
+  'secretsmanager',
+  'acm',
   'athena',
+  'eventbridge',
+  'eks',
+  'costexplorer',
+  'backup',
+  'ecr',
   'glue',
   'kinesis',
-  'firehose',
-  'kafka',
-  'neptune',
-  'pricing',
-  'costexplorer',
+  'stepfunctions',
+  'codedeploy',
+  'codebuild',
+  'opensearch',
   'cur',
-  'bcmdataexports',
-  'resourcegroupstagging',
-  'backup',
-  'transfer',
+  'firehose',
   'ses',
-  'bedrockruntime',
+  'transfer',
   'textract',
   'transcribe',
-  'codebuild',
-  'codedeploy',
+  'bedrockruntime',
+  'kafka',
+  'resourcegroupstagging',
   'appconfig',
+  'scheduler',
+  'pipes',
+  'neptune',
+  'pricing',
+  'bcmdataexports',
 ];
 
 const servicePriorityRank = new Map(
@@ -4546,6 +4550,17 @@ function renderGlue(data) {
       ['Tables', 'tables'],
       ['Details', 'details'],
     ]),
+    renderDetailList('Registries', data.registries || [], [
+      ['ARN', 'arn'],
+      ['Description', 'description'],
+      ['Status', 'status'],
+      ['Created', 'created'],
+      ['Updated', 'updated'],
+      ['Schema count', 'schema_count'],
+      ['Version count', 'version_count'],
+      ['Schemas', 'schemas'],
+      ['Details', 'details'],
+    ]),
     renderDetailList('Supported actions', supported, [
       ['Actions', 'actions'],
     ]),
@@ -4912,7 +4927,7 @@ function mergeServiceCards(resources, healthServices = {}, serviceMetadata = [])
 
     services.set(key, {
       key,
-      name: titleCaseService(key),
+      name: serviceMeta?.title || titleCaseService(key),
       status,
       count: 0,
       error: null,
@@ -4931,7 +4946,7 @@ function mergeServiceCards(resources, healthServices = {}, serviceMetadata = [])
     if (!existing) {
       services.set(key, {
         key,
-        name: resourceServiceName(resource),
+        name: serviceMeta?.title || resourceServiceName(resource),
         status: null,
         count,
         error: resource.error,
@@ -5307,10 +5322,16 @@ async function refresh() {
       await loadServicePage(service);
       if (service.key === 'acm' && acmConsoleRoot && window.ACMConsole) {
         await window.ACMConsole.refresh();
+      } else if (service.key === 'backup' && backupConsoleRoot && window.BackupConsole) {
+        await window.BackupConsole.refresh();
+      } else if (service.key === 'transfer' && transferConsoleRoot && window.TransferConsole) {
+        await window.TransferConsole.refresh();
       } else if (service.key === 'iam' && iamConsoleRoot && window.IAMConsole) {
         await window.IAMConsole.refresh();
       } else if (service.key === 'sqs' && sqsConsoleRoot && window.SQSConsole) {
         await window.SQSConsole.refresh();
+      } else if (service.key === 'ses' && sesConsoleRoot && window.SESConsole) {
+        await window.SESConsole.refresh();
       } else if (service.key === 'sns' && window.SNSConsole) {
         await window.SNSConsole.refresh();
       } else if (service.key === 'lambda' && lambdaConsoleRoot && window.LambdaConsole) {
@@ -5323,6 +5344,8 @@ async function refresh() {
         await window.StepFunctionsConsole.refresh();
       } else if (service.key === 'eventbridge' && eventbridgeConsoleRoot && window.EventBridgeConsole) {
         await window.EventBridgeConsole.refresh();
+      } else if (service.key === 'firehose' && firehoseConsoleRoot && window.FirehoseConsole) {
+        await window.FirehoseConsole.refresh();
       } else if (service.key === 'ec2' && ec2ConsoleRoot && window.EC2Console) {
         await window.EC2Console.refresh();
       } else if (service.key === 'ecr' && ecrConsoleRoot && window.ECRConsole) {
@@ -5335,12 +5358,18 @@ async function refresh() {
         await window.ElastiCacheConsole.refresh();
       } else if (service.key === 'opensearch' && opensearchConsoleRoot && window.OpenSearchConsole) {
         await window.OpenSearchConsole.refresh();
+      } else if (service.key === 'neptune' && neptuneConsoleRoot && window.NeptuneConsole) {
+        await window.NeptuneConsole.refresh();
       } else if (service.key === 'athena' && athenaConsoleRoot && window.AthenaConsole) {
         await window.AthenaConsole.refresh();
+      } else if (service.key === 'glue' && glueConsoleRoot && window.GlueConsole) {
+        await window.GlueConsole.refresh();
       } else if (service.key === 'apigateway' && apigatewayConsoleRoot && window.ApiGatewayConsole) {
         await window.ApiGatewayConsole.refresh();
       } else if (service.key === 'kinesis' && kinesisConsoleRoot && window.KinesisConsole) {
         await window.KinesisConsole.refresh();
+      } else if (service.key === 'kafka' && kafkaConsoleRoot && window.KafkaConsole) {
+        await window.KafkaConsole.refresh();
       } else if (service.key === 'kms' && kmsConsoleRoot && window.KMSConsole) {
         await window.KMSConsole.refresh();
       } else if (service.key === 'secretsmanager' && secretsmanagerConsoleRoot && window.SecretsManagerConsole) {

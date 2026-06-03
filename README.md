@@ -9,8 +9,8 @@ A small Django UI for inspecting and testing a local [Floci](https://floci.io/) 
 - Local Floci health and version
 - AWS endpoint, profile, and caller identity
 - Clickable service cards for supported local services, with persisted home-page service filtering to keep resource probes focused
-- Interactive workbenches for S3, IAM, EC2, SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, EventBridge, EventBridge Pipes, EventBridge Scheduler, API Gateway, Kinesis, KMS, Secrets Manager, SSM Parameter Store, CloudFormation, Cognito, AWS Config, RDS, Auto Scaling, ELB v2, CloudFront, Route 53, ACM, ECS, ECR, EKS, ElastiCache, OpenSearch, and Athena
-- Detail pages for services such as AWS Config, AppConfig, Bedrock Runtime, Cost Explorer, Cost and Usage Reports, BCM Data Exports, Neptune, Pricing, Transcribe, and more
+- Interactive workbenches for S3, IAM, EC2, SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, EventBridge, EventBridge Pipes, EventBridge Scheduler, API Gateway, Kinesis, KMS, Secrets Manager, SSM Parameter Store, CloudFormation, Cognito, AWS Config, RDS, Auto Scaling, ELB v2, CloudFront, Route 53, ACM, ECS, ECR, EKS, ElastiCache, OpenSearch, Athena, Backup, Firehose, Glue, Kafka, Neptune, SES, and Transfer Family
+- Detail pages for services such as AppConfig, Bedrock Runtime, Cost Explorer, Cost and Usage Reports, BCM Data Exports, Pricing, Transcribe, and more
 - Loading state with the Floci cloud image while service data is fetched
 
 ## Run Locally On macOS
@@ -83,6 +83,8 @@ The dashboard also includes interactive workbenches for EKS cluster lifecycle, E
 
 Floci 1.5.21 moves builds to GraalVM 25 and adds Cognito userInfo/custom-schema support, EC2 parity fixes, SES v2 configuration set event destinations, Firehose tagging, and assorted conformance fixes. The dashboard refreshes affected service notes and surfaces SES v2 configuration set event destinations.
 
+The dashboard also includes interactive workbenches for AWS Backup, Amazon Data Firehose, AWS Glue, MSK Kafka, Neptune, SES, and AWS Transfer Family.
+
 Start the Django dev server:
 
 ```bash
@@ -124,7 +126,7 @@ Core files:
 - `dashboard/templates/dashboard/service.html`: common service page shell. Interactive workbenches should be layered into this page while keeping the original read-only inventory visible.
 - `dashboard/static/dashboard/service-console.js`: shared browser-side helpers for API calls, summary cards, read-only cards, toolbars, modals, formatting, and lower-right toasts.
 - `dashboard/static/dashboard/dashboard.js`: generic read-only inventory rendering for service pages.
-- Service-specific files such as `s3_api.py`, `s3_views.py`, `s3-console.js`, and `s3-console.css`, `iam_api.py`, `iam_views.py`, `iam-console.js`, and `iam-console.css`, `ec2_api.py`, `ec2_views.py`, `ec2-console.js`, and `ec2-console.css`, `cloudformation_api.py`, `cloudformation_views.py`, `cloudformation-console.js`, and `cloudformation-console.css`, `cognito_api.py`, `cognito_views.py`, `cognito-console.js`, and `cognito-console.css`, `rds_api.py`, `rds_views.py`, `rds-console.js`, and `rds-console.css`, `autoscaling_api.py`, `autoscaling_views.py`, `autoscaling-console.js`, and `autoscaling-console.css`, `elasticloadbalancing_api.py`, `elasticloadbalancing_views.py`, `elasticloadbalancing-console.js`, and `elasticloadbalancing-console.css`, `cloudfront_api.py`, `cloudfront_views.py`, `cloudfront-console.js`, and `cloudfront-console.css`, `route53_api.py`, `route53_views.py`, `route53-console.js`, and `route53-console.css`, `acm_api.py`, `acm_views.py`, `acm-console.js`, and `acm-console.css`, `ecs_api.py`, `ecs_views.py`, `ecs-console.js`, and `ecs-console.css`, `ecr_api.py`, `ecr_views.py`, `ecr-console.js`, and `ecr-console.css`, `eks_api.py`, `eks_views.py`, `eks-console.js`, and `eks-console.css`, `elasticache_api.py`, `elasticache_views.py`, `elasticache-console.js`, and `elasticache-console.css`, `opensearch_api.py`, `opensearch_views.py`, `opensearch-console.js`, and `opensearch-console.css`, `athena_api.py`, `athena_views.py`, `athena-console.js`, and `athena-console.css`, or the equivalent files for SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, EventBridge, API Gateway, Kinesis, Secrets Manager, and SSM Parameter Store: focused behavior for one service only.
+- Service-specific files such as `s3_api.py`, `s3_views.py`, `s3-console.js`, and `s3-console.css`, `iam_api.py`, `iam_views.py`, `iam-console.js`, and `iam-console.css`, `ec2_api.py`, `ec2_views.py`, `ec2-console.js`, and `ec2-console.css`, `cloudformation_api.py`, `cloudformation_views.py`, `cloudformation-console.js`, and `cloudformation-console.css`, `cognito_api.py`, `cognito_views.py`, `cognito-console.js`, and `cognito-console.css`, `rds_api.py`, `rds_views.py`, `rds-console.js`, and `rds-console.css`, `autoscaling_api.py`, `autoscaling_views.py`, `autoscaling-console.js`, and `autoscaling-console.css`, `elasticloadbalancing_api.py`, `elasticloadbalancing_views.py`, `elasticloadbalancing-console.js`, and `elasticloadbalancing-console.css`, `cloudfront_api.py`, `cloudfront_views.py`, `cloudfront-console.js`, and `cloudfront-console.css`, `route53_api.py`, `route53_views.py`, `route53-console.js`, and `route53-console.css`, `acm_api.py`, `acm_views.py`, `acm-console.js`, and `acm-console.css`, `ecs_api.py`, `ecs_views.py`, `ecs-console.js`, and `ecs-console.css`, `ecr_api.py`, `ecr_views.py`, `ecr-console.js`, and `ecr-console.css`, `eks_api.py`, `eks_views.py`, `eks-console.js`, and `eks-console.css`, `elasticache_api.py`, `elasticache_views.py`, `elasticache-console.js`, and `elasticache-console.css`, `opensearch_api.py`, `opensearch_views.py`, `opensearch-console.js`, and `opensearch-console.css`, `athena_api.py`, `athena_views.py`, `athena-console.js`, and `athena-console.css`, or the equivalent files for SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, EventBridge, API Gateway, Kinesis, Secrets Manager, SSM Parameter Store, Backup, Firehose, Glue, Kafka, Neptune, SES, and Transfer Family: focused behavior for one service only.
 
 Important conventions:
 
@@ -176,6 +178,13 @@ http://127.0.0.1:8000/service/eks/
 http://127.0.0.1:8000/service/elasticache/
 http://127.0.0.1:8000/service/opensearch/
 http://127.0.0.1:8000/service/athena/
+http://127.0.0.1:8000/service/backup/
+http://127.0.0.1:8000/service/firehose/
+http://127.0.0.1:8000/service/glue/
+http://127.0.0.1:8000/service/kafka/
+http://127.0.0.1:8000/service/neptune/
+http://127.0.0.1:8000/service/ses/
+http://127.0.0.1:8000/service/transfer/
 ```
 
 ## Prompt For AI-Assisted Contributors
@@ -183,7 +192,7 @@ http://127.0.0.1:8000/service/athena/
 If you are using Codex, Claude, or another local coding assistant to add a dashboard feature, start with a prompt like this:
 
 ```text
-You are contributing to the Floci Dashboard Django app. Before editing, read README.md, ROADMAP.md, dashboard/services.py, dashboard/actions.py, dashboard/templates/dashboard/service.html, dashboard/static/dashboard/service-console.js, and the closest existing workbench implementation. Good references are S3 for object browsing, IAM for identity and policy workflows, EC2 for local compute lifecycle workflows, SQS/SNS for messaging, Lambda for invoke/test workflows, DynamoDB for read-only data exploration, CloudWatch Logs for recent event viewing, Step Functions for execution workflows, EventBridge for event routing tests, EventBridge Pipes and Scheduler for event routing lifecycle workflows, API Gateway for request testing, Kinesis for stream records, KMS for key workflows, Secrets Manager for secret value workflows, SSM for Parameter Store workflows, CloudFormation for stack workflows, Cognito for local auth workflows, AWS Config for compliance setup workflows, RDS for database lifecycle workflows, Auto Scaling for capacity workflows, ELB v2 for load-balancing topology workflows, CloudFront for CDN management workflows, Route 53 for DNS management workflows, ACM for certificate workflows, ECS for container orchestration workflows, ECR for image registry workflows, EKS for Kubernetes cluster workflows, ElastiCache for cache/user/IAM auth workflows, OpenSearch for search domain workflows, and Athena for SQL query workflows.
+You are contributing to the Floci Dashboard Django app. Before editing, read README.md, ROADMAP.md, dashboard/services.py, dashboard/actions.py, dashboard/templates/dashboard/service.html, dashboard/static/dashboard/service-console.js, and the closest existing workbench implementation. Good references are S3 for object browsing, IAM for identity and policy workflows, EC2 for local compute lifecycle workflows, SQS/SNS for messaging, Lambda for invoke/test workflows, DynamoDB for read-only data exploration, CloudWatch Logs for recent event viewing, Step Functions for execution workflows, EventBridge for event routing tests, EventBridge Pipes and Scheduler for event routing lifecycle workflows, API Gateway for request testing, Kinesis for stream records, KMS for key workflows, Secrets Manager for secret value workflows, SSM for Parameter Store workflows, CloudFormation for stack workflows, Cognito for local auth workflows, AWS Config for compliance setup workflows, RDS for database lifecycle workflows, Auto Scaling for capacity workflows, ELB v2 for load-balancing topology workflows, CloudFront for CDN management workflows, Route 53 for DNS management workflows, ACM for certificate workflows, ECS for container orchestration workflows, ECR for image registry workflows, EKS for Kubernetes cluster workflows, ElastiCache for cache/user/IAM auth workflows, OpenSearch for search domain workflows, Athena for SQL query workflows, Backup for plan/job workflows, Firehose for stream delivery, Glue for database/table catalog and schema registry workflows, Kafka for cluster bootstrap and broker endpoints, Neptune for graph cluster and instance lifecycle, SES for email identities and templates, and Transfer Family for SFTP server and user management workflows.
 
 Goal: add or improve the <SERVICE> dashboard feature.
 

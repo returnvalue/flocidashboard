@@ -3971,17 +3971,11 @@ def firehose_inventory() -> dict[str, Any]:
             'DeleteDeliveryStream',
             'PutRecord',
             'PutRecordBatch',
-            'UpdateDestination',
-            'StartDeliveryStreamEncryption',
-            'StopDeliveryStreamEncryption',
-            'TagDeliveryStream',
-            'UntagDeliveryStream',
-            'ListTagsForDeliveryStream',
         ],
         'notes': [
-            'This page is inferred from the Firehose AWS SDK API because service docs were not provided for this pass.',
-            'Floci 1.5.21 adds TagDeliveryStream, UntagDeliveryStream, and ListTagsForDeliveryStream support.',
-            'Destinations are flattened from each delivery stream so S3, OpenSearch, HTTP, Splunk, Redshift, Snowflake, and Iceberg configs can be scanned together.',
+            'Incoming records are buffered in memory and flushed to S3 after every 5 records for immediate local feedback.',
+            'Floci writes flushed records as raw NDJSON to the floci-firehose-results bucket.',
+            'Destinations are flattened from each delivery stream so delivery configuration can be scanned together.',
         ],
     }
 
@@ -4247,20 +4241,12 @@ def kafka_inventory() -> dict[str, Any]:
             'ListClustersV2',
             'DeleteCluster',
             'GetBootstrapBrokers',
-            'ListNodes',
-            'CreateConfiguration',
-            'DescribeConfiguration',
-            'ListConfigurations',
-            'ListClusterOperations',
-            'ListScramSecrets',
-            'ListKafkaVersions',
-            'ListClientVpcConnections',
-            'TagResource',
-            'UntagResource',
         ],
         'notes': [
-            'This page is inferred from the MSK/Kafka AWS SDK API because service docs were not provided for this pass.',
-            'Cluster summaries from ListClusters and ListClustersV2 are merged by ARN before detail lookup.',
+            'Floci emulates Amazon MSK by orchestrating one Redpanda container per cluster unless mock mode is enabled.',
+            'CreateClusterV2 is mapped to provisioned cluster creation for local compatibility.',
+            'Kafka API port 9092 is mapped to a dynamic host port, and GetBootstrapBrokers returns the local connection strings.',
+            'Each cluster gets a named Docker volume; in persistent modes the volume is retained on delete unless volume pruning is enabled.',
         ],
     }
 
@@ -4629,18 +4615,20 @@ def neptune_inventory() -> dict[str, Any]:
                 'CreateDBCluster',
                 'DeleteDBCluster',
                 'DescribeDBClusters',
+                'ModifyDBCluster',
                 'CreateDBInstance',
                 'DeleteDBInstance',
                 'DescribeDBInstances',
-                'DescribeDBSubnetGroups',
-                'DescribeDBClusterSnapshots',
+                'ModifyDBInstance',
             ]
             if operation in operations
         ],
         'available_sdk_operations': sorted(operations),
         'notes': [
-            'Floci 1.5.18 backs Neptune with a real Gremlin Docker backend and SDK integration.',
-            'This page follows the Neptune management API and shows local graph database clusters, instances, subnet groups, and snapshots.',
+            'Floci manages real Apache TinkerPop Gremlin Server Docker containers and proxies Gremlin connections to them.',
+            'The management API uses AWS-compatible Query XML through localhost:4566; the data plane is exposed as localhost:<proxy-port> over TCP/WebSocket.',
+            'The first cluster claims the configured proxy base port, commonly 8182, and each additional cluster increments within the configured range.',
+            'IAM database authentication, Neptune Analytics, serverless auto-pause/resume, snapshots, and restore operations are out of scope.',
         ],
     }
 
@@ -5165,22 +5153,35 @@ def backup_inventory() -> dict[str, Any]:
         'protected_resources': protected_resources,
         'supported': [
             'CreateBackupVault',
+            'DescribeBackupVault',
             'ListBackupVaults',
             'DeleteBackupVault',
             'CreateBackupPlan',
             'GetBackupPlan',
+            'UpdateBackupPlan',
             'ListBackupPlans',
             'DeleteBackupPlan',
             'CreateBackupSelection',
+            'GetBackupSelection',
             'ListBackupSelections',
+            'DeleteBackupSelection',
+            'StartBackupJob',
+            'DescribeBackupJob',
+            'StopBackupJob',
             'ListBackupJobs',
-            'ListRestoreJobs',
-            'ListProtectedResources',
+            'DescribeRecoveryPoint',
             'ListRecoveryPointsByBackupVault',
+            'DeleteRecoveryPoint',
+            'ListTags',
+            'TagResource',
+            'UntagResource',
+            'GetSupportedResourceTypes',
         ],
         'notes': [
-            'AWS Backup coordinates backup plans, vaults, recovery points, and restore workflows.',
-            'Inventory calls are read-only and tolerate missing local service operations.',
+            'Backup jobs are simulated and transition from CREATED to RUNNING to COMPLETED after the configured delay.',
+            'When a job completes, Floci creates a recovery point in the target vault and increments the vault recovery-point counter.',
+            'Supported resource type codes include S3, RDS, DynamoDB, EFS, EC2, EBS, Aurora, DocumentDB, Neptune, FSx, and VirtualMachine.',
+            'Restore jobs, copy jobs, report plans, framework operations, legal holds, vault notifications, and vault access policies are not yet supported.',
         ],
     }
 
@@ -5390,29 +5391,27 @@ def transfer_inventory() -> dict[str, Any]:
         'supported': [
             'CreateServer',
             'DescribeServer',
+            'UpdateServer',
             'ListServers',
+            'StartServer',
+            'StopServer',
             'DeleteServer',
             'CreateUser',
             'DescribeUser',
+            'UpdateUser',
             'ListUsers',
             'DeleteUser',
-            'ImportHostKey',
-            'ListHostKeys',
-            'CreateWorkflow',
-            'ListWorkflows',
-            'CreateProfile',
-            'ListProfiles',
-            'ImportCertificate',
-            'ListCertificates',
-            'CreateConnector',
-            'ListConnectors',
-            'ListSecurityPolicies',
-            'CreateWebApp',
-            'ListWebApps',
+            'ImportSshPublicKey',
+            'DeleteSshPublicKey',
+            'TagResource',
+            'UntagResource',
+            'ListTagsForResource',
         ],
         'notes': [
-            'Transfer Family supports SFTP, FTPS, FTP, and AS2 managed transfer workflows.',
-            'Server detail expands users, host keys, and AS2 agreements when those local operations are available.',
+            'Floci Transfer Family covers the management-plane API only; actual SFTP, FTP, FTPS, and AS2 file transfer is not emulated.',
+            'Server EndpointType defaults to PUBLIC, and State transitions between ONLINE and OFFLINE through StartServer and StopServer.',
+            'SSH key bodies are stored and returned as-is without cryptographic validation.',
+            'Server ARNs follow arn:aws:transfer:{region}:{accountId}:server/{serverId}; user ARNs include user/{serverId}/{userName}.',
         ],
     }
 
@@ -7205,6 +7204,7 @@ def glue_inventory() -> dict[str, Any]:
     factory = FlociClientFactory()
     glue = factory.client('glue')
     databases = _safe_value(lambda: _paginate(glue, 'get_databases', 'DatabaseList'), [])
+    registries = _glue_optional(lambda: _paginate(glue, 'list_registries', 'Registries'), {'EntityNotFoundException'})
 
     def table_detail(database_name: str, table: dict[str, Any]) -> dict[str, Any]:
         table_name = table.get('Name')
@@ -7263,17 +7263,88 @@ def glue_inventory() -> dict[str, Any]:
 
     detailed_databases = [database_detail(database) for database in databases]
 
+    def schema_detail(registry_name: str, schema: dict[str, Any]) -> dict[str, Any]:
+        schema_name = schema.get('SchemaName') or schema.get('SchemaArn') or schema.get('name')
+        versions = _glue_optional(
+            lambda: _paginate(
+                glue,
+                'list_schema_versions',
+                'Schemas',
+                SchemaId={'RegistryName': registry_name, 'SchemaName': schema_name},
+            ),
+            {'EntityNotFoundException'},
+        )
+        if not isinstance(versions, list):
+            versions = _glue_optional(
+                lambda: _paginate(
+                    glue,
+                    'list_schema_versions',
+                    'SchemaVersions',
+                    SchemaId={'RegistryName': registry_name, 'SchemaName': schema_name},
+                ),
+                {'EntityNotFoundException'},
+            )
+
+        return {
+            'name': schema_name,
+            'registry': registry_name,
+            'arn': schema.get('SchemaArn'),
+            'status': schema.get('SchemaStatus') or schema.get('Status'),
+            'data_format': schema.get('DataFormat'),
+            'compatibility': schema.get('Compatibility'),
+            'created': schema.get('CreatedTime'),
+            'updated': schema.get('UpdatedTime'),
+            'version_count': len(versions) if isinstance(versions, list) else 0,
+            'versions': versions,
+        }
+
+    def registry_detail(registry: dict[str, Any]) -> dict[str, Any]:
+        name = registry.get('RegistryName') or registry.get('Name')
+        schemas = _glue_optional(
+            lambda: _paginate(glue, 'list_schemas', 'Schemas', RegistryId={'RegistryName': name}),
+            {'EntityNotFoundException'},
+        )
+        schema_details = [
+            schema_detail(name, schema)
+            for schema in schemas
+        ] if isinstance(schemas, list) else []
+
+        return {
+            'name': name,
+            'arn': registry.get('RegistryArn'),
+            'description': registry.get('Description'),
+            'status': registry.get('Status') or registry.get('RegistryStatus'),
+            'created': registry.get('CreatedTime'),
+            'updated': registry.get('UpdatedTime'),
+            'schema_count': len(schema_details),
+            'version_count': sum(schema.get('version_count') or 0 for schema in schema_details),
+            'schemas': schema_details,
+            'details': schemas if isinstance(schemas, dict) and schemas.get('error') else None,
+        }
+
+    detailed_registries = [
+        registry_detail(registry)
+        for registry in registries
+    ] if isinstance(registries, list) else []
+
     return {
         'summary': {
             'databases': len(detailed_databases),
             'tables': sum(database.get('table_count') or 0 for database in detailed_databases),
             'partitions': sum(database.get('partition_count') or 0 for database in detailed_databases),
+            'registries': len(detailed_registries),
+            'schemas': sum(registry.get('schema_count') or 0 for registry in detailed_registries),
+            'schema_versions': sum(registry.get('version_count') or 0 for registry in detailed_registries),
         },
         'databases': detailed_databases,
+        'registries': detailed_registries,
         'supported': {
             'Databases': ['CreateDatabase', 'GetDatabase', 'GetDatabases', 'DeleteDatabase', 'UpdateDatabase'],
             'Tables': ['CreateTable', 'GetTable', 'GetTables', 'DeleteTable', 'UpdateTable'],
             'Partitions': ['CreatePartition', 'BatchCreatePartition', 'GetPartition', 'GetPartitions', 'DeletePartition'],
+            'Registries': ['CreateRegistry', 'GetRegistry', 'ListRegistries', 'UpdateRegistry', 'DeleteRegistry'],
+            'Schemas': ['CreateSchema', 'GetSchema', 'ListSchemas', 'UpdateSchema', 'DeleteSchema'],
+            'Versions': ['RegisterSchemaVersion', 'GetSchemaVersion', 'ListSchemaVersions', 'DeleteSchemaVersions'],
         },
         'athena_integration': [
             'Athena reads Glue tables for the target database and creates DuckDB views over S3 objects.',
