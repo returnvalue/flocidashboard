@@ -328,6 +328,51 @@
         <p>A good learning flow is to create an SFTP server, create a user with an IAM role and home directory, import an SSH public key, tag the server, then stop and delete the server when testing is complete.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid transfer-readonly-grid"></div>
+    {% elif service.key == 'textract' %}
+      <div id="textract-console-root" class="textract-console-root" aria-live="polite"></div>
+      <details class="textract-about-floci">
+        <summary>About Floci Textract</summary>
+        <p>Local Textract emulates the AWS JSON 1.1 API with fixed stub responses. Document bytes and S3 document references are accepted but not parsed.</p>
+        <p>Every sync response and completed async job returns a synthetic PAGE, LINE, and WORD hierarchy where the extracted text is "Floci" and confidence is 99.9.</p>
+        <p>Async StartDocumentTextDetection and StartDocumentAnalysis return in-memory job IDs that are immediately SUCCEEDED. Job IDs are not persisted across restarts.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid textract-readonly-grid"></div>
+    {% elif service.key == 'transcribe' %}
+      <div id="transcribe-console-root" class="transcribe-console-root" aria-live="polite"></div>
+      <details class="transcribe-about-floci">
+        <summary>About Floci Transcribe</summary>
+        <p>Local Transcribe is a small AWS-compatible control-plane stub for transcription jobs and custom vocabularies. No real audio parsing or speech-to-text processing is performed.</p>
+        <p>Jobs transition to COMPLETED immediately and return a synthetic transcript file URI. Vocabularies transition to READY immediately, making both flows useful for local SDK and application control-path testing.</p>
+        <p>LanguageCode defaults to en-US and MediaFormat defaults to mp4. Job and vocabulary state is in memory and does not persist across Floci restarts.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid transcribe-readonly-grid"></div>
+    {% elif service.key == 'bedrockruntime' %}
+      <div id="bedrockruntime-console-root" class="bedrockruntime-console-root" aria-live="polite"></div>
+      <details class="bedrockruntime-about-floci">
+        <summary>About Floci Bedrock Runtime</summary>
+        <p>Local Bedrock Runtime emulates Converse and InvokeModel with AWS-compatible fixed stub responses. No real model inference is performed.</p>
+        <p>Converse requires a non-empty messages array. System prompts, inference configuration, and tool configuration are accepted but ignored; tool-use round-tripping is not implemented.</p>
+        <p>InvokeModel accepts the request body as opaque bytes and returns an Anthropic-shaped body for Anthropic model IDs or a generic outputs body otherwise. Streaming and the Bedrock management plane are out of scope.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid bedrockruntime-readonly-grid"></div>
+    {% elif service.key == 'appconfig' %}
+      <div id="appconfig-console-root" class="appconfig-console-root" aria-live="polite"></div>
+      <details class="appconfig-about-floci">
+        <summary>About Floci AppConfig</summary>
+        <p>Local AppConfig supports the management-plane workflow for applications, environments, configuration profiles, hosted versions, deployment strategies, and deployments.</p>
+        <p>AppConfigData provides the retrieval plane used by applications. Start a configuration session for an application, environment, and profile, then use the returned token to fetch the latest deployed configuration.</p>
+        <p>A good learning flow is to create an application hierarchy, add a JSON hosted version, create an immediate deployment strategy, deploy the version, then retrieve it through the data plane.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid appconfig-readonly-grid"></div>
+    {% elif service.key == 'resourcegroupstagging' %}
+      <div id="resourcegroupstagging-console-root" class="resourcegroupstagging-console-root" aria-live="polite"></div>
+      <details class="resourcegroupstagging-about-floci">
+        <summary>About Floci Resource Groups Tagging</summary>
+        <p>Local Resource Groups Tagging provides centralized tag discovery across arbitrary AWS-shaped resource ARNs. Referenced resources do not need to exist in another emulated service.</p>
+        <p>Searches can be restricted by ARN, tag filters, or service and resource type filters such as lambda or ec2:instance. Global ARNs such as S3 buckets remain visible across regions.</p>
+        <p>Tags are stored in process and do not persist across Floci restarts. AWS Organizations tag policies and compliance enforcement are out of scope.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid resourcegroupstagging-readonly-grid"></div>
     {% elif service.key == 'neptune' %}
       <div id="neptune-console-root" class="neptune-console-root" aria-live="polite"></div>
       <details class="neptune-about-floci">
@@ -400,6 +445,24 @@
         <p>The Schema Registry flow supports AVRO, JSON, and PROTOBUF definitions with the compatibility modes exposed by Floci, making it useful for testing event producer and consumer schema-version workflows.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid glue-readonly-grid"></div>
+    {% elif service.key == 'codebuild' %}
+      <div id="codebuild-console-root" class="codebuild-console-root" aria-live="polite"></div>
+      <details class="codebuild-about-floci">
+        <summary>About Floci CodeBuild</summary>
+        <p>Local CodeBuild stores project, report-group, and source-credential configuration and executes builds inside real Docker containers.</p>
+        <p>Buildspec install, pre_build, build, and post_build phases run sequentially. Output is streamed to CloudWatch Logs under /aws/codebuild/&lt;project&gt;, and configured S3 artifacts are copied from the container after the build.</p>
+        <p>A good learning flow is to create a NO_SOURCE project with a lightweight image, start a build using an inline buildspec override, poll until buildComplete, then inspect its phases, logs, and artifacts.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid codebuild-readonly-grid"></div>
+    {% elif service.key == 'codedeploy' %}
+      <div id="codedeploy-console-root" class="codedeploy-console-root" aria-live="polite"></div>
+      <details class="codedeploy-about-floci">
+        <summary>About Floci CodeDeploy</summary>
+        <p>Local CodeDeploy stores applications, deployment groups, deployment configs, deployments, tags, and on-premises no-op metadata through the AWS-compatible JSON 1.1 API.</p>
+        <p>For Lambda and ECS compute platforms, Floci performs real local deployment execution: Lambda alias traffic shifting or ECS blue/green task-set and ELB listener updates, including lifecycle hook callbacks.</p>
+        <p>A good learning flow is to create a Lambda or ECS application, create a deployment group, submit an AppSpecContent revision, then poll the deployment and inspect deployment targets or hook status.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid codedeploy-readonly-grid"></div>
     {% elif service.key == 'cloudfront' %}
       <div id="cloudfront-console-root" class="cloudfront-console-root" aria-live="polite"></div>
       <details class="cloudfront-about-floci">

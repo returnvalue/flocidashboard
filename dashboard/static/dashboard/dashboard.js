@@ -52,9 +52,11 @@ const cloudwatchConsoleRoot = document.getElementById('cloudwatch-console-root')
 const codebuildGrid = document.querySelector('#codebuild-grid');
 const codebuildSummary = document.querySelector('#codebuild-summary');
 const codebuildLoadedAt = document.querySelector('#codebuild-loaded-at');
+const codebuildConsoleRoot = document.getElementById('codebuild-console-root');
 const codedeployGrid = document.querySelector('#codedeploy-grid');
 const codedeploySummary = document.querySelector('#codedeploy-summary');
 const codedeployLoadedAt = document.querySelector('#codedeploy-loaded-at');
+const codedeployConsoleRoot = document.getElementById('codedeploy-console-root');
 const costexplorerGrid = document.querySelector('#costexplorer-grid');
 const costexplorerSummary = document.querySelector('#costexplorer-summary');
 const costexplorerLoadedAt = document.querySelector('#costexplorer-loaded-at');
@@ -72,6 +74,7 @@ const apigatewayConsoleRoot = document.getElementById('apigateway-console-root')
 const appconfigGrid = document.querySelector('#appconfig-grid');
 const appconfigSummary = document.querySelector('#appconfig-summary');
 const appconfigLoadedAt = document.querySelector('#appconfig-loaded-at');
+const appconfigConsoleRoot = document.getElementById('appconfig-console-root');
 const ecsGrid = document.querySelector('#ecs-grid');
 const ecsSummary = document.querySelector('#ecs-summary');
 const ecsLoadedAt = document.querySelector('#ecs-loaded-at');
@@ -113,6 +116,7 @@ const pricingLoadedAt = document.querySelector('#pricing-loaded-at');
 const resourcegroupstaggingGrid = document.querySelector('#resourcegroupstagging-grid');
 const resourcegroupstaggingSummary = document.querySelector('#resourcegroupstagging-summary');
 const resourcegroupstaggingLoadedAt = document.querySelector('#resourcegroupstagging-loaded-at');
+const resourcegroupstaggingConsoleRoot = document.getElementById('resourcegroupstagging-console-root');
 const ssmGrid = document.querySelector('#ssm-grid');
 const ssmSummary = document.querySelector('#ssm-summary');
 const ssmLoadedAt = document.querySelector('#ssm-loaded-at');
@@ -184,9 +188,12 @@ const glueConsoleRoot = document.getElementById('glue-console-root');
 const textractGrid = document.querySelector('#textract-grid');
 const textractSummary = document.querySelector('#textract-summary');
 const textractLoadedAt = document.querySelector('#textract-loaded-at');
+const textractConsoleRoot = document.getElementById('textract-console-root');
 const transcribeGrid = document.querySelector('#transcribe-grid');
 const transcribeSummary = document.querySelector('#transcribe-summary');
 const transcribeLoadedAt = document.querySelector('#transcribe-loaded-at');
+const transcribeConsoleRoot = document.getElementById('transcribe-console-root');
+const bedrockruntimeConsoleRoot = document.getElementById('bedrockruntime-console-root');
 const curGrid = document.querySelector('#cur-grid');
 const curSummary = document.querySelector('#cur-summary');
 const curLoadedAt = document.querySelector('#cur-loaded-at');
@@ -3130,13 +3137,6 @@ function renderResourceGroupsTagging(data) {
   resourcegroupstaggingGrid.textContent = '';
   renderSummary(data.summary, resourcegroupstaggingSummary);
 
-  const reportItems = data.report ? [{
-    name: data.report.Status || 'Report creation',
-    status: data.report.Status,
-    s3_location: data.report.S3Location,
-    error_message: data.report.ErrorMessage,
-  }] : [];
-
   const panels = [
     renderDetailList('Tagged resources', data.resources || [], [
       ['ARN', 'arn'],
@@ -3161,18 +3161,7 @@ function renderResourceGroupsTagging(data) {
       ['Key', 'key'],
       ['Resource count', 'resource_count'],
     ]),
-    renderDetailList('Compliance summary', data.compliance_summary || [], [
-      ['Target ID', 'TargetId'],
-      ['Region', 'Region'],
-      ['Resource type', 'ResourceType'],
-      ['Noncompliant resources', 'NonCompliantResources'],
-    ]),
-    renderDetailList('Report creation', reportItems, [
-      ['Status', 'status'],
-      ['S3 location', 's3_location'],
-      ['Error message', 'error_message'],
-    ]),
-    renderDetailList('Supported from SDK', (data.supported_from_sdk || []).map((operation) => ({
+    renderDetailList('Supported operations', (data.supported_operations || []).map((operation) => ({
       name: operation,
       operation,
     })), [
@@ -4502,6 +4491,11 @@ function renderTextract(data) {
     })), [
       ['Operation', 'operation'],
     ]),
+    renderDetailList('Stub block shape', data.stub_blocks || [], [
+      ['Block type', 'BlockType'],
+      ['Text', 'Text'],
+      ['Relationships', 'Relationships'],
+    ]),
     renderDetailList('Supported from SDK', (data.supported_from_sdk || []).map((operation) => ({
       name: operation,
       operation,
@@ -5340,6 +5334,10 @@ async function refresh() {
         await window.DynamoDBConsole.refresh();
       } else if (service.key === 'cloudwatch' && cloudwatchConsoleRoot && window.CloudWatchConsole) {
         await window.CloudWatchConsole.refresh();
+      } else if (service.key === 'codebuild' && codebuildConsoleRoot && window.CodeBuildConsole) {
+        await window.CodeBuildConsole.refresh();
+      } else if (service.key === 'codedeploy' && codedeployConsoleRoot && window.CodeDeployConsole) {
+        await window.CodeDeployConsole.refresh();
       } else if (service.key === 'stepfunctions' && stepfunctionsConsoleRoot && window.StepFunctionsConsole) {
         await window.StepFunctionsConsole.refresh();
       } else if (service.key === 'eventbridge' && eventbridgeConsoleRoot && window.EventBridgeConsole) {
@@ -5376,6 +5374,16 @@ async function refresh() {
         await window.SecretsManagerConsole.refresh();
       } else if (service.key === 'ssm' && ssmConsoleRoot && window.SSMConsole) {
         await window.SSMConsole.refresh();
+      } else if (service.key === 'textract' && textractConsoleRoot && window.TextractConsole) {
+        await window.TextractConsole.refresh();
+      } else if (service.key === 'transcribe' && transcribeConsoleRoot && window.TranscribeConsole) {
+        await window.TranscribeConsole.refresh();
+      } else if (service.key === 'bedrockruntime' && bedrockruntimeConsoleRoot && window.BedrockRuntimeConsole) {
+        await window.BedrockRuntimeConsole.refresh();
+      } else if (service.key === 'appconfig' && appconfigConsoleRoot && window.AppConfigConsole) {
+        await window.AppConfigConsole.refresh();
+      } else if (service.key === 'resourcegroupstagging' && resourcegroupstaggingConsoleRoot && window.ResourceGroupsTaggingConsole) {
+        await window.ResourceGroupsTaggingConsole.refresh();
       } else if (service.key === 'scheduler' && schedulerConsoleRoot && window.SchedulerConsole) {
         await window.SchedulerConsole.refresh();
       } else if (service.key === 'pipes' && pipesConsoleRoot && window.PipesConsole) {

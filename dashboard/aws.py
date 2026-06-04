@@ -861,15 +861,19 @@ def transcribe_inventory() -> dict[str, Any]:
                 'ListTranscriptionJobs',
                 'DeleteTranscriptionJob',
                 'CreateVocabulary',
+                'GetVocabulary',
                 'ListVocabularies',
-                'CreateVocabularyFilter',
-                'ListVocabularyFilters',
+                'DeleteVocabulary',
             ]
             if operation in operations
         ],
         'available_sdk_operations': sorted(operations),
         'notes': [
-            'Floci 1.5.16 adds AWS Transcribe service support under the transcribe service name.',
+            'Floci Transcribe is a control-plane stub: jobs transition to COMPLETED immediately and vocabularies transition to READY immediately.',
+            'StartTranscriptionJob accepts a media URI but performs no audio parsing or speech-to-text processing.',
+            'LanguageCode defaults to en-US and MediaFormat defaults to mp4 when omitted.',
+            'Jobs and vocabularies are stored in memory and are not persisted across restarts.',
+            'Streaming, medical transcription, call analytics, and specialized Transcribe APIs are out of scope.',
         ],
     }
 
@@ -2992,7 +2996,9 @@ def codebuild_inventory() -> dict[str, Any]:
             'ListBuilds',
             'ListBuildsForProject',
             'StopBuild',
+            'RetryBuild',
             'CreateReportGroup',
+            'UpdateReportGroup',
             'BatchGetReportGroups',
             'ListReportGroups',
             'DeleteReportGroup',
@@ -3002,10 +3008,13 @@ def codebuild_inventory() -> dict[str, Any]:
             'ImportSourceCredentials',
             'ListSourceCredentials',
             'DeleteSourceCredentials',
+            'ListCuratedEnvironmentImages',
         ],
         'notes': [
-            'This page is inferred from the CodeBuild AWS SDK API because service docs are not available yet.',
-            'If Floci only implements a subset of CodeBuild, unsupported calls are treated as empty inventory where possible.',
+            'Floci CodeBuild stores project, report-group, and source-credential state and runs builds inside real Docker containers.',
+            'Buildspec install, pre_build, build, and post_build phases run sequentially, with output streamed to /aws/codebuild/<project> in CloudWatch Logs.',
+            'NO_SOURCE builds skip source injection; S3 artifacts are copied from the build container and uploaded to an existing bucket.',
+            'Build execution is asynchronous: StartBuild returns IN_PROGRESS and BatchGetBuilds can be polled until buildComplete is true.',
         ],
     }
 
@@ -4641,9 +4650,6 @@ def resourcegroupstagging_inventory() -> dict[str, Any]:
         [],
     )
     tag_keys = _safe_value(lambda: _paginate(tagging, 'get_tag_keys', 'TagKeys'), [])
-    compliance_summary = _safe_value(lambda: _paginate(tagging, 'get_compliance_summary', 'SummaryList'), [])
-    report = _safe_value(lambda: _clean_response(tagging.describe_report_creation()), {})
-
     tag_values = []
     for key in tag_keys[:25]:
         values = _safe_value(lambda key=key: _paginate(tagging, 'get_tag_values', 'TagValues', Key=key), [])
@@ -4692,29 +4698,25 @@ def resourcegroupstagging_inventory() -> dict[str, Any]:
             'tag_keys': len(tag_keys),
             'tag_value_keys_sampled': len(tag_values),
             'resource_types': len(resource_types),
-            'compliance_items': len(compliance_summary),
         },
         'resources': resource_details,
         'resource_types': resource_types,
         'tag_keys': [{'name': key, 'key': key} for key in tag_keys],
         'tag_values': tag_values,
         'top_tags': top_tags,
-        'compliance_summary': compliance_summary,
-        'report': report,
-        'supported_from_sdk': [
+        'supported_operations': [
             'GetResources',
             'GetTagKeys',
             'GetTagValues',
-            'GetComplianceSummary',
-            'DescribeReportCreation',
-            'ListRequiredTags',
-            'StartReportCreation',
             'TagResources',
             'UntagResources',
         ],
         'notes': [
-            'This page is inferred from the Resource Groups Tagging API SDK surface because service docs were not provided for this pass.',
+            'Floci stores tags for arbitrary AWS-shaped ARNs without validating that the referenced resource exists.',
+            'GetResources supports ARN, tag, resource type, and pagination filters.',
+            'Global ARNs with an empty region segment, such as S3 bucket ARNs, are visible across regions.',
             'Tag values are sampled for the first 25 tag keys to keep page loads bounded.',
+            'AWS Organizations tag policy enforcement and persistent storage across restarts are out of scope.',
         ],
     }
 
@@ -7112,30 +7114,11 @@ def textract_inventory() -> dict[str, Any]:
 
     supported_operations = [
         'AnalyzeDocument',
-        'AnalyzeExpense',
-        'AnalyzeID',
         'DetectDocumentText',
         'StartDocumentAnalysis',
         'StartDocumentTextDetection',
         'GetDocumentAnalysis',
         'GetDocumentTextDetection',
-        'StartExpenseAnalysis',
-        'GetExpenseAnalysis',
-        'StartLendingAnalysis',
-        'GetLendingAnalysis',
-        'GetLendingAnalysisSummary',
-        'CreateAdapter',
-        'CreateAdapterVersion',
-        'GetAdapter',
-        'GetAdapterVersion',
-        'ListAdapters',
-        'ListAdapterVersions',
-        'UpdateAdapter',
-        'DeleteAdapter',
-        'DeleteAdapterVersion',
-        'TagResource',
-        'UntagResource',
-        'ListTagsForResource',
     ]
 
     return {
@@ -7152,24 +7135,24 @@ def textract_inventory() -> dict[str, Any]:
         'document_operations': [
             'AnalyzeDocument',
             'DetectDocumentText',
-            'AnalyzeExpense',
-            'AnalyzeID',
         ],
         'async_job_operations': [
             'StartDocumentAnalysis',
             'GetDocumentAnalysis',
             'StartDocumentTextDetection',
             'GetDocumentTextDetection',
-            'StartExpenseAnalysis',
-            'GetExpenseAnalysis',
-            'StartLendingAnalysis',
-            'GetLendingAnalysis',
-            'GetLendingAnalysisSummary',
+        ],
+        'stub_blocks': [
+            {'BlockType': 'PAGE', 'Text': None, 'Relationships': 'CHILD -> LINE'},
+            {'BlockType': 'LINE', 'Text': 'Floci', 'Relationships': 'CHILD -> WORD'},
+            {'BlockType': 'WORD', 'Text': 'Floci', 'Relationships': None},
         ],
         'notes': [
-            'Textract does not provide a list-jobs API, so async jobs appear through their known job IDs rather than inventory discovery.',
-            'Adapter inventory is listed when the local endpoint implements adapter APIs.',
-            'Document bytes are not submitted from the dashboard inventory page.',
+            'Floci Textract returns a fixed PAGE, LINE, and WORD block hierarchy with synthetic geometry and 99.9 confidence.',
+            'Document and DocumentLocation inputs are accepted but not parsed, so no real OCR or document analysis is performed.',
+            'StartDocumentTextDetection and StartDocumentAnalysis return immediately succeeded in-memory jobs.',
+            'Job IDs are not persisted across restarts, and text-detection job IDs cannot be fetched through GetDocumentAnalysis or vice versa.',
+            'Adapter management, AnalyzeExpense, AnalyzeID, AnalyzeLendingDocument, and async pagination are out of scope.',
         ],
     }
 

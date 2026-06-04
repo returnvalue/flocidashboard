@@ -481,6 +481,221 @@ SES_ACTIONS = (
 )
 
 
+TEXTRACT_ACTIONS = (
+    action(
+        'detect_document_text',
+        'Detect document text',
+        'POST',
+        '/api/textract/document-text/detect/',
+        'execute',
+        fields=(action_field('document', 'Document JSON', required=True, field_type='object'),),
+        success_message='Document text detected',
+    ),
+    action(
+        'analyze_document',
+        'Analyze document',
+        'POST',
+        '/api/textract/document/analyze/',
+        'execute',
+        fields=(
+            action_field('document', 'Document JSON', required=True, field_type='object'),
+            action_field('feature_types', 'Feature types JSON', field_type='array'),
+        ),
+        success_message='Document analyzed',
+    ),
+    action(
+        'start_document_text_detection',
+        'Start text detection',
+        'POST',
+        '/api/textract/jobs/text/start/',
+        'execute',
+        fields=(action_field('document_location', 'Document location JSON', required=True, field_type='object'),),
+        success_message='Text detection job started',
+    ),
+    action(
+        'get_document_text_detection',
+        'Get text detection',
+        'POST',
+        '/api/textract/jobs/text/get/',
+        'read',
+        safety='safe',
+        fields=(action_field('job_id', 'Job ID', required=True),),
+    ),
+    action(
+        'start_document_analysis',
+        'Start document analysis',
+        'POST',
+        '/api/textract/jobs/analysis/start/',
+        'execute',
+        fields=(
+            action_field('document_location', 'Document location JSON', required=True, field_type='object'),
+            action_field('feature_types', 'Feature types JSON', field_type='array'),
+        ),
+        success_message='Document analysis job started',
+    ),
+    action(
+        'get_document_analysis',
+        'Get document analysis',
+        'POST',
+        '/api/textract/jobs/analysis/get/',
+        'read',
+        safety='safe',
+        fields=(action_field('job_id', 'Job ID', required=True),),
+    ),
+)
+
+
+TRANSCRIBE_ACTIONS = (
+    action('start_transcription_job', 'Start transcription job', 'POST', '/api/transcribe/jobs/start/', 'execute', fields=(action_field('name', 'Job name', required=True), action_field('media_uri', 'Media URI', required=True), action_field('language_code', 'Language code'), action_field('media_format', 'Media format'), action_field('options', 'Job options JSON', field_type='object')), success_message='Transcription job started'),
+    action('get_transcription_job', 'Get transcription job', 'POST', '/api/transcribe/jobs/get/', 'read', safety='safe', fields=(action_field('name', 'Job name', required=True),)),
+    action('delete_transcription_job', 'Delete transcription job', 'DELETE', '/api/transcribe/jobs/{job}/', 'delete', safety='destructive', confirm='Delete this transcription job?', success_message='Transcription job deleted'),
+    action('create_vocabulary', 'Create vocabulary', 'POST', '/api/transcribe/vocabularies/', 'create', fields=(action_field('name', 'Vocabulary name', required=True), action_field('language_code', 'Language code'), action_field('phrases', 'Phrases JSON', field_type='array'), action_field('vocabulary_file_uri', 'Vocabulary file URI')), success_message='Vocabulary created'),
+    action('get_vocabulary', 'Get vocabulary', 'POST', '/api/transcribe/vocabularies/get/', 'read', safety='safe', fields=(action_field('name', 'Vocabulary name', required=True),)),
+    action('delete_vocabulary', 'Delete vocabulary', 'DELETE', '/api/transcribe/vocabularies/{vocabulary}/', 'delete', safety='destructive', confirm='Delete this vocabulary?', success_message='Vocabulary deleted'),
+)
+
+
+BEDROCKRUNTIME_ACTIONS = (
+    action(
+        'converse',
+        'Converse',
+        'POST',
+        '/api/bedrockruntime/converse/',
+        'execute',
+        fields=(
+            action_field('model_id', 'Model ID', required=True),
+            action_field('messages', 'Messages JSON', required=True, field_type='array'),
+            action_field('system', 'System JSON', field_type='array'),
+            action_field('inference_config', 'Inference config JSON', field_type='object'),
+            action_field('tool_config', 'Tool config JSON', field_type='object'),
+        ),
+        success_message='Conversation response returned',
+    ),
+    action(
+        'invoke_model',
+        'Invoke model',
+        'POST',
+        '/api/bedrockruntime/invoke/',
+        'execute',
+        fields=(
+            action_field('model_id', 'Model ID', required=True),
+            action_field('body', 'Request body JSON', required=True, field_type='object'),
+            action_field('content_type', 'Content type'),
+            action_field('accept', 'Accept'),
+        ),
+        success_message='Model response returned',
+    ),
+)
+
+
+APPCONFIG_ACTIONS = (
+    action('create_application', 'Create application', 'POST', '/api/appconfig/applications/', 'create', fields=(action_field('name', 'Application name', required=True), action_field('description', 'Description')), success_message='Application created'),
+    action('delete_application', 'Delete application', 'DELETE', '/api/appconfig/applications/{application}/', 'delete', safety='destructive', confirm='Delete this AppConfig application?', success_message='Application deleted'),
+    action('create_environment', 'Create environment', 'POST', '/api/appconfig/applications/{application}/environments/', 'create', fields=(action_field('name', 'Environment name', required=True), action_field('description', 'Description')), success_message='Environment created'),
+    action('create_configuration_profile', 'Create configuration profile', 'POST', '/api/appconfig/applications/{application}/profiles/', 'create', fields=(action_field('name', 'Profile name', required=True), action_field('location_uri', 'Location URI'), action_field('profile_type', 'Type'), action_field('description', 'Description')), success_message='Configuration profile created'),
+    action('create_hosted_configuration_version', 'Create hosted version', 'POST', '/api/appconfig/applications/{application}/profiles/{profile}/versions/', 'create', fields=(action_field('content', 'Content', required=True), action_field('content_type', 'Content type'), action_field('description', 'Description')), success_message='Hosted configuration version created'),
+    action('create_deployment_strategy', 'Create deployment strategy', 'POST', '/api/appconfig/deployment-strategies/', 'create', fields=(action_field('name', 'Strategy name', required=True), action_field('duration_minutes', 'Duration minutes', field_type='number'), action_field('growth_factor', 'Growth factor', field_type='number'), action_field('final_bake_minutes', 'Final bake minutes', field_type='number'), action_field('description', 'Description')), success_message='Deployment strategy created'),
+    action('start_deployment', 'Start deployment', 'POST', '/api/appconfig/deployments/start/', 'execute', fields=(action_field('application_id', 'Application ID', required=True), action_field('environment_id', 'Environment ID', required=True), action_field('profile_id', 'Configuration profile ID', required=True), action_field('configuration_version', 'Configuration version', required=True), action_field('deployment_strategy_id', 'Deployment strategy ID', required=True), action_field('description', 'Description')), success_message='Deployment started'),
+    action('start_configuration_session', 'Start configuration session', 'POST', '/api/appconfig/sessions/start/', 'execute', fields=(action_field('application_id', 'Application ID', required=True), action_field('environment_id', 'Environment ID', required=True), action_field('profile_id', 'Configuration profile ID', required=True)), success_message='Configuration session started'),
+    action('get_latest_configuration', 'Get latest configuration', 'POST', '/api/appconfig/configuration/latest/', 'read', safety='safe', fields=(action_field('configuration_token', 'Configuration token', required=True),)),
+)
+
+
+RESOURCEGROUPSTAGGING_ACTIONS = (
+    action('tag_resources', 'Tag resources', 'POST', '/api/resourcegroupstagging/resources/tag/', 'update', fields=(action_field('resource_arns', 'Resource ARNs JSON', required=True, field_type='array'), action_field('tags', 'Tags JSON', required=True, field_type='object')), success_message='Resources tagged'),
+    action('untag_resources', 'Untag resources', 'POST', '/api/resourcegroupstagging/resources/untag/', 'update', fields=(action_field('resource_arns', 'Resource ARNs JSON', required=True, field_type='array'), action_field('tag_keys', 'Tag keys JSON', required=True, field_type='array')), success_message='Tags removed'),
+    action('get_resources', 'Search tagged resources', 'POST', '/api/resourcegroupstagging/resources/search/', 'read', safety='safe', fields=(action_field('resource_arns', 'Resource ARNs JSON', field_type='array'), action_field('tag_filters', 'Tag filters JSON', field_type='array'), action_field('resource_type_filters', 'Resource type filters JSON', field_type='array'), action_field('resources_per_page', 'Resources per page', field_type='number'))),
+    action('get_tag_values', 'Get tag values', 'POST', '/api/resourcegroupstagging/tag-values/', 'read', safety='safe', fields=(action_field('key', 'Tag key', required=True),)),
+)
+
+
+CODEDEPLOY_ACTIONS = (
+    action(
+        'create_application',
+        'Create application',
+        'POST',
+        '/api/codedeploy/applications/',
+        'create',
+        fields=(
+            action_field('name', 'Application name', required=True),
+            action_field('compute_platform', 'Compute platform'),
+        ),
+        success_message='Application created',
+    ),
+    action(
+        'delete_application',
+        'Delete application',
+        'DELETE',
+        '/api/codedeploy/applications/{application}/',
+        'delete',
+        safety='destructive',
+        confirm='Delete this CodeDeploy application and its deployment groups?',
+        success_message='Application deleted',
+    ),
+    action(
+        'create_deployment_group',
+        'Create deployment group',
+        'POST',
+        '/api/codedeploy/applications/{application}/deployment-groups/',
+        'create',
+        fields=(
+            action_field('deployment_group_name', 'Deployment group name', required=True),
+            action_field('options', 'Deployment group options JSON', required=True, field_type='object'),
+        ),
+        success_message='Deployment group created',
+    ),
+    action(
+        'delete_deployment_group',
+        'Delete deployment group',
+        'DELETE',
+        '/api/codedeploy/applications/{application}/deployment-groups/{group}/',
+        'delete',
+        safety='destructive',
+        confirm='Delete this deployment group?',
+        success_message='Deployment group deleted',
+    ),
+    action(
+        'create_deployment',
+        'Create deployment',
+        'POST',
+        '/api/codedeploy/deployments/',
+        'execute',
+        fields=(
+            action_field('application_name', 'Application name', required=True),
+            action_field('deployment_group_name', 'Deployment group name', required=True),
+            action_field('revision', 'Revision JSON', required=True, field_type='object'),
+            action_field('options', 'Deployment options JSON', field_type='object'),
+        ),
+        success_message='Deployment created',
+    ),
+    action('get_deployment', 'Get deployment', 'POST', '/api/codedeploy/deployments/get/', 'read', safety='safe', fields=(action_field('deployment_id', 'Deployment ID', required=True),)),
+    action('stop_deployment', 'Stop deployment', 'POST', '/api/codedeploy/deployments/stop/', 'update', fields=(action_field('deployment_id', 'Deployment ID', required=True), action_field('auto_rollback_enabled', 'Auto rollback enabled', field_type='boolean')), success_message='Deployment stopped'),
+    action('continue_deployment', 'Continue deployment', 'POST', '/api/codedeploy/deployments/continue/', 'update', fields=(action_field('deployment_id', 'Deployment ID', required=True),), success_message='Deployment continued'),
+    action('put_lifecycle_event_hook_execution_status', 'Report lifecycle hook', 'POST', '/api/codedeploy/lifecycle-hooks/status/', 'update', fields=(action_field('deployment_id', 'Deployment ID', required=True), action_field('hook_execution_id', 'Hook execution ID', required=True), action_field('status', 'Status', required=True)), success_message='Lifecycle hook status reported'),
+    action('create_deployment_config', 'Create deployment config', 'POST', '/api/codedeploy/deployment-configs/', 'create', fields=(action_field('name', 'Deployment config name', required=True), action_field('options', 'Deployment config options JSON', required=True, field_type='object')), success_message='Deployment config created'),
+    action('delete_deployment_config', 'Delete deployment config', 'DELETE', '/api/codedeploy/deployment-configs/{config}/', 'delete', safety='destructive', confirm='Delete this custom deployment config?', success_message='Deployment config deleted'),
+    action('tag_resource', 'Tag resource', 'POST', '/api/codedeploy/tags/', 'update', fields=(action_field('resource_arn', 'Resource ARN', required=True), action_field('tags', 'Tags JSON', required=True, field_type='array')), success_message='Resource tagged'),
+    action('untag_resource', 'Untag resource', 'DELETE', '/api/codedeploy/tags/', 'update', fields=(action_field('resource_arn', 'Resource ARN', required=True), action_field('tag_keys', 'Tag keys JSON', required=True, field_type='array')), success_message='Resource untagged'),
+)
+
+
+CODEBUILD_ACTIONS = (
+    action('create_project', 'Create project', 'POST', '/api/codebuild/projects/', 'create', fields=(action_field('name', 'Project name', required=True), action_field('options', 'Project options JSON', required=True, field_type='object')), success_message='Project created'),
+    action('update_project', 'Update project', 'PATCH', '/api/codebuild/projects/{project}/', 'update', fields=(action_field('options', 'Project options JSON', required=True, field_type='object'),), success_message='Project updated'),
+    action('delete_project', 'Delete project', 'DELETE', '/api/codebuild/projects/{project}/', 'delete', safety='destructive', confirm='Delete this CodeBuild project?', success_message='Project deleted'),
+    action('start_build', 'Start build', 'POST', '/api/codebuild/builds/start/', 'execute', fields=(action_field('project_name', 'Project name', required=True), action_field('options', 'Build overrides JSON', field_type='object')), success_message='Build started'),
+    action('get_build', 'Get build', 'POST', '/api/codebuild/builds/get/', 'read', safety='safe', fields=(action_field('build_id', 'Build ID', required=True),)),
+    action('stop_build', 'Stop build', 'POST', '/api/codebuild/builds/stop/', 'update', fields=(action_field('build_id', 'Build ID', required=True),), success_message='Build stopped'),
+    action('retry_build', 'Retry build', 'POST', '/api/codebuild/builds/retry/', 'execute', fields=(action_field('build_id', 'Build ID', required=True),), success_message='Build retried'),
+    action('list_curated_images', 'List curated images', 'GET', '/api/codebuild/curated-images/', 'read', safety='safe'),
+    action('create_report_group', 'Create report group', 'POST', '/api/codebuild/report-groups/', 'create', fields=(action_field('name', 'Report group name', required=True), action_field('options', 'Report group options JSON', required=True, field_type='object')), success_message='Report group created'),
+    action('update_report_group', 'Update report group', 'PATCH', '/api/codebuild/report-groups/detail/', 'update', fields=(action_field('arn', 'Report group ARN', required=True), action_field('options', 'Report group options JSON', required=True, field_type='object')), success_message='Report group updated'),
+    action('delete_report_group', 'Delete report group', 'DELETE', '/api/codebuild/report-groups/detail/', 'delete', safety='destructive', fields=(action_field('arn', 'Report group ARN', required=True), action_field('delete_reports', 'Delete reports', field_type='boolean')), confirm='Delete this report group?', success_message='Report group deleted'),
+    action('import_source_credentials', 'Import source credentials', 'POST', '/api/codebuild/source-credentials/', 'create', fields=(action_field('server_type', 'Server type', required=True), action_field('auth_type', 'Auth type', required=True), action_field('token', 'Token', required=True), action_field('username', 'Username')), success_message='Source credentials imported'),
+    action('delete_source_credentials', 'Delete source credentials', 'DELETE', '/api/codebuild/source-credentials/', 'delete', safety='destructive', fields=(action_field('arn', 'Credential ARN', required=True),), confirm='Delete these source credentials?', success_message='Source credentials deleted'),
+)
+
+
 LAMBDA_ACTIONS = (
     action(
         'invoke_function',
@@ -3453,7 +3668,19 @@ SERVICES: tuple[ServiceDefinition, ...] = (
         tags=('layered-workbench', 'request-workbench'),
         actions=APIGATEWAY_ACTIONS,
     ),
-    service('appconfig', 'AppConfig', 'Application configuration management', 'Developer Tools'),
+    service(
+        'appconfig',
+        'AppConfig',
+        'Application configuration management',
+        'Developer Tools',
+        maturity='interactive_workbench',
+        console_css='dashboard/appconfig-console.css',
+        console_js='dashboard/appconfig-console.js',
+        shared_console=True,
+        tutorial_available=True,
+        tags=('layered-workbench', 'configuration-workbench'),
+        actions=APPCONFIG_ACTIONS,
+    ),
     service(
         'athena',
         'Athena',
@@ -3492,7 +3719,19 @@ SERVICES: tuple[ServiceDefinition, ...] = (
         actions=BACKUP_ACTIONS,
     ),
     service('bcmdataexports', 'BCM Data Exports', 'Billing and cost management exports', 'Management'),
-    service('bedrockruntime', 'Bedrock Runtime', 'Model runtime stub', 'AI'),
+    service(
+        'bedrockruntime',
+        'Bedrock Runtime',
+        'Model runtime stub',
+        'AI',
+        maturity='interactive_workbench',
+        console_css='dashboard/bedrockruntime-console.css',
+        console_js='dashboard/bedrockruntime-console.js',
+        shared_console=True,
+        tutorial_available=True,
+        tags=('layered-workbench', 'model-runtime-workbench'),
+        actions=BEDROCKRUNTIME_ACTIONS,
+    ),
     service(
         'cloudfront',
         'CloudFront',
@@ -3529,8 +3768,32 @@ SERVICES: tuple[ServiceDefinition, ...] = (
         tags=('layered-workbench',),
         actions=CLOUDWATCH_ACTIONS,
     ),
-    service('codebuild', 'CodeBuild', 'Build projects and execution history', 'Developer Tools'),
-    service('codedeploy', 'CodeDeploy', 'Deployment applications and history', 'Developer Tools'),
+    service(
+        'codebuild',
+        'CodeBuild',
+        'Build projects and execution history',
+        'Developer Tools',
+        maturity='interactive_workbench',
+        console_css='dashboard/codebuild-console.css',
+        console_js='dashboard/codebuild-console.js',
+        shared_console=True,
+        tutorial_available=True,
+        tags=('layered-workbench', 'build-workbench'),
+        actions=CODEBUILD_ACTIONS,
+    ),
+    service(
+        'codedeploy',
+        'CodeDeploy',
+        'Deployment applications and history',
+        'Developer Tools',
+        maturity='interactive_workbench',
+        console_css='dashboard/codedeploy-console.css',
+        console_js='dashboard/codedeploy-console.js',
+        shared_console=True,
+        tutorial_available=True,
+        tags=('layered-workbench', 'deployment-workbench'),
+        actions=CODEDEPLOY_ACTIONS,
+    ),
     service(
         'config',
         'AWS Config',
@@ -3790,7 +4053,19 @@ SERVICES: tuple[ServiceDefinition, ...] = (
         tags=('layered-workbench', 'database-workbench'),
         actions=RDS_ACTIONS,
     ),
-    service('resourcegroupstagging', 'Resource Groups Tagging', 'Tagged resources, tag keys, tag values, and compliance', 'Management'),
+    service(
+        'resourcegroupstagging',
+        'Resource Groups Tagging',
+        'Centralized tagged resource discovery',
+        'Management',
+        maturity='interactive_workbench',
+        console_css='dashboard/resourcegroupstagging-console.css',
+        console_js='dashboard/resourcegroupstagging-console.js',
+        shared_console=True,
+        tutorial_available=True,
+        tags=('layered-workbench', 'tag-explorer'),
+        actions=RESOURCEGROUPSTAGGING_ACTIONS,
+    ),
     service(
         'route53',
         'Route 53',
@@ -3900,8 +4175,32 @@ SERVICES: tuple[ServiceDefinition, ...] = (
         tags=('layered-workbench', 'workflow-workbench'),
         actions=STEPFUNCTIONS_ACTIONS,
     ),
-    service('textract', 'Textract', 'Document analysis, OCR, adapters, and async jobs', 'AI'),
-    service('transcribe', 'Transcribe', 'Speech transcription jobs and vocabularies', 'AI'),
+    service(
+        'textract',
+        'Textract',
+        'Document analysis, OCR, adapters, and async jobs',
+        'AI',
+        maturity='interactive_workbench',
+        console_css='dashboard/textract-console.css',
+        console_js='dashboard/textract-console.js',
+        shared_console=True,
+        tutorial_available=True,
+        tags=('layered-workbench', 'document-ai-workbench'),
+        actions=TEXTRACT_ACTIONS,
+    ),
+    service(
+        'transcribe',
+        'Transcribe',
+        'Speech transcription jobs and vocabularies',
+        'AI',
+        maturity='interactive_workbench',
+        console_css='dashboard/transcribe-console.css',
+        console_js='dashboard/transcribe-console.js',
+        shared_console=True,
+        tutorial_available=True,
+        tags=('layered-workbench', 'speech-workbench'),
+        actions=TRANSCRIBE_ACTIONS,
+    ),
     service(
         'transfer',
         'Transfer Family',
