@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import acm_views, apigateway_views, appconfig_views, athena_views, autoscaling_views, backup_views, bedrockruntime_views, cloudformation_views, cloudfront_views, cloudwatch_logs_views, codebuild_views, codedeploy_views, cognito_views, config_views, dynamodb_views, ec2_views, ecr_views, ecs_views, eks_views, elasticache_views, elasticloadbalancing_views, eventbridge_views, firehose_views, glue_views, iam_views, kafka_views, kinesis_views, kms_views, lambda_views, neptune_views, opensearch_views, pipes_views, rds_views, resourcegroupstagging_views, route53_views, s3_views, scheduler_views, secretsmanager_views, ses_views, sns_views, sqs_views, ssm_views, stepfunctions_views, textract_views, transcribe_views, transfer_views, views
+from . import acm_views, apigateway_views, appconfig_views, appsync_views, athena_views, autoscaling_views, backup_views, bedrockruntime_views, cloudformation_views, cloudfront_views, cloudwatch_logs_views, codebuild_views, codedeploy_views, cognito_views, config_views, dynamodb_views, ec2_views, ecr_views, ecs_views, eks_views, elasticache_views, elasticloadbalancing_views, eventbridge_views, firehose_views, glue_views, iam_views, kafka_views, kinesis_views, kms_views, lambda_views, neptune_views, opensearch_views, pipes_views, rds_views, resourcegroupstagging_views, route53_views, s3_views, scheduler_views, secretsmanager_views, ses_views, sns_views, sqs_views, ssm_views, stepfunctions_views, textract_views, transcribe_views, transfer_views, views
 
 app_name = 'dashboard'
 
@@ -26,6 +26,16 @@ urlpatterns = [
     path('api/appconfig/deployments/start/', appconfig_views.appconfig_deployments_start, name='appconfig-deployments-start'),
     path('api/appconfig/sessions/start/', appconfig_views.appconfig_sessions_start, name='appconfig-sessions-start'),
     path('api/appconfig/configuration/latest/', appconfig_views.appconfig_latest_configuration, name='appconfig-latest-configuration'),
+    path('api/appsync/', views.appsync, name='appsync'),
+    path('api/appsync/apis/', appsync_views.appsync_apis_create, name='appsync-apis'),
+    path('api/appsync/apis/<str:api_id>/', appsync_views.appsync_api_delete, name='appsync-api-detail'),
+    path('api/appsync/apis/<str:api_id>/schema/', appsync_views.appsync_schema_create, name='appsync-schema'),
+    path('api/appsync/apis/<str:api_id>/api-keys/', appsync_views.appsync_api_keys, name='appsync-api-keys'),
+    path('api/appsync/apis/<str:api_id>/data-sources/', appsync_views.appsync_data_sources, name='appsync-data-sources'),
+    path('api/appsync/apis/<str:api_id>/resolvers/', appsync_views.appsync_resolvers, name='appsync-resolvers'),
+    path('api/appsync/apis/<str:api_id>/functions/', appsync_views.appsync_functions, name='appsync-functions'),
+    path('api/appsync/apis/<str:api_id>/types/', appsync_views.appsync_types, name='appsync-types'),
+    path('api/appsync/tags/', appsync_views.appsync_tags, name='appsync-tags'),
     path('api/athena/', views.athena, name='athena'),
     path('api/athena/queries/start/', athena_views.athena_queries_start, name='athena-queries-start'),
     path('api/athena/queries/stop/', athena_views.athena_queries_stop, name='athena-queries-stop'),
@@ -227,6 +237,7 @@ urlpatterns = [
     path('api/kms/crypto/encrypt/', kms_views.kms_encrypt, name='kms-encrypt'),
     path('api/kms/crypto/decrypt/', kms_views.kms_decrypt, name='kms-decrypt'),
     path('api/kms/data-keys/', kms_views.kms_data_keys, name='kms-data-keys'),
+    path('api/kms/random/', kms_views.kms_random, name='kms-random'),
     path('api/kms/rotation/', kms_views.kms_rotation, name='kms-rotation'),
     path('api/kms/deletion/schedule/', kms_views.kms_deletion_schedule, name='kms-deletion-schedule'),
     path('api/kms/deletion/cancel/', kms_views.kms_deletion_cancel, name='kms-deletion-cancel'),

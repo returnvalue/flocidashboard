@@ -20,6 +20,48 @@ const CloudFormationConsole = (() => {
     Properties:
       QueueName: dashboard-demo-queue
 `;
+  const ecsAlbTemplate = `Parameters:
+  VpcId:
+    Type: String
+  SubnetId:
+    Type: String
+Resources:
+  DashboardCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: dashboard-cfn-cluster
+  DashboardTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: dashboard-cfn-task
+      NetworkMode: awsvpc
+      Cpu: "256"
+      Memory: "512"
+      RequiresCompatibilities:
+        - FARGATE
+      ContainerDefinitions:
+        - Name: web
+          Image: nginx:alpine
+          Essential: true
+          PortMappings:
+            - ContainerPort: 80
+  DashboardTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: dashboard-cfn-targets
+      Port: 80
+      Protocol: HTTP
+      TargetType: ip
+      VpcId:
+        Ref: VpcId
+  DashboardLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: dashboard-cfn-alb
+      Type: application
+      Subnets:
+        - Ref: SubnetId
+`;
 
   const el = consoleUi.el;
   const apiJson = consoleUi.apiJson;
@@ -126,9 +168,20 @@ const CloudFormationConsole = (() => {
     capabilitiesInput.value = options.capabilities || 'CAPABILITY_NAMED_IAM';
     capabilitiesInput.placeholder = 'CAPABILITY_NAMED_IAM';
 
+    const presetSelect = document.createElement('select');
+    presetSelect.append(new Option('SQS queue starter', 'sqs'), new Option('ECS + ALB (Floci 1.5.22)', 'ecs-alb'));
+    presetSelect.addEventListener('change', () => {
+      templateInput.value = presetSelect.value === 'ecs-alb' ? ecsAlbTemplate : sampleTemplate;
+      if (presetSelect.value === 'ecs-alb' && !parametersInput.value.trim()) {
+        parametersInput.value = '{\n  "VpcId": "vpc-00000000",\n  "SubnetId": "subnet-00000000"\n}';
+      }
+    });
+
     form.append(
       el('label', null, 'Stack name'),
       stackInput,
+      el('label', null, 'Starter template'),
+      presetSelect,
       el('label', null, 'Template body'),
       templateInput,
       el('label', null, 'Parameters JSON'),

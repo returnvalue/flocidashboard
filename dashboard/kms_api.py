@@ -171,6 +171,18 @@ def generate_data_key(key_id: str, *, key_spec: str = 'AES_256', number_of_bytes
     }
 
 
+def generate_random(number_of_bytes: Any = 32) -> dict[str, Any]:
+    size = _optional_int(number_of_bytes, 'Number of bytes', 32)
+    if size > 1024:
+        raise ValueError('Number of bytes must be 1024 or less')
+    response = _client().generate_random(NumberOfBytes=size)
+    plaintext = bytes(response.get('Plaintext') or b'')
+    return {
+        'plaintext_base64': _encoded_blob(plaintext),
+        'size_bytes': len(plaintext),
+    }
+
+
 def set_key_rotation(key_id: str, enabled: bool) -> dict[str, Any]:
     clean_key = _clean_required(key_id, 'Key ID')
     client = _client()

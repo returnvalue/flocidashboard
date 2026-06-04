@@ -80,6 +80,7 @@ def ecs_tasks_run(request):
             launch_type=body.get('launch_type') or 'FARGATE',
             count=body.get('count') or 1,
             network_configuration=body.get('network_configuration') or {},
+            overrides=body.get('overrides') or {},
             started_by=body.get('started_by') or '',
             tags=body.get('tags') or [],
         ))

@@ -89,6 +89,8 @@
           <nav id="pipes-breadcrumbs" class="pipes-breadcrumbs" aria-label="EventBridge Pipes navigation"></nav>
         {% elif service.key == 'config' %}
           <nav id="config-breadcrumbs" class="config-breadcrumbs" aria-label="AWS Config navigation"></nav>
+        {% elif service.key == 'appsync' %}
+          <nav id="appsync-breadcrumbs" class="appsync-breadcrumbs" aria-label="AppSync navigation"></nav>
         {% endif %}
       </div>
       <span id="{{ service.key }}-loaded-at"></span>
@@ -107,7 +109,7 @@
       <div id="s3-console-root" class="s3-console-root" aria-live="polite"></div>
       <details class="s3-about-floci">
         <summary>About Floci S3</summary>
-        <p>Local S3 emulator. Bucket policies and lifecycle rules are stored but not enforced at access time. Replication, access logging, and inventory are not available.</p>
+        <p>Local S3 emulator. Bucket policies and lifecycle rules are stored but not enforced at access time. Replication, access logging, and inventory are not available. Floci 1.5.22 enforces SSE-C customer keys.</p>
         <p>S3 is most often used as durable object storage for uploads, generated files, backups, static assets, data lake inputs, and service-to-service handoffs. In Floci, a good learning flow is to create a bucket, upload a file, organize objects with folder-style prefixes, inspect metadata and tags, then generate a presigned URL to test temporary access.</p>
         <p>Common local test cases include upload and download paths, overwrite behavior, empty bucket cleanup, versioning changes, object tagging, copy operations, prefix browsing, and app behavior when a bucket or object does not exist.</p>
       </details>
@@ -136,7 +138,7 @@
         <summary>About Floci SES</summary>
         <p>Local SES supports the classic Query API and a subset of SES v2 REST JSON. Identity verification succeeds immediately, so test senders and recipients can be created without DNS or inbox verification.</p>
         <p>Emails are always captured locally at /_aws/ses, even when SMTP relay is configured. The workbench focuses on verifying identities, sending sample messages, managing templates, and inspecting or clearing the captured mailbox.</p>
-        <p>SES v1 and v2 share identity, template, configuration set, and sent-message state in Floci. Configuration set event destinations are stored locally, with SNS destinations used for emitted SES events when configured.</p>
+        <p>SES v1 and v2 share identity, template, configuration set, and sent-message state in Floci. In Floci 1.5.22, v1 configuration set event destination CRUD is supported, SNS destinations receive emitted SES events, and suppression lists are enforced at send time with per-configuration-set overrides.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid ses-readonly-grid"></div>
     {% elif service.key == 'sns' %}
@@ -145,7 +147,7 @@
         <summary>About Floci SNS</summary>
         <p>Local SNS emulator for topic-based pub/sub workflows. Published messages are delivered immediately to supported local subscriptions, including SQS queues.</p>
         <p>SNS is most often used to fan out events to queues, functions, webhooks, and notification handlers. In Floci, a good learning flow is to create a topic with your app or CLI, subscribe an SQS queue, publish a test event here, then inspect the delivered message in the SQS workbench.</p>
-        <p>Common local test cases include message shape, attributes, subject handling, subscription filter policies, FIFO group and deduplication behavior, and SNS-to-SQS fanout.</p>
+        <p>Common local test cases include message shape, attributes, subject handling, subscription filter policies, FIFO group and deduplication behavior, SNS-to-SQS fanout, and mocked iOS or Android mobile push endpoints added in Floci 1.5.22.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid sns-readonly-grid"></div>
     {% elif service.key == 'lambda' %}
@@ -197,8 +199,8 @@
       <div id="cloudformation-console-root" class="cloudformation-console-root" aria-live="polite"></div>
       <details class="cloudformation-about-floci">
         <summary>About Floci CloudFormation</summary>
-        <p>Local CloudFormation deploys templates through the AWS-compatible Query XML API and provisions supported local resources such as S3 buckets, SQS queues, SNS topics, DynamoDB tables, Lambda functions, IAM identities, SSM parameters, KMS keys, Secrets Manager secrets, API Gateway resources, EventBridge rules, and more.</p>
-        <p>CloudFormation is most useful when testing whole local application slices. In Floci, a good learning flow is to validate a template, create a stack, watch stack events, inspect generated resources, then update or delete the stack from the workbench.</p>
+        <p>Local CloudFormation deploys templates through the AWS-compatible Query XML API and provisions supported local resources such as S3 buckets, SQS queues, SNS topics, DynamoDB tables, Lambda functions, IAM identities, SSM parameters, KMS keys, Secrets Manager secrets, API Gateway resources, EventBridge rules, ECS resources, ELBv2 resources, and more.</p>
+        <p>CloudFormation is most useful when testing whole local application slices. Floci 1.5.22 persists stacks across restarts, rolls back failed creates, and supports the ApiGatewayV2 update path. A good learning flow is to validate a template, create a stack, watch stack events, inspect generated resources, then update or delete the stack from the workbench.</p>
         <p>Unsupported resource types are accepted and assigned synthetic physical IDs so broader templates can deploy while you focus on the local services that Floci emulates.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid cloudformation-readonly-grid"></div>
@@ -244,7 +246,7 @@
         <summary>About Floci ECS</summary>
         <p>Local ECS stores clusters, task definitions, tasks, services, task sets, container instances, capacity providers, account settings, attributes, and tags through the AWS-compatible JSON API.</p>
         <p>ECS is most useful when testing containerized local workloads and service orchestration. In Floci, a good learning flow is to create a cluster, register a task definition, run a one-off task, then create a service and adjust its desired count.</p>
-        <p>By default tasks launch as real Docker containers and need Docker socket access. Set FLOCI_SERVICES_ECS_MOCK=true when tests or CI should run without Docker.</p>
+        <p>By default tasks launch as real Docker containers and need Docker socket access. Set FLOCI_SERVICES_ECS_MOCK=true when tests or CI should run without Docker. Floci 1.5.22 honors RunTask command and environment container overrides and preserves create-time resource tags.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid ecs-readonly-grid"></div>
     {% elif service.key == 'apigateway' %}
@@ -364,6 +366,15 @@
         <p>A good learning flow is to create an application hierarchy, add a JSON hosted version, create an immediate deployment strategy, deploy the version, then retrieve it through the data plane.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid appconfig-readonly-grid"></div>
+    {% elif service.key == 'appsync' %}
+      <div id="appsync-console-root" class="appsync-console-root" aria-live="polite"></div>
+      <details class="appsync-about-floci">
+        <summary>About Floci AppSync</summary>
+        <p>Floci 1.5.22 adds AppSync Phase 1 management API emulation for provisioning and configuring GraphQL APIs.</p>
+        <p>The supported management surface includes GraphQL APIs, schemas, API keys, data sources, resolvers, functions, types, and resource tags.</p>
+        <p>This release focuses on stored management-plane state. GraphQL query and mutation execution is not part of Phase 1.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid appsync-readonly-grid"></div>
     {% elif service.key == 'resourcegroupstagging' %}
       <div id="resourcegroupstagging-console-root" class="resourcegroupstagging-console-root" aria-live="polite"></div>
       <details class="resourcegroupstagging-about-floci">
@@ -405,7 +416,7 @@
       <details class="eks-about-floci">
         <summary>About Floci EKS</summary>
         <p>Local EKS uses the AWS-compatible REST JSON API for cluster metadata, tags, and cluster lifecycle calls.</p>
-        <p>In mock mode, clusters become ACTIVE immediately and no Kubernetes API server is started. In real mode, Floci starts a k3s container per cluster and exposes the API server on a host port from the configured range.</p>
+        <p>In mock mode, clusters become ACTIVE immediately and no Kubernetes API server is started. In real mode, Floci starts a k3s container per cluster and, as of 1.5.22, exposes a host-reachable and authenticable Kubernetes API endpoint.</p>
         <p>This first workbench focuses on the supported Phase 1 surface: create clusters, inspect cluster endpoints and metadata, add or remove tags, and delete clusters.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid eks-readonly-grid"></div>

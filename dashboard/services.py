@@ -601,6 +601,25 @@ APPCONFIG_ACTIONS = (
 )
 
 
+APPSYNC_ACTIONS = (
+    action('create_graphql_api', 'Create GraphQL API', 'POST', '/api/appsync/apis/', 'create', fields=(action_field('name', 'API name', required=True), action_field('authentication_type', 'Authentication type'), action_field('tags', 'Tags JSON', field_type='object')), success_message='GraphQL API created'),
+    action('delete_graphql_api', 'Delete GraphQL API', 'DELETE', '/api/appsync/apis/{api_id}/', 'delete', safety='destructive', confirm='Delete this AppSync GraphQL API and its related resources?', success_message='GraphQL API deleted'),
+    action('start_schema_creation', 'Upload schema', 'POST', '/api/appsync/apis/{api_id}/schema/', 'update', fields=(action_field('definition', 'GraphQL schema', required=True, field_type='textarea'),), success_message='Schema uploaded'),
+    action('create_api_key', 'Create API key', 'POST', '/api/appsync/apis/{api_id}/api-keys/', 'create', fields=(action_field('description', 'Description'), action_field('expires', 'Expires epoch seconds', field_type='number')), success_message='API key created'),
+    action('delete_api_key', 'Delete API key', 'DELETE', '/api/appsync/apis/{api_id}/api-keys/', 'delete', safety='destructive', fields=(action_field('key_id', 'API key ID', required=True),), confirm='Delete this AppSync API key?', success_message='API key deleted'),
+    action('create_data_source', 'Create data source', 'POST', '/api/appsync/apis/{api_id}/data-sources/', 'create', fields=(action_field('name', 'Data source name', required=True), action_field('source_type', 'Data source type'), action_field('description', 'Description')), success_message='Data source created'),
+    action('delete_data_source', 'Delete data source', 'DELETE', '/api/appsync/apis/{api_id}/data-sources/', 'delete', safety='destructive', fields=(action_field('name', 'Data source name', required=True),), confirm='Delete this AppSync data source?', success_message='Data source deleted'),
+    action('create_resolver', 'Create resolver', 'POST', '/api/appsync/apis/{api_id}/resolvers/', 'create', fields=(action_field('type_name', 'Type name', required=True), action_field('field_name', 'Field name', required=True), action_field('data_source_name', 'Data source name')), success_message='Resolver created'),
+    action('delete_resolver', 'Delete resolver', 'DELETE', '/api/appsync/apis/{api_id}/resolvers/', 'delete', safety='destructive', fields=(action_field('type_name', 'Type name', required=True), action_field('field_name', 'Field name', required=True)), confirm='Delete this AppSync resolver?', success_message='Resolver deleted'),
+    action('create_function', 'Create function', 'POST', '/api/appsync/apis/{api_id}/functions/', 'create', fields=(action_field('name', 'Function name', required=True), action_field('data_source_name', 'Data source name', required=True), action_field('description', 'Description')), success_message='Function created'),
+    action('delete_function', 'Delete function', 'DELETE', '/api/appsync/apis/{api_id}/functions/', 'delete', safety='destructive', fields=(action_field('function_id', 'Function ID', required=True),), confirm='Delete this AppSync function?', success_message='Function deleted'),
+    action('create_type', 'Create type', 'POST', '/api/appsync/apis/{api_id}/types/', 'create', fields=(action_field('definition', 'Type definition', required=True, field_type='textarea'), action_field('format', 'Format')), success_message='Type created'),
+    action('delete_type', 'Delete type', 'DELETE', '/api/appsync/apis/{api_id}/types/', 'delete', safety='destructive', fields=(action_field('type_name', 'Type name', required=True),), confirm='Delete this AppSync type?', success_message='Type deleted'),
+    action('tag_resource', 'Tag resource', 'POST', '/api/appsync/tags/', 'update', fields=(action_field('resource_arn', 'Resource ARN', required=True), action_field('tags', 'Tags JSON', required=True, field_type='object')), success_message='Tags added'),
+    action('untag_resource', 'Untag resource', 'DELETE', '/api/appsync/tags/', 'update', fields=(action_field('resource_arn', 'Resource ARN', required=True), action_field('tag_keys', 'Tag keys JSON', required=True, field_type='array')), success_message='Tags removed'),
+)
+
+
 RESOURCEGROUPSTAGGING_ACTIONS = (
     action('tag_resources', 'Tag resources', 'POST', '/api/resourcegroupstagging/resources/tag/', 'update', fields=(action_field('resource_arns', 'Resource ARNs JSON', required=True, field_type='array'), action_field('tags', 'Tags JSON', required=True, field_type='object')), success_message='Resources tagged'),
     action('untag_resources', 'Untag resources', 'POST', '/api/resourcegroupstagging/resources/untag/', 'update', fields=(action_field('resource_arns', 'Resource ARNs JSON', required=True, field_type='array'), action_field('tag_keys', 'Tag keys JSON', required=True, field_type='array')), success_message='Tags removed'),
@@ -1440,6 +1459,15 @@ KMS_ACTIONS = (
             action_field('number_of_bytes', 'Number of bytes', field_type='number'),
         ),
         success_message='Data key generated',
+    ),
+    action(
+        'generate_random',
+        'Generate random bytes',
+        'POST',
+        '/api/kms/random/',
+        'execute',
+        fields=(action_field('number_of_bytes', 'Number of bytes', field_type='number'),),
+        success_message='Random bytes generated',
     ),
     action(
         'set_key_rotation',
@@ -2455,6 +2483,8 @@ ECS_ACTIONS = (
             action_field('task_definition', 'Task definition', required=True),
             action_field('launch_type', 'Launch type'),
             action_field('count', 'Count', field_type='number'),
+            action_field('overrides', 'Container overrides', field_type='object'),
+            action_field('tags', 'Tags', field_type='array'),
         ),
         success_message='Task started',
     ),
@@ -2485,6 +2515,7 @@ ECS_ACTIONS = (
             action_field('task_definition', 'Task definition'),
             action_field('desired_count', 'Desired count', field_type='number'),
             action_field('launch_type', 'Launch type'),
+            action_field('tags', 'Tags', field_type='array'),
         ),
         success_message='Service created',
     ),
@@ -3680,6 +3711,20 @@ SERVICES: tuple[ServiceDefinition, ...] = (
         tutorial_available=True,
         tags=('layered-workbench', 'configuration-workbench'),
         actions=APPCONFIG_ACTIONS,
+    ),
+    service(
+        'appsync',
+        'AppSync',
+        'GraphQL API provisioning and configuration',
+        'Application Integration',
+        maturity='interactive_workbench',
+        docs_url='https://floci.io/floci/services/appsync/',
+        console_css='dashboard/appsync-console.css',
+        console_js='dashboard/appsync-console.js',
+        shared_console=True,
+        tutorial_available=True,
+        tags=('layered-workbench', 'graphql-management-workbench'),
+        actions=APPSYNC_ACTIONS,
     ),
     service(
         'athena',

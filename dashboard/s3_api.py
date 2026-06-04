@@ -655,6 +655,7 @@ def s3_inventory_summary() -> dict[str, Any]:
             ],
         },
         'notes': [
+            'Floci 1.5.22 enforces SSE-C customer keys for customer-provided encryption workflows.',
             'Floci 1.5.21 rejects response-* overrides on unsigned S3 requests, matching AWS security behavior.',
         ],
     }

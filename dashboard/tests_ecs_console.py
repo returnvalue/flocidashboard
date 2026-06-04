@@ -4,6 +4,7 @@ from unittest.mock import patch
 from django.test import SimpleTestCase
 from django.urls import reverse
 
+from .ecs_api import run_task
 from .services import get_service
 
 
@@ -109,6 +110,14 @@ class ECSActionsApiTests(SimpleTestCase):
     @patch('dashboard.ecs_views.run_task')
     def test_run_task_success(self, run_mock):
         run_mock.return_value = {'task_arns': ['arn:task/1']}
+        overrides = {
+            'containerOverrides': [{
+                'name': 'web',
+                'command': ['echo', 'hello'],
+                'environment': [{'name': 'MODE', 'value': 'local'}],
+            }],
+        }
+        tags = [{'key': 'run', 'value': 'local'}]
 
         response = self.client.post(
             reverse('dashboard:ecs-tasks-run'),
@@ -118,6 +127,8 @@ class ECSActionsApiTests(SimpleTestCase):
                 'launch_type': 'FARGATE',
                 'count': 1,
                 'network_configuration': {'awsvpcConfiguration': {'subnets': ['subnet-1']}},
+                'overrides': overrides,
+                'tags': tags,
             }),
             content_type='application/json',
         )
@@ -130,8 +141,9 @@ class ECSActionsApiTests(SimpleTestCase):
             launch_type='FARGATE',
             count=1,
             network_configuration={'awsvpcConfiguration': {'subnets': ['subnet-1']}},
+            overrides=overrides,
             started_by='',
-            tags=[],
+            tags=tags,
         )
 
     @patch('dashboard.ecs_views.stop_task')
@@ -151,6 +163,7 @@ class ECSActionsApiTests(SimpleTestCase):
     @patch('dashboard.ecs_views.create_service')
     def test_create_service_success(self, create_mock):
         create_mock.return_value = {'service_name': 'web', 'desired_count': 1}
+        tags = [{'key': 'service', 'value': 'web'}]
 
         response = self.client.post(
             reverse('dashboard:ecs-services'),
@@ -159,6 +172,7 @@ class ECSActionsApiTests(SimpleTestCase):
                 'service_name': 'web',
                 'task_definition': 'web:1',
                 'desired_count': 1,
+                'tags': tags,
             }),
             content_type='application/json',
         )
@@ -172,7 +186,7 @@ class ECSActionsApiTests(SimpleTestCase):
             desired_count=1,
             launch_type='FARGATE',
             network_configuration={},
-            tags=[],
+            tags=tags,
         )
 
     @patch('dashboard.ecs_views.update_service')
@@ -255,3 +269,30 @@ class ECSActionsApiTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['setting']['value'], 'enabled')
         put_mock.assert_called_once_with('containerInsights', 'enabled', principal_arn='')
+
+
+class ECSApiHelperTests(SimpleTestCase):
+    @patch('dashboard.ecs_api._client')
+    def test_run_task_passes_container_overrides(self, client_factory):
+        overrides = {
+            'containerOverrides': [{
+                'name': 'web',
+                'command': ['echo', 'hello'],
+                'environment': [{'name': 'MODE', 'value': 'local'}],
+            }],
+        }
+        client_factory.return_value.run_task.return_value = {
+            'tasks': [{'taskArn': 'arn:task/1'}],
+            'failures': [],
+        }
+
+        result = run_task(cluster='local', task_definition='web:1', overrides=overrides)
+
+        client_factory.return_value.run_task.assert_called_once_with(
+            cluster='local',
+            taskDefinition='web:1',
+            count=1,
+            launchType='FARGATE',
+            overrides=overrides,
+        )
+        self.assertEqual(result['task_arns'], ['arn:task/1'])

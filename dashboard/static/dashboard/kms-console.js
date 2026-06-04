@@ -12,6 +12,7 @@ const KMSConsole = (() => {
     selectedKeyId: '',
     lastCrypto: null,
     lastDataKey: null,
+    lastRandom: null,
   };
 
   const el = consoleUi.el;
@@ -246,6 +247,16 @@ const KMSConsole = (() => {
     render();
   }
 
+  async function generateRandom(bytesInput) {
+    const data = await apiJson('/api/kms/random/', {
+      method: 'POST',
+      body: JSON.stringify({ number_of_bytes: bytesInput.value.trim() || 32 }),
+    });
+    state.lastRandom = data;
+    toast('Random bytes generated');
+    render();
+  }
+
   async function setRotation(key, enabled) {
     await apiJson('/api/kms/rotation/', {
       method: 'POST',
@@ -359,6 +370,27 @@ const KMSConsole = (() => {
     return panel;
   }
 
+  function renderRandomPanel() {
+    const panel = el('section', 'kms-panel');
+    panel.append(el('div', 'kms-panel-heading', 'Random bytes'));
+    const body = el('div', 'kms-detail');
+    const bytesInput = document.createElement('input');
+    bytesInput.type = 'number';
+    bytesInput.min = '1';
+    bytesInput.max = '1024';
+    bytesInput.value = '32';
+    body.append(
+      el('label', null, 'Number of bytes'),
+      bytesInput,
+      btn('Generate random bytes', null, () => generateRandom(bytesInput).catch((error) => toast(error.message, true))),
+    );
+    if (state.lastRandom) {
+      body.append(renderResult('Last random bytes', state.lastRandom));
+    }
+    panel.append(body);
+    return panel;
+  }
+
   function renderKeyDetail(key) {
     const panel = el('section', 'kms-panel');
     panel.append(el('div', 'kms-panel-heading', 'Selected key'));
@@ -406,9 +438,12 @@ const KMSConsole = (() => {
     workbench.append(renderKeyList());
     const detail = el('div', 'kms-detail-stack');
     if (!key) {
-      detail.append(el('section', 'kms-panel kms-empty-panel', 'Create a key to start encrypting local test payloads.'));
+      detail.append(
+        el('section', 'kms-panel kms-empty-panel', 'Create a key to start encrypting local test payloads.'),
+        renderRandomPanel(),
+      );
     } else {
-      detail.append(renderKeyDetail(key), renderCryptoPanel(key), renderDataKeyPanel(key));
+      detail.append(renderKeyDetail(key), renderCryptoPanel(key), renderDataKeyPanel(key), renderRandomPanel());
     }
     workbench.append(detail);
     return workbench;

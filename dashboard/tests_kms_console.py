@@ -1,9 +1,11 @@
 import json
+from base64 import b64encode
 from unittest.mock import patch
 
 from django.test import SimpleTestCase
 from django.urls import reverse
 
+from .kms_api import generate_random
 from .services import get_service
 
 
@@ -27,6 +29,7 @@ class KMSPageTemplateTests(SimpleTestCase):
         self.assertEqual(service.maturity, 'interactive_workbench')
         self.assertEqual(service.console_js, 'dashboard/kms-console.js')
         self.assertTrue(any(action.name == 'encrypt' for action in service.actions))
+        self.assertTrue(any(action.name == 'generate_random' for action in service.actions))
         self.assertTrue(any(action.name == 'schedule_key_deletion' for action in service.actions))
 
 
@@ -138,6 +141,30 @@ class KMSActionsApiTests(SimpleTestCase):
         self.assertEqual(response.json()['ciphertext_blob'], 'def')
         data_key_mock.assert_called_once_with('alias/local', key_spec='AES_256', number_of_bytes=None)
 
+    @patch('dashboard.kms_views.generate_random')
+    def test_generate_random_success(self, random_mock):
+        random_mock.return_value = {'plaintext_base64': 'AQID', 'size_bytes': 3}
+
+        response = self.client.post(
+            reverse('dashboard:kms-random'),
+            data=json.dumps({'number_of_bytes': 3}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['plaintext_base64'], 'AQID')
+        random_mock.assert_called_once_with(3)
+
+    def test_generate_random_rejects_zero_bytes(self):
+        response = self.client.post(
+            reverse('dashboard:kms-random'),
+            data=json.dumps({'number_of_bytes': 0}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['error'], 'Number of bytes must be greater than zero')
+
     @patch('dashboard.kms_views.set_key_rotation')
     def test_rotation_success(self, rotation_mock):
         rotation_mock.return_value = {'key_id': 'key-1', 'rotation_enabled': True}
@@ -179,3 +206,21 @@ class KMSActionsApiTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['key_state'], 'Enabled')
         cancel_mock.assert_called_once_with('key-1')
+
+
+class KMSApiHelperTests(SimpleTestCase):
+    @patch('dashboard.kms_api._client')
+    def test_generate_random_calls_kms_and_encodes_plaintext(self, client_factory):
+        client_factory.return_value.generate_random.return_value = {'Plaintext': b'\x01\x02\x03'}
+
+        result = generate_random(3)
+
+        client_factory.return_value.generate_random.assert_called_once_with(NumberOfBytes=3)
+        self.assertEqual(result, {
+            'plaintext_base64': b64encode(b'\x01\x02\x03').decode('ascii'),
+            'size_bytes': 3,
+        })
+
+    def test_generate_random_rejects_more_than_aws_limit(self):
+        with self.assertRaisesMessage(ValueError, 'Number of bytes must be 1024 or less'):
+            generate_random(1025)

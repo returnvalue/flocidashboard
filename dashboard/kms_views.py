@@ -14,6 +14,7 @@ from .kms_api import (
     delete_alias,
     encrypt,
     generate_data_key,
+    generate_random,
     schedule_key_deletion,
     set_key_rotation,
     tag_key,
@@ -85,6 +86,15 @@ def kms_data_keys(request):
         ))
     except Exception as exc:
         return handle_action_error(exc, service='kms', operation='generate_data_key')
+
+
+@require_http_methods(['POST'])
+def kms_random(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(generate_random(body.get('number_of_bytes', 32)))
+    except Exception as exc:
+        return handle_action_error(exc, service='kms', operation='generate_random')
 
 
 @require_http_methods(['POST'])

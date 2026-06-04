@@ -250,6 +250,10 @@ const ECSConsole = (() => {
     startedByInput.placeholder = 'dashboard';
     const networkInput = document.createElement('textarea');
     networkInput.placeholder = '{"awsvpcConfiguration":{"subnets":["subnet-123"],"assignPublicIp":"ENABLED"}}';
+    const overridesInput = document.createElement('textarea');
+    overridesInput.placeholder = '{"containerOverrides":[{"name":"app","command":["echo","hello"],"environment":[{"name":"MODE","value":"local"}]}]}';
+    const tagsInput = document.createElement('textarea');
+    tagsInput.placeholder = '[{"key":"run","value":"local"}]';
     form.append(
       el('label', null, 'Cluster'),
       clusterSelect,
@@ -263,6 +267,10 @@ const ECSConsole = (() => {
       startedByInput,
       el('label', null, 'Network configuration JSON'),
       networkInput,
+      el('label', null, 'Container overrides JSON'),
+      overridesInput,
+      el('label', null, 'Tags JSON'),
+      tagsInput,
     );
     openModal('Run task', form, 'Run', async (close) => {
       const data = await apiJson('/api/ecs/tasks/run/', {
@@ -274,6 +282,8 @@ const ECSConsole = (() => {
           count: Number(countInput.value || 1),
           started_by: startedByInput.value.trim(),
           network_configuration: parseJson(networkInput.value, {}, 'Network configuration'),
+          overrides: parseJson(overridesInput.value, {}, 'Container overrides'),
+          tags: parseJson(tagsInput.value, [], 'Tags'),
         }),
       });
       state.lastResult = data;
@@ -298,6 +308,8 @@ const ECSConsole = (() => {
     ['FARGATE', 'EC2', 'EXTERNAL'].forEach((value) => option(launchType, value, value));
     const networkInput = document.createElement('textarea');
     networkInput.placeholder = '{"awsvpcConfiguration":{"subnets":["subnet-123"],"assignPublicIp":"ENABLED"}}';
+    const tagsInput = document.createElement('textarea');
+    tagsInput.placeholder = '[{"key":"service","value":"web"}]';
     form.append(
       el('label', null, 'Cluster'),
       clusterSelect,
@@ -311,6 +323,8 @@ const ECSConsole = (() => {
       launchType,
       el('label', null, 'Network configuration JSON'),
       networkInput,
+      el('label', null, 'Tags JSON'),
+      tagsInput,
     );
     openModal('Create service', form, 'Create', async (close) => {
       const data = await apiJson('/api/ecs/services/', {
@@ -322,6 +336,7 @@ const ECSConsole = (() => {
           desired_count: Number(desiredInput.value || 1),
           launch_type: launchType.value,
           network_configuration: parseJson(networkInput.value, {}, 'Network configuration'),
+          tags: parseJson(tagsInput.value, [], 'Tags'),
         }),
       });
       state.lastResult = data;

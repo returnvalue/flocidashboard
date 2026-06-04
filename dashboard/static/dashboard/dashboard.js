@@ -75,6 +75,9 @@ const appconfigGrid = document.querySelector('#appconfig-grid');
 const appconfigSummary = document.querySelector('#appconfig-summary');
 const appconfigLoadedAt = document.querySelector('#appconfig-loaded-at');
 const appconfigConsoleRoot = document.getElementById('appconfig-console-root');
+const appsyncGrid = document.querySelector('#appsync-grid');
+const appsyncSummary = document.querySelector('#appsync-summary');
+const appsyncLoadedAt = document.querySelector('#appsync-loaded-at');
 const ecsGrid = document.querySelector('#ecs-grid');
 const ecsSummary = document.querySelector('#ecs-summary');
 const ecsLoadedAt = document.querySelector('#ecs-loaded-at');
@@ -1850,6 +1853,74 @@ function renderAppConfig(data) {
 
   appconfigGrid.append(...panels);
   appconfigLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+}
+
+function renderAppSync(data) {
+  appsyncGrid.textContent = '';
+  renderSummary(data.summary, appsyncSummary);
+
+  const panels = [
+    renderDetailList('GraphQL APIs', data.graphql_apis || [], [
+      ['API ID', 'apiId'],
+      ['ARN', 'arn'],
+      ['Authentication type', 'authenticationType'],
+      ['URIs', 'uris'],
+      ['Schema status', 'schema_status'],
+      ['API keys', 'api_key_count'],
+      ['Data sources', 'data_source_count'],
+      ['Functions', 'function_count'],
+      ['Types', 'type_count'],
+      ['Resolvers', 'resolver_count'],
+      ['Tags', 'tags'],
+    ]),
+    renderDetailList('API keys', data.api_keys || [], [
+      ['ID', 'id'],
+      ['Description', 'description'],
+      ['Expires', 'expires'],
+    ]),
+    renderDetailList('Data sources', data.data_sources || [], [
+      ['Type', 'type'],
+      ['Description', 'description'],
+      ['Service role ARN', 'serviceRoleArn'],
+      ['Lambda config', 'lambdaConfig'],
+      ['DynamoDB config', 'dynamodbConfig'],
+      ['HTTP config', 'httpConfig'],
+    ]),
+    renderDetailList('Functions', data.functions || [], [
+      ['Function ID', 'functionId'],
+      ['Data source', 'dataSourceName'],
+      ['Description', 'description'],
+      ['Runtime', 'runtime'],
+    ]),
+    renderDetailList('Types', data.types || [], [
+      ['Definition', 'definition'],
+      ['Format', 'format'],
+    ]),
+    renderDetailList('Resolvers', data.resolvers || [], [
+      ['API ID', 'apiId'],
+      ['Type', 'typeName'],
+      ['Field', 'fieldName'],
+      ['Kind', 'kind'],
+      ['Data source', 'dataSourceName'],
+      ['Pipeline config', 'pipelineConfig'],
+      ['Runtime', 'runtime'],
+    ]),
+    renderDetailList('Supported Phase 1 areas', (data.supported || []).map((area) => ({
+      name: area,
+      area,
+    })), [
+      ['Area', 'area'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
+  ];
+
+  appsyncGrid.append(...panels);
+  appsyncLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
 }
 
 function renderBedrockRuntime(data) {
@@ -4580,6 +4651,7 @@ function titleCaseService(name) {
     apigatewayv2: 'API Gateway v2',
     appconfig: 'AppConfig',
     appconfigdata: 'AppConfig Data',
+    appsync: 'AppSync',
     athena: 'Athena',
     'auto-scaling': 'Auto Scaling',
     autoscaling: 'Auto Scaling',
@@ -4704,6 +4776,7 @@ function resourceServiceKey(resource) {
     'pricing-resources': 'pricing',
     'resourcegroupstagging-resources': 'resourcegroupstagging',
     'appconfig-resources': 'appconfig',
+    'appsync-resources': 'appsync',
     'apigateway-apis': 'apigateway',
     'bedrockruntime-resources': 'bedrock-runtime',
     'bcmdataexports-resources': 'bcmdataexports',
@@ -5229,6 +5302,7 @@ const servicePages = [
   { key: 'cognito', label: 'Cognito', grid: cognitoGrid, apiPath: '/api/cognito/', render: renderCognito },
   { key: 'apigateway', label: 'API Gateway', grid: apigatewayGrid, apiPath: '/api/apigateway/', render: renderApiGateway },
   { key: 'appconfig', label: 'AppConfig', grid: appconfigGrid, apiPath: '/api/appconfig/', render: renderAppConfig },
+  { key: 'appsync', label: 'AppSync', grid: appsyncGrid, apiPath: '/api/appsync/', render: renderAppSync },
   { key: 'ecs', label: 'ECS', grid: ecsGrid, apiPath: '/api/ecs/', render: renderECS },
   { key: 'eks', label: 'EKS', grid: eksGrid, apiPath: '/api/eks/', render: renderEKS },
   { key: 'elasticache', label: 'ElastiCache', grid: elasticacheGrid, apiPath: '/api/elasticache/', render: renderElastiCache },

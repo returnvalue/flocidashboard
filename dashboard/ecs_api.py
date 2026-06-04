@@ -160,6 +160,7 @@ def run_task(
     launch_type: str = 'FARGATE',
     count: Any = 1,
     network_configuration: Any = None,
+    overrides: Any = None,
     started_by: str = '',
     tags: Any = None,
 ) -> dict[str, Any]:
@@ -173,6 +174,9 @@ def run_task(
     config = _dict(network_configuration, 'Network configuration')
     if config:
         kwargs['networkConfiguration'] = config
+    clean_overrides = _dict(overrides, 'Overrides')
+    if clean_overrides:
+        kwargs['overrides'] = clean_overrides
     if started_by:
         kwargs['startedBy'] = started_by
     clean_tags = _tags(tags)

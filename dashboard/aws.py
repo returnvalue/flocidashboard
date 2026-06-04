@@ -224,6 +224,7 @@ def _resource_service_key(name: str) -> str:
         'acm-certificates': 'acm',
         'apigateway-apis': 'apigateway',
         'appconfig-resources': 'appconfig',
+        'appsync-resources': 'appsync',
         'athena-resources': 'athena',
         'autoscaling-resources': 'autoscaling',
         'backup-resources': 'backup',
@@ -1062,6 +1063,7 @@ def kms_inventory() -> dict[str, Any]:
             'ReEncrypt',
             'GenerateDataKey',
             'GenerateDataKeyWithoutPlaintext',
+            'GenerateRandom',
             'Sign',
             'Verify',
             'GenerateMac',
@@ -1091,6 +1093,7 @@ def kms_inventory() -> dict[str, Any]:
             'CreateKey accepts creation-time tag floci:override-id for deterministic local test key IDs.',
             'Floci strips reserved floci:* tags from stored resource tags and rejects adding them later.',
             'Floci 1.5.18 adds KMS GenerateMac and VerifyMac support.',
+            'Floci 1.5.22 adds KMS GenerateRandom support.',
             'Floci 1.5.21 enforces the RotateKeyOnDemand rotation limit.',
             'Grant lifecycle APIs are stored and queryable but are not evaluated during cryptographic operations.',
         ],
@@ -1289,6 +1292,7 @@ def lambda_inventory() -> dict[str, Any]:
             'Reserved concurrency is enforced; provisioned concurrency is not implemented.',
             'Floci 1.5.18 uses a checkout/release Lambda port pool with clearer exhaustion errors during concurrent invocations.',
             'Floci 1.5.19 adds Lambda layer publishing, lookup, version listing, and deletion.',
+            'Floci 1.5.22 supports path-style ECR image URIs and lets spawned containers resolve public localhost.floci.io hostnames.',
         ],
     }
 
@@ -1975,6 +1979,7 @@ def eventbridge_inventory() -> dict[str, Any]:
         'notes': [
             'The default event bus is named default and accepts AWS service events.',
             'Custom event buses are for application events.',
+            'Floci 1.5.22 preserves the PutEvents call region and account through pattern matching and delivered event envelopes.',
             'Floci 1.5.21 fixes rule tagging on custom buses whose name contains event-bus.',
         ],
     }
@@ -2368,6 +2373,7 @@ def apigateway_inventory() -> dict[str, Any]:
         ],
         'notes': [
             'Floci supports API Gateway v1 REST APIs and API Gateway v2 HTTP APIs.',
+            'Floci 1.5.22 implements REST API EndpointConfiguration and the ApiGatewayV2 CloudFormation update path.',
             'Floci 1.5.21 implements the API Gateway v1 DeleteDeployment endpoint and returns JSON 404 errors for missing deployments.',
             'Floci 1.5.19 fills REQUEST authorizer events for REST APIs, supports Lambda REQUEST authorizers on HTTP API v2 routes, and persists v1 UpdateStage methodSettings patch operations.',
             'Floci 1.5.18 forwards API Gateway v2 HTTP API requests through ALB listeners.',
@@ -2683,6 +2689,113 @@ def appconfig_inventory() -> dict[str, Any]:
             'Management resources are read through the AppConfig API.',
             'Runtime retrieval uses the AppConfigData API with configuration sessions and latest-configuration tokens.',
             'Hosted configuration content is shown as size and a short UTF-8 preview to keep the dashboard readable.',
+        ],
+    }
+
+
+def appsync_inventory() -> dict[str, Any]:
+    appsync = FlociClientFactory().client('appsync')
+    apis = _safe_value(lambda: _operation_items(appsync, 'list_graphql_apis', 'graphqlApis'), [])
+
+    def api_detail(api: dict[str, Any]) -> dict[str, Any]:
+        api_id = api.get('apiId')
+        api_keys = _safe_value(
+            lambda: _operation_items(appsync, 'list_api_keys', 'apiKeys', apiId=api_id),
+            [],
+        )
+        data_sources = _safe_value(
+            lambda: _operation_items(appsync, 'list_data_sources', 'dataSources', apiId=api_id),
+            [],
+        )
+        functions = _safe_value(
+            lambda: _operation_items(appsync, 'list_functions', 'functions', apiId=api_id),
+            [],
+        )
+        types = _safe_value(
+            lambda: _operation_items(appsync, 'list_types', 'types', apiId=api_id, format='SDL'),
+            [],
+        )
+        resolvers = [
+            {
+                **_clean_response(resolver),
+                'apiId': api_id,
+                'typeName': type_item.get('name'),
+            }
+            for type_item in types
+            if type_item.get('name')
+            for resolver in _safe_value(
+                lambda type_name=type_item.get('name'): _operation_items(
+                    appsync,
+                    'list_resolvers',
+                    'resolvers',
+                    apiId=api_id,
+                    typeName=type_name,
+                ),
+                [],
+            )
+        ]
+        tags = _safe_value(
+            lambda: appsync.list_tags_for_resource(resourceArn=api.get('arn')).get('tags', {}),
+            {},
+        ) if api.get('arn') else {}
+        schema_status = _safe_value(
+            lambda: appsync.get_schema_creation_status(apiId=api_id),
+            {},
+        )
+
+        return {
+            **_clean_response(api),
+            'name': api.get('name') or api_id,
+            'id': api_id,
+            'api_keys': _clean_response(api_keys),
+            'data_sources': _clean_response(data_sources),
+            'functions': _clean_response(functions),
+            'types': _clean_response(types),
+            'resolvers': resolvers,
+            'tags': _clean_response(tags),
+            'schema_status': _clean_response(schema_status),
+            'api_key_count': len(api_keys),
+            'data_source_count': len(data_sources),
+            'function_count': len(functions),
+            'type_count': len(types),
+            'resolver_count': len(resolvers),
+        }
+
+    detailed_apis = [api_detail(api) for api in apis]
+    api_keys = [item for api in detailed_apis for item in api.get('api_keys', [])]
+    data_sources = [item for api in detailed_apis for item in api.get('data_sources', [])]
+    functions = [item for api in detailed_apis for item in api.get('functions', [])]
+    types = [item for api in detailed_apis for item in api.get('types', [])]
+    resolvers = [item for api in detailed_apis for item in api.get('resolvers', [])]
+
+    return {
+        'summary': {
+            'graphql_apis': len(detailed_apis),
+            'api_keys': len(api_keys),
+            'data_sources': len(data_sources),
+            'functions': len(functions),
+            'types': len(types),
+            'resolvers': len(resolvers),
+        },
+        'graphql_apis': detailed_apis,
+        'api_keys': api_keys,
+        'data_sources': data_sources,
+        'functions': functions,
+        'types': types,
+        'resolvers': resolvers,
+        'supported': [
+            'GraphQL API CRUD',
+            'Schema creation and status',
+            'API key CRUD',
+            'Data source CRUD',
+            'Resolver CRUD',
+            'Function CRUD',
+            'Type CRUD',
+            'TagResource, UntagResource, and ListTagsForResource',
+        ],
+        'notes': [
+            'Floci 1.5.22 adds AppSync Phase 1 management API emulation.',
+            'Phase 1 stores provisioning and configuration state; GraphQL query execution is not part of this release.',
         ],
     }
 
@@ -3502,6 +3615,7 @@ def eks_inventory() -> dict[str, Any]:
         ],
         'notes': [
             'Floci EKS Phase 1 supports cluster create, describe, list, delete, tag, untag, and list-tags operations through the REST JSON API.',
+            'Floci 1.5.22 makes real-mode cluster endpoints reachable and authenticable from the host.',
             'Mock mode stores cluster metadata in-process and marks clusters ACTIVE immediately; real mode starts a k3s container per cluster.',
             'Node groups, Fargate profiles, add-ons, identity provider configs, access entries, and policy associations are shown when the SDK exposes them, but they are not part of the current interactive workbench.',
         ],
@@ -5668,6 +5782,7 @@ def ecs_inventory() -> dict[str, Any]:
         ],
         'notes': [
             'By default Floci ECS launches real Docker containers for tasks.',
+            'Floci 1.5.22 honors RunTask command and environment container overrides and preserves create-time resource tags.',
             'Floci 1.5.18 registers ECS service containers as ELBv2 targets.',
             'Set FLOCI_SERVICES_ECS_MOCK=true to run tasks as in-process stubs for CI or tests.',
             'When mock mode is false, Floci needs access to the Docker socket.',
@@ -5902,6 +6017,7 @@ def sns_inventory() -> dict[str, Any]:
         ],
         'fanout': [
             'Floci supports SNS to SQS fan-out and delivers published messages immediately.',
+            'Floci 1.5.22 adds mocked iOS and Android mobile push platform endpoints.',
             'Floci 1.5.19 creates SNS to SQS subscriptions from CloudFormation templates, preserves binary message attributes, and reports per-entry PublishBatch failures.',
             'Floci 1.5.18 delivers http:// and https:// subscriptions with confirmation handshakes, message POSTs, and signature headers.',
             'Floci 1.5.17 supports FilterPolicyScope=MessageBody for body-based subscription filtering.',
@@ -6166,6 +6282,7 @@ def ses_inventory() -> dict[str, Any]:
             'Emails are always stored locally and can be inspected through /_aws/ses.',
             'SMTP relay failures are logged but do not affect the SES API response.',
             'SES v1 and SES v2 share identity, template, and sent-message state.',
+            'Floci 1.5.22 publishes SES events to SNS configuration set destinations, adds v1 destination CRUD, and enforces suppression lists at send time with per-configuration-set overrides.',
             'Floci 1.5.21 adds SES v2 configuration set event destination operations.',
             'Floci 1.5.17 adds SES v2 PutAccountSuppressionAttributes.',
         ],
@@ -6396,6 +6513,7 @@ def cloudformation_inventory() -> dict[str, Any]:
         'notes': [
             'CloudFormation actions use the Query XML protocol at the Floci root endpoint.',
             'Stacks can expose templates, events, resources, outputs, stack policies, and change sets.',
+            'Floci 1.5.22 provisions ECS and ELBv2 resources, persists stacks across restart, rolls back failed creates, and supports ApiGatewayV2 updates.',
             'Floci 1.5.21 forwards AWS::ApiGatewayV2::Api properties to the API Gateway v2 service.',
             'Floci 1.5.19 provisions SQS ContentBasedDeduplication, SNS to SQS subscriptions, Cognito UserPool resources, and Cognito UserPoolClient resources from templates.',
         ],
@@ -8009,6 +8127,76 @@ def list_resources(service_keys: set[str] | None = None) -> list[ResourceResult]
         )
         return resources
 
+    def appsync_resources() -> list[dict[str, Any]]:
+        appsync = factory.client('appsync')
+        resources: list[dict[str, Any]] = []
+        apis = _safe_value(lambda: _operation_items(appsync, 'list_graphql_apis', 'graphqlApis'), [])
+
+        for api in apis:
+            api_id = api.get('apiId')
+            resources.append({
+                'type': 'graphql_api',
+                'id': api_id,
+                'name': api.get('name'),
+                'arn': api.get('arn'),
+            })
+            for result_key, operation, resource_type in (
+                ('apiKeys', 'list_api_keys', 'api_key'),
+                ('dataSources', 'list_data_sources', 'data_source'),
+                ('functions', 'list_functions', 'function'),
+            ):
+                resources.extend(
+                    {
+                        **_clean_response(item),
+                        'type': resource_type,
+                        'api_id': api_id,
+                        **({'source_type': item.get('type')} if resource_type == 'data_source' else {}),
+                    }
+                    for item in _safe_value(
+                        lambda operation=operation, result_key=result_key: _operation_items(
+                            appsync,
+                            operation,
+                            result_key,
+                            apiId=api_id,
+                        ),
+                        [],
+                    )
+                )
+            types = _safe_value(
+                lambda: _operation_items(appsync, 'list_types', 'types', apiId=api_id, format='SDL'),
+                [],
+            )
+            resources.extend(
+                {
+                    **_clean_response(type_item),
+                    'type': 'type',
+                    'api_id': api_id,
+                }
+                for type_item in types
+            )
+            resources.extend(
+                {
+                    **_clean_response(resolver),
+                    'type': 'resolver',
+                    'api_id': api_id,
+                    'type_name': type_item.get('name'),
+                }
+                for type_item in types
+                if type_item.get('name')
+                for resolver in _safe_value(
+                    lambda type_name=type_item.get('name'): _operation_items(
+                        appsync,
+                        'list_resolvers',
+                        'resolvers',
+                        apiId=api_id,
+                        typeName=type_name,
+                    ),
+                    [],
+                )
+            )
+
+        return resources
+
     def bedrockruntime_resources() -> list[dict[str, Any]]:
         return [
             {
@@ -9006,6 +9194,7 @@ def list_resources(service_keys: set[str] | None = None) -> list[ResourceResult]
         ('acm-certificates', 'ACM certificates', acm_resources),
         ('apigateway-apis', 'API Gateway APIs', apigateway_apis),
         ('appconfig-resources', 'AppConfig resources', appconfig_resources),
+        ('appsync-resources', 'AppSync resources', appsync_resources),
         ('athena-resources', 'Athena resources', athena_resources),
         ('autoscaling-resources', 'Auto Scaling resources', autoscaling_resources),
         ('backup-resources', 'Backup resources', backup_resources),
