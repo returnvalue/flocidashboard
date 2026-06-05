@@ -13,14 +13,66 @@ A small Django UI for inspecting and testing a local [Floci](https://floci.io/) 
 - Detail pages for services such as Cost Explorer, Cost and Usage Reports, BCM Data Exports, Pricing, and more
 - Loading state with the Floci cloud image while service data is fetched
 
-## Run Locally On macOS
+## Quickstart
 
-These steps are written for macOS. The dashboard will likely work fine on Windows as well, but Windows has not been tested yet.
+These steps launch a local Floci environment and start the dashboard against it. They are written for macOS. The dashboard will likely work fine on Windows as well, but Windows has not been tested yet.
 
-Clone the project first:
+Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) if you have not already.
+
+Launch Floci if you have not already:
 
 ```bash
-git clone https://github.com/returnvalue/flocidashboard
+mkdir floci
+cd floci
+
+cat <<EOF > docker-compose.yml
+services:
+  floci:
+    image: floci/floci:latest
+    pull_policy: always
+    container_name: floci
+    ports:
+      # Main API Gateway port (All AWS API calls go here)
+      - "4566:4566"
+      # Port range for ElastiCache proxy (Redis/Valkey)
+      - "6379-6399:6379-6399"
+      # Port range for RDS proxy (PostgreSQL & MySQL)
+      - "7001-7099:7001-7099"
+    environment:
+      # --- IAM ENFORCEMENT ENGINE ---
+      # Evaluates inbound requests against identity policies, session policies,
+      # and permission boundaries. Enforces Explicit Deny > Explicit Allow > Implicit Deny.
+      - FLOCI_SERVICES_IAM_ENFORCEMENT_ENABLED=true
+      - FLOCI_AUTH_VALIDATE_SIGNATURES=true
+
+      # Tells Floci to use this hostname in returned URLs (e.g., SQS queue URLs).
+      # Crucial if you add other app containers to this compose file later.
+      - FLOCI_HOSTNAME=floci
+
+      # Tells Floci which Docker network to attach spawned Lambdas/DBs to.
+      # By default, Docker Compose names the network <directory-name>_default.
+      - FLOCI_SERVICES_DOCKER_NETWORK=floci_default
+
+      - FLOCI_SERVICES_LAMBDA_HOT_RELOAD_ENABLED=true
+
+    volumes:
+      # PERSISTENCE: This saves your IAM users so they survive 'floci down'
+      - ./data:/app/data
+      # Gives Floci access to spawn underlying containers (Lambda, RDS, etc.)
+      - /var/run/docker.sock:/var/run/docker.sock
+
+networks:
+  default:
+    name: floci_default
+EOF
+
+docker compose up -d
+```
+
+Clone the dashboard:
+
+```bash
+git clone https://github.com/returnvalue/flocidashboard.git
 cd flocidashboard
 ```
 
@@ -45,8 +97,7 @@ pip3 install -r requirements.txt
 
 The requirements install the latest available Django and boto3 releases.
 
-
-Make sure Floci is already running locally on port `4566`. Before starting Django, choose one local AWS credential setup.
+Before starting Django, choose one local AWS credential setup.
 
 For a fresh Floci clone, local `test/test` credentials are enough:
 
@@ -67,6 +118,20 @@ export AWS_ENDPOINT_URL=http://localhost:4566
 
 `FLOCI_AWS_ENDPOINT_URL` and `FLOCI_AWS_REGION` are also supported if you prefer Floci-specific names. When no explicit profile or credentials are visible to Django, the dashboard falls back to local `test/test` credentials so a fresh Floci install can still show service inventory.
 
+Start the Django dev server:
+
+```bash
+python3 manage.py runserver 127.0.0.1:8000
+```
+
+Open:
+
+```text
+http://127.0.0.1:8000
+```
+
+## Release Notes
+
 Floci 1.5.16 and newer support the public localhost DNS suffix for virtual-hosted-style S3. The dashboard accepts `localhost.floci.io`, `*.localhost.floci.io`, and the LocalStack-compatible `*.localhost.localstack.cloud` aliases as local endpoints:
 
 ```bash
@@ -86,18 +151,6 @@ Floci 1.5.21 moves builds to GraalVM 25 and adds Cognito userInfo/custom-schema 
 Floci 1.5.22 adds AppSync Phase 1 management APIs, CloudFormation persistence/rollback plus ECS and ELBv2 provisioning, SES-to-SNS events and send-time suppression enforcement, host-reachable real-mode EKS clusters, mocked SNS mobile push, S3 SSE-C enforcement, and KMS GenerateRandom. The dashboard adds an AppSync management workbench, exposes KMS GenerateRandom plus ECS RunTask overrides and create-time tags, provides an ECS + ALB CloudFormation starter, and refreshes affected service notes.
 
 The dashboard also includes interactive workbenches for AWS Backup, Amazon Data Firehose, AWS Glue, MSK Kafka, Neptune, SES, AWS Transfer Family, Textract, Transcribe, CodeDeploy, CodeBuild, Bedrock Runtime, AppConfig, AppSync, and Resource Groups Tagging.
-
-Start the Django dev server:
-
-```bash
-python3 manage.py runserver 127.0.0.1:8000
-```
-
-Open:
-
-```text
-http://127.0.0.1:8000
-```
 
 ## Configuration
 
