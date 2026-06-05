@@ -21,12 +21,23 @@ Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) if you
 
 Make sure Docker Desktop is running. You will also need `git`, `python3`, and `pip3` available in your shell.
 
-Launch Floci if you have not already:
+Paste the following commands into your terminal one at a time, pressing Enter after each one.
+
+Create a directory for your local Floci files:
 
 ```bash
 mkdir -p floci
-cd floci
+```
 
+Change into that directory:
+
+```bash
+cd floci
+```
+
+Create the Docker Compose file:
+
+```bash
 cat <<EOF > docker-compose.yml
 services:
   floci:
@@ -67,14 +78,23 @@ networks:
   default:
     name: floci_default
 EOF
+```
 
+Launch the Compose file in detached mode:
+
+```bash
 docker compose up -d
 ```
 
-Clone the dashboard:
+Clone the dashboard repository:
 
 ```bash
 git clone https://github.com/returnvalue/flocidashboard.git
+```
+
+Change into the dashboard directory:
+
+```bash
 cd flocidashboard
 ```
 
@@ -84,16 +104,35 @@ Run the remaining commands from the `flocidashboard` directory.
 
 This keeps the Python packages isolated to this project.
 
+Create the virtual environment:
+
 ```bash
 python3 -m venv .venv
+```
+
+Activate the virtual environment:
+
+```bash
 source .venv/bin/activate
+```
+
+Upgrade `pip` inside the virtual environment:
+
+```bash
 python3 -m pip install --upgrade pip
+```
+
+Install the dashboard requirements:
+
+```bash
 pip3 install -r requirements.txt
 ```
 
 ### Option 2: Install Without A Virtual Environment
 
 This installs the packages into your current Python 3 environment.
+
+Install the dashboard requirements:
 
 ```bash
 pip3 install -r requirements.txt
@@ -105,18 +144,47 @@ Before starting Django, choose one local AWS credential setup.
 
 For a fresh Floci clone, local `test/test` credentials are enough:
 
+Set the Floci endpoint URL:
+
 ```bash
 export AWS_ENDPOINT_URL=http://localhost:4566
+```
+
+Set the default AWS region:
+
+```bash
 export AWS_DEFAULT_REGION=us-east-1
+```
+
+Set the local AWS access key:
+
+```bash
 export AWS_ACCESS_KEY_ID=test
+```
+
+Set the local AWS secret key:
+
+```bash
 export AWS_SECRET_ACCESS_KEY=test
 ```
 
 Or create and use your own AWS profile for Floci before running the dashboard:
 
+Set your Floci AWS profile:
+
 ```bash
 export AWS_PROFILE=floci-admin
+```
+
+Set the default AWS region:
+
+```bash
 export AWS_DEFAULT_REGION=us-east-1
+```
+
+Set the Floci endpoint URL:
+
+```bash
 export AWS_ENDPOINT_URL=http://localhost:4566
 ```
 
@@ -128,11 +196,7 @@ Start the Django dev server:
 python3 manage.py runserver 127.0.0.1:8000
 ```
 
-Open:
-
-```text
-http://127.0.0.1:8000
-```
+Open `http://127.0.0.1:8000` in your browser.
 
 ## Release Notes
 
