@@ -19,10 +19,12 @@ These steps launch a local Floci environment and start the dashboard against it.
 
 Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) if you have not already.
 
+Make sure Docker Desktop is running. You will also need `git`, `python3`, and `pip3` available in your shell.
+
 Launch Floci if you have not already:
 
 ```bash
-mkdir floci
+mkdir -p floci
 cd floci
 
 cat <<EOF > docker-compose.yml
@@ -75,6 +77,8 @@ Clone the dashboard:
 git clone https://github.com/returnvalue/flocidashboard.git
 cd flocidashboard
 ```
+
+Run the remaining commands from the `flocidashboard` directory.
 
 ### Option 1: Use A Virtual Environment
 
