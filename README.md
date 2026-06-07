@@ -10,6 +10,7 @@ A small Django UI for inspecting and testing a local [Floci](https://floci.io/) 
 - AWS endpoint, profile, and caller identity
 - Clickable service cards for supported local services, with persisted home-page service filtering to keep resource probes focused
 - Interactive workbenches for S3, IAM, EC2, SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, EventBridge, EventBridge Pipes, EventBridge Scheduler, API Gateway, AppSync, Kinesis, KMS, Secrets Manager, SSM Parameter Store, CloudFormation, Cognito, AWS Config, RDS, Auto Scaling, ELB v2, CloudFront, Route 53, ACM, ECS, ECR, EKS, ElastiCache, OpenSearch, Athena, Backup, Firehose, Glue, Kafka, Neptune, SES, Transfer Family, Textract, Transcribe, CodeDeploy, CodeBuild, Bedrock Runtime, AppConfig, and Resource Groups Tagging
+- Inventory pages for read-only or newly surfaced services such as AWS Cloud Map
 - Detail pages for services such as Cost Explorer, Cost and Usage Reports, BCM Data Exports, Pricing, and more
 - Loading state with the Floci cloud image while service data is fetched
 
@@ -197,28 +198,6 @@ python3 manage.py runserver 127.0.0.1:8000
 ```
 
 Open `http://127.0.0.1:8000` in your browser.
-
-## Release Notes
-
-Floci 1.5.16 and newer support the public localhost DNS suffix for virtual-hosted-style S3. The dashboard accepts `localhost.floci.io`, `*.localhost.floci.io`, and the LocalStack-compatible `*.localhost.localstack.cloud` aliases as local endpoints:
-
-```bash
-export FLOCI_AWS_ENDPOINT_URL=http://s3.localhost.floci.io:4566
-```
-
-Floci 1.5.18 adds CloudFront and AWS Config emulation. The dashboard includes a CloudFront management workbench plus AWS Config inventory, and refreshes Neptune, SNS, SQS, Lambda, and API Gateway notes around the 1.5.18 release surface.
-
-Floci 1.5.19 adds Lambda layer APIs, CloudFormation parity for SQS queues, SNS-to-SQS subscriptions, and Cognito resources, API Gateway REQUEST authorizer fixes, ELBv2 listener attribute and capacity reservation actions, and ECR Public Gallery publishing. The dashboard surfaces attached Lambda layer versions and refreshes release-aware notes across the affected service pages.
-
-Floci 1.5.20 adds broad ACM, ECS, and ECR coverage. The dashboard includes an ACM certificate workbench, an ECS container workflow workbench, and an ECR repository/image registry workbench.
-
-The dashboard also includes interactive workbenches for EKS cluster lifecycle, ElastiCache replication groups/users/IAM auth, OpenSearch domain lifecycle/configuration, and Athena query execution.
-
-Floci 1.5.21 moves builds to GraalVM 25 and adds Cognito userInfo/custom-schema support, EC2 parity fixes, SES v2 configuration set event destinations, Firehose tagging, and assorted conformance fixes. The dashboard refreshes affected service notes and surfaces SES v2 configuration set event destinations.
-
-Floci 1.5.22 adds AppSync Phase 1 management APIs, CloudFormation persistence/rollback plus ECS and ELBv2 provisioning, SES-to-SNS events and send-time suppression enforcement, host-reachable real-mode EKS clusters, mocked SNS mobile push, S3 SSE-C enforcement, and KMS GenerateRandom. The dashboard adds an AppSync management workbench, exposes KMS GenerateRandom plus ECS RunTask overrides and create-time tags, provides an ECS + ALB CloudFormation starter, and refreshes affected service notes.
-
-The dashboard also includes interactive workbenches for AWS Backup, Amazon Data Firehose, AWS Glue, MSK Kafka, Neptune, SES, AWS Transfer Family, Textract, Transcribe, CodeDeploy, CodeBuild, Bedrock Runtime, AppConfig, AppSync, and Resource Groups Tagging.
 
 ## Configuration
 

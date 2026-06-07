@@ -31,7 +31,7 @@ Core architecture files:
 - `dashboard/actions.py`: shared action metadata, JSON parsing, and normalized action errors.
 - `dashboard/templates/dashboard/service.html`: common service page shell.
 - `dashboard/static/dashboard/service-console.js`: shared frontend helpers for API calls, summary cards, read-only cards, toolbars, modals, formatting, and lower-right toasts.
-- Service-specific modules such as `s3_api.py`, `s3_views.py`, `s3-console.js`, and `s3-console.css`, `iam_api.py`, `iam_views.py`, `iam-console.js`, and `iam-console.css`, `ec2_api.py`, `ec2_views.py`, `ec2-console.js`, and `ec2-console.css`, `stepfunctions_api.py`, `stepfunctions_views.py`, `stepfunctions-console.js`, and `stepfunctions-console.css`, `eventbridge_api.py`, `eventbridge_views.py`, `eventbridge-console.js`, and `eventbridge-console.css`, or the equivalent files for SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, API Gateway, AppSync, Kinesis, Secrets Manager, SSM Parameter Store, CloudFormation, Cognito, RDS, Auto Scaling, ELB v2, CloudFront, Route 53, ACM, ECS, ECR, EKS, ElastiCache, OpenSearch, Athena, Backup, Firehose, Glue, Kafka, Neptune, SES, Transfer Family, Textract, Transcribe, CodeDeploy, CodeBuild, Bedrock Runtime, AppConfig, and Resource Groups Tagging.
+- Service-specific modules such as `s3_api.py`, `s3_views.py`, `s3-console.js`, and `s3-console.css`, `iam_api.py`, `iam_views.py`, `iam-console.js`, and `iam-console.css`, `ec2_api.py`, `ec2_views.py`, `ec2-console.js`, and `ec2-console.css`, `stepfunctions_api.py`, `stepfunctions_views.py`, `stepfunctions-console.js`, and `stepfunctions-console.css`, `eventbridge_api.py`, `eventbridge_views.py`, `eventbridge-console.js`, and `eventbridge-console.css`, or the equivalent files for SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, API Gateway, AppSync, Kinesis, Secrets Manager, SSM Parameter Store, CloudFormation, Cognito, RDS, Auto Scaling, ELB v2, CloudFront, Cloud Map, Route 53, ACM, ECS, ECR, EKS, ElastiCache, OpenSearch, Athena, Backup, Firehose, Glue, Kafka, Neptune, SES, Transfer Family, Textract, Transcribe, CodeDeploy, CodeBuild, Bedrock Runtime, AppConfig, and Resource Groups Tagging.
 
 ## Guiding Principles
 
@@ -154,6 +154,7 @@ Core architecture files:
 - Reviewed Floci 1.5.21 and refreshed Cognito, EC2, SES v2, Firehose, KMS, CloudFormation, API Gateway, EventBridge, S3, DynamoDB, and RDS dashboard coverage notes, including SES v2 configuration set event destination inventory.
 - Reviewed Floci 1.5.22, added an AppSync Phase 1 management workbench, exposed KMS GenerateRandom plus ECS RunTask overrides and create-time tags, added an ECS + ALB CloudFormation starter, and refreshed affected service notes.
 - Made homepage service cards use registry page paths when available and dedupe repeated card description text from service aliases.
+- Reviewed Floci 1.5.23 plus the two post-release main commits, refreshed AppSync, Glue, ECS, EKS, SES, CloudWatch Logs, DynamoDB, EC2, Step Functions, and SNS release-aware notes, and added AWS Cloud Map inventory coverage for the new servicediscovery management API.
 
 ## Near-Term Priorities
 

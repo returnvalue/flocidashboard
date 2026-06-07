@@ -115,6 +115,7 @@ def register_task_definition(
     memory: Any = '512',
     task_role_arn: str = '',
     execution_role_arn: str = '',
+    volumes: Any = None,
     tags: Any = None,
 ) -> dict[str, Any]:
     containers = _list(container_definitions, 'Container definitions')
@@ -138,6 +139,9 @@ def register_task_definition(
         kwargs['taskRoleArn'] = task_role_arn
     if execution_role_arn:
         kwargs['executionRoleArn'] = execution_role_arn
+    clean_volumes = _list(volumes, 'Volumes')
+    if clean_volumes:
+        kwargs['volumes'] = clean_volumes
     clean_tags = _tags(tags)
     if clean_tags:
         kwargs['tags'] = clean_tags

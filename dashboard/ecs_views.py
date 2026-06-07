@@ -64,6 +64,7 @@ def ecs_task_definitions_register(request):
             memory=body.get('memory') or '512',
             task_role_arn=body.get('task_role_arn') or '',
             execution_role_arn=body.get('execution_role_arn') or '',
+            volumes=body.get('volumes') or [],
             tags=body.get('tags') or [],
         ))
     except Exception as exc:

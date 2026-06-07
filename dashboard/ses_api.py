@@ -196,6 +196,25 @@ def delete_configuration_set(name: str) -> dict[str, Any]:
     return {'configuration_set_name': clean_name, 'response': _clean_response(response)}
 
 
+def update_configuration_set_sending_enabled(name: str, enabled: Any) -> dict[str, Any]:
+    clean_name = _required(name, 'Configuration set name')
+    clean_enabled = bool(enabled)
+    v2_response = _sesv2_client().put_configuration_set_sending_options(
+        ConfigurationSetName=clean_name,
+        SendingEnabled=clean_enabled,
+    )
+    v1_response = _ses_client().update_configuration_set_sending_enabled(
+        ConfigurationSetName=clean_name,
+        Enabled=clean_enabled,
+    )
+    return {
+        'configuration_set_name': clean_name,
+        'enabled': clean_enabled,
+        'v2_response': _clean_response(v2_response),
+        'v1_response': _clean_response(v1_response),
+    }
+
+
 def put_event_destination(configuration_set_name: str, event_destination_name: str, event_destination: Any) -> dict[str, Any]:
     clean_set = _required(configuration_set_name, 'Configuration set name')
     clean_name = _required(event_destination_name, 'Event destination name')

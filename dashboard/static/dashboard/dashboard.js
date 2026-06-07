@@ -144,6 +144,9 @@ const bedrockruntimeLoadedAt = document.querySelector('#bedrockruntime-loaded-at
 const cloudfrontGrid = document.querySelector('#cloudfront-grid');
 const cloudfrontSummary = document.querySelector('#cloudfront-summary');
 const cloudfrontLoadedAt = document.querySelector('#cloudfront-loaded-at');
+const cloudmapGrid = document.querySelector('#cloudmap-grid');
+const cloudmapSummary = document.querySelector('#cloudmap-summary');
+const cloudmapLoadedAt = document.querySelector('#cloudmap-loaded-at');
 const snsGrid = document.querySelector('#sns-grid');
 const snsSummary = document.querySelector('#sns-summary');
 const snsLoadedAt = document.querySelector('#sns-loaded-at');
@@ -320,6 +323,8 @@ const serviceDetailPages = {
   'bedrock-runtime': '/service/bedrockruntime/',
   bedrockruntime: '/service/bedrockruntime/',
   cloudfront: '/service/cloudfront/',
+  cloudmap: '/service/cloudmap/',
+  servicediscovery: '/service/cloudmap/',
   codebuild: '/service/codebuild/',
   codedeploy: '/service/codedeploy/',
   cloudformation: '/service/cloudformation/',
@@ -416,6 +421,7 @@ const servicePriorityOrder = [
   'sqs',
   'sns',
   'cloudfront',
+  'cloudmap',
   'kms',
   'cloudformation',
   'apigateway',
@@ -4591,6 +4597,76 @@ function renderTextract(data) {
   textractLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
 }
 
+function renderCloudMap(data) {
+  cloudmapGrid.textContent = '';
+  renderSummary(data.summary, cloudmapSummary);
+
+  const panels = [
+    renderDetailList('Namespaces', data.namespaces || [], [
+      ['Namespace ID', 'id'],
+      ['ARN', 'arn'],
+      ['Type', 'type'],
+      ['Description', 'description'],
+      ['Service count', 'service_count'],
+      ['Properties', 'properties'],
+      ['Created', 'create_date'],
+      ['Tags', 'tags'],
+      ['Details', 'details'],
+    ]),
+    renderDetailList('Services', data.services || [], [
+      ['Service ID', 'id'],
+      ['ARN', 'arn'],
+      ['Namespace ID', 'namespace_id'],
+      ['Description', 'description'],
+      ['DNS config', 'dns_config'],
+      ['Health check config', 'health_check_config'],
+      ['Custom health check', 'health_check_custom_config'],
+      ['Instance count', 'instance_count'],
+      ['Instances', 'instances'],
+      ['Tags', 'tags'],
+      ['Details', 'details'],
+    ]),
+    renderDetailList('Instances', data.instances || [], [
+      ['Instance ID', 'id'],
+      ['Service ID', 'service_id'],
+      ['Attributes', 'attributes'],
+      ['Creator request ID', 'creator_request_id'],
+      ['Details', 'details'],
+    ]),
+    renderDetailList('Operations', data.operations || [], [
+      ['Operation ID', 'id'],
+      ['Status', 'status'],
+      ['Type', 'type'],
+      ['Targets', 'targets'],
+      ['Created', 'create_date'],
+      ['Updated', 'update_date'],
+      ['Error code', 'error_code'],
+      ['Error message', 'error_message'],
+    ]),
+    renderDetailList('Supported from SDK', (data.supported_from_sdk || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Available SDK operations', (data.available_sdk_operations || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
+  ];
+
+  cloudmapGrid.append(...panels);
+  cloudmapLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+}
+
 function renderGlue(data) {
   glueGrid.textContent = '';
   renderSummary(data.summary, glueSummary);
@@ -4613,7 +4689,17 @@ function renderGlue(data) {
       ['Table count', 'table_count'],
       ['Partition count', 'partition_count'],
       ['Tables', 'tables'],
+      ['Functions', 'function_count'],
+      ['User-defined functions', 'functions'],
       ['Details', 'details'],
+    ]),
+    renderDetailList('User-defined functions', data.functions || [], [
+      ['Database', 'database'],
+      ['Class name', 'class_name'],
+      ['Owner', 'owner_name'],
+      ['Owner type', 'owner_type'],
+      ['Created', 'created'],
+      ['Resource URIs', 'resource_uris'],
     ]),
     renderDetailList('Registries', data.registries || [], [
       ['ARN', 'arn'],
@@ -4637,6 +4723,12 @@ function renderGlue(data) {
     ]),
     renderDetailList('Format inference', formatInference, [
       ['DuckDB reader', 'reader'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
     ]),
   ];
 
@@ -4662,6 +4754,7 @@ function titleCaseService(name) {
     codebuild: 'CodeBuild',
     codedeploy: 'CodeDeploy',
     cloudfront: 'CloudFront',
+    cloudmap: 'Cloud Map',
     cloudformation: 'CloudFormation',
     config: 'AWS Config',
     'cognito-idp': 'Cognito IDP',
@@ -4699,6 +4792,7 @@ function titleCaseService(name) {
     scheduler: 'EventBridge Scheduler',
     secretsmanager: 'Secrets Manager',
     ses: 'SES',
+    servicediscovery: 'Cloud Map',
     sns: 'SNS',
     sqs: 'SQS',
     ssm: 'SSM',
@@ -4781,6 +4875,7 @@ function resourceServiceKey(resource) {
     'bedrockruntime-resources': 'bedrock-runtime',
     'bcmdataexports-resources': 'bcmdataexports',
     'cloudfront-resources': 'cloudfront',
+    'cloudmap-resources': 'cloudmap',
     'codebuild-resources': 'codebuild',
     'codedeploy-resources': 'codedeploy',
     'config-resources': 'config',
@@ -5294,6 +5389,7 @@ const servicePages = [
   { key: 'codebuild', label: 'CodeBuild', grid: codebuildGrid, apiPath: '/api/codebuild/', render: renderCodeBuild },
   { key: 'codedeploy', label: 'CodeDeploy', grid: codedeployGrid, apiPath: '/api/codedeploy/', render: renderCodeDeploy },
   { key: 'cloudfront', label: 'CloudFront', grid: cloudfrontGrid, apiPath: '/api/cloudfront/', render: renderCloudFront },
+  { key: 'cloudmap', label: 'Cloud Map', grid: cloudmapGrid, apiPath: '/api/cloudmap/', render: renderCloudMap },
   { key: 'config', label: 'AWS Config', grid: configGrid, apiPath: '/api/config/', render: renderConfig },
   { key: 'costexplorer', label: 'Cost Explorer', grid: costexplorerGrid, apiPath: '/api/costexplorer/', render: renderCostExplorer },
   { key: 'cur', label: 'Cost and Usage Reports', grid: curGrid, apiPath: '/api/cur/', render: renderCur },

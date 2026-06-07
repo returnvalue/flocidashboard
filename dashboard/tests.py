@@ -302,6 +302,9 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertEqual(cloudfront_actions['create_distribution']['kind'], 'create')
         self.assertEqual(cloudfront_actions['create_invalidation']['kind'], 'execute')
         self.assertEqual(cloudfront_actions['delete_distribution']['safety'], 'destructive')
+        self.assertEqual(services['cloudmap']['title'], 'Cloud Map')
+        self.assertEqual(services['cloudmap']['api_path'], '/api/cloudmap/')
+        self.assertEqual(services['cloudmap']['maturity'], 'inventory_only')
         self.assertEqual(services['config']['title'], 'AWS Config')
         self.assertEqual(services['config']['api_path'], '/api/config/')
 

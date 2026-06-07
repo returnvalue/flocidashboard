@@ -19,6 +19,7 @@ from .ses_api import (
     send_email,
     send_raw_email,
     send_templated_email,
+    update_configuration_set_sending_enabled,
     update_sending_enabled,
     update_template,
     verify_domain_identity,
@@ -162,6 +163,15 @@ def ses_configuration_set_detail(request, name: str):
         return JsonResponse(delete_configuration_set(name))
     except Exception as exc:
         return handle_action_error(exc, service='ses', operation='delete_configuration_set')
+
+
+@require_http_methods(['PUT'])
+def ses_configuration_set_sending(request, name: str):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(update_configuration_set_sending_enabled(name, body.get('enabled')))
+    except Exception as exc:
+        return handle_action_error(exc, service='ses', operation='update_configuration_set_sending_enabled')
 
 
 @require_http_methods(['POST'])

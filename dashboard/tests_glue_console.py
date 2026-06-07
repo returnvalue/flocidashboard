@@ -28,6 +28,7 @@ class GluePageTemplateTests(SimpleTestCase):
         self.assertEqual(service.console_js, 'dashboard/glue-console.js')
         self.assertTrue(any(action.name == 'create_database' for action in service.actions))
         self.assertTrue(any(action.name == 'create_table' for action in service.actions))
+        self.assertTrue(any(action.name == 'create_user_defined_function' for action in service.actions))
         self.assertTrue(any(action.name == 'create_registry' for action in service.actions))
         self.assertTrue(any(action.name == 'register_schema_version' for action in service.actions))
 
@@ -125,6 +126,38 @@ class GlueActionsApiTests(SimpleTestCase):
             storage_descriptor={'Location': 's3://my-bucket/orders/year=2026/'},
             parameters={'env': 'local'},
         )
+
+    @patch('dashboard.glue_views.create_user_defined_function')
+    def test_create_user_defined_function_success(self, create_mock):
+        function_input = {
+            'FunctionName': 'normalize_order',
+            'ClassName': 'com.example.NormalizeOrder',
+            'OwnerName': 'local',
+            'OwnerType': 'USER',
+            'ResourceUris': [{'ResourceType': 'JAR', 'Uri': 's3://bucket/udf.jar'}],
+        }
+        create_mock.return_value = {'database': 'analytics', 'function': 'normalize_order'}
+
+        response = self.client.post(
+            reverse('dashboard:glue-functions', kwargs={'database_name': 'analytics'}),
+            data=json.dumps({'function_input': function_input}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        create_mock.assert_called_once_with('analytics', function_input)
+
+    @patch('dashboard.glue_views.delete_user_defined_function')
+    def test_delete_user_defined_function_success(self, delete_mock):
+        delete_mock.return_value = {'database': 'analytics', 'function': 'normalize_order'}
+
+        response = self.client.delete(reverse(
+            'dashboard:glue-function-detail',
+            kwargs={'database_name': 'analytics', 'function_name': 'normalize_order'},
+        ))
+
+        self.assertEqual(response.status_code, 200)
+        delete_mock.assert_called_once_with('analytics', 'normalize_order')
 
     @patch('dashboard.glue_views.create_registry')
     def test_create_registry_success(self, create_mock):

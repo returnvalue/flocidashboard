@@ -12,8 +12,10 @@ from .glue_api import (
     create_registry,
     create_schema,
     create_table,
+    create_user_defined_function,
     delete_database,
     delete_table,
+    delete_user_defined_function,
     register_schema_version,
 )
 
@@ -55,6 +57,23 @@ def glue_table_detail(request, database_name: str, table_name: str):
         return JsonResponse(delete_table(database_name, table_name))
     except Exception as exc:
         return handle_action_error(exc, service='glue', operation='delete_table')
+
+
+@require_http_methods(['POST'])
+def glue_functions_create(request, database_name: str):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(create_user_defined_function(database_name, body.get('function_input') or {}))
+    except Exception as exc:
+        return handle_action_error(exc, service='glue', operation='create_user_defined_function')
+
+
+@require_http_methods(['DELETE'])
+def glue_function_detail(request, database_name: str, function_name: str):
+    try:
+        return JsonResponse(delete_user_defined_function(database_name, function_name))
+    except Exception as exc:
+        return handle_action_error(exc, service='glue', operation='delete_user_defined_function')
 
 
 @require_http_methods(['POST'])

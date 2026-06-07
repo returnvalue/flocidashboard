@@ -232,6 +232,7 @@ def _resource_service_key(name: str) -> str:
         'bedrockruntime-resources': 'bedrockruntime',
         'cloudfront-resources': 'cloudfront',
         'cloudformation-resources': 'cloudformation',
+        'cloudmap-resources': 'cloudmap',
         'cloudwatch-metrics': 'cloudwatch',
         'config-resources': 'config',
         'cognito-resources': 'cognito',
@@ -1757,6 +1758,186 @@ def cloudwatch_inventory() -> dict[str, Any]:
             'logs_protocol': 'JSON 1.1, X-Amz-Target: Logs.*',
             'metrics_protocol': 'Query XML and JSON 1.1',
         },
+        'notes': [
+            'Floci 1.5.23 accepts CloudWatch Logs log group ARNs through logGroupIdentifier where AWS allows either a name or ARN.',
+            'Floci 1.5.23 also fixes rpc-v2-cbor timestamp list tagging for GetMetricData decoding.',
+        ],
+    }
+
+
+def _cloudmap_optional(loader: Callable[[], Any], empty_codes: set[str]) -> Any:
+    try:
+        return _clean_response(loader())
+    except ClientError as exc:
+        if _error_code(exc) in empty_codes:
+            return None
+        return {'error': str(exc)}
+    except (AttributeError, BotoCoreError, KeyError, ValueError, json.JSONDecodeError) as exc:
+        return {'error': str(exc)}
+
+
+def cloudmap_inventory() -> dict[str, Any]:
+    discovery = FlociClientFactory().client('servicediscovery')
+    operations = set(discovery.meta.service_model.operation_names)
+
+    namespaces = _safe_value(
+        lambda: _operation_items(discovery, 'list_namespaces', 'Namespaces'),
+        [],
+    ) if 'ListNamespaces' in operations else []
+    services = _safe_value(
+        lambda: _operation_items(discovery, 'list_services', 'Services'),
+        [],
+    ) if 'ListServices' in operations else []
+    operation_summaries = _safe_value(
+        lambda: _operation_items(discovery, 'list_operations', 'Operations'),
+        [],
+    ) if 'ListOperations' in operations else []
+
+    def namespace_detail(namespace: dict[str, Any]) -> dict[str, Any]:
+        namespace_id = namespace.get('Id')
+        details = _cloudmap_optional(
+            lambda: discovery.get_namespace(Id=namespace_id).get('Namespace', {}),
+            {'NamespaceNotFound'},
+        ) if namespace_id and 'GetNamespace' in operations else None
+
+        described = details if isinstance(details, dict) and not details.get('error') else namespace
+        arn = described.get('Arn') or namespace.get('Arn')
+        return {
+            'name': described.get('Name') or namespace.get('Name') or namespace_id,
+            'id': namespace_id,
+            'arn': arn,
+            'type': described.get('Type') or namespace.get('Type'),
+            'description': described.get('Description') or namespace.get('Description'),
+            'service_count': described.get('ServiceCount') or namespace.get('ServiceCount'),
+            'properties': described.get('Properties') or namespace.get('Properties'),
+            'create_date': described.get('CreateDate') or namespace.get('CreateDate'),
+            'tags': _cloudmap_optional(
+                lambda: discovery.list_tags_for_resource(ResourceARN=arn).get('Tags', []),
+                {'ResourceNotFoundException', 'NamespaceNotFound'},
+            ) if arn and 'ListTagsForResource' in operations else None,
+            'details': details if isinstance(details, dict) and details.get('error') else None,
+        }
+
+    def instance_detail(service_id: str, instance: dict[str, Any]) -> dict[str, Any]:
+        instance_id = instance.get('Id')
+        details = _cloudmap_optional(
+            lambda: discovery.get_instance(ServiceId=service_id, InstanceId=instance_id).get('Instance', {}),
+            {'InstanceNotFound', 'ServiceNotFound'},
+        ) if instance_id and 'GetInstance' in operations else None
+        described = details if isinstance(details, dict) and not details.get('error') else instance
+        return {
+            'name': described.get('Id') or instance_id,
+            'id': described.get('Id') or instance_id,
+            'service_id': service_id,
+            'attributes': described.get('Attributes') or instance.get('Attributes'),
+            'creator_request_id': described.get('CreatorRequestId') or instance.get('CreatorRequestId'),
+            'details': details if isinstance(details, dict) and details.get('error') else None,
+        }
+
+    def service_detail(service: dict[str, Any]) -> dict[str, Any]:
+        service_id = service.get('Id')
+        details = _cloudmap_optional(
+            lambda: discovery.get_service(Id=service_id).get('Service', {}),
+            {'ServiceNotFound'},
+        ) if service_id and 'GetService' in operations else None
+        described = details if isinstance(details, dict) and not details.get('error') else service
+        instances = _cloudmap_optional(
+            lambda: _operation_items(discovery, 'list_instances', 'Instances', ServiceId=service_id),
+            {'ServiceNotFound'},
+        ) if service_id and 'ListInstances' in operations else []
+        if not isinstance(instances, list):
+            instances = []
+        arn = described.get('Arn') or service.get('Arn')
+
+        return {
+            'name': described.get('Name') or service.get('Name') or service_id,
+            'id': service_id,
+            'arn': arn,
+            'namespace_id': described.get('NamespaceId') or service.get('NamespaceId'),
+            'description': described.get('Description') or service.get('Description'),
+            'dns_config': described.get('DnsConfig') or service.get('DnsConfig'),
+            'health_check_config': described.get('HealthCheckConfig') or service.get('HealthCheckConfig'),
+            'health_check_custom_config': described.get('HealthCheckCustomConfig') or service.get('HealthCheckCustomConfig'),
+            'create_date': described.get('CreateDate') or service.get('CreateDate'),
+            'instance_count': len(instances),
+            'instances': [instance_detail(service_id, instance) for instance in instances],
+            'tags': _cloudmap_optional(
+                lambda: discovery.list_tags_for_resource(ResourceARN=arn).get('Tags', []),
+                {'ResourceNotFoundException', 'ServiceNotFound'},
+            ) if arn and 'ListTagsForResource' in operations else None,
+            'details': details if isinstance(details, dict) and details.get('error') else None,
+        }
+
+    def operation_detail(operation: dict[str, Any]) -> dict[str, Any]:
+        operation_id = operation.get('Id')
+        details = _cloudmap_optional(
+            lambda: discovery.get_operation(OperationId=operation_id).get('Operation', {}),
+            {'OperationNotFound'},
+        ) if operation_id and 'GetOperation' in operations else None
+        described = details if isinstance(details, dict) and not details.get('error') else operation
+        return {
+            'name': operation_id,
+            'id': operation_id,
+            'status': described.get('Status') or operation.get('Status'),
+            'type': described.get('Type') or operation.get('Type'),
+            'targets': described.get('Targets') or operation.get('Targets'),
+            'create_date': described.get('CreateDate') or operation.get('CreateDate'),
+            'update_date': described.get('UpdateDate') or operation.get('UpdateDate'),
+            'error_code': described.get('ErrorCode') or operation.get('ErrorCode'),
+            'error_message': described.get('ErrorMessage') or operation.get('ErrorMessage'),
+            'details': details if isinstance(details, dict) and details.get('error') else None,
+        }
+
+    detailed_namespaces = [namespace_detail(namespace) for namespace in namespaces]
+    detailed_services = [service_detail(service) for service in services]
+    instances = [instance for service in detailed_services for instance in service.get('instances', [])]
+    detailed_operations = [operation_detail(operation) for operation in operation_summaries]
+
+    return {
+        'summary': {
+            'namespaces': len(detailed_namespaces),
+            'services': len(detailed_services),
+            'instances': len(instances),
+            'operations': len(detailed_operations),
+            'available_sdk_operations': len(operations),
+        },
+        'namespaces': detailed_namespaces,
+        'services': detailed_services,
+        'instances': instances,
+        'operations': detailed_operations,
+        'supported_from_sdk': [
+            operation
+            for operation in [
+                'CreateHttpNamespace',
+                'CreatePublicDnsNamespace',
+                'CreatePrivateDnsNamespace',
+                'DeleteNamespace',
+                'GetNamespace',
+                'ListNamespaces',
+                'CreateService',
+                'DeleteService',
+                'GetService',
+                'ListServices',
+                'RegisterInstance',
+                'DeregisterInstance',
+                'GetInstance',
+                'ListInstances',
+                'DiscoverInstances',
+                'DiscoverInstancesRevision',
+                'GetOperation',
+                'ListOperations',
+                'UpdateInstanceCustomHealthStatus',
+                'TagResource',
+                'UntagResource',
+                'ListTagsForResource',
+            ]
+            if operation in operations
+        ],
+        'available_sdk_operations': sorted(operations),
+        'notes': [
+            'Floci main after 1.5.23 adds AWS Cloud Map through the boto3 servicediscovery client.',
+            'Namespaces, services, registered instances, async operations, discovery calls, health status, and tags are represented through the management API.',
+        ],
     }
 
 
@@ -2785,9 +2966,9 @@ def appsync_inventory() -> dict[str, Any]:
         'resolvers': resolvers,
         'supported': [
             'GraphQL API CRUD',
-            'Schema creation and status',
+            'Schema creation, status, registry, introspection, and AWS scalar types',
             'API key CRUD',
-            'Data source CRUD',
+            'Data source CRUDL',
             'Resolver CRUD',
             'Function CRUD',
             'Type CRUD',
@@ -2795,7 +2976,8 @@ def appsync_inventory() -> dict[str, Any]:
         ],
         'notes': [
             'Floci 1.5.22 adds AppSync Phase 1 management API emulation.',
-            'Phase 1 stores provisioning and configuration state; GraphQL query execution is not part of this release.',
+            'Floci 1.5.23 adds AppSync Phase 2 with Schema Registry support, model fixes, CRUDL completion, and AWS scalar type support.',
+            'GraphQL workloads that depend on schema introspection and the full data-source surface should now work end to end against Floci.',
         ],
     }
 
@@ -3616,6 +3798,7 @@ def eks_inventory() -> dict[str, Any]:
         'notes': [
             'Floci EKS Phase 1 supports cluster create, describe, list, delete, tag, untag, and list-tags operations through the REST JSON API.',
             'Floci 1.5.22 makes real-mode cluster endpoints reachable and authenticable from the host.',
+            'Floci 1.5.23 seeds standard EKS cluster and node group managed IAM policies so common EKS provisioning modules can attach them without explicit local creation.',
             'Mock mode stores cluster metadata in-process and marks clusters ACTIVE immediately; real mode starts a k3s container per cluster.',
             'Node groups, Fargate profiles, add-ons, identity provider configs, access entries, and policy associations are shown when the SDK exposes them, but they are not part of the current interactive workbench.',
         ],
@@ -5782,7 +5965,9 @@ def ecs_inventory() -> dict[str, Any]:
         ],
         'notes': [
             'By default Floci ECS launches real Docker containers for tasks.',
+            'Floci 1.5.23 honors task-definition volumes and container mountPoints for stateful local task workflows.',
             'Floci 1.5.22 honors RunTask command and environment container overrides and preserves create-time resource tags.',
+            'Floci 1.5.23 retains inactive services for Terraform draining and recreation idempotency.',
             'Floci 1.5.18 registers ECS service containers as ELBv2 targets.',
             'Set FLOCI_SERVICES_ECS_MOCK=true to run tasks as in-process stubs for CI or tests.',
             'When mock mode is false, Floci needs access to the Docker socket.',
@@ -6173,9 +6358,16 @@ def ses_inventory() -> dict[str, Any]:
                 ).get('EventDestinations', []),
                 {'NotFoundException', 'BadRequestException'},
             ) if name else []
+            sending_options = details.get('SendingOptions') if isinstance(details, dict) else None
+            sending_enabled = None
+            if isinstance(sending_options, dict):
+                sending_enabled = sending_options.get('SendingEnabled')
+            elif isinstance(details, dict) and 'SendingEnabled' in details:
+                sending_enabled = details.get('SendingEnabled')
             detailed_v2_configuration_sets.append({
                 'name': name,
                 'details': details,
+                'sending_enabled': sending_enabled,
                 'event_destinations': event_destinations,
                 'event_destination_count': len(event_destinations) if isinstance(event_destinations, list) else 0,
             })
@@ -6283,6 +6475,7 @@ def ses_inventory() -> dict[str, Any]:
             'SMTP relay failures are logged but do not affect the SES API response.',
             'SES v1 and SES v2 share identity, template, and sent-message state.',
             'Floci 1.5.22 publishes SES events to SNS configuration set destinations, adds v1 destination CRUD, and enforces suppression lists at send time with per-configuration-set overrides.',
+            'Floci 1.5.23 adds per-configuration-set sending toggles for SES v1 and SES v2.',
             'Floci 1.5.21 adds SES v2 configuration set event destination operations.',
             'Floci 1.5.17 adds SES v2 PutAccountSuppressionAttributes.',
         ],
@@ -7345,10 +7538,26 @@ def glue_inventory() -> dict[str, Any]:
             lambda: _paginate(glue, 'get_tables', 'TableList', DatabaseName=name),
             {'EntityNotFoundException'},
         )
+        functions = _glue_optional(
+            lambda: _paginate(glue, 'get_user_defined_functions', 'UserDefinedFunctions', DatabaseName=name, Pattern='*'),
+            {'EntityNotFoundException'},
+        )
         table_details = [
             table_detail(name, table)
             for table in tables
         ] if isinstance(tables, list) else []
+        function_details = [
+            {
+                'name': function.get('FunctionName'),
+                'database': name,
+                'class_name': function.get('ClassName'),
+                'owner_name': function.get('OwnerName'),
+                'owner_type': function.get('OwnerType'),
+                'created': function.get('CreateTime'),
+                'resource_uris': function.get('ResourceUris'),
+            }
+            for function in functions
+        ] if isinstance(functions, list) else []
 
         return {
             'name': name,
@@ -7357,12 +7566,15 @@ def glue_inventory() -> dict[str, Any]:
             'parameters': database.get('Parameters') or (details.get('Parameters') if isinstance(details, dict) else None),
             'created': database.get('CreateTime') or (details.get('CreateTime') if isinstance(details, dict) else None),
             'tables': table_details,
+            'functions': function_details,
             'table_count': len(table_details),
+            'function_count': len(function_details),
             'partition_count': sum(table.get('partition_count') or 0 for table in table_details),
             'details': details if isinstance(details, dict) and details.get('error') else None,
         }
 
     detailed_databases = [database_detail(database) for database in databases]
+    functions = [function for database in detailed_databases for function in database.get('functions', [])]
 
     def schema_detail(registry_name: str, schema: dict[str, Any]) -> dict[str, Any]:
         schema_name = schema.get('SchemaName') or schema.get('SchemaArn') or schema.get('name')
@@ -7433,16 +7645,19 @@ def glue_inventory() -> dict[str, Any]:
             'databases': len(detailed_databases),
             'tables': sum(database.get('table_count') or 0 for database in detailed_databases),
             'partitions': sum(database.get('partition_count') or 0 for database in detailed_databases),
+            'functions': len(functions),
             'registries': len(detailed_registries),
             'schemas': sum(registry.get('schema_count') or 0 for registry in detailed_registries),
             'schema_versions': sum(registry.get('version_count') or 0 for registry in detailed_registries),
         },
         'databases': detailed_databases,
+        'functions': functions,
         'registries': detailed_registries,
         'supported': {
             'Databases': ['CreateDatabase', 'GetDatabase', 'GetDatabases', 'DeleteDatabase', 'UpdateDatabase'],
             'Tables': ['CreateTable', 'GetTable', 'GetTables', 'DeleteTable', 'UpdateTable'],
             'Partitions': ['CreatePartition', 'BatchCreatePartition', 'GetPartition', 'GetPartitions', 'DeletePartition'],
+            'User-defined functions': ['CreateUserDefinedFunction', 'GetUserDefinedFunction', 'GetUserDefinedFunctions', 'UpdateUserDefinedFunction', 'DeleteUserDefinedFunction'],
             'Registries': ['CreateRegistry', 'GetRegistry', 'ListRegistries', 'UpdateRegistry', 'DeleteRegistry'],
             'Schemas': ['CreateSchema', 'GetSchema', 'ListSchemas', 'UpdateSchema', 'DeleteSchema'],
             'Versions': ['RegisterSchemaVersion', 'GetSchemaVersion', 'ListSchemaVersions', 'DeleteSchemaVersions'],
@@ -7456,6 +7671,10 @@ def glue_inventory() -> dict[str, Any]:
             'json_or_hive': 'read_json_auto',
             'default': 'read_csv_auto',
         },
+        'notes': [
+            'Floci 1.5.23 adds Glue user-defined functions and DeleteDatabase support.',
+            'Floci 1.5.23 enforces Glue table version checks and preserves Glue view table fields.',
+        ],
     }
 
 
@@ -7586,6 +7805,64 @@ def list_resources(service_keys: set[str] | None = None) -> list[ResourceResult]
                 }
                 for policy in _safe_value(
                     lambda: _nested_operation_items(cloudfront, 'list_origin_request_policies', 'OriginRequestPolicyList'),
+                    [],
+                )
+            )
+
+        return resources
+
+    def cloudmap_resources() -> list[dict[str, Any]]:
+        discovery = factory.client('servicediscovery')
+        operations = set(discovery.meta.service_model.operation_names)
+        resources: list[dict[str, Any]] = []
+
+        namespaces = _safe_value(
+            lambda: _operation_items(discovery, 'list_namespaces', 'Namespaces'),
+            [],
+        ) if 'ListNamespaces' in operations else []
+        services = _safe_value(
+            lambda: _operation_items(discovery, 'list_services', 'Services'),
+            [],
+        ) if 'ListServices' in operations else []
+
+        resources.extend(
+            {
+                'type': 'namespace',
+                'id': namespace.get('Id'),
+                'name': namespace.get('Name'),
+                'arn': namespace.get('Arn'),
+                'namespace_type': namespace.get('Type'),
+            }
+            for namespace in namespaces
+        )
+        resources.extend(
+            {
+                'type': 'service',
+                'id': service.get('Id'),
+                'name': service.get('Name'),
+                'arn': service.get('Arn'),
+                'namespace_id': service.get('NamespaceId'),
+            }
+            for service in services
+        )
+        for service in services:
+            service_id = service.get('Id')
+            if not service_id or 'ListInstances' not in operations:
+                continue
+            resources.extend(
+                {
+                    'type': 'instance',
+                    'id': instance.get('Id'),
+                    'service_id': service_id,
+                    'attributes': instance.get('Attributes'),
+                }
+                for instance in _safe_value(
+                    lambda service_id=service_id: _operation_items(
+                        discovery,
+                        'list_instances',
+                        'Instances',
+                        ServiceId=service_id,
+                    ),
                     [],
                 )
             )
@@ -7781,6 +8058,24 @@ def list_resources(service_keys: set[str] | None = None) -> list[ResourceResult]
                         [],
                     )
                 )
+            resources.extend(
+                {
+                    'type': 'user_defined_function',
+                    'database': database_name,
+                    'name': function.get('FunctionName'),
+                    'class_name': function.get('ClassName'),
+                }
+                for function in _safe_value(
+                    lambda database_name=database_name: _paginate(
+                        glue,
+                        'get_user_defined_functions',
+                        'UserDefinedFunctions',
+                        DatabaseName=database_name,
+                        Pattern='*',
+                    ),
+                    [],
+                )
+            )
         return resources
 
     def lambda_functions() -> list[dict[str, Any]]:
@@ -9200,6 +9495,7 @@ def list_resources(service_keys: set[str] | None = None) -> list[ResourceResult]
         ('backup-resources', 'Backup resources', backup_resources),
         ('bedrockruntime-resources', 'Bedrock Runtime operations', bedrockruntime_resources),
         ('cloudfront-resources', 'CloudFront resources', cloudfront_resources),
+        ('cloudmap-resources', 'Cloud Map resources', cloudmap_resources),
         ('codebuild-resources', 'CodeBuild resources', codebuild_resources),
         ('codedeploy-resources', 'CodeDeploy resources', codedeploy_resources),
         ('config-resources', 'AWS Config resources', config_resources),

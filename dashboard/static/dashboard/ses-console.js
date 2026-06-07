@@ -448,6 +448,18 @@ const SESConsole = (() => {
     await refresh();
   }
 
+  async function updateConfigurationSetSending(configurationSet, enabled) {
+    const name = configurationSetName(configurationSet);
+    const data = await apiJson(`/api/ses/configuration-sets/${encodeURIComponent(name)}/sending/`, {
+      method: 'PUT',
+      body: JSON.stringify({ enabled }),
+    });
+    state.selectedConfigurationSet = name;
+    state.lastResult = data;
+    toast(`Configuration set sending ${enabled ? 'enabled' : 'disabled'}`);
+    await refresh();
+  }
+
   async function deleteConfigurationSet(configurationSet) {
     const name = configurationSetName(configurationSet);
     if (!window.confirm(`Delete SES configuration set ${name}?`)) {
@@ -561,11 +573,14 @@ const SESConsole = (() => {
       card.append(el('h3', null, configurationSetName(configurationSet)));
       const facts = document.createElement('dl');
       consoleUi.addField(facts, 'Details', configurationSet.details);
+      consoleUi.addField(facts, 'Sending enabled', configurationSet.sending_enabled);
       consoleUi.addField(facts, 'Event destinations', configurationSet.event_destination_count);
       card.append(facts);
       const actions = el('div', 'ses-action-row');
+      const sendingEnabled = configurationSet.sending_enabled !== false;
       actions.append(
         btn('Add event destination', null, () => showEventDestinationModal(configurationSet)),
+        btn(sendingEnabled ? 'Disable set sending' : 'Enable set sending', 'ses-btn-secondary', () => updateConfigurationSetSending(configurationSet, !sendingEnabled).catch((error) => toast(error.message, true))),
         btn('Delete set', 'ses-btn-danger', () => deleteConfigurationSet(configurationSet).catch((error) => toast(error.message, true))),
       );
       card.append(actions);

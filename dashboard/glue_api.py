@@ -121,6 +121,35 @@ def delete_table(database_name: str, table_name: str) -> dict[str, Any]:
     return {'database': clean_database, 'table': clean_table, 'response': _clean_response(response)}
 
 
+def create_user_defined_function(database_name: str, function_input: Any) -> dict[str, Any]:
+    clean_database = _required(database_name, 'Database name')
+    clean_function = _dict_value(function_input, 'Function input', required=True)
+    function_name = clean_function.get('FunctionName') or clean_function.get('Name')
+    if not function_name:
+        raise ValueError('Function input FunctionName is required')
+    clean_function['FunctionName'] = function_name
+
+    response = _client().create_user_defined_function(
+        DatabaseName=clean_database,
+        FunctionInput=clean_function,
+    )
+    return {
+        'database': clean_database,
+        'function': function_name,
+        'response': _clean_response(response),
+    }
+
+
+def delete_user_defined_function(database_name: str, function_name: str) -> dict[str, Any]:
+    clean_database = _required(database_name, 'Database name')
+    clean_function = _required(function_name, 'Function name')
+    response = _client().delete_user_defined_function(
+        DatabaseName=clean_database,
+        FunctionName=clean_function,
+    )
+    return {'database': clean_database, 'function': clean_function, 'response': _clean_response(response)}
+
+
 def create_partition(
     database_name: str,
     table_name: str,

@@ -187,7 +187,10 @@ const ECSConsole = (() => {
       memory: 512,
       essential: true,
       portMappings: [{ containerPort: 80, protocol: 'tcp' }],
+      mountPoints: [{ sourceVolume: 'app-data', containerPath: '/usr/share/nginx/html', readOnly: false }],
     }], null, 2);
+    const volumesInput = document.createElement('textarea');
+    volumesInput.value = JSON.stringify([{ name: 'app-data' }], null, 2);
     const compatInput = document.createElement('input');
     compatInput.value = 'FARGATE';
     const networkMode = document.createElement('select');
@@ -203,6 +206,8 @@ const ECSConsole = (() => {
       familyInput,
       el('label', null, 'Container definitions JSON'),
       containerInput,
+      el('label', null, 'Volumes JSON'),
+      volumesInput,
       el('label', null, 'Requires compatibilities'),
       compatInput,
       el('label', null, 'Network mode'),
@@ -220,6 +225,7 @@ const ECSConsole = (() => {
         body: JSON.stringify({
           family: familyInput.value.trim(),
           container_definitions: parseJson(containerInput.value, [], 'Container definitions'),
+          volumes: parseJson(volumesInput.value, [], 'Volumes'),
           requires_compatibilities: parseList(compatInput.value),
           network_mode: networkMode.value,
           cpu: cpuInput.value.trim(),

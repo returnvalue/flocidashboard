@@ -4,7 +4,7 @@ from unittest.mock import patch
 from django.test import SimpleTestCase
 from django.urls import reverse
 
-from .ecs_api import run_task
+from .ecs_api import register_task_definition, run_task
 from .services import get_service
 
 
@@ -79,12 +79,14 @@ class ECSActionsApiTests(SimpleTestCase):
     def test_register_task_definition_success(self, register_mock):
         register_mock.return_value = {'family': 'web', 'revision': 1}
         containers = [{'name': 'app', 'image': 'nginx:latest', 'essential': True}]
+        volumes = [{'name': 'app-data'}]
 
         response = self.client.post(
             reverse('dashboard:ecs-task-definitions'),
             data=json.dumps({
                 'family': 'web',
                 'container_definitions': containers,
+                'volumes': volumes,
                 'requires_compatibilities': ['FARGATE'],
                 'network_mode': 'awsvpc',
                 'cpu': '256',
@@ -104,6 +106,7 @@ class ECSActionsApiTests(SimpleTestCase):
             memory='512',
             task_role_arn='',
             execution_role_arn='',
+            volumes=volumes,
             tags=[],
         )
 
@@ -272,6 +275,39 @@ class ECSActionsApiTests(SimpleTestCase):
 
 
 class ECSApiHelperTests(SimpleTestCase):
+    @patch('dashboard.ecs_api._client')
+    def test_register_task_definition_passes_volumes(self, client_factory):
+        containers = [{
+            'name': 'app',
+            'image': 'nginx:latest',
+            'mountPoints': [{'sourceVolume': 'app-data', 'containerPath': '/data'}],
+        }]
+        volumes = [{'name': 'app-data'}]
+        client_factory.return_value.register_task_definition.return_value = {
+            'taskDefinition': {
+                'family': 'web',
+                'revision': 1,
+                'taskDefinitionArn': 'arn:task-definition/web:1',
+                'status': 'ACTIVE',
+            },
+        }
+
+        result = register_task_definition(
+            family='web',
+            container_definitions=containers,
+            volumes=volumes,
+        )
+
+        client_factory.return_value.register_task_definition.assert_called_once_with(
+            family='web',
+            containerDefinitions=containers,
+            networkMode='awsvpc',
+            cpu='256',
+            memory='512',
+            volumes=volumes,
+        )
+        self.assertEqual(result['task_definition_arn'], 'arn:task-definition/web:1')
+
     @patch('dashboard.ecs_api._client')
     def test_run_task_passes_container_overrides(self, client_factory):
         overrides = {

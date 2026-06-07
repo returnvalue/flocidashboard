@@ -239,6 +239,19 @@ class SESActionsApiTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         delete_mock.assert_called_once_with('local-events')
 
+    @patch('dashboard.ses_views.update_configuration_set_sending_enabled')
+    def test_update_configuration_set_sending_success(self, update_mock):
+        update_mock.return_value = {'configuration_set_name': 'local-events', 'enabled': False}
+
+        response = self.client.put(
+            reverse('dashboard:ses-configuration-set-sending', kwargs={'name': 'local-events'}),
+            data=json.dumps({'enabled': False}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        update_mock.assert_called_once_with('local-events', False)
+
     @patch('dashboard.ses_views.put_event_destination')
     def test_put_event_destination_success(self, put_mock):
         event_destination = {'Enabled': True, 'MatchingEventTypes': ['SEND'], 'SnsDestination': {'TopicArn': 'arn'}}

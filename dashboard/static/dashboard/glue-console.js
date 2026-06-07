@@ -110,6 +110,7 @@ const GlueConsole = (() => {
         databases: 'Databases',
         tables: 'Databases',
         partitions: 'Databases',
+        functions: 'Databases',
         registries: 'Registries',
         schemas: 'Registries',
         schema_versions: 'Registries',
@@ -236,6 +237,44 @@ const GlueConsole = (() => {
       state.lastResult = data;
       close();
       toast('Partition created');
+      await refresh();
+    });
+  }
+
+  function functionTemplate() {
+    return {
+      FunctionName: 'normalize_order',
+      ClassName: 'com.example.glue.NormalizeOrder',
+      OwnerName: 'local',
+      OwnerType: 'USER',
+      ResourceUris: [
+        { ResourceType: 'JAR', Uri: 's3://my-bucket/jars/local-udf.jar' },
+      ],
+    };
+  }
+
+  function showCreateFunctionModal(database = selectedDatabase()) {
+    const form = el('div', 'glue-modal-form');
+    const databaseSelect = document.createElement('select');
+    addDatabaseOptions(databaseSelect, database?.name || '');
+    const functionInput = document.createElement('textarea');
+    functionInput.value = JSON.stringify(functionTemplate(), null, 2);
+    form.append(
+      el('label', null, 'Database'),
+      databaseSelect,
+      el('label', null, 'Function input JSON'),
+      functionInput,
+    );
+    openModal('Create user-defined function', form, 'Create', async (close) => {
+      const databaseName = databaseSelect.value.trim();
+      const data = await apiJson(`/api/glue/databases/${encodeURIComponent(databaseName)}/functions/`, {
+        method: 'POST',
+        body: JSON.stringify({ function_input: parseJson(functionInput.value, {}, 'Function input') }),
+      });
+      state.selectedDatabaseName = databaseName;
+      state.lastResult = data;
+      close();
+      toast('User-defined function created');
       await refresh();
     });
   }
@@ -384,6 +423,16 @@ const GlueConsole = (() => {
     await refresh();
   }
 
+  async function deleteFunction(database, fn) {
+    if (!window.confirm(`Delete Glue user-defined function ${fn.name}?`)) {
+      return;
+    }
+    const data = await apiJson(`/api/glue/databases/${encodeURIComponent(database.name)}/functions/${encodeURIComponent(fn.name)}/`, { method: 'DELETE' });
+    state.lastResult = data;
+    toast('User-defined function deleted');
+    await refresh();
+  }
+
   function renderDatabaseList() {
     const panel = el('section', 'glue-panel');
     panel.append(el('div', 'glue-panel-heading', 'Databases'));
@@ -396,7 +445,7 @@ const GlueConsole = (() => {
         const row = el('button', `glue-item-row${active ? ' glue-item-row-active' : ''}`);
         row.append(
           el('span', 'glue-item-name', database.name || 'Database'),
-          el('span', 'glue-item-meta', `${database.table_count || 0} tables / ${database.partition_count || 0} partitions`),
+          el('span', 'glue-item-meta', `${database.table_count || 0} tables / ${database.function_count || 0} functions / ${database.partition_count || 0} partitions`),
         );
         row.addEventListener('click', () => {
           state.selectedDatabaseName = database.name;
@@ -437,6 +486,29 @@ const GlueConsole = (() => {
     return body;
   }
 
+  function renderFunctionCards(database) {
+    const body = el('div', 'glue-card-list');
+    (database.functions || []).forEach((fn) => {
+      const card = el('article', 'glue-card');
+      card.append(el('h3', null, fn.name || 'Function'));
+      const facts = el('dl', 'glue-facts');
+      consoleUi.addField(facts, 'Class name', fn.class_name);
+      consoleUi.addField(facts, 'Owner', fn.owner_name);
+      consoleUi.addField(facts, 'Owner type', fn.owner_type);
+      consoleUi.addField(facts, 'Created', fn.created);
+      consoleUi.addField(facts, 'Resource URIs', fn.resource_uris);
+      card.append(facts);
+      const actions = el('div', 'glue-action-row');
+      actions.append(btn('Delete function', 'glue-btn-danger', () => deleteFunction(database, fn).catch((error) => toast(error.message, true))));
+      card.append(actions);
+      body.append(card);
+    });
+    if (!(database.functions || []).length) {
+      body.append(el('p', 'glue-empty', 'No user-defined functions found for this database.'));
+    }
+    return body;
+  }
+
   function renderDatabaseDetail(database) {
     const panel = el('section', 'glue-panel');
     panel.append(el('div', 'glue-panel-heading', 'Selected database'));
@@ -451,10 +523,14 @@ const GlueConsole = (() => {
     const actions = el('div', 'glue-action-row');
     actions.append(
       btn('Create table', null, () => showCreateTableModal(database)),
+      btn('Create function', 'glue-btn-secondary', () => showCreateFunctionModal(database)),
       btn('Delete database', 'glue-btn-danger', () => deleteDatabase(database).catch((error) => toast(error.message, true))),
     );
     body.append(actions);
+    body.append(el('h3', null, 'Tables'));
     body.append(renderTableCards(database));
+    body.append(el('h3', null, 'User-defined functions'));
+    body.append(renderFunctionCards(database));
     panel.append(body);
     return panel;
   }
@@ -542,6 +618,7 @@ const GlueConsole = (() => {
         btn('Create database', null, showCreateDatabaseModal),
         btn('Create table', 'glue-btn-secondary', () => showCreateTableModal()),
         btn('Create partition', 'glue-btn-secondary', () => showCreatePartitionModal()),
+        btn('Create function', 'glue-btn-secondary', () => showCreateFunctionModal()),
         btn('Create registry', 'glue-btn-secondary', showCreateRegistryModal),
         btn('Create schema', 'glue-btn-secondary', () => showCreateSchemaModal()),
       ],
