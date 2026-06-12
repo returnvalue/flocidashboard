@@ -3,6 +3,7 @@ import os
 from unittest.mock import patch
 
 from botocore.exceptions import NoCredentialsError, ProfileNotFound
+from botocore.parsers import ResponseParserError
 from django.test import SimpleTestCase
 from django.urls import reverse
 
@@ -304,7 +305,7 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertEqual(cloudfront_actions['delete_distribution']['safety'], 'destructive')
         self.assertEqual(services['cloudmap']['title'], 'Cloud Map')
         self.assertEqual(services['cloudmap']['api_path'], '/api/cloudmap/')
-        self.assertEqual(services['cloudmap']['maturity'], 'inventory_only')
+        self.assertEqual(services['cloudmap']['maturity'], 'interactive_workbench')
         self.assertEqual(services['config']['title'], 'AWS Config')
         self.assertEqual(services['config']['api_path'], '/api/config/')
 
@@ -388,6 +389,17 @@ class DashboardTemplateTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         list_resources.assert_called_once_with(None)
+
+    @patch('dashboard.views.list_resources')
+    def test_resources_api_returns_json_for_parser_errors(self, list_resources):
+        list_resources.side_effect = ResponseParserError('invalid XML received')
+
+        response = self.client.get(reverse('dashboard:resources'))
+
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(response['Content-Type'], 'application/json')
+        self.assertEqual(response.json()['resources'], [])
+        self.assertIn('invalid XML received', response.json()['error'])
 
 
 class FlociClientFactoryTests(SimpleTestCase):

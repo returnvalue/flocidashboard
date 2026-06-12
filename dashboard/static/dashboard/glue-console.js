@@ -110,6 +110,7 @@ const GlueConsole = (() => {
         databases: 'Databases',
         tables: 'Databases',
         partitions: 'Databases',
+        table_versions: 'Databases',
         functions: 'Databases',
         registries: 'Registries',
         schemas: 'Registries',
@@ -194,6 +195,44 @@ const GlueConsole = (() => {
       state.lastResult = data;
       close();
       toast('Table created');
+      await refresh();
+    });
+  }
+
+  function showUpdateDatabaseModal(database = selectedDatabase()) {
+    const form = el('div', 'glue-modal-form');
+    const nameInput = document.createElement('input');
+    nameInput.value = database?.name || '';
+    const descriptionInput = document.createElement('input');
+    descriptionInput.value = database?.description || '';
+    const locationInput = document.createElement('input');
+    locationInput.value = database?.location_uri || '';
+    const parametersInput = document.createElement('textarea');
+    parametersInput.value = JSON.stringify(database?.parameters || {}, null, 2);
+    form.append(
+      el('label', null, 'New database name'),
+      nameInput,
+      el('label', null, 'Description'),
+      descriptionInput,
+      el('label', null, 'Location URI'),
+      locationInput,
+      el('label', null, 'Parameters JSON'),
+      parametersInput,
+    );
+    openModal('Update database', form, 'Update', async (close) => {
+      const data = await apiJson(`/api/glue/databases/${encodeURIComponent(database.name)}/`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          new_name: nameInput.value.trim(),
+          description: descriptionInput.value.trim(),
+          location_uri: locationInput.value.trim(),
+          parameters: parseJson(parametersInput.value, {}, 'Parameters'),
+        }),
+      });
+      state.selectedDatabaseName = data.database_input?.Name || nameInput.value.trim();
+      state.lastResult = data;
+      close();
+      toast('Database updated');
       await refresh();
     });
   }
@@ -423,6 +462,24 @@ const GlueConsole = (() => {
     await refresh();
   }
 
+  async function batchDeleteTables(database) {
+    const tableNames = (database.tables || []).map((table) => table.name).filter(Boolean);
+    if (!tableNames.length) {
+      toast('No tables to delete', true);
+      return;
+    }
+    if (!window.confirm(`Delete ${tableNames.length} Glue tables from ${database.name}?`)) {
+      return;
+    }
+    const data = await apiJson(`/api/glue/databases/${encodeURIComponent(database.name)}/tables/batch-delete/`, {
+      method: 'POST',
+      body: JSON.stringify({ table_names: tableNames }),
+    });
+    state.lastResult = data;
+    toast('Tables deleted');
+    await refresh();
+  }
+
   async function deleteFunction(database, fn) {
     if (!window.confirm(`Delete Glue user-defined function ${fn.name}?`)) {
       return;
@@ -471,6 +528,8 @@ const GlueConsole = (() => {
       consoleUi.addField(facts, 'Columns', table.columns);
       consoleUi.addField(facts, 'Partition keys', table.partition_keys);
       consoleUi.addField(facts, 'Partitions', table.partition_count);
+      consoleUi.addField(facts, 'Archived versions', table.version_count);
+      consoleUi.addField(facts, 'Versions', table.versions);
       card.append(facts);
       const actions = el('div', 'glue-action-row');
       actions.append(
@@ -518,12 +577,16 @@ const GlueConsole = (() => {
     consoleUi.addField(facts, 'Description', database.description);
     consoleUi.addField(facts, 'Location URI', database.location_uri);
     consoleUi.addField(facts, 'Parameters', database.parameters);
+    consoleUi.addField(facts, 'Tags', database.tags);
+    consoleUi.addField(facts, 'Table versions', database.table_version_count);
     consoleUi.addField(facts, 'Created', database.created);
     body.append(facts);
     const actions = el('div', 'glue-action-row');
     actions.append(
+      btn('Update database', 'glue-btn-secondary', () => showUpdateDatabaseModal(database)),
       btn('Create table', null, () => showCreateTableModal(database)),
       btn('Create function', 'glue-btn-secondary', () => showCreateFunctionModal(database)),
+      btn('Batch delete tables', 'glue-btn-danger', () => batchDeleteTables(database).catch((error) => toast(error.message, true))),
       btn('Delete database', 'glue-btn-danger', () => deleteDatabase(database).catch((error) => toast(error.message, true))),
     );
     body.append(actions);

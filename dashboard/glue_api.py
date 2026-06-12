@@ -98,6 +98,28 @@ def delete_database(name: str) -> dict[str, Any]:
     return {'database': clean_name, 'response': _clean_response(response)}
 
 
+def update_database(
+    name: str,
+    *,
+    new_name: str = '',
+    description: str = '',
+    location_uri: str = '',
+    parameters: Any = None,
+) -> dict[str, Any]:
+    clean_name = _required(name, 'Database name')
+    database_input: dict[str, Any] = {'Name': new_name.strip() if new_name else clean_name}
+    if description:
+        database_input['Description'] = description
+    if location_uri:
+        database_input['LocationUri'] = location_uri
+    clean_parameters = _dict_value(parameters, 'Parameters')
+    if clean_parameters:
+        database_input['Parameters'] = clean_parameters
+
+    response = _client().update_database(Name=clean_name, DatabaseInput=database_input)
+    return {'database': clean_name, 'database_input': database_input, 'response': _clean_response(response)}
+
+
 def create_table(database_name: str, table_input: Any) -> dict[str, Any]:
     clean_database = _required(database_name, 'Database name')
     clean_table = _dict_value(table_input, 'Table input', required=True)
@@ -119,6 +141,13 @@ def delete_table(database_name: str, table_name: str) -> dict[str, Any]:
     clean_table = _required(table_name, 'Table name')
     response = _client().delete_table(DatabaseName=clean_database, Name=clean_table)
     return {'database': clean_database, 'table': clean_table, 'response': _clean_response(response)}
+
+
+def batch_delete_tables(database_name: str, table_names: Any) -> dict[str, Any]:
+    clean_database = _required(database_name, 'Database name')
+    clean_tables = [_required(item, 'Table name') for item in _list_value(table_names, 'Table names', required=True)]
+    response = _client().batch_delete_table(DatabaseName=clean_database, TablesToDelete=clean_tables)
+    return {'database': clean_database, 'tables': clean_tables, 'response': _clean_response(response)}
 
 
 def create_user_defined_function(database_name: str, function_input: Any) -> dict[str, Any]:

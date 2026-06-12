@@ -375,6 +375,15 @@
         <p>This release focuses on stored management-plane state. GraphQL query and mutation execution is not part of Phase 1.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid appsync-readonly-grid"></div>
+    {% elif service.key == 'cloudmap' %}
+      <div id="cloudmap-console-root" class="cloudmap-console-root" aria-live="polite"></div>
+      <details class="cloudmap-about-floci">
+        <summary>About Floci Cloud Map</summary>
+        <p>Floci 1.5.24 supports Cloud Map service discovery management APIs for namespaces, services, registered instances, discovery calls, async operations, custom health status, and tags.</p>
+        <p>HTTP namespaces are the simplest local workflow. DNS namespaces can also be modeled, with private DNS requiring a VPC ID.</p>
+        <p>Registered instance attributes are the discovery payload your local services can query during integration tests.</p>
+      </details>
+      <div id="{{ service.key }}-grid" class="iam-grid cloudmap-readonly-grid"></div>
     {% elif service.key == 'resourcegroupstagging' %}
       <div id="resourcegroupstagging-console-root" class="resourcegroupstagging-console-root" aria-live="polite"></div>
       <details class="resourcegroupstagging-about-floci">
@@ -417,7 +426,7 @@
         <summary>About Floci EKS</summary>
         <p>Local EKS uses the AWS-compatible REST JSON API for cluster metadata, tags, and cluster lifecycle calls.</p>
         <p>In mock mode, clusters become ACTIVE immediately and no Kubernetes API server is started. In real mode, Floci starts a k3s container per cluster and, as of 1.5.22, exposes a host-reachable and authenticable Kubernetes API endpoint.</p>
-        <p>This first workbench focuses on the supported Phase 1 surface: create clusters, inspect cluster endpoints and metadata, add or remove tags, and delete clusters.</p>
+        <p>Floci 1.5.24 adds managed node group support, so this workbench covers cluster lifecycle, node group lifecycle, endpoint metadata, and resource tags.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid eks-readonly-grid"></div>
     {% elif service.key == 'elasticache' %}

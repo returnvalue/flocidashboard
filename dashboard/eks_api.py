@@ -36,6 +36,15 @@ def _dict(value: Any, label: str) -> dict[str, Any]:
     return value
 
 
+def _int(value: Any, label: str) -> int | None:
+    if value in (None, ''):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f'{label} must be a number') from exc
+
+
 def _tags(value: Any) -> dict[str, str]:
     if value in (None, '', [], {}):
         return {}
@@ -105,6 +114,74 @@ def delete_cluster(name: str) -> dict[str, Any]:
         'name': cluster.get('name') or clean_name,
         'arn': cluster.get('arn'),
         'status': cluster.get('status'),
+        'response': _clean_response(response),
+    }
+
+
+def create_nodegroup(
+    *,
+    cluster_name: str,
+    nodegroup_name: str,
+    node_role: str,
+    subnets: Any = None,
+    scaling_config: Any = None,
+    instance_types: Any = None,
+    ami_type: str = '',
+    capacity_type: str = '',
+    disk_size: Any = None,
+    labels: Any = None,
+    tags: Any = None,
+) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {
+        'clusterName': _required(cluster_name, 'Cluster name'),
+        'nodegroupName': _required(nodegroup_name, 'Node group name'),
+        'nodeRole': _required(node_role, 'Node role ARN'),
+        'subnets': _list(subnets, 'Subnets'),
+    }
+    if not kwargs['subnets']:
+        raise ValueError('At least one subnet is required')
+
+    clean_scaling = _dict(scaling_config, 'Scaling config')
+    if clean_scaling:
+        kwargs['scalingConfig'] = clean_scaling
+    clean_instance_types = _list(instance_types, 'Instance types')
+    if clean_instance_types:
+        kwargs['instanceTypes'] = clean_instance_types
+    if ami_type:
+        kwargs['amiType'] = str(ami_type).strip()
+    if capacity_type:
+        kwargs['capacityType'] = str(capacity_type).strip().upper()
+    clean_disk_size = _int(disk_size, 'Disk size')
+    if clean_disk_size is not None:
+        kwargs['diskSize'] = clean_disk_size
+    clean_labels = _dict(labels, 'Labels')
+    if clean_labels:
+        kwargs['labels'] = {str(key): str(item) for key, item in clean_labels.items()}
+    clean_tags = _tags(tags)
+    if clean_tags:
+        kwargs['tags'] = clean_tags
+
+    response = _client().create_nodegroup(**kwargs)
+    nodegroup = response.get('nodegroup', {})
+    return {
+        'cluster_name': kwargs['clusterName'],
+        'nodegroup_name': nodegroup.get('nodegroupName') or kwargs['nodegroupName'],
+        'arn': nodegroup.get('nodegroupArn'),
+        'status': nodegroup.get('status'),
+        'response': _clean_response(response),
+    }
+
+
+def delete_nodegroup(cluster_name: str, nodegroup_name: str) -> dict[str, Any]:
+    clean_cluster = _required(cluster_name, 'Cluster name')
+    clean_nodegroup = _required(nodegroup_name, 'Node group name')
+    response = _client().delete_nodegroup(clusterName=clean_cluster, nodegroupName=clean_nodegroup)
+    nodegroup = response.get('nodegroup', {})
+    return {
+        'cluster_name': clean_cluster,
+        'nodegroup_name': nodegroup.get('nodegroupName') or clean_nodegroup,
+        'arn': nodegroup.get('nodegroupArn'),
+        'status': nodegroup.get('status'),
         'response': _clean_response(response),
     }
 

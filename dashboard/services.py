@@ -629,6 +629,20 @@ APPSYNC_ACTIONS = (
 )
 
 
+CLOUDMAP_ACTIONS = (
+    action('create_namespace', 'Create namespace', 'POST', '/api/cloudmap/namespaces/', 'create', fields=(action_field('name', 'Namespace name', required=True), action_field('namespace_type', 'Namespace type'), action_field('description', 'Description'), action_field('vpc', 'VPC ID for private DNS'), action_field('tags', 'Tags JSON', field_type='object')), success_message='Namespace creation started'),
+    action('delete_namespace', 'Delete namespace', 'DELETE', '/api/cloudmap/namespaces/{namespace_id}/', 'delete', safety='destructive', confirm='Delete this Cloud Map namespace?', success_message='Namespace deletion started'),
+    action('create_service', 'Create service', 'POST', '/api/cloudmap/services/', 'create', fields=(action_field('name', 'Service name', required=True), action_field('namespace_id', 'Namespace ID', required=True), action_field('description', 'Description'), action_field('dns_config', 'DNS config JSON', field_type='object'), action_field('health_check_config', 'Health check config JSON', field_type='object'), action_field('health_check_custom_config', 'Custom health check config JSON', field_type='object'), action_field('tags', 'Tags JSON', field_type='object')), success_message='Service created'),
+    action('delete_service', 'Delete service', 'DELETE', '/api/cloudmap/services/{service_id}/', 'delete', safety='destructive', confirm='Delete this Cloud Map service?', success_message='Service deleted'),
+    action('register_instance', 'Register instance', 'POST', '/api/cloudmap/services/{service_id}/instances/', 'create', fields=(action_field('instance_id', 'Instance ID', required=True), action_field('attributes', 'Attributes JSON', required=True, field_type='object')), success_message='Instance registration started'),
+    action('deregister_instance', 'Deregister instance', 'DELETE', '/api/cloudmap/services/{service_id}/instances/{instance_id}/', 'delete', safety='destructive', confirm='Deregister this Cloud Map instance?', success_message='Instance deregistration started'),
+    action('discover_instances', 'Discover instances', 'POST', '/api/cloudmap/discover/', 'read', safety='safe', fields=(action_field('namespace_name', 'Namespace name', required=True), action_field('service_name', 'Service name', required=True), action_field('query_parameters', 'Query parameters JSON', field_type='object'))),
+    action('update_instance_custom_health_status', 'Update instance health', 'POST', '/api/cloudmap/services/{service_id}/instances/{instance_id}/health/', 'update', fields=(action_field('status', 'Status', required=True),), success_message='Health status updated'),
+    action('tag_resource', 'Tag resource', 'POST', '/api/cloudmap/tags/', 'update', fields=(action_field('resource_arn', 'Resource ARN', required=True), action_field('tags', 'Tags JSON', required=True, field_type='object')), success_message='Tags added'),
+    action('untag_resource', 'Untag resource', 'DELETE', '/api/cloudmap/tags/', 'update', fields=(action_field('resource_arn', 'Resource ARN', required=True), action_field('tag_keys', 'Tag keys JSON', required=True, field_type='array')), success_message='Tags removed'),
+)
+
+
 RESOURCEGROUPSTAGGING_ACTIONS = (
     action('tag_resources', 'Tag resources', 'POST', '/api/resourcegroupstagging/resources/tag/', 'update', fields=(action_field('resource_arns', 'Resource ARNs JSON', required=True, field_type='array'), action_field('tags', 'Tags JSON', required=True, field_type='object')), success_message='Resources tagged'),
     action('untag_resources', 'Untag resources', 'POST', '/api/resourcegroupstagging/resources/untag/', 'update', fields=(action_field('resource_arns', 'Resource ARNs JSON', required=True, field_type='array'), action_field('tag_keys', 'Tag keys JSON', required=True, field_type='array')), success_message='Tags removed'),
@@ -2628,6 +2642,36 @@ EKS_ACTIONS = (
         success_message='Cluster deleted',
     ),
     action(
+        'create_nodegroup',
+        'Create node group',
+        'POST',
+        '/api/eks/clusters/{cluster_name}/nodegroups/',
+        'create',
+        fields=(
+            action_field('nodegroup_name', 'Node group name', required=True),
+            action_field('node_role', 'Node role ARN', required=True),
+            action_field('subnets', 'Subnets', required=True, field_type='array'),
+            action_field('scaling_config', 'Scaling config', field_type='object'),
+            action_field('instance_types', 'Instance types', field_type='array'),
+            action_field('ami_type', 'AMI type'),
+            action_field('capacity_type', 'Capacity type'),
+            action_field('disk_size', 'Disk size GiB', field_type='number'),
+            action_field('labels', 'Labels', field_type='object'),
+            action_field('tags', 'Tags', field_type='object'),
+        ),
+        success_message='Node group created',
+    ),
+    action(
+        'delete_nodegroup',
+        'Delete node group',
+        'DELETE',
+        '/api/eks/clusters/{cluster_name}/nodegroups/{nodegroup_name}/',
+        'delete',
+        safety='destructive',
+        confirm='Delete this EKS managed node group?',
+        success_message='Node group deleted',
+    ),
+    action(
         'tag_resource',
         'Tag resource',
         'POST',
@@ -2971,6 +3015,20 @@ GLUE_ACTIONS = (
         success_message='Database deleted',
     ),
     action(
+        'update_database',
+        'Update database',
+        'PUT',
+        '/api/glue/databases/{database}/',
+        'update',
+        fields=(
+            action_field('new_name', 'New database name'),
+            action_field('description', 'Description'),
+            action_field('location_uri', 'Location URI'),
+            action_field('parameters', 'Parameters', field_type='object'),
+        ),
+        success_message='Database updated',
+    ),
+    action(
         'create_table',
         'Create table',
         'POST',
@@ -2978,6 +3036,17 @@ GLUE_ACTIONS = (
         'create',
         fields=(action_field('table_input', 'Table input', required=True, field_type='object'),),
         success_message='Table created',
+    ),
+    action(
+        'batch_delete_tables',
+        'Batch delete tables',
+        'POST',
+        '/api/glue/databases/{database}/tables/batch-delete/',
+        'delete',
+        safety='destructive',
+        fields=(action_field('table_names', 'Table names', required=True, field_type='array'),),
+        confirm='Delete these Glue tables?',
+        success_message='Tables deleted',
     ),
     action(
         'delete_table',
@@ -3823,8 +3892,21 @@ SERVICES: tuple[ServiceDefinition, ...] = (
         'Cloud Map',
         'Service discovery namespaces, services, and instances',
         'Networking',
+        maturity='interactive_workbench',
         docs_url='https://floci.io/floci/services/cloudmap/',
-        tags=('service-discovery', 'inventory'),
+        console_css='dashboard/cloudmap-console.css',
+        console_js='dashboard/cloudmap-console.js',
+        shared_console=True,
+        tutorial_available=True,
+        tags=('service-discovery', 'layered-workbench'),
+        actions=CLOUDMAP_ACTIONS,
+    ),
+    service(
+        'cloudtrail',
+        'CloudTrail',
+        'Audit trails, logging status, event selectors, and tags',
+        'Observability',
+        tags=('audit', 'inventory'),
     ),
     service(
         'cloudformation',

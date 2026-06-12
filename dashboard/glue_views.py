@@ -13,10 +13,12 @@ from .glue_api import (
     create_schema,
     create_table,
     create_user_defined_function,
+    batch_delete_tables,
     delete_database,
     delete_table,
     delete_user_defined_function,
     register_schema_version,
+    update_database,
 )
 
 
@@ -34,12 +36,22 @@ def glue_databases_create(request):
         return handle_action_error(exc, service='glue', operation='create_database')
 
 
-@require_http_methods(['DELETE'])
+@require_http_methods(['PUT', 'DELETE'])
 def glue_database_detail(request, database_name: str):
     try:
+        if request.method == 'PUT':
+            body = parse_json_body(request)
+            return JsonResponse(update_database(
+                database_name,
+                new_name=body.get('new_name') or '',
+                description=body.get('description') or '',
+                location_uri=body.get('location_uri') or '',
+                parameters=body.get('parameters') or {},
+            ))
         return JsonResponse(delete_database(database_name))
     except Exception as exc:
-        return handle_action_error(exc, service='glue', operation='delete_database')
+        operation = 'update_database' if request.method == 'PUT' else 'delete_database'
+        return handle_action_error(exc, service='glue', operation=operation)
 
 
 @require_http_methods(['POST'])
@@ -49,6 +61,15 @@ def glue_tables_create(request, database_name: str):
         return JsonResponse(create_table(database_name, body.get('table_input') or {}))
     except Exception as exc:
         return handle_action_error(exc, service='glue', operation='create_table')
+
+
+@require_http_methods(['POST'])
+def glue_tables_batch_delete(request, database_name: str):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(batch_delete_tables(database_name, body.get('table_names') or []))
+    except Exception as exc:
+        return handle_action_error(exc, service='glue', operation='batch_delete_tables')
 
 
 @require_http_methods(['DELETE'])

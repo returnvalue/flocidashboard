@@ -6,7 +6,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 
 from .actions import handle_action_error, parse_json_body
-from .eks_api import create_cluster, delete_cluster, list_tags, tag_resource, untag_resource
+from .eks_api import create_cluster, create_nodegroup, delete_cluster, delete_nodegroup, list_tags, tag_resource, untag_resource
 
 
 @require_http_methods(['POST'])
@@ -32,6 +32,35 @@ def eks_clusters_delete(request):
         return JsonResponse(delete_cluster(body.get('name') or ''))
     except Exception as exc:
         return handle_action_error(exc, service='eks', operation='delete_cluster')
+
+
+@require_http_methods(['POST'])
+def eks_nodegroups_create(request, cluster_name: str):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(create_nodegroup(
+            cluster_name=cluster_name,
+            nodegroup_name=body.get('nodegroup_name') or '',
+            node_role=body.get('node_role') or '',
+            subnets=body.get('subnets') or [],
+            scaling_config=body.get('scaling_config') or {},
+            instance_types=body.get('instance_types') or [],
+            ami_type=body.get('ami_type') or '',
+            capacity_type=body.get('capacity_type') or '',
+            disk_size=body.get('disk_size'),
+            labels=body.get('labels') or {},
+            tags=body.get('tags') or {},
+        ))
+    except Exception as exc:
+        return handle_action_error(exc, service='eks', operation='create_nodegroup')
+
+
+@require_http_methods(['DELETE'])
+def eks_nodegroup_delete(request, cluster_name: str, nodegroup_name: str):
+    try:
+        return JsonResponse(delete_nodegroup(cluster_name, nodegroup_name))
+    except Exception as exc:
+        return handle_action_error(exc, service='eks', operation='delete_nodegroup')
 
 
 @require_http_methods(['POST', 'DELETE'])

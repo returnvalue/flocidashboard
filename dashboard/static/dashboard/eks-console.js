@@ -43,6 +43,15 @@ const EKSConsole = (() => {
     return clusters().find((cluster) => clusterName(cluster) === state.selectedClusterName) || clusters()[0] || null;
   }
 
+  function nodegroupsForCluster(cluster) {
+    const name = clusterName(cluster);
+    const detailed = (state.inventory?.nodegroups || []).filter((nodegroup) => nodegroup.cluster_name === name);
+    if (detailed.length) {
+      return detailed;
+    }
+    return (cluster?.nodegroups || []).map((nodegroup) => (typeof nodegroup === 'string' ? { name: nodegroup, cluster_name: name } : nodegroup));
+  }
+
   function parseJson(value, fallback, label) {
     const trimmed = String(value || '').trim();
     if (!trimmed) {
@@ -206,6 +215,79 @@ const EKSConsole = (() => {
     openModal('Cluster tags', form, 'Done', (close) => close());
   }
 
+  function showCreateNodeGroupModal(cluster = selectedCluster()) {
+    if (!cluster) {
+      toast('Create or select a cluster first', true);
+      return;
+    }
+    const form = el('div', 'eks-modal-form');
+    const nameInput = document.createElement('input');
+    nameInput.placeholder = 'local-workers';
+    const roleInput = document.createElement('input');
+    roleInput.value = 'arn:aws:iam::000000000000:role/eks-node-role';
+    const subnetsInput = document.createElement('input');
+    const clusterSubnets = cluster.resources_vpc_config?.subnetIds || cluster.resources_vpc_config?.subnet_ids || [];
+    subnetsInput.value = Array.isArray(clusterSubnets) ? clusterSubnets.join(',') : '';
+    subnetsInput.placeholder = 'subnet-123,subnet-456';
+    const scalingInput = document.createElement('textarea');
+    scalingInput.value = '{"minSize":1,"maxSize":2,"desiredSize":1}';
+    const instanceTypesInput = document.createElement('input');
+    instanceTypesInput.placeholder = 't3.small,t3.medium';
+    const amiInput = document.createElement('input');
+    amiInput.placeholder = 'AL2_x86_64';
+    const capacityInput = document.createElement('input');
+    capacityInput.placeholder = 'ON_DEMAND';
+    const diskInput = document.createElement('input');
+    diskInput.placeholder = '20';
+    const labelsInput = document.createElement('textarea');
+    labelsInput.placeholder = '{"role":"worker"}';
+    const tagsInput = document.createElement('textarea');
+    tagsInput.placeholder = '{"env":"local"}';
+    form.append(
+      el('label', null, 'Node group name'),
+      nameInput,
+      el('label', null, 'Node role ARN'),
+      roleInput,
+      el('label', null, 'Subnet IDs'),
+      subnetsInput,
+      el('label', null, 'Scaling config JSON'),
+      scalingInput,
+      el('label', null, 'Instance types'),
+      instanceTypesInput,
+      el('label', null, 'AMI type'),
+      amiInput,
+      el('label', null, 'Capacity type'),
+      capacityInput,
+      el('label', null, 'Disk size GiB'),
+      diskInput,
+      el('label', null, 'Labels JSON'),
+      labelsInput,
+      el('label', null, 'Tags JSON'),
+      tagsInput,
+    );
+    openModal('Create managed node group', form, 'Create', async (close) => {
+      const data = await apiJson(`/api/eks/clusters/${encodeURIComponent(clusterName(cluster))}/nodegroups/`, {
+        method: 'POST',
+        body: JSON.stringify({
+          nodegroup_name: nameInput.value.trim(),
+          node_role: roleInput.value.trim(),
+          subnets: parseList(subnetsInput.value),
+          scaling_config: parseJson(scalingInput.value, {}, 'Scaling config'),
+          instance_types: parseList(instanceTypesInput.value),
+          ami_type: amiInput.value.trim(),
+          capacity_type: capacityInput.value.trim(),
+          disk_size: diskInput.value.trim() || null,
+          labels: parseJson(labelsInput.value, {}, 'Labels'),
+          tags: parseJson(tagsInput.value, {}, 'Tags'),
+        }),
+      });
+      state.lastResult = data;
+      close();
+      toast('Node group created');
+      await refresh();
+    });
+  }
+
   async function deleteCluster(cluster) {
     if (!window.confirm('Delete this EKS cluster?')) {
       return;
@@ -217,6 +299,19 @@ const EKSConsole = (() => {
     state.lastResult = data;
     state.selectedClusterName = '';
     toast('Cluster deleted');
+    await refresh();
+  }
+
+  async function deleteNodeGroup(cluster, nodegroup) {
+    if (!window.confirm('Delete this EKS managed node group?')) {
+      return;
+    }
+    const name = nodegroup.name || nodegroup.nodegroupName;
+    const data = await apiJson(`/api/eks/clusters/${encodeURIComponent(clusterName(cluster))}/nodegroups/${encodeURIComponent(name)}/`, {
+      method: 'DELETE',
+    });
+    state.lastResult = data;
+    toast('Node group deleted');
     await refresh();
   }
 
@@ -263,10 +358,49 @@ const EKSConsole = (() => {
     body.append(facts);
     const actions = el('div', 'eks-action-row');
     actions.append(
+      btn('Create node group', null, () => showCreateNodeGroupModal(cluster)),
       btn('Tags', 'eks-btn-secondary', () => showTagsModal(clusterArn(cluster))),
       btn('Delete cluster', 'eks-btn-danger', () => deleteCluster(cluster).catch((error) => toast(error.message, true))),
     );
     body.append(actions);
+    panel.append(body);
+    return panel;
+  }
+
+  function renderNodeGroupsPanel(cluster) {
+    const panel = el('section', 'eks-panel');
+    const heading = el('div', 'eks-panel-heading');
+    heading.append(el('span', null, 'Managed node groups'), btn('Create node group', 'eks-btn-secondary', () => showCreateNodeGroupModal(cluster)));
+    panel.append(heading);
+    const body = el('div', 'eks-card-list');
+    const nodegroups = nodegroupsForCluster(cluster);
+    if (!nodegroups.length) {
+      body.append(el('div', 'eks-empty', 'No managed node groups found for this cluster.'));
+    }
+    nodegroups.forEach((nodegroup) => {
+      const card = el('article', 'eks-card');
+      const name = nodegroup.name || nodegroup.nodegroupName || 'Node group';
+      card.append(el('h3', null, name));
+      const facts = el('dl', 'eks-facts');
+      consoleUi.addField(facts, 'ARN', nodegroup.arn);
+      consoleUi.addField(facts, 'Status', nodegroup.status);
+      consoleUi.addField(facts, 'Capacity type', nodegroup.capacity_type);
+      consoleUi.addField(facts, 'Scaling config', nodegroup.scaling_config);
+      consoleUi.addField(facts, 'Instance types', nodegroup.instance_types);
+      consoleUi.addField(facts, 'Subnets', nodegroup.subnets);
+      consoleUi.addField(facts, 'Node role', nodegroup.node_role);
+      consoleUi.addField(facts, 'Labels', nodegroup.labels);
+      consoleUi.addField(facts, 'Tags', nodegroup.tags);
+      consoleUi.addField(facts, 'Health', nodegroup.health);
+      card.append(facts);
+      const actions = el('div', 'eks-action-row');
+      if (nodegroup.arn) {
+        actions.append(btn('Tags', 'eks-btn-secondary', () => showTagsModal(nodegroup.arn)));
+      }
+      actions.append(btn('Delete node group', 'eks-btn-danger', () => deleteNodeGroup(cluster, nodegroup).catch((error) => toast(error.message, true))));
+      card.append(actions);
+      body.append(card);
+    });
     panel.append(body);
     return panel;
   }
@@ -306,7 +440,7 @@ const EKSConsole = (() => {
     if (!cluster) {
       detail.append(el('section', 'eks-panel eks-empty-panel', 'Create a cluster to start testing local EKS metadata and k3s-backed control planes.'));
     } else {
-      detail.append(renderClusterDetail(cluster), renderRelatedPanel(cluster));
+      detail.append(renderClusterDetail(cluster), renderNodeGroupsPanel(cluster), renderRelatedPanel(cluster));
     }
     const result = renderResult();
     if (result) {
@@ -324,8 +458,8 @@ const EKSConsole = (() => {
     renderBreadcrumbs();
     renderSummary(state.inventory?.summary || {});
     root.append(toolbar(
-      [btn('Create cluster', null, showCreateClusterModal)],
-      [el('span', 'eks-toolbar-note', 'Cluster lifecycle, endpoint metadata, and resource tags')],
+      [btn('Create cluster', null, showCreateClusterModal), btn('Create node group', 'eks-btn-secondary', () => showCreateNodeGroupModal())],
+      [el('span', 'eks-toolbar-note', 'Cluster and managed node group lifecycle')],
     ));
     root.append(renderWorkbench());
     if (loadedAtEl) {

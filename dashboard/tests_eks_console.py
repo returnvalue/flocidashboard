@@ -1,9 +1,10 @@
 import json
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase
 from django.urls import reverse
 
+from .eks_api import create_nodegroup
 from .services import get_service
 
 
@@ -28,6 +29,8 @@ class EKSPageTemplateTests(SimpleTestCase):
         self.assertEqual(service.console_js, 'dashboard/eks-console.js')
         self.assertTrue(any(action.name == 'create_cluster' for action in service.actions))
         self.assertTrue(any(action.name == 'delete_cluster' for action in service.actions))
+        self.assertTrue(any(action.name == 'create_nodegroup' for action in service.actions))
+        self.assertTrue(any(action.name == 'delete_nodegroup' for action in service.actions))
         self.assertTrue(any(action.name == 'tag_resource' for action in service.actions))
 
 
@@ -126,3 +129,95 @@ class EKSActionsApiTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['tags'], {'env': 'local'})
         list_mock.assert_called_once_with('arn:cluster/local')
+
+    @patch('dashboard.eks_views.create_nodegroup')
+    def test_create_nodegroup_success(self, create_mock):
+        create_mock.return_value = {'cluster_name': 'local', 'nodegroup_name': 'workers', 'status': 'CREATING'}
+
+        response = self.client.post(
+            reverse('dashboard:eks-nodegroups', kwargs={'cluster_name': 'local'}),
+            data=json.dumps({
+                'nodegroup_name': 'workers',
+                'node_role': 'arn:aws:iam::000000000000:role/eks-node-role',
+                'subnets': ['subnet-1'],
+                'scaling_config': {'minSize': 1, 'maxSize': 2, 'desiredSize': 1},
+                'instance_types': ['t3.small'],
+                'ami_type': 'AL2_x86_64',
+                'capacity_type': 'ON_DEMAND',
+                'disk_size': 20,
+                'labels': {'role': 'worker'},
+                'tags': {'env': 'local'},
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['status'], 'CREATING')
+        create_mock.assert_called_once_with(
+            cluster_name='local',
+            nodegroup_name='workers',
+            node_role='arn:aws:iam::000000000000:role/eks-node-role',
+            subnets=['subnet-1'],
+            scaling_config={'minSize': 1, 'maxSize': 2, 'desiredSize': 1},
+            instance_types=['t3.small'],
+            ami_type='AL2_x86_64',
+            capacity_type='ON_DEMAND',
+            disk_size=20,
+            labels={'role': 'worker'},
+            tags={'env': 'local'},
+        )
+
+    @patch('dashboard.eks_views.delete_nodegroup')
+    def test_delete_nodegroup_success(self, delete_mock):
+        delete_mock.return_value = {'cluster_name': 'local', 'nodegroup_name': 'workers', 'status': 'DELETING'}
+
+        response = self.client.delete(
+            reverse('dashboard:eks-nodegroup-detail', kwargs={'cluster_name': 'local', 'nodegroup_name': 'workers'}),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['status'], 'DELETING')
+        delete_mock.assert_called_once_with('local', 'workers')
+
+    def test_create_nodegroup_rejects_invalid_json(self):
+        response = self.client.post(
+            reverse('dashboard:eks-nodegroups', kwargs={'cluster_name': 'local'}),
+            data='not-json',
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['service'], 'eks')
+        self.assertEqual(response.json()['operation'], 'create_nodegroup')
+
+
+class EKSApiHelperTests(SimpleTestCase):
+    @patch('dashboard.eks_api._client')
+    def test_create_nodegroup_uses_managed_nodegroup_api(self, client_mock):
+        client = MagicMock()
+        client.create_nodegroup.return_value = {'nodegroup': {'nodegroupName': 'workers', 'status': 'CREATING'}}
+        client_mock.return_value = client
+
+        result = create_nodegroup(
+            cluster_name='local',
+            nodegroup_name='workers',
+            node_role='arn:aws:iam::000000000000:role/eks-node-role',
+            subnets=['subnet-1'],
+            scaling_config={'minSize': 1, 'maxSize': 2, 'desiredSize': 1},
+            instance_types=['t3.small'],
+            disk_size='20',
+            labels={'role': 'worker'},
+            tags={'env': 'local'},
+        )
+
+        self.assertEqual(result['nodegroup_name'], 'workers')
+        self.assertEqual(result['status'], 'CREATING')
+        client.create_nodegroup.assert_called_once()
+        kwargs = client.create_nodegroup.call_args.kwargs
+        self.assertEqual(kwargs['clusterName'], 'local')
+        self.assertEqual(kwargs['nodegroupName'], 'workers')
+        self.assertEqual(kwargs['nodeRole'], 'arn:aws:iam::000000000000:role/eks-node-role')
+        self.assertEqual(kwargs['subnets'], ['subnet-1'])
+        self.assertEqual(kwargs['diskSize'], 20)
+        self.assertEqual(kwargs['labels'], {'role': 'worker'})
+        self.assertEqual(kwargs['tags'], {'env': 'local'})

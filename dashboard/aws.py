@@ -14,6 +14,7 @@ import boto3
 from botocore import xform_name
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError, ProfileNotFound
+from botocore.parsers import ResponseParserError
 from django.conf import settings
 
 
@@ -209,7 +210,7 @@ def _resource(
     try:
         items = loader()
         return ResourceResult(name=name, label=label, count=len(items), items=items)
-    except (BotoCoreError, ClientError, ValueError) as exc:
+    except (BotoCoreError, ClientError, ResponseParserError, ValueError) as exc:
         return ResourceResult(
             name=name,
             label=label,
@@ -233,6 +234,7 @@ def _resource_service_key(name: str) -> str:
         'cloudfront-resources': 'cloudfront',
         'cloudformation-resources': 'cloudformation',
         'cloudmap-resources': 'cloudmap',
+        'cloudtrail-resources': 'cloudtrail',
         'cloudwatch-metrics': 'cloudwatch',
         'config-resources': 'config',
         'cognito-resources': 'cognito',
@@ -312,7 +314,7 @@ def _nested_operation_items(
 def _safe_value(loader: Callable[[], Any], fallback: Any = None) -> Any:
     try:
         return loader()
-    except (BotoCoreError, ClientError, ValueError):
+    except (BotoCoreError, ClientError, ResponseParserError, ValueError):
         return fallback
 
 
@@ -979,6 +981,7 @@ def ec2_inventory() -> dict[str, Any]:
             'Floci serves IMDS-compatible metadata on the configured host IMDS port, default 9169.',
             'Security group rules are stored and returned but local Docker networking handles enforcement.',
             'Floci 1.5.21 improves EC2 parity for VPC, subnet, and instance methods, subnet attributes, block-device attachTime, volume throughput, DescribeAddressesAttribute, and IAM instance profiles.',
+            'Floci 1.5.24 auto-creates the default security group and main route table when CreateVpc is used.',
         ],
     }
 
@@ -1095,6 +1098,7 @@ def kms_inventory() -> dict[str, Any]:
             'Floci strips reserved floci:* tags from stored resource tags and rejects adding them later.',
             'Floci 1.5.18 adds KMS GenerateMac and VerifyMac support.',
             'Floci 1.5.22 adds KMS GenerateRandom support.',
+            'Floci 1.5.24 expands key state and key description operations for closer AWS parity.',
             'Floci 1.5.21 enforces the RotateKeyOnDemand rotation limit.',
             'Grant lifecycle APIs are stored and queryable but are not evaluated during cryptographic operations.',
         ],
@@ -1941,6 +1945,127 @@ def cloudmap_inventory() -> dict[str, Any]:
     }
 
 
+def _cloudtrail_optional(loader: Callable[[], Any], empty_codes: set[str]) -> Any:
+    try:
+        return _clean_response(loader())
+    except ClientError as exc:
+        if _error_code(exc) in empty_codes:
+            return None
+        return {'error': str(exc)}
+    except (AttributeError, BotoCoreError, KeyError, ValueError, json.JSONDecodeError) as exc:
+        return {'error': str(exc)}
+
+
+def cloudtrail_inventory() -> dict[str, Any]:
+    cloudtrail = FlociClientFactory().client('cloudtrail')
+    operations = set(cloudtrail.meta.service_model.operation_names)
+
+    trail_summaries = _safe_value(
+        lambda: _operation_items(cloudtrail, 'list_trails', 'Trails'),
+        [],
+    ) if 'ListTrails' in operations else []
+    if not trail_summaries and 'DescribeTrails' in operations:
+        trail_summaries = _safe_value(
+            lambda: cloudtrail.describe_trails(includeShadowTrails=False).get('trailList', []),
+            [],
+        )
+
+    def trail_name(trail: dict[str, Any]) -> str | None:
+        return trail.get('Name') or trail.get('TrailARN') or trail.get('TrailArn')
+
+    def trail_arn(trail: dict[str, Any]) -> str | None:
+        return trail.get('TrailARN') or trail.get('TrailArn')
+
+    def trail_detail(trail: dict[str, Any]) -> dict[str, Any]:
+        name = trail_name(trail)
+        arn = trail_arn(trail)
+        details = _cloudtrail_optional(
+            lambda: cloudtrail.get_trail(Name=arn or name).get('Trail', {}),
+            {'TrailNotFoundException'},
+        ) if (arn or name) and 'GetTrail' in operations else None
+        if not details and name and 'DescribeTrails' in operations:
+            described = _cloudtrail_optional(
+                lambda: cloudtrail.describe_trails(trailNameList=[name], includeShadowTrails=False).get('trailList', []),
+                {'TrailNotFoundException'},
+            )
+            details = described[0] if isinstance(described, list) and described else described
+
+        described = details if isinstance(details, dict) and not details.get('error') else trail
+        clean_name = described.get('Name') or name
+        clean_arn = trail_arn(described) or arn
+        status = _cloudtrail_optional(
+            lambda: cloudtrail.get_trail_status(Name=clean_arn or clean_name),
+            {'TrailNotFoundException'},
+        ) if (clean_arn or clean_name) and 'GetTrailStatus' in operations else None
+        event_selectors = _cloudtrail_optional(
+            lambda: cloudtrail.get_event_selectors(TrailName=clean_arn or clean_name),
+            {'TrailNotFoundException'},
+        ) if (clean_arn or clean_name) and 'GetEventSelectors' in operations else None
+        tags = _cloudtrail_optional(
+            lambda: cloudtrail.list_tags(ResourceIdList=[clean_arn]).get('ResourceTagList', []),
+            {'TrailNotFoundException', 'ResourceNotFoundException'},
+        ) if clean_arn and 'ListTags' in operations else None
+
+        return {
+            'name': clean_name,
+            'arn': clean_arn,
+            's3_bucket_name': described.get('S3BucketName'),
+            's3_key_prefix': described.get('S3KeyPrefix'),
+            'sns_topic_name': described.get('SnsTopicName'),
+            'sns_topic_arn': described.get('SnsTopicARN') or described.get('SnsTopicArn'),
+            'include_global_service_events': described.get('IncludeGlobalServiceEvents'),
+            'is_multi_region_trail': described.get('IsMultiRegionTrail'),
+            'home_region': described.get('HomeRegion'),
+            'trail_log_group_arn': described.get('CloudWatchLogsLogGroupArn'),
+            'kms_key_id': described.get('KmsKeyId'),
+            'log_file_validation_enabled': described.get('LogFileValidationEnabled'),
+            'has_custom_event_selectors': described.get('HasCustomEventSelectors'),
+            'is_organization_trail': described.get('IsOrganizationTrail'),
+            'status': status if isinstance(status, dict) and not status.get('error') else None,
+            'event_selectors': event_selectors if isinstance(event_selectors, dict) and not event_selectors.get('error') else None,
+            'tags': tags,
+            'details': details if isinstance(details, dict) and details.get('error') else None,
+            'status_details': status if isinstance(status, dict) and status.get('error') else None,
+            'event_selector_details': event_selectors if isinstance(event_selectors, dict) and event_selectors.get('error') else None,
+        }
+
+    trails = [trail_detail(trail) for trail in trail_summaries]
+
+    return {
+        'summary': {
+            'trails': len(trails),
+            'logging': sum(1 for trail in trails if (trail.get('status') or {}).get('IsLogging')),
+            'multi_region_trails': sum(1 for trail in trails if trail.get('is_multi_region_trail')),
+            'available_sdk_operations': len(operations),
+        },
+        'trails': trails,
+        'supported_from_sdk': [
+            operation
+            for operation in [
+                'CreateTrail',
+                'DeleteTrail',
+                'DescribeTrails',
+                'GetTrail',
+                'GetTrailStatus',
+                'ListTrails',
+                'StartLogging',
+                'StopLogging',
+                'PutEventSelectors',
+                'GetEventSelectors',
+                'ListTags',
+                'AddTags',
+                'RemoveTags',
+            ]
+            if operation in operations
+        ],
+        'available_sdk_operations': sorted(operations),
+        'notes': [
+            'Floci 1.5.24 adds CloudTrail trail lifecycle support for local audit-log workflows.',
+            'This inventory page surfaces trail configuration, logging status, event selectors, and tags when the local SDK endpoint exposes them.',
+        ],
+    }
+
+
 def config_inventory() -> dict[str, Any]:
     factory = FlociClientFactory()
     config = factory.client('config')
@@ -2359,6 +2484,7 @@ def cognito_inventory() -> dict[str, Any]:
             'floci:override-id can pin a user pool ID at creation time and is stripped from persisted tags.',
             'OAuth client_credentials is emulator-friendly and does not require a Cognito domain.',
             'Floci 1.5.21 adds the OAuth2 userInfo endpoint plus custom schema attributes and attribute deletion APIs.',
+            'Floci 1.5.24 adds a verification code store and dispatcher so email/SMS signup and recovery codes can be inspected locally through SNS/SES-backed flows.',
             'Tokens use the local emulator base URL plus pool ID as issuer.',
             'Floci 1.5.19 provisions UserPool and UserPoolClient resources from CloudFormation and includes user attributes in ID token claims.',
             'Floci 1.5.17 fires PreSignUp and PostConfirmation Lambda triggers for local auth flows.',
@@ -3800,7 +3926,7 @@ def eks_inventory() -> dict[str, Any]:
             'Floci 1.5.22 makes real-mode cluster endpoints reachable and authenticable from the host.',
             'Floci 1.5.23 seeds standard EKS cluster and node group managed IAM policies so common EKS provisioning modules can attach them without explicit local creation.',
             'Mock mode stores cluster metadata in-process and marks clusters ACTIVE immediately; real mode starts a k3s container per cluster.',
-            'Node groups, Fargate profiles, add-ons, identity provider configs, access entries, and policy associations are shown when the SDK exposes them, but they are not part of the current interactive workbench.',
+            'Floci 1.5.24 adds managed node group create, describe, list, and delete support; the dashboard exposes node group create/delete flows and keeps the full inventory visible.',
         ],
     }
 
@@ -3969,6 +4095,7 @@ def elasticache_inventory() -> dict[str, Any]:
         'notes': [
             'Floci ElastiCache uses the AWS-compatible Query management API and Redis RESP for the data plane.',
             'CreateReplicationGroup starts a real Valkey or Redis Docker container and exposes it through a local TCP proxy port.',
+            'Floci 1.5.24 returns reachable Memcached configuration endpoints for local cache clients.',
             'Supported interactive workflows include replication-group lifecycle, ElastiCache users, user access strings, and IAM auth token validation.',
         ],
     }
@@ -4192,6 +4319,7 @@ def elasticloadbalancing_inventory() -> dict[str, Any]:
         'notes': [
             'This page combines the AWS elbv2 and classic elb SDK APIs under the Elastic Load Balancing service name.',
             'Floci 1.5.19 adds ELBv2 listener attribute and capacity reservation action families.',
+            'Floci 1.5.24 validates subnet VPC consistency when creating load balancers, matching AWS behavior more closely.',
             'Target health is fetched per target group; listener rules are fetched per listener.',
         ],
     }
@@ -6101,6 +6229,7 @@ def athena_inventory() -> dict[str, Any]:
             'Mock mode makes queries transition to SUCCEEDED immediately with empty results.',
             'The DuckDB sidecar is started lazily on the first StartQueryExecution call.',
             'The dashboard only previews a few result rows for completed queries.',
+            'Floci 1.5.24 aligns CreateWorkGroup, DeleteWorkGroup, and ListWorkGroups behavior with AWS.',
         ],
     }
 
@@ -6474,6 +6603,7 @@ def ses_inventory() -> dict[str, Any]:
             'Emails are always stored locally and can be inspected through /_aws/ses.',
             'SMTP relay failures are logged but do not affect the SES API response.',
             'SES v1 and SES v2 share identity, template, and sent-message state.',
+            'Floci 1.5.24 publishes SES events to Firehose, EventBridge, and CloudWatch destinations in addition to existing SNS event destination support.',
             'Floci 1.5.22 publishes SES events to SNS configuration set destinations, adds v1 destination CRUD, and enforces suppression lists at send time with per-configuration-set overrides.',
             'Floci 1.5.23 adds per-configuration-set sending toggles for SES v1 and SES v2.',
             'Floci 1.5.21 adds SES v2 configuration set event destination operations.',
@@ -7497,6 +7627,7 @@ def _glue_reader_for_table(table: dict[str, Any]) -> str:
 def glue_inventory() -> dict[str, Any]:
     factory = FlociClientFactory()
     glue = factory.client('glue')
+    operations = set(glue.meta.service_model.operation_names)
     databases = _safe_value(lambda: _paginate(glue, 'get_databases', 'DatabaseList'), [])
     registries = _glue_optional(lambda: _paginate(glue, 'list_registries', 'Registries'), {'EntityNotFoundException'})
 
@@ -7507,6 +7638,12 @@ def glue_inventory() -> dict[str, Any]:
             lambda: _paginate(glue, 'get_partitions', 'Partitions', DatabaseName=database_name, TableName=table_name),
             {'EntityNotFoundException'},
         )
+        versions = _glue_optional(
+            lambda: _paginate(glue, 'get_table_versions', 'TableVersions', DatabaseName=database_name, TableName=table_name),
+            {'EntityNotFoundException', 'OperationNotFoundException'},
+        ) if 'GetTableVersions' in operations else []
+        if not isinstance(versions, list):
+            versions = []
 
         return {
             'name': table_name,
@@ -7526,6 +7663,8 @@ def glue_inventory() -> dict[str, Any]:
             'duckdb_reader': _glue_reader_for_table(table),
             'partition_count': len(partitions) if isinstance(partitions, list) else 0,
             'partitions': partitions,
+            'version_count': len(versions),
+            'versions': versions,
         }
 
     def database_detail(database: dict[str, Any]) -> dict[str, Any]:
@@ -7542,6 +7681,11 @@ def glue_inventory() -> dict[str, Any]:
             lambda: _paginate(glue, 'get_user_defined_functions', 'UserDefinedFunctions', DatabaseName=name, Pattern='*'),
             {'EntityNotFoundException'},
         )
+        arn = database.get('DatabaseArn') or database.get('Arn') or (details.get('DatabaseArn') if isinstance(details, dict) else None)
+        tags = _glue_optional(
+            lambda: glue.get_tags(ResourceArn=arn).get('Tags', {}),
+            {'EntityNotFoundException', 'OperationNotFoundException'},
+        ) if arn and 'GetTags' in operations else None
         table_details = [
             table_detail(name, table)
             for table in tables
@@ -7565,11 +7709,14 @@ def glue_inventory() -> dict[str, Any]:
             'location_uri': database.get('LocationUri') or (details.get('LocationUri') if isinstance(details, dict) else None),
             'parameters': database.get('Parameters') or (details.get('Parameters') if isinstance(details, dict) else None),
             'created': database.get('CreateTime') or (details.get('CreateTime') if isinstance(details, dict) else None),
+            'arn': arn,
+            'tags': tags,
             'tables': table_details,
             'functions': function_details,
             'table_count': len(table_details),
             'function_count': len(function_details),
             'partition_count': sum(table.get('partition_count') or 0 for table in table_details),
+            'table_version_count': sum(table.get('version_count') or 0 for table in table_details),
             'details': details if isinstance(details, dict) and details.get('error') else None,
         }
 
@@ -7645,6 +7792,7 @@ def glue_inventory() -> dict[str, Any]:
             'databases': len(detailed_databases),
             'tables': sum(database.get('table_count') or 0 for database in detailed_databases),
             'partitions': sum(database.get('partition_count') or 0 for database in detailed_databases),
+            'table_versions': sum(database.get('table_version_count') or 0 for database in detailed_databases),
             'functions': len(functions),
             'registries': len(detailed_registries),
             'schemas': sum(registry.get('schema_count') or 0 for registry in detailed_registries),
@@ -7655,7 +7803,7 @@ def glue_inventory() -> dict[str, Any]:
         'registries': detailed_registries,
         'supported': {
             'Databases': ['CreateDatabase', 'GetDatabase', 'GetDatabases', 'DeleteDatabase', 'UpdateDatabase'],
-            'Tables': ['CreateTable', 'GetTable', 'GetTables', 'DeleteTable', 'UpdateTable'],
+            'Tables': ['CreateTable', 'GetTable', 'GetTables', 'DeleteTable', 'BatchDeleteTable', 'UpdateTable', 'GetTableVersions'],
             'Partitions': ['CreatePartition', 'BatchCreatePartition', 'GetPartition', 'GetPartitions', 'DeletePartition'],
             'User-defined functions': ['CreateUserDefinedFunction', 'GetUserDefinedFunction', 'GetUserDefinedFunctions', 'UpdateUserDefinedFunction', 'DeleteUserDefinedFunction'],
             'Registries': ['CreateRegistry', 'GetRegistry', 'ListRegistries', 'UpdateRegistry', 'DeleteRegistry'],
@@ -7674,6 +7822,7 @@ def glue_inventory() -> dict[str, Any]:
         'notes': [
             'Floci 1.5.23 adds Glue user-defined functions and DeleteDatabase support.',
             'Floci 1.5.23 enforces Glue table version checks and preserves Glue view table fields.',
+            'Floci 1.5.24 normalizes catalog names, preserves column parameters, supports UpdateDatabase and BatchDeleteTable, archives table versions, and exposes database tags.',
         ],
     }
 
@@ -7868,6 +8017,30 @@ def list_resources(service_keys: set[str] | None = None) -> list[ResourceResult]
             )
 
         return resources
+
+    def cloudtrail_resources() -> list[dict[str, Any]]:
+        cloudtrail = factory.client('cloudtrail')
+        operations = set(cloudtrail.meta.service_model.operation_names)
+        trails = _safe_value(
+            lambda: _operation_items(cloudtrail, 'list_trails', 'Trails'),
+            [],
+        ) if 'ListTrails' in operations else []
+        if not trails and 'DescribeTrails' in operations:
+            trails = _safe_value(
+                lambda: cloudtrail.describe_trails(includeShadowTrails=False).get('trailList', []),
+                [],
+            )
+
+        return [
+            {
+                'type': 'trail',
+                'name': trail.get('Name') or trail.get('TrailARN') or trail.get('TrailArn'),
+                'arn': trail.get('TrailARN') or trail.get('TrailArn'),
+                'home_region': trail.get('HomeRegion'),
+                's3_bucket_name': trail.get('S3BucketName'),
+            }
+            for trail in trails
+        ]
 
     def cloudformation_resources() -> list[dict[str, Any]]:
         cloudformation = factory.client('cloudformation')
@@ -9496,6 +9669,7 @@ def list_resources(service_keys: set[str] | None = None) -> list[ResourceResult]
         ('bedrockruntime-resources', 'Bedrock Runtime operations', bedrockruntime_resources),
         ('cloudfront-resources', 'CloudFront resources', cloudfront_resources),
         ('cloudmap-resources', 'Cloud Map resources', cloudmap_resources),
+        ('cloudtrail-resources', 'CloudTrail trails', cloudtrail_resources),
         ('codebuild-resources', 'CodeBuild resources', codebuild_resources),
         ('codedeploy-resources', 'CodeDeploy resources', codedeploy_resources),
         ('config-resources', 'AWS Config resources', config_resources),

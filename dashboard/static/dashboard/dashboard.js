@@ -147,6 +147,9 @@ const cloudfrontLoadedAt = document.querySelector('#cloudfront-loaded-at');
 const cloudmapGrid = document.querySelector('#cloudmap-grid');
 const cloudmapSummary = document.querySelector('#cloudmap-summary');
 const cloudmapLoadedAt = document.querySelector('#cloudmap-loaded-at');
+const cloudtrailGrid = document.querySelector('#cloudtrail-grid');
+const cloudtrailSummary = document.querySelector('#cloudtrail-summary');
+const cloudtrailLoadedAt = document.querySelector('#cloudtrail-loaded-at');
 const snsGrid = document.querySelector('#sns-grid');
 const snsSummary = document.querySelector('#sns-summary');
 const snsLoadedAt = document.querySelector('#sns-loaded-at');
@@ -324,6 +327,7 @@ const serviceDetailPages = {
   bedrockruntime: '/service/bedrockruntime/',
   cloudfront: '/service/cloudfront/',
   cloudmap: '/service/cloudmap/',
+  cloudtrail: '/service/cloudtrail/',
   servicediscovery: '/service/cloudmap/',
   codebuild: '/service/codebuild/',
   codedeploy: '/service/codedeploy/',
@@ -422,6 +426,7 @@ const servicePriorityOrder = [
   'sns',
   'cloudfront',
   'cloudmap',
+  'cloudtrail',
   'kms',
   'cloudformation',
   'apigateway',
@@ -4667,6 +4672,56 @@ function renderCloudMap(data) {
   cloudmapLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
 }
 
+function renderCloudTrail(data) {
+  cloudtrailGrid.textContent = '';
+  renderSummary(data.summary, cloudtrailSummary);
+
+  const panels = [
+    renderDetailList('Trails', data.trails || [], [
+      ['ARN', 'arn'],
+      ['S3 bucket', 's3_bucket_name'],
+      ['S3 key prefix', 's3_key_prefix'],
+      ['SNS topic', 'sns_topic_name'],
+      ['SNS topic ARN', 'sns_topic_arn'],
+      ['Include global service events', 'include_global_service_events'],
+      ['Multi-region', 'is_multi_region_trail'],
+      ['Home region', 'home_region'],
+      ['CloudWatch Logs group ARN', 'trail_log_group_arn'],
+      ['KMS key', 'kms_key_id'],
+      ['Log file validation', 'log_file_validation_enabled'],
+      ['Custom event selectors', 'has_custom_event_selectors'],
+      ['Organization trail', 'is_organization_trail'],
+      ['Status', 'status'],
+      ['Event selectors', 'event_selectors'],
+      ['Tags', 'tags'],
+      ['Details', 'details'],
+      ['Status details', 'status_details'],
+      ['Event selector details', 'event_selector_details'],
+    ]),
+    renderDetailList('Supported from SDK', (data.supported_from_sdk || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Available SDK operations', (data.available_sdk_operations || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
+  ];
+
+  cloudtrailGrid.append(...panels);
+  cloudtrailLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+}
+
 function renderGlue(data) {
   glueGrid.textContent = '';
   renderSummary(data.summary, glueSummary);
@@ -4685,9 +4740,11 @@ function renderGlue(data) {
       ['Description', 'description'],
       ['Location URI', 'location_uri'],
       ['Parameters', 'parameters'],
+      ['Tags', 'tags'],
       ['Created', 'created'],
       ['Table count', 'table_count'],
       ['Partition count', 'partition_count'],
+      ['Table version count', 'table_version_count'],
       ['Tables', 'tables'],
       ['Functions', 'function_count'],
       ['User-defined functions', 'functions'],
@@ -4755,6 +4812,7 @@ function titleCaseService(name) {
     codedeploy: 'CodeDeploy',
     cloudfront: 'CloudFront',
     cloudmap: 'Cloud Map',
+    cloudtrail: 'CloudTrail',
     cloudformation: 'CloudFormation',
     config: 'AWS Config',
     'cognito-idp': 'Cognito IDP',
@@ -4876,6 +4934,7 @@ function resourceServiceKey(resource) {
     'bcmdataexports-resources': 'bcmdataexports',
     'cloudfront-resources': 'cloudfront',
     'cloudmap-resources': 'cloudmap',
+    'cloudtrail-resources': 'cloudtrail',
     'codebuild-resources': 'codebuild',
     'codedeploy-resources': 'codedeploy',
     'config-resources': 'config',
@@ -5390,6 +5449,7 @@ const servicePages = [
   { key: 'codedeploy', label: 'CodeDeploy', grid: codedeployGrid, apiPath: '/api/codedeploy/', render: renderCodeDeploy },
   { key: 'cloudfront', label: 'CloudFront', grid: cloudfrontGrid, apiPath: '/api/cloudfront/', render: renderCloudFront },
   { key: 'cloudmap', label: 'Cloud Map', grid: cloudmapGrid, apiPath: '/api/cloudmap/', render: renderCloudMap },
+  { key: 'cloudtrail', label: 'CloudTrail', grid: cloudtrailGrid, apiPath: '/api/cloudtrail/', render: renderCloudTrail },
   { key: 'config', label: 'AWS Config', grid: configGrid, apiPath: '/api/config/', render: renderConfig },
   { key: 'costexplorer', label: 'Cost Explorer', grid: costexplorerGrid, apiPath: '/api/costexplorer/', render: renderCostExplorer },
   { key: 'cur', label: 'Cost and Usage Reports', grid: curGrid, apiPath: '/api/cur/', render: renderCur },

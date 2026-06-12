@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import acm_views, apigateway_views, appconfig_views, appsync_views, athena_views, autoscaling_views, backup_views, bedrockruntime_views, cloudformation_views, cloudfront_views, cloudwatch_logs_views, codebuild_views, codedeploy_views, cognito_views, config_views, dynamodb_views, ec2_views, ecr_views, ecs_views, eks_views, elasticache_views, elasticloadbalancing_views, eventbridge_views, firehose_views, glue_views, iam_views, kafka_views, kinesis_views, kms_views, lambda_views, neptune_views, opensearch_views, pipes_views, rds_views, resourcegroupstagging_views, route53_views, s3_views, scheduler_views, secretsmanager_views, ses_views, sns_views, sqs_views, ssm_views, stepfunctions_views, textract_views, transcribe_views, transfer_views, views
+from . import acm_views, apigateway_views, appconfig_views, appsync_views, athena_views, autoscaling_views, backup_views, bedrockruntime_views, cloudformation_views, cloudfront_views, cloudmap_views, cloudwatch_logs_views, codebuild_views, codedeploy_views, cognito_views, config_views, dynamodb_views, ec2_views, ecr_views, ecs_views, eks_views, elasticache_views, elasticloadbalancing_views, eventbridge_views, firehose_views, glue_views, iam_views, kafka_views, kinesis_views, kms_views, lambda_views, neptune_views, opensearch_views, pipes_views, rds_views, resourcegroupstagging_views, route53_views, s3_views, scheduler_views, secretsmanager_views, ses_views, sns_views, sqs_views, ssm_views, stepfunctions_views, textract_views, transcribe_views, transfer_views, views
 
 app_name = 'dashboard'
 
@@ -104,6 +104,16 @@ urlpatterns = [
     path('api/cloudfront/functions/<str:function_name>/', cloudfront_views.cloudfront_function_detail, name='cloudfront-function-detail'),
     path('api/cloudfront/tags/', cloudfront_views.cloudfront_tags, name='cloudfront-tags'),
     path('api/cloudmap/', views.cloudmap, name='cloudmap'),
+    path('api/cloudmap/namespaces/', cloudmap_views.cloudmap_namespaces_create, name='cloudmap-namespaces'),
+    path('api/cloudmap/namespaces/<str:namespace_id>/', cloudmap_views.cloudmap_namespace_delete, name='cloudmap-namespace-detail'),
+    path('api/cloudmap/services/', cloudmap_views.cloudmap_services_create, name='cloudmap-services'),
+    path('api/cloudmap/services/<str:service_id>/', cloudmap_views.cloudmap_service_delete, name='cloudmap-service-detail'),
+    path('api/cloudmap/services/<str:service_id>/instances/', cloudmap_views.cloudmap_instances_register, name='cloudmap-instances'),
+    path('api/cloudmap/services/<str:service_id>/instances/<str:instance_id>/', cloudmap_views.cloudmap_instance_deregister, name='cloudmap-instance-detail'),
+    path('api/cloudmap/services/<str:service_id>/instances/<str:instance_id>/health/', cloudmap_views.cloudmap_instance_health, name='cloudmap-instance-health'),
+    path('api/cloudmap/discover/', cloudmap_views.cloudmap_instances_discover, name='cloudmap-discover'),
+    path('api/cloudmap/tags/', cloudmap_views.cloudmap_tags, name='cloudmap-tags'),
+    path('api/cloudtrail/', views.cloudtrail, name='cloudtrail'),
     path('api/cloudformation/', views.cloudformation, name='cloudformation'),
     path('api/cloudformation/templates/validate/', cloudformation_views.cloudformation_templates_validate, name='cloudformation-templates-validate'),
     path('api/cloudformation/stacks/', cloudformation_views.cloudformation_stacks_create, name='cloudformation-stacks'),
@@ -151,6 +161,7 @@ urlpatterns = [
     path('api/glue/databases/', glue_views.glue_databases_create, name='glue-databases'),
     path('api/glue/databases/<str:database_name>/', glue_views.glue_database_detail, name='glue-database-detail'),
     path('api/glue/databases/<str:database_name>/tables/', glue_views.glue_tables_create, name='glue-tables'),
+    path('api/glue/databases/<str:database_name>/tables/batch-delete/', glue_views.glue_tables_batch_delete, name='glue-tables-batch-delete'),
     path('api/glue/databases/<str:database_name>/tables/<str:table_name>/', glue_views.glue_table_detail, name='glue-table-detail'),
     path('api/glue/databases/<str:database_name>/functions/', glue_views.glue_functions_create, name='glue-functions'),
     path('api/glue/databases/<str:database_name>/functions/<str:function_name>/', glue_views.glue_function_detail, name='glue-function-detail'),
@@ -189,6 +200,8 @@ urlpatterns = [
     path('api/eks/', views.eks, name='eks'),
     path('api/eks/clusters/', eks_views.eks_clusters_create, name='eks-clusters'),
     path('api/eks/clusters/delete/', eks_views.eks_clusters_delete, name='eks-clusters-delete'),
+    path('api/eks/clusters/<str:cluster_name>/nodegroups/', eks_views.eks_nodegroups_create, name='eks-nodegroups'),
+    path('api/eks/clusters/<str:cluster_name>/nodegroups/<str:nodegroup_name>/', eks_views.eks_nodegroup_delete, name='eks-nodegroup-detail'),
     path('api/eks/tags/', eks_views.eks_tags, name='eks-tags'),
     path('api/eks/tags/list/', eks_views.eks_tags_list, name='eks-tags-list'),
     path('api/elasticache/', views.elasticache, name='elasticache'),
