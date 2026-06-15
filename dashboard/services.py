@@ -3091,6 +3091,16 @@ GLUE_ACTIONS = (
         success_message='Partition created',
     ),
     action(
+        'delete_table_column_statistics',
+        'Delete table column statistics',
+        'DELETE',
+        '/api/glue/databases/{database}/tables/{table}/statistics/{column}/',
+        'delete',
+        safety='destructive',
+        confirm='Delete this Glue table column statistic?',
+        success_message='Table column statistic deleted',
+    ),
+    action(
         'create_registry',
         'Create registry',
         'POST',

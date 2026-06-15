@@ -566,6 +566,16 @@ a.service-card-active:hover {
   text-transform: uppercase;
 }
 
+.summary-empty {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.empty-state {
+  margin: 0;
+}
+
 .iam-grid {
   display: grid;
   grid-template-columns: 1fr;

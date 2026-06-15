@@ -980,6 +980,7 @@ def ec2_inventory() -> dict[str, Any]:
             'Use ImportKeyPair with a real public key for working SSH access.',
             'Floci serves IMDS-compatible metadata on the configured host IMDS port, default 9169.',
             'Security group rules are stored and returned but local Docker networking handles enforcement.',
+            'Floci 1.5.25 embeds the EC2 image catalog in the native image and loads it lazily.',
             'Floci 1.5.21 improves EC2 parity for VPC, subnet, and instance methods, subnet attributes, block-device attachTime, volume throughput, DescribeAddressesAttribute, and IAM instance profiles.',
             'Floci 1.5.24 auto-creates the default security group and main route table when CreateVpc is used.',
         ],
@@ -1395,10 +1396,12 @@ def sqs_inventory() -> dict[str, Any]:
         ],
         'configuration': {
             'default_visibility_timeout_seconds': 30,
-            'max_message_size_bytes': 262144,
+            'max_message_size_bytes': 1048576,
             'queue_url_format': f'{factory.endpoint_url.rstrip("/")}/000000000000/<queue-name>',
         },
         'notes': [
+            'Floci 1.5.25 aligns MaximumMessageSize with AWS at 1 MB and reports ApproximateNumberOfMessagesDelayed in GetQueueAttributes.',
+            'Floci 1.5.25 releases in-flight ReceiveMessage long polls when their queue is deleted.',
             'Floci 1.5.19 applies ContentBasedDeduplication from CloudFormation templates and accepts bare queue names in QueueUrl fields.',
             'Floci 1.5.18 supports StartMessageMoveTask, ListMessageMoveTasks, and CancelMessageMoveTask with async drain behavior.',
             'FIFO deduplication is scoped per MessageGroupId when DeduplicationScope=messageGroup.',
@@ -2485,6 +2488,7 @@ def cognito_inventory() -> dict[str, Any]:
             'OAuth client_credentials is emulator-friendly and does not require a Cognito domain.',
             'Floci 1.5.21 adds the OAuth2 userInfo endpoint plus custom schema attributes and attribute deletion APIs.',
             'Floci 1.5.24 adds a verification code store and dispatcher so email/SMS signup and recovery codes can be inspected locally through SNS/SES-backed flows.',
+            'Floci 1.5.25 includes USERNAME in SRP PASSWORD_VERIFIER challenges for closer AWS client compatibility.',
             'Tokens use the local emulator base URL plus pool ID as issuer.',
             'Floci 1.5.19 provisions UserPool and UserPoolClient resources from CloudFormation and includes user attributes in ID token claims.',
             'Floci 1.5.17 fires PreSignUp and PostConfirmation Lambda triggers for local auth flows.',
@@ -2996,6 +3000,7 @@ def appconfig_inventory() -> dict[str, Any]:
             'Management resources are read through the AppConfig API.',
             'Runtime retrieval uses the AppConfigData API with configuration sessions and latest-configuration tokens.',
             'Hosted configuration content is shown as size and a short UTF-8 preview to keep the dashboard readable.',
+            'Floci 1.5.25 stops AppConfig routing from intercepting S3 buckets named configuration.',
         ],
     }
 
@@ -4096,6 +4101,7 @@ def elasticache_inventory() -> dict[str, Any]:
             'Floci ElastiCache uses the AWS-compatible Query management API and Redis RESP for the data plane.',
             'CreateReplicationGroup starts a real Valkey or Redis Docker container and exposes it through a local TCP proxy port.',
             'Floci 1.5.24 returns reachable Memcached configuration endpoints for local cache clients.',
+            'Floci 1.5.25 persists STS session secret keys so IAM-authenticated ElastiCache tokens validate across requests.',
             'Supported interactive workflows include replication-group lifecycle, ElastiCache users, user access strings, and IAM auth token validation.',
         ],
     }
@@ -4320,6 +4326,7 @@ def elasticloadbalancing_inventory() -> dict[str, Any]:
             'This page combines the AWS elbv2 and classic elb SDK APIs under the Elastic Load Balancing service name.',
             'Floci 1.5.19 adds ELBv2 listener attribute and capacity reservation action families.',
             'Floci 1.5.24 validates subnet VPC consistency when creating load balancers, matching AWS behavior more closely.',
+            'Floci 1.5.25 enforces ALB subnet availability-zone rules and improves ELBv2 target resolution and persistence.',
             'Target health is fetched per target group; listener rules are fetched per listener.',
         ],
     }
@@ -4680,6 +4687,7 @@ def kafka_inventory() -> dict[str, Any]:
             'Floci emulates Amazon MSK by orchestrating one Redpanda container per cluster unless mock mode is enabled.',
             'CreateClusterV2 is mapped to provisioned cluster creation for local compatibility.',
             'Kafka API port 9092 is mapped to a dynamic host port, and GetBootstrapBrokers returns the local connection strings.',
+            'Floci 1.5.25 populates currentBrokerSoftwareInfo in cluster describe responses.',
             'Each cluster gets a named Docker volume; in persistent modes the volume is retained on delete unless volume pruning is enabled.',
         ],
     }
@@ -6095,6 +6103,7 @@ def ecs_inventory() -> dict[str, Any]:
             'By default Floci ECS launches real Docker containers for tasks.',
             'Floci 1.5.23 honors task-definition volumes and container mountPoints for stateful local task workflows.',
             'Floci 1.5.22 honors RunTask command and environment container overrides and preserves create-time resource tags.',
+            'Floci 1.5.25 validates Fargate task network mode and resource requirements more closely.',
             'Floci 1.5.23 retains inactive services for Terraform draining and recreation idempotency.',
             'Floci 1.5.18 registers ECS service containers as ELBv2 targets.',
             'Set FLOCI_SERVICES_ECS_MOCK=true to run tasks as in-process stubs for CI or tests.',
@@ -6230,6 +6239,7 @@ def athena_inventory() -> dict[str, Any]:
             'The DuckDB sidecar is started lazily on the first StartQueryExecution call.',
             'The dashboard only previews a few result rows for completed queries.',
             'Floci 1.5.24 aligns CreateWorkGroup, DeleteWorkGroup, and ListWorkGroups behavior with AWS.',
+            'Floci 1.5.25 aligns GetWorkGroup behavior with AWS.',
         ],
     }
 
@@ -6497,6 +6507,11 @@ def ses_inventory() -> dict[str, Any]:
                 'name': name,
                 'details': details,
                 'sending_enabled': sending_enabled,
+                'sending_options': sending_options,
+                'delivery_options': details.get('DeliveryOptions') if isinstance(details, dict) else None,
+                'reputation_options': details.get('ReputationOptions') if isinstance(details, dict) else None,
+                'suppression_options': details.get('SuppressionOptions') if isinstance(details, dict) else None,
+                'tracking_options': details.get('TrackingOptions') if isinstance(details, dict) else None,
                 'event_destinations': event_destinations,
                 'event_destination_count': len(event_destinations) if isinstance(event_destinations, list) else 0,
             })
@@ -6603,6 +6618,7 @@ def ses_inventory() -> dict[str, Any]:
             'Emails are always stored locally and can be inspected through /_aws/ses.',
             'SMTP relay failures are logged but do not affect the SES API response.',
             'SES v1 and SES v2 share identity, template, and sent-message state.',
+            'Floci 1.5.25 persists inline options on SES v2 CreateConfigurationSet, keeps MAIL FROM attributes only when configured, and omits unknown identities from GetIdentityNotificationAttributes.',
             'Floci 1.5.24 publishes SES events to Firehose, EventBridge, and CloudWatch destinations in addition to existing SNS event destination support.',
             'Floci 1.5.22 publishes SES events to SNS configuration set destinations, adds v1 destination CRUD, and enforces suppression lists at send time with per-configuration-set overrides.',
             'Floci 1.5.23 adds per-configuration-set sending toggles for SES v1 and SES v2.',
@@ -6836,6 +6852,7 @@ def cloudformation_inventory() -> dict[str, Any]:
         'notes': [
             'CloudFormation actions use the Query XML protocol at the Floci root endpoint.',
             'Stacks can expose templates, events, resources, outputs, stack policies, and change sets.',
+            'Floci 1.5.25 provisions Lambda-backed custom resources, Lambda layer versions, and EC2 VPC/subnet resources so cross-stack exports resolve locally.',
             'Floci 1.5.22 provisions ECS and ELBv2 resources, persists stacks across restart, rolls back failed creates, and supports ApiGatewayV2 updates.',
             'Floci 1.5.21 forwards AWS::ApiGatewayV2::Api properties to the API Gateway v2 service.',
             'Floci 1.5.19 provisions SQS ContentBasedDeduplication, SNS to SQS subscriptions, Cognito UserPool resources, and Cognito UserPoolClient resources from templates.',
@@ -7131,6 +7148,8 @@ def rds_inventory() -> dict[str, Any]:
             'RDS management uses Query XML and the data plane uses PostgreSQL or MySQL wire protocol.',
             'Floci manages real PostgreSQL, MySQL, and MariaDB Docker containers.',
             'Instances expose local TCP proxy endpoints on localhost:<proxy-port>.',
+            'Floci 1.5.25 adds RDS provisioning lifecycle support for create, describe, modify, and delete flows.',
+            'Floci 1.5.25 persists STS session secret keys so RDS IAM database authentication validates across requests.',
             'Floci 1.5.21 restores persisted runtime state on startup for local RDS resources.',
             'IAM database authentication is supported when enabled at instance creation time.',
         ],
@@ -7624,6 +7643,20 @@ def _glue_reader_for_table(table: dict[str, Any]) -> str:
     return 'read_csv_auto'
 
 
+def _glue_table_column_names(table: dict[str, Any]) -> list[str]:
+    storage = table.get('StorageDescriptor') or {}
+    columns = storage.get('Columns') or []
+    partition_keys = table.get('PartitionKeys') or []
+    names: list[str] = []
+    for column in [*columns, *partition_keys]:
+        if not isinstance(column, dict):
+            continue
+        name = column.get('Name')
+        if name and name not in names:
+            names.append(name)
+    return names
+
+
 def glue_inventory() -> dict[str, Any]:
     factory = FlociClientFactory()
     glue = factory.client('glue')
@@ -7634,10 +7667,21 @@ def glue_inventory() -> dict[str, Any]:
     def table_detail(database_name: str, table: dict[str, Any]) -> dict[str, Any]:
         table_name = table.get('Name')
         storage = table.get('StorageDescriptor') or {}
+        column_names = _glue_table_column_names(table)
         partitions = _glue_optional(
             lambda: _paginate(glue, 'get_partitions', 'Partitions', DatabaseName=database_name, TableName=table_name),
             {'EntityNotFoundException'},
         )
+        table_statistics = _glue_optional(
+            lambda: glue.get_column_statistics_for_table(
+                DatabaseName=database_name,
+                TableName=table_name,
+                ColumnNames=column_names,
+            ).get('ColumnStatisticsList', []),
+            {'EntityNotFoundException', 'OperationNotFoundException'},
+        ) if column_names and 'GetColumnStatisticsForTable' in operations else []
+        if not isinstance(table_statistics, list):
+            table_statistics = []
         versions = _glue_optional(
             lambda: _paginate(glue, 'get_table_versions', 'TableVersions', DatabaseName=database_name, TableName=table_name),
             {'EntityNotFoundException', 'OperationNotFoundException'},
@@ -7663,6 +7707,8 @@ def glue_inventory() -> dict[str, Any]:
             'duckdb_reader': _glue_reader_for_table(table),
             'partition_count': len(partitions) if isinstance(partitions, list) else 0,
             'partitions': partitions,
+            'column_statistics_count': len(table_statistics),
+            'column_statistics': table_statistics,
             'version_count': len(versions),
             'versions': versions,
         }
@@ -7792,6 +7838,11 @@ def glue_inventory() -> dict[str, Any]:
             'databases': len(detailed_databases),
             'tables': sum(database.get('table_count') or 0 for database in detailed_databases),
             'partitions': sum(database.get('partition_count') or 0 for database in detailed_databases),
+            'column_statistics': sum(
+                table.get('column_statistics_count') or 0
+                for database in detailed_databases
+                for table in database.get('tables', [])
+            ),
             'table_versions': sum(database.get('table_version_count') or 0 for database in detailed_databases),
             'functions': len(functions),
             'registries': len(detailed_registries),
@@ -7805,6 +7856,7 @@ def glue_inventory() -> dict[str, Any]:
             'Databases': ['CreateDatabase', 'GetDatabase', 'GetDatabases', 'DeleteDatabase', 'UpdateDatabase'],
             'Tables': ['CreateTable', 'GetTable', 'GetTables', 'DeleteTable', 'BatchDeleteTable', 'UpdateTable', 'GetTableVersions'],
             'Partitions': ['CreatePartition', 'BatchCreatePartition', 'GetPartition', 'GetPartitions', 'DeletePartition'],
+            'Statistics': ['GetColumnStatisticsForTable', 'DeleteColumnStatisticsForTable'],
             'User-defined functions': ['CreateUserDefinedFunction', 'GetUserDefinedFunction', 'GetUserDefinedFunctions', 'UpdateUserDefinedFunction', 'DeleteUserDefinedFunction'],
             'Registries': ['CreateRegistry', 'GetRegistry', 'ListRegistries', 'UpdateRegistry', 'DeleteRegistry'],
             'Schemas': ['CreateSchema', 'GetSchema', 'ListSchemas', 'UpdateSchema', 'DeleteSchema'],
@@ -7820,6 +7872,7 @@ def glue_inventory() -> dict[str, Any]:
             'default': 'read_csv_auto',
         },
         'notes': [
+            'Floci 1.5.25 adds Glue partition APIs, column statistics, table statistics deletion, missing-table delete rejection, and deterministic GetPartitions ordering.',
             'Floci 1.5.23 adds Glue user-defined functions and DeleteDatabase support.',
             'Floci 1.5.23 enforces Glue table version checks and preserves Glue view table fields.',
             'Floci 1.5.24 normalizes catalog names, preserves column parameters, supports UpdateDatabase and BatchDeleteTable, archives table versions, and exposes database tags.',

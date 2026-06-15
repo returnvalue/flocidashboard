@@ -1,9 +1,10 @@
 import json
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase
 from django.urls import reverse
 
+from .aws import ses_inventory
 from .services import get_service
 
 
@@ -286,3 +287,44 @@ class SESActionsApiTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         clear_mock.assert_called_once_with()
+
+
+class SESInventoryTests(SimpleTestCase):
+    @patch('dashboard.aws._ses_mailbox')
+    @patch('dashboard.aws._paginate')
+    @patch('dashboard.aws.FlociClientFactory')
+    def test_inventory_surfaces_v2_configuration_set_options(self, factory_mock, paginate_mock, mailbox_mock):
+        ses = MagicMock()
+        ses.list_verified_email_addresses.return_value = {'VerifiedEmailAddresses': []}
+        sesv2 = MagicMock()
+        sesv2.list_configuration_sets.return_value = {'ConfigurationSets': [{'ConfigurationSetName': 'local-events'}]}
+        sesv2.get_configuration_set.return_value = {
+            'SendingOptions': {'SendingEnabled': False},
+            'DeliveryOptions': {'TlsPolicy': 'REQUIRE'},
+            'ReputationOptions': {'ReputationMetricsEnabled': True},
+            'SuppressionOptions': {'SuppressedReasons': ['BOUNCE']},
+            'TrackingOptions': {'CustomRedirectDomain': 'track.local'},
+        }
+        sesv2.get_configuration_set_event_destinations.return_value = {'EventDestinations': [{'Name': 'events'}]}
+
+        factory = MagicMock(endpoint_url='http://localhost:4566')
+        factory.client.side_effect = lambda service: sesv2 if service == 'sesv2' else ses
+        factory_mock.return_value = factory
+        mailbox_mock.return_value = {'messages': []}
+
+        def paginate(client, operation, result_key, **kwargs):
+            return []
+
+        paginate_mock.side_effect = paginate
+
+        result = ses_inventory()
+        config_set = result['v2_configuration_sets'][0]
+
+        self.assertEqual(result['summary']['v2_configuration_sets'], 1)
+        self.assertEqual(result['summary']['v2_event_destinations'], 1)
+        self.assertFalse(config_set['sending_enabled'])
+        self.assertEqual(config_set['sending_options'], {'SendingEnabled': False})
+        self.assertEqual(config_set['delivery_options'], {'TlsPolicy': 'REQUIRE'})
+        self.assertEqual(config_set['reputation_options'], {'ReputationMetricsEnabled': True})
+        self.assertEqual(config_set['suppression_options'], {'SuppressedReasons': ['BOUNCE']})
+        self.assertEqual(config_set['tracking_options'], {'CustomRedirectDomain': 'track.local'})

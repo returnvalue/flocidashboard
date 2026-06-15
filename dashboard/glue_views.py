@@ -16,6 +16,7 @@ from .glue_api import (
     batch_delete_tables,
     delete_database,
     delete_table,
+    delete_table_column_statistics,
     delete_user_defined_function,
     register_schema_version,
     update_database,
@@ -78,6 +79,14 @@ def glue_table_detail(request, database_name: str, table_name: str):
         return JsonResponse(delete_table(database_name, table_name))
     except Exception as exc:
         return handle_action_error(exc, service='glue', operation='delete_table')
+
+
+@require_http_methods(['DELETE'])
+def glue_table_column_statistics_detail(request, database_name: str, table_name: str, column_name: str):
+    try:
+        return JsonResponse(delete_table_column_statistics(database_name, table_name, column_name))
+    except Exception as exc:
+        return handle_action_error(exc, service='glue', operation='delete_table_column_statistics')
 
 
 @require_http_methods(['POST'])

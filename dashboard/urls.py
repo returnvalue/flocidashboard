@@ -163,6 +163,7 @@ urlpatterns = [
     path('api/glue/databases/<str:database_name>/tables/', glue_views.glue_tables_create, name='glue-tables'),
     path('api/glue/databases/<str:database_name>/tables/batch-delete/', glue_views.glue_tables_batch_delete, name='glue-tables-batch-delete'),
     path('api/glue/databases/<str:database_name>/tables/<str:table_name>/', glue_views.glue_table_detail, name='glue-table-detail'),
+    path('api/glue/databases/<str:database_name>/tables/<str:table_name>/statistics/<str:column_name>/', glue_views.glue_table_column_statistics_detail, name='glue-table-column-statistics-detail'),
     path('api/glue/databases/<str:database_name>/functions/', glue_views.glue_functions_create, name='glue-functions'),
     path('api/glue/databases/<str:database_name>/functions/<str:function_name>/', glue_views.glue_function_detail, name='glue-function-detail'),
     path('api/glue/databases/<str:database_name>/tables/<str:table_name>/partitions/', glue_views.glue_partitions_create, name='glue-partitions'),

@@ -1,8 +1,10 @@
 import json
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase
 from django.urls import reverse
+
+from .aws import sqs_inventory
 
 
 class SQSPageTemplateTests(SimpleTestCase):
@@ -105,3 +107,32 @@ class SQSQueuesApiTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         purge_mock.assert_called_once_with('orders')
+
+
+class SQSInventoryTests(SimpleTestCase):
+    @patch('dashboard.aws.FlociClientFactory')
+    def test_inventory_surfaces_1mb_limit_and_delayed_message_count(self, factory_mock):
+        sqs = MagicMock()
+        sqs.list_queues.return_value = {'QueueUrls': ['http://localhost:4566/000000000000/orders']}
+        sqs.get_queue_attributes.return_value = {
+            'Attributes': {
+                'QueueArn': 'arn:aws:sqs:us-east-1:000000000000:orders',
+                'ApproximateNumberOfMessages': '2',
+                'ApproximateNumberOfMessagesNotVisible': '1',
+                'ApproximateNumberOfMessagesDelayed': '3',
+                'MaximumMessageSize': '1048576',
+            },
+        }
+        sqs.list_queue_tags.return_value = {'Tags': {}}
+        sqs.list_dead_letter_source_queues.return_value = {'queueUrls': []}
+        sqs.list_message_move_tasks.return_value = {'Results': []}
+        factory = MagicMock(endpoint_url='http://localhost:4566')
+        factory.client.return_value = sqs
+        factory_mock.return_value = factory
+
+        result = sqs_inventory()
+
+        self.assertEqual(result['configuration']['max_message_size_bytes'], 1048576)
+        self.assertEqual(result['summary']['delayed_messages'], 3)
+        self.assertEqual(result['queues'][0]['approximate_delayed'], 3)
+        self.assertIn('ApproximateNumberOfMessagesDelayed', result['notes'][0])

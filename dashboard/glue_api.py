@@ -143,6 +143,23 @@ def delete_table(database_name: str, table_name: str) -> dict[str, Any]:
     return {'database': clean_database, 'table': clean_table, 'response': _clean_response(response)}
 
 
+def delete_table_column_statistics(database_name: str, table_name: str, column_name: str) -> dict[str, Any]:
+    clean_database = _required(database_name, 'Database name')
+    clean_table = _required(table_name, 'Table name')
+    clean_column = _required(column_name, 'Column name')
+    response = _client().delete_column_statistics_for_table(
+        DatabaseName=clean_database,
+        TableName=clean_table,
+        ColumnName=clean_column,
+    )
+    return {
+        'database': clean_database,
+        'table': clean_table,
+        'column': clean_column,
+        'response': _clean_response(response),
+    }
+
+
 def batch_delete_tables(database_name: str, table_names: Any) -> dict[str, Any]:
     clean_database = _required(database_name, 'Database name')
     clean_tables = [_required(item, 'Table name') for item in _list_value(table_names, 'Table names', required=True)]

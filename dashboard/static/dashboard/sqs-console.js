@@ -39,6 +39,20 @@ const SQSConsole = (() => {
     return queues().find((queue) => queue.name === state.selectedQueue) || queues()[0] || null;
   }
 
+  function formatBytes(bytes) {
+    const value = Number(bytes || 0);
+    if (!value) {
+      return '';
+    }
+    if (value >= 1024 * 1024) {
+      return `${value / (1024 * 1024)} MB`;
+    }
+    if (value >= 1024) {
+      return `${value / 1024} KB`;
+    }
+    return `${value} bytes`;
+  }
+
   function renderBreadcrumbs() {
     if (!breadcrumbsEl) {
       return;
@@ -270,10 +284,19 @@ const SQSConsole = (() => {
     const list = el('div', 'sqs-message-list');
     if (!queue) {
       list.append(el('div', 'sqs-empty', 'Create or select a queue to inspect messages.'));
-    } else if (!state.messages.length) {
-      list.append(el('div', 'sqs-empty', 'No received messages. Poll the queue to inspect available messages.'));
     } else {
-      state.messages.forEach((message, index) => list.append(renderMessage(queue, message, index)));
+      const facts = document.createElement('dl');
+      const maxSize = queue.attributes?.MaximumMessageSize || state.inventory?.configuration?.max_message_size_bytes;
+      consoleUi.addField(facts, 'Visible messages', queue.approximate_messages);
+      consoleUi.addField(facts, 'In-flight messages', queue.approximate_not_visible);
+      consoleUi.addField(facts, 'Delayed messages', queue.approximate_delayed);
+      consoleUi.addField(facts, 'Maximum message size', formatBytes(maxSize));
+      list.append(facts);
+      if (!state.messages.length) {
+        list.append(el('div', 'sqs-empty', 'No received messages. Poll the queue to inspect available messages.'));
+      } else {
+        state.messages.forEach((message, index) => list.append(renderMessage(queue, message, index)));
+      }
     }
     panel.append(list);
     return panel;

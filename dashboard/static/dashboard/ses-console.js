@@ -574,6 +574,11 @@ const SESConsole = (() => {
       const facts = document.createElement('dl');
       consoleUi.addField(facts, 'Details', configurationSet.details);
       consoleUi.addField(facts, 'Sending enabled', configurationSet.sending_enabled);
+      consoleUi.addField(facts, 'Sending options', configurationSet.sending_options);
+      consoleUi.addField(facts, 'Delivery options', configurationSet.delivery_options);
+      consoleUi.addField(facts, 'Reputation options', configurationSet.reputation_options);
+      consoleUi.addField(facts, 'Suppression options', configurationSet.suppression_options);
+      consoleUi.addField(facts, 'Tracking options', configurationSet.tracking_options);
       consoleUi.addField(facts, 'Event destinations', configurationSet.event_destination_count);
       card.append(facts);
       const actions = el('div', 'ses-action-row');

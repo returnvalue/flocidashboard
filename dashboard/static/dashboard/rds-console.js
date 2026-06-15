@@ -397,6 +397,8 @@ const RDSConsole = (() => {
     consoleUi.addField(details, 'Storage', instance.allocated_storage ? `${instance.allocated_storage} GB` : null);
     consoleUi.addField(details, 'Master username', instance.master_username);
     consoleUi.addField(details, 'IAM auth', instance.iam_authentication ? 'enabled' : 'disabled');
+    consoleUi.addField(details, 'Provisioning flow', 'Create, describe, modify, reboot, and delete are supported locally.');
+    consoleUi.addField(details, 'IAM token validation', instance.iam_authentication ? 'STS-backed session secrets persist across requests in Floci 1.5.25.' : null);
     consoleUi.addField(details, 'Endpoint', instance.endpoint || {});
     consoleUi.addField(details, 'Created', consoleUi.formatDate(instance.created));
     panel.append(details);

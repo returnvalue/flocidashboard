@@ -95,17 +95,72 @@ def parse_json_body(request) -> dict:
     return body
 
 
+def operation_label(operation: str) -> str:
+    return str(operation or '').replace('_', ' ').strip().capitalize()
+
+
 def error_payload(exc: Exception, *, service: str = '', operation: str = '') -> dict:
     payload: dict = {
+        'ok': False,
         'error': str(exc),
         'service': service,
         'operation': operation,
+        'operation_label': operation_label(operation),
+        'type': exc.__class__.__name__,
     }
     if isinstance(exc, ClientError):
         error = exc.response.get('Error', {})
         payload['error'] = error.get('Message') or str(exc)
         payload['code'] = error.get('Code')
-    return {key: value for key, value in payload.items() if value}
+    return {key: value for key, value in payload.items() if value is not None and value != ''}
+
+
+NOT_FOUND_CODES = {
+    '404',
+    'AWS.SimpleQueueService.NonExistentQueue',
+    'DBClusterNotFoundFault',
+    'DBInstanceNotFound',
+    'DBInstanceNotFoundFault',
+    'EntityNotFoundException',
+    'NoSuchBucket',
+    'NoSuchKey',
+    'NotFound',
+    'NotFoundException',
+    'QueueDoesNotExist',
+    'ResourceNotFoundException',
+    'ResourceNotFoundFault',
+    'StackNotFoundException',
+}
+
+BAD_REQUEST_CODES = {
+    'BadRequest',
+    'BadRequestException',
+    'InvalidParameter',
+    'InvalidParameterException',
+    'InvalidParameterValue',
+    'InvalidParameterValueException',
+    'InvalidRequest',
+    'InvalidRequestException',
+    'MalformedPolicyDocument',
+    'OperationNotFoundException',
+    'ValidationError',
+    'ValidationException',
+}
+
+FORBIDDEN_CODES = {
+    'AccessDenied',
+    'AccessDeniedException',
+    'Forbidden',
+    'UnauthorizedOperation',
+}
+
+THROTTLE_CODES = {
+    'RequestLimitExceeded',
+    'ThrottledException',
+    'Throttling',
+    'ThrottlingException',
+    'TooManyRequestsException',
+}
 
 
 def error_status(exc: Exception) -> int:
@@ -113,7 +168,15 @@ def error_status(exc: Exception) -> int:
         return 400
     if isinstance(exc, ClientError):
         code = exc.response.get('Error', {}).get('Code')
-        return 404 if code in ('NoSuchBucket', 'NoSuchKey', '404') else 502
+        if code in NOT_FOUND_CODES or str(code or '').endswith('NotFound'):
+            return 404
+        if code in BAD_REQUEST_CODES:
+            return 400
+        if code in FORBIDDEN_CODES:
+            return 403
+        if code in THROTTLE_CODES:
+            return 429
+        return 502
     if isinstance(exc, BotoCoreError):
         return 502
     return 500
@@ -127,18 +190,22 @@ def json_error(
     service: str = '',
     operation: str = '',
 ) -> JsonResponse:
-    payload: dict = {'error': message}
+    payload: dict = {'ok': False, 'error': message, 'status': status, 'type': 'ActionError'}
     if code:
         payload['code'] = code
     if service:
         payload['service'] = service
     if operation:
         payload['operation'] = operation
+        payload['operation_label'] = operation_label(operation)
     return JsonResponse(payload, status=status)
 
 
 def handle_action_error(exc: Exception, *, service: str = '', operation: str = '') -> JsonResponse:
+    status = error_status(exc)
+    payload = error_payload(exc, service=service, operation=operation)
+    payload['status'] = status
     return JsonResponse(
-        error_payload(exc, service=service, operation=operation),
-        status=error_status(exc),
+        payload,
+        status=status,
     )

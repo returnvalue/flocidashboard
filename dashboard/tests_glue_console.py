@@ -5,7 +5,7 @@ from django.test import SimpleTestCase
 from django.urls import reverse
 
 from .aws import glue_inventory
-from .glue_api import batch_delete_tables, update_database
+from .glue_api import batch_delete_tables, delete_table_column_statistics, update_database
 from .services import get_service
 
 
@@ -33,6 +33,7 @@ class GluePageTemplateTests(SimpleTestCase):
         self.assertTrue(any(action.name == 'create_table' for action in service.actions))
         self.assertTrue(any(action.name == 'batch_delete_tables' for action in service.actions))
         self.assertTrue(any(action.name == 'create_user_defined_function' for action in service.actions))
+        self.assertTrue(any(action.name == 'delete_table_column_statistics' for action in service.actions))
         self.assertTrue(any(action.name == 'create_registry' for action in service.actions))
         self.assertTrue(any(action.name == 'register_schema_version' for action in service.actions))
 
@@ -168,6 +169,18 @@ class GlueActionsApiTests(SimpleTestCase):
             parameters={'env': 'local'},
         )
 
+    @patch('dashboard.glue_views.delete_table_column_statistics')
+    def test_delete_table_column_statistics_success(self, delete_mock):
+        delete_mock.return_value = {'database': 'analytics', 'table': 'orders', 'column': 'amount'}
+
+        response = self.client.delete(reverse(
+            'dashboard:glue-table-column-statistics-detail',
+            kwargs={'database_name': 'analytics', 'table_name': 'orders', 'column_name': 'amount'},
+        ))
+
+        self.assertEqual(response.status_code, 200)
+        delete_mock.assert_called_once_with('analytics', 'orders', 'amount')
+
     @patch('dashboard.glue_views.create_user_defined_function')
     def test_create_user_defined_function_success(self, create_mock):
         function_input = {
@@ -275,16 +288,19 @@ class GlueInventoryTests(SimpleTestCase):
     @patch('dashboard.aws.FlociClientFactory')
     def test_inventory_surfaces_table_versions_and_database_tags(self, factory_mock, paginate_mock):
         client = MagicMock()
-        client.meta.service_model.operation_names = ['GetTableVersions', 'GetTags']
+        client.meta.service_model.operation_names = ['GetColumnStatisticsForTable', 'GetTableVersions', 'GetTags']
         client.get_database.return_value = {'Database': {'DatabaseArn': 'arn:aws:glue:us-east-1:000000000000:database/analytics'}}
         client.get_tags.return_value = {'Tags': {'env': 'local'}}
+        client.get_column_statistics_for_table.return_value = {
+            'ColumnStatisticsList': [{'ColumnName': 'amount', 'ColumnType': 'double'}],
+        }
         factory_mock.return_value.client.return_value = client
 
         def paginate(_client, operation, _result_key, **kwargs):
             if operation == 'get_databases':
                 return [{'Name': 'analytics', 'DatabaseArn': 'arn:aws:glue:us-east-1:000000000000:database/analytics'}]
             if operation == 'get_tables':
-                return [{'Name': 'orders', 'StorageDescriptor': {'Columns': []}}]
+                return [{'Name': 'orders', 'StorageDescriptor': {'Columns': [{'Name': 'amount', 'Type': 'double'}]}}]
             if operation == 'get_table_versions':
                 return [{'VersionId': '1'}, {'VersionId': '2'}]
             if operation == 'get_partitions':
@@ -300,8 +316,15 @@ class GlueInventoryTests(SimpleTestCase):
         result = glue_inventory()
 
         self.assertEqual(result['summary']['table_versions'], 2)
+        self.assertEqual(result['summary']['column_statistics'], 1)
         self.assertEqual(result['databases'][0]['tags'], {'env': 'local'})
         self.assertEqual(result['databases'][0]['tables'][0]['version_count'], 2)
+        self.assertEqual(result['databases'][0]['tables'][0]['column_statistics_count'], 1)
+        client.get_column_statistics_for_table.assert_called_once_with(
+            DatabaseName='analytics',
+            TableName='orders',
+            ColumnNames=['amount'],
+        )
 
 
 class GlueApiHelperTests(SimpleTestCase):
@@ -342,4 +365,19 @@ class GlueApiHelperTests(SimpleTestCase):
         client.batch_delete_table.assert_called_once_with(
             DatabaseName='analytics',
             TablesToDelete=['orders', 'customers'],
+        )
+
+    @patch('dashboard.glue_api._client')
+    def test_delete_table_column_statistics_uses_delete_api(self, client_mock):
+        client = MagicMock()
+        client.delete_column_statistics_for_table.return_value = {}
+        client_mock.return_value = client
+
+        result = delete_table_column_statistics('analytics', 'orders', 'amount')
+
+        self.assertEqual(result['column'], 'amount')
+        client.delete_column_statistics_for_table.assert_called_once_with(
+            DatabaseName='analytics',
+            TableName='orders',
+            ColumnName='amount',
         )

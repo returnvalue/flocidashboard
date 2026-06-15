@@ -1,13 +1,14 @@
 import json
 import os
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
-from botocore.exceptions import NoCredentialsError, ProfileNotFound
+from botocore.exceptions import ClientError, NoCredentialsError, ProfileNotFound
 from botocore.parsers import ResponseParserError
 from django.test import SimpleTestCase
 from django.urls import reverse
 
-from .aws import FlociClientFactory
+from .actions import error_payload, error_status, handle_action_error, json_error
+from .aws import FlociClientFactory, cloudformation_inventory, rds_inventory
 from .services import SERVICE_PAGES, SERVICE_REGISTRY, SERVICES
 
 
@@ -140,6 +141,56 @@ class DashboardTemplateTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 404)
 
+
+class ActionErrorTests(SimpleTestCase):
+    def test_value_error_payload_includes_operation_context(self):
+        response = handle_action_error(ValueError('Name is required'), service='sqs', operation='create_queue')
+
+        self.assertEqual(response.status_code, 400)
+        payload = json.loads(response.content)
+        self.assertFalse(payload['ok'])
+        self.assertEqual(payload['error'], 'Name is required')
+        self.assertEqual(payload['service'], 'sqs')
+        self.assertEqual(payload['operation'], 'create_queue')
+        self.assertEqual(payload['operation_label'], 'Create queue')
+        self.assertEqual(payload['type'], 'ValueError')
+        self.assertEqual(payload['status'], 400)
+
+    def test_client_error_status_mapping_matches_common_aws_shapes(self):
+        missing = ClientError({'Error': {'Code': 'ResourceNotFoundException', 'Message': 'Missing'}}, 'DescribeThing')
+        invalid = ClientError({'Error': {'Code': 'ValidationException', 'Message': 'Bad input'}}, 'CreateThing')
+        denied = ClientError({'Error': {'Code': 'AccessDeniedException', 'Message': 'Nope'}}, 'CreateThing')
+        throttled = ClientError({'Error': {'Code': 'ThrottlingException', 'Message': 'Slow down'}}, 'CreateThing')
+
+        self.assertEqual(error_status(missing), 404)
+        self.assertEqual(error_status(invalid), 400)
+        self.assertEqual(error_status(denied), 403)
+        self.assertEqual(error_status(throttled), 429)
+
+    def test_client_error_payload_prefers_aws_error_message_and_code(self):
+        exc = ClientError({'Error': {'Code': 'ValidationException', 'Message': 'Bad input'}}, 'CreateThing')
+
+        payload = error_payload(exc, service='glue', operation='create_table')
+
+        self.assertFalse(payload['ok'])
+        self.assertEqual(payload['error'], 'Bad input')
+        self.assertEqual(payload['code'], 'ValidationException')
+        self.assertEqual(payload['operation_label'], 'Create table')
+
+    def test_json_error_uses_normalized_payload_shape(self):
+        response = json_error('Invalid key', service='s3', operation='upload_object')
+
+        self.assertEqual(response.status_code, 400)
+        payload = json.loads(response.content)
+        self.assertFalse(payload['ok'])
+        self.assertEqual(payload['error'], 'Invalid key')
+        self.assertEqual(payload['service'], 's3')
+        self.assertEqual(payload['operation'], 'upload_object')
+        self.assertEqual(payload['operation_label'], 'Upload object')
+        self.assertEqual(payload['status'], 400)
+
+
+class ServiceRegistryApiTests(SimpleTestCase):
     def test_services_api_exposes_registry_metadata(self):
         response = self.client.get(reverse('dashboard:services'))
 
@@ -691,6 +742,21 @@ class CloudFormationActionTests(SimpleTestCase):
             capabilities=None,
         )
 
+    @patch('dashboard.aws._paginate')
+    @patch('dashboard.aws.FlociClientFactory')
+    def test_inventory_notes_include_1_5_25_provisioning_coverage(self, factory_mock, paginate_mock):
+        cloudformation = MagicMock()
+        factory_mock.return_value.client.return_value = cloudformation
+        paginate_mock.return_value = []
+
+        result = cloudformation_inventory()
+
+        self.assertTrue(any(
+            'Lambda-backed custom resources' in note and 'EC2 VPC/subnet resources' in note
+            for note in result['notes']
+        ))
+        self.assertIn('Lambda layer versions', ' '.join(result['notes']))
+
     @patch('dashboard.cloudformation_views.describe_change_set')
     def test_describe_change_set_endpoint_uses_action_helper(self, describe_change_set):
         describe_change_set.return_value = {'change_set': {'ChangeSetName': 'next'}}
@@ -949,6 +1015,21 @@ class RDSActionTests(SimpleTestCase):
             enable_iam_auth=True,
             tags=None,
         )
+
+    @patch('dashboard.aws._paginate')
+    @patch('dashboard.aws.FlociClientFactory')
+    def test_inventory_notes_include_provisioning_and_sts_iam_auth_context(self, factory_mock, paginate_mock):
+        rds = MagicMock()
+        factory_mock.return_value.client.return_value = rds
+        paginate_mock.return_value = []
+
+        result = rds_inventory()
+
+        self.assertTrue(any('RDS provisioning lifecycle support' in note for note in result['notes']))
+        self.assertTrue(any('STS session secret keys' in note for note in result['notes']))
+        self.assertIn('CreateDBInstance', result['supported'])
+        self.assertIn('ModifyDBInstance', result['supported'])
+        self.assertIn('DeleteDBInstance', result['supported'])
 
     @patch('dashboard.rds_views.modify_db_instance')
     def test_modify_db_instance_endpoint_uses_action_helper(self, modify_db_instance):

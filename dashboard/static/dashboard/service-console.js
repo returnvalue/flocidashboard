@@ -27,7 +27,15 @@ const ServiceConsole = (() => {
     const response = await fetch(path, { ...options, headers });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(data.error || `Request failed (${response.status})`);
+      const label = data.operation_label || (data.operation ? data.operation.replaceAll('_', ' ') : '');
+      const prefix = label ? `${label} failed: ` : '';
+      const error = new Error(`${prefix}${data.error || `Request failed (${response.status})`}`);
+      error.status = data.status || response.status;
+      error.code = data.code;
+      error.service = data.service;
+      error.operation = data.operation;
+      error.payload = data;
+      throw error;
     }
     return data;
   }
@@ -88,8 +96,15 @@ const ServiceConsole = (() => {
     }
     const serviceKey = options.serviceKey || 'service';
     const targets = options.targets || {};
+    const entries = Object.entries(summary || {});
     container.textContent = '';
-    Object.entries(summary || {}).forEach(([label, value]) => {
+
+    if (entries.length === 0) {
+      container.append(el('div', 'summary-empty', 'No summary metrics yet.'));
+      return;
+    }
+
+    entries.forEach(([label, value]) => {
       const displayLabel = label.replaceAll('_', ' ');
       const card = document.createElement('a');
       const number = document.createElement('strong');
@@ -174,7 +189,7 @@ const ServiceConsole = (() => {
     list.append(row);
   }
 
-  function renderDetailList(serviceKey, title, items, fields) {
+  function renderDetailList(serviceKey, title, items, fields = []) {
     const section = document.createElement('section');
     section.className = 'iam-panel';
     section.id = sectionIdForLabel(serviceKey, title);
@@ -188,7 +203,7 @@ const ServiceConsole = (() => {
     section.append(heading);
 
     if (normalizedItems.length === 0) {
-      section.append(el('p', 'muted', 'None found.'));
+      section.append(el('p', 'muted empty-state', `No ${title.toLowerCase()} found.`));
       return section;
     }
 

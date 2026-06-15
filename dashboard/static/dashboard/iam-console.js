@@ -107,7 +107,7 @@ const IAMConsole = (() => {
     if (value && typeof value === 'object') {
       return JSON.stringify(value);
     }
-    return value || 'None';
+    return value ?? 'None';
   }
 
   function renderStatementSummary(documentValue) {

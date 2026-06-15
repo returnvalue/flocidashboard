@@ -536,7 +536,7 @@ function valueText(value) {
     }
   }
 
-  return value || 'None';
+  return value ?? 'None';
 }
 
 function addField(card, label, value) {
@@ -569,9 +569,22 @@ function sectionIdForLabel(label) {
 }
 
 function renderSummary(summary, container) {
-  container.textContent = '';
+  if (!container) {
+    return;
+  }
 
-  Object.entries(summary || {}).forEach(([label, value]) => {
+  container.textContent = '';
+  const entries = Object.entries(summary || {});
+
+  if (entries.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'summary-empty';
+    empty.textContent = 'No summary metrics yet.';
+    container.append(empty);
+    return;
+  }
+
+  entries.forEach(([label, value]) => {
     const displayLabel = label.replaceAll('_', ' ');
     const card = document.createElement('a');
     const number = document.createElement('strong');
@@ -580,14 +593,14 @@ function renderSummary(summary, container) {
     card.href = `#${sectionIdForLabel(displayLabel)}`;
     card.className = 'summary-card';
     card.setAttribute('aria-label', `Jump to ${displayLabel}`);
-    number.textContent = value;
+    number.textContent = value ?? 0;
     caption.textContent = displayLabel;
     card.append(number, caption);
     container.append(card);
   });
 }
 
-function renderDetailList(title, items, fields) {
+function renderDetailList(title, items, fields = []) {
   const section = document.createElement('section');
   section.className = 'iam-panel';
   section.id = sectionIdForLabel(title);
@@ -606,8 +619,8 @@ function renderDetailList(title, items, fields) {
 
   if (items.length === 0) {
     const empty = document.createElement('p');
-    empty.className = 'muted';
-    empty.textContent = 'None found.';
+    empty.className = 'muted empty-state';
+    empty.textContent = `No ${title.toLowerCase()} found.`;
     section.append(empty);
     return section;
   }

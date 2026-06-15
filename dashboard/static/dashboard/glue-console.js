@@ -462,6 +462,23 @@ const GlueConsole = (() => {
     await refresh();
   }
 
+  async function deleteTableColumnStatistics(database, table, statistic) {
+    const columnName = statistic?.ColumnName || statistic?.columnName || statistic?.column_name || '';
+    if (!columnName) {
+      toast('Column statistic is missing a column name', true);
+      return;
+    }
+    if (!window.confirm(`Delete Glue column statistics for ${columnName}?`)) {
+      return;
+    }
+    const data = await apiJson(`/api/glue/databases/${encodeURIComponent(database.name)}/tables/${encodeURIComponent(table.name)}/statistics/${encodeURIComponent(columnName)}/`, {
+      method: 'DELETE',
+    });
+    state.lastResult = data;
+    toast('Column statistic deleted');
+    await refresh();
+  }
+
   async function batchDeleteTables(database) {
     const tableNames = (database.tables || []).map((table) => table.name).filter(Boolean);
     if (!tableNames.length) {
@@ -528,9 +545,21 @@ const GlueConsole = (() => {
       consoleUi.addField(facts, 'Columns', table.columns);
       consoleUi.addField(facts, 'Partition keys', table.partition_keys);
       consoleUi.addField(facts, 'Partitions', table.partition_count);
+      consoleUi.addField(facts, 'Column statistics', table.column_statistics_count);
       consoleUi.addField(facts, 'Archived versions', table.version_count);
       consoleUi.addField(facts, 'Versions', table.versions);
       card.append(facts);
+      (table.column_statistics || []).forEach((statistic) => {
+        const statisticCard = el('article', 'glue-subcard');
+        statisticCard.append(el('h3', null, statistic.ColumnName || statistic.columnName || statistic.column_name || 'Column statistic'));
+        const statisticFacts = el('dl', 'glue-facts');
+        consoleUi.addField(statisticFacts, 'Type', statistic.ColumnType || statistic.columnType || statistic.column_type);
+        consoleUi.addField(statisticFacts, 'Analyzed', statistic.AnalyzedTime || statistic.analyzedTime || statistic.analyzed_time);
+        consoleUi.addField(statisticFacts, 'Data', statistic.StatisticsData || statistic.statisticsData || statistic.statistics_data);
+        statisticCard.append(statisticFacts);
+        statisticCard.append(btn('Delete statistic', 'glue-btn-danger', () => deleteTableColumnStatistics(database, table, statistic).catch((error) => toast(error.message, true))));
+        card.append(statisticCard);
+      });
       const actions = el('div', 'glue-action-row');
       actions.append(
         btn('Add partition', 'glue-btn-secondary', () => showCreatePartitionModal(database, table)),
