@@ -10,6 +10,7 @@ A small Django UI for inspecting and testing a local [Floci](https://floci.io/) 
 - AWS endpoint, profile, and caller identity
 - Clickable service cards for supported local services, with persisted home-page service filtering to keep resource probes focused
 - Interactive workbenches for S3, IAM, EC2, SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, EventBridge, EventBridge Pipes, EventBridge Scheduler, API Gateway, AppSync, Kinesis, KMS, Secrets Manager, SSM Parameter Store, CloudFormation, Cognito, AWS Config, RDS, Auto Scaling, ELB v2, CloudFront, AWS Cloud Map, Route 53, ACM, ECS, ECR, EKS, ElastiCache, OpenSearch, Athena, Backup, Firehose, Glue, Kafka, Neptune, SES, Transfer Family, Textract, Transcribe, CodeDeploy, CodeBuild, Bedrock Runtime, AppConfig, and Resource Groups Tagging
+- Inventory pages for new Floci 1.5.25 services including EMR, WAF v2, AWS Batch, and RDS Data API
 - Inventory pages for read-only or newly surfaced services such as CloudTrail
 - Detail pages for services such as Cost Explorer, Cost and Usage Reports, BCM Data Exports, Pricing, and more
 - Loading state with the Floci cloud image while service data is fetched

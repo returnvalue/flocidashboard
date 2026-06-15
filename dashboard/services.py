@@ -3871,6 +3871,15 @@ SERVICES: tuple[ServiceDefinition, ...] = (
         tags=('layered-workbench', 'backup-workbench'),
         actions=BACKUP_ACTIONS,
     ),
+    service(
+        'batch',
+        'AWS Batch',
+        'Compute environments, job queues, definitions, and jobs',
+        'Compute',
+        maturity='read_only_inspector',
+        docs_url='https://floci.io/floci/services/batch/',
+        tags=('batch-compute', 'inventory'),
+    ),
     service('bcmdataexports', 'BCM Data Exports', 'Billing and cost management exports', 'Management'),
     service(
         'bedrockruntime',
@@ -4041,6 +4050,15 @@ SERVICES: tuple[ServiceDefinition, ...] = (
         shared_console=True,
         tags=('layered-workbench', 'container-workbench'),
         actions=ECS_ACTIONS,
+    ),
+    service(
+        'emr',
+        'EMR',
+        'Clusters, instance groups, and steps',
+        'Analytics',
+        maturity='read_only_inspector',
+        docs_url='https://floci.io/floci/services/emr/',
+        tags=('analytics', 'inventory'),
     ),
     service(
         'eks',
@@ -4228,6 +4246,15 @@ SERVICES: tuple[ServiceDefinition, ...] = (
         actions=RDS_ACTIONS,
     ),
     service(
+        'rdsdata',
+        'RDS Data API',
+        'Serverless SQL statement and transaction calls',
+        'Database',
+        maturity='read_only_inspector',
+        docs_url='https://floci.io/floci/services/rds-data/',
+        tags=('database', 'sql', 'inventory'),
+    ),
+    service(
         'resourcegroupstagging',
         'Resource Groups Tagging',
         'Centralized tagged resource discovery',
@@ -4387,6 +4414,15 @@ SERVICES: tuple[ServiceDefinition, ...] = (
         tutorial_available=True,
         tags=('layered-workbench', 'transfer-management-workbench'),
         actions=TRANSFER_ACTIONS,
+    ),
+    service(
+        'wafv2',
+        'WAF v2',
+        'Web ACLs, rule groups, IP sets, and regex pattern sets',
+        'Security',
+        maturity='read_only_inspector',
+        docs_url='https://floci.io/floci/services/wafv2/',
+        tags=('security', 'inventory'),
     ),
 )
 

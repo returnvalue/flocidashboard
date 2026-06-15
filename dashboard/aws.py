@@ -229,6 +229,7 @@ def _resource_service_key(name: str) -> str:
         'athena-resources': 'athena',
         'autoscaling-resources': 'autoscaling',
         'backup-resources': 'backup',
+        'batch-resources': 'batch',
         'bcmdataexports-resources': 'bcmdataexports',
         'bedrockruntime-resources': 'bedrockruntime',
         'cloudfront-resources': 'cloudfront',
@@ -247,6 +248,7 @@ def _resource_service_key(name: str) -> str:
         'eks-resources': 'eks',
         'elasticache-resources': 'elasticache',
         'elasticloadbalancing-resources': 'elasticloadbalancing',
+        'emr-resources': 'emr',
         'eventbridge-resources': 'eventbridge',
         'firehose-resources': 'firehose',
         'glue-resources': 'glue',
@@ -262,6 +264,7 @@ def _resource_service_key(name: str) -> str:
         'pipes-resources': 'pipes',
         'pricing-resources': 'pricing',
         'rds-resources': 'rds',
+        'rdsdata-resources': 'rdsdata',
         'resourcegroupstagging-resources': 'resourcegroupstagging',
         'route53-resources': 'route53',
         's3-buckets': 's3',
@@ -275,6 +278,7 @@ def _resource_service_key(name: str) -> str:
         'textract-resources': 'textract',
         'transcribe-resources': 'transcribe',
         'transfer-resources': 'transfer',
+        'wafv2-resources': 'wafv2',
     }
     return keys.get(name, name.replace('-resources', ''))
 
@@ -773,6 +777,284 @@ def bcmdataexports_inventory() -> dict[str, Any]:
         'notes': [
             'Floci 1.5.17 adds BCM Data Exports support under the bcm-data-exports service name.',
             'BCM exports round out the local cost-services flow alongside Pricing, Cost Explorer, and CUR.',
+        ],
+    }
+
+
+def batch_inventory() -> dict[str, Any]:
+    factory = FlociClientFactory()
+    batch = factory.client('batch')
+    operations = set(batch.meta.service_model.operation_names)
+
+    compute_environments = _safe_value(
+        lambda: _operation_items(batch, 'describe_compute_environments', 'computeEnvironments'),
+        [],
+    ) if 'DescribeComputeEnvironments' in operations else []
+    job_queues = _safe_value(
+        lambda: _operation_items(batch, 'describe_job_queues', 'jobQueues'),
+        [],
+    ) if 'DescribeJobQueues' in operations else []
+    job_definitions = _safe_value(
+        lambda: _operation_items(batch, 'describe_job_definitions', 'jobDefinitions', status='ACTIVE'),
+        _safe_value(lambda: _operation_items(batch, 'describe_job_definitions', 'jobDefinitions'), []),
+    ) if 'DescribeJobDefinitions' in operations else []
+
+    jobs: list[dict[str, Any]] = []
+    job_statuses = ['SUBMITTED', 'PENDING', 'RUNNABLE', 'STARTING', 'RUNNING', 'SUCCEEDED', 'FAILED']
+    if 'ListJobs' in operations:
+        for queue in job_queues[:10]:
+            queue_name = queue.get('jobQueueName') or queue.get('jobQueueArn')
+            for status in job_statuses:
+                summaries = _safe_value(
+                    lambda queue_name=queue_name, status=status: _operation_items(
+                        batch,
+                        'list_jobs',
+                        'jobSummaryList',
+                        jobQueue=queue_name,
+                        jobStatus=status,
+                    ),
+                    [],
+                )
+                for summary in summaries[:25]:
+                    jobs.append({
+                        'name': summary.get('jobName') or summary.get('jobId'),
+                        'job_id': summary.get('jobId'),
+                        'job_name': summary.get('jobName'),
+                        'job_queue': queue_name,
+                        'status': summary.get('status') or status,
+                        'created_at': summary.get('createdAt'),
+                        'started_at': summary.get('startedAt'),
+                        'stopped_at': summary.get('stoppedAt'),
+                    })
+
+    return {
+        'summary': {
+            'compute_environments': len(compute_environments),
+            'job_queues': len(job_queues),
+            'job_definitions': len(job_definitions),
+            'sampled_jobs': len(jobs),
+            'available_sdk_operations': len(operations),
+        },
+        'compute_environments': _clean_response(compute_environments),
+        'job_queues': _clean_response(job_queues),
+        'job_definitions': _clean_response(job_definitions),
+        'jobs': _clean_response(jobs),
+        'supported_from_sdk': [
+            operation
+            for operation in [
+                'CreateComputeEnvironment',
+                'DescribeComputeEnvironments',
+                'CreateJobQueue',
+                'DescribeJobQueues',
+                'RegisterJobDefinition',
+                'DescribeJobDefinitions',
+                'SubmitJob',
+                'ListJobs',
+                'DescribeJobs',
+                'CancelJob',
+                'TerminateJob',
+            ]
+            if operation in operations
+        ],
+        'available_sdk_operations': sorted(operations),
+        'notes': [
+            'Floci 1.5.25 adds AWS Batch service support for local batch compute management workflows.',
+            'The dashboard samples jobs from the first ten queues across common Batch job statuses to keep refreshes bounded.',
+        ],
+    }
+
+
+def emr_inventory() -> dict[str, Any]:
+    factory = FlociClientFactory()
+    emr = factory.client('emr')
+    operations = set(emr.meta.service_model.operation_names)
+
+    clusters = _safe_value(
+        lambda: _operation_items(emr, 'list_clusters', 'Clusters'),
+        [],
+    ) if 'ListClusters' in operations else []
+
+    def cluster_detail(cluster: dict[str, Any]) -> dict[str, Any]:
+        cluster_id = cluster.get('Id')
+        details = _safe_value(
+            lambda: emr.describe_cluster(ClusterId=cluster_id).get('Cluster', {}),
+            {},
+        ) if cluster_id and 'DescribeCluster' in operations else {}
+        instance_groups = _safe_value(
+            lambda: _operation_items(emr, 'list_instance_groups', 'InstanceGroups', ClusterId=cluster_id),
+            [],
+        ) if cluster_id and 'ListInstanceGroups' in operations else []
+        steps = _safe_value(
+            lambda: _operation_items(emr, 'list_steps', 'Steps', ClusterId=cluster_id),
+            [],
+        ) if cluster_id and 'ListSteps' in operations else []
+
+        return {
+            'name': cluster.get('Name') or details.get('Name') or cluster_id,
+            'id': cluster_id,
+            'state': (cluster.get('Status') or details.get('Status') or {}).get('State'),
+            'normalized_instance_hours': details.get('NormalizedInstanceHours'),
+            'release_label': details.get('ReleaseLabel'),
+            'log_uri': details.get('LogUri'),
+            'instance_group_count': len(instance_groups),
+            'step_count': len(steps),
+            'instance_groups': _clean_response(instance_groups),
+            'steps': _clean_response(steps),
+            'details': _clean_response(details),
+        }
+
+    security_configurations = _safe_value(
+        lambda: _operation_items(emr, 'list_security_configurations', 'SecurityConfigurations'),
+        [],
+    ) if 'ListSecurityConfigurations' in operations else []
+
+    detailed_clusters = [cluster_detail(cluster) for cluster in clusters]
+
+    return {
+        'summary': {
+            'clusters': len(detailed_clusters),
+            'instance_groups': sum(cluster.get('instance_group_count') or 0 for cluster in detailed_clusters),
+            'steps': sum(cluster.get('step_count') or 0 for cluster in detailed_clusters),
+            'security_configurations': len(security_configurations),
+            'available_sdk_operations': len(operations),
+        },
+        'clusters': detailed_clusters,
+        'security_configurations': _clean_response(security_configurations),
+        'supported_from_sdk': [
+            operation
+            for operation in [
+                'RunJobFlow',
+                'ListClusters',
+                'DescribeCluster',
+                'TerminateJobFlows',
+                'ListInstanceGroups',
+                'AddInstanceGroups',
+                'ListSteps',
+                'AddJobFlowSteps',
+                'CancelSteps',
+                'ListSecurityConfigurations',
+            ]
+            if operation in operations
+        ],
+        'available_sdk_operations': sorted(operations),
+        'notes': [
+            'Floci 1.5.25 adds Amazon EMR management API support as a Phase 1 service.',
+            'The dashboard inspects clusters, nested instance groups, and steps when those management APIs are available.',
+        ],
+    }
+
+
+def wafv2_inventory() -> dict[str, Any]:
+    factory = FlociClientFactory()
+    wafv2 = factory.client('wafv2')
+    operations = set(wafv2.meta.service_model.operation_names)
+    scopes = ['REGIONAL', 'CLOUDFRONT']
+
+    def scoped_items(operation_id: str, method_name: str, result_key: str) -> list[dict[str, Any]]:
+        if operation_id not in operations:
+            return []
+        items: list[dict[str, Any]] = []
+        for scope in scopes:
+            values = _safe_value(
+                lambda scope=scope: _operation_items(wafv2, method_name, result_key, Scope=scope),
+                [],
+            )
+            for value in values:
+                items.append({**value, 'Scope': scope})
+        return items
+
+    web_acls = scoped_items('ListWebACLs', 'list_web_acls', 'WebACLs')
+    rule_groups = scoped_items('ListRuleGroups', 'list_rule_groups', 'RuleGroups')
+    ip_sets = scoped_items('ListIPSets', 'list_ip_sets', 'IPSets')
+    regex_pattern_sets = scoped_items('ListRegexPatternSets', 'list_regex_pattern_sets', 'RegexPatternSets')
+
+    return {
+        'summary': {
+            'web_acls': len(web_acls),
+            'rule_groups': len(rule_groups),
+            'ip_sets': len(ip_sets),
+            'regex_pattern_sets': len(regex_pattern_sets),
+            'available_sdk_operations': len(operations),
+        },
+        'web_acls': _clean_response(web_acls),
+        'rule_groups': _clean_response(rule_groups),
+        'ip_sets': _clean_response(ip_sets),
+        'regex_pattern_sets': _clean_response(regex_pattern_sets),
+        'supported_from_sdk': [
+            operation
+            for operation in [
+                'CreateWebACL',
+                'ListWebACLs',
+                'GetWebACL',
+                'UpdateWebACL',
+                'DeleteWebACL',
+                'CreateRuleGroup',
+                'ListRuleGroups',
+                'CreateIPSet',
+                'ListIPSets',
+                'CreateRegexPatternSet',
+                'ListRegexPatternSets',
+            ]
+            if operation in operations
+        ],
+        'available_sdk_operations': sorted(operations),
+        'notes': [
+            'Floci 1.5.25 adds AWS WAF v2 management API support as a Phase 1 service.',
+            'WAF v2 APIs are scope-aware, so the dashboard checks both REGIONAL and CLOUDFRONT resource scopes.',
+        ],
+    }
+
+
+def rdsdata_inventory() -> dict[str, Any]:
+    factory = FlociClientFactory()
+    rdsdata = factory.client('rds-data')
+    operations = set(rdsdata.meta.service_model.operation_names)
+
+    return {
+        'summary': {
+            'statements': 0,
+            'transactions': 0,
+            'available_sdk_operations': len(operations),
+        },
+        'statement_operations': [
+            {'name': operation}
+            for operation in [
+                'ExecuteStatement',
+                'BatchExecuteStatement',
+            ]
+            if operation in operations
+        ],
+        'transaction_operations': [
+            {'name': operation}
+            for operation in [
+                'BeginTransaction',
+                'CommitTransaction',
+                'RollbackTransaction',
+            ]
+            if operation in operations
+        ],
+        'request_fields': [
+            {'name': 'resourceArn', 'description': 'RDS cluster ARN for the Data API target.'},
+            {'name': 'secretArn', 'description': 'Secret ARN used by the Data API request.'},
+            {'name': 'database', 'description': 'Optional database name.'},
+            {'name': 'sql', 'description': 'SQL statement for ExecuteStatement or BatchExecuteStatement.'},
+            {'name': 'transactionId', 'description': 'Transaction token returned by BeginTransaction.'},
+        ],
+        'supported_from_sdk': [
+            operation
+            for operation in [
+                'ExecuteStatement',
+                'BatchExecuteStatement',
+                'BeginTransaction',
+                'CommitTransaction',
+                'RollbackTransaction',
+            ]
+            if operation in operations
+        ],
+        'available_sdk_operations': sorted(operations),
+        'notes': [
+            'Floci 1.5.25 adds RDS Data API support under the rds-data service name.',
+            'RDS Data API is request-oriented rather than catalog-oriented, so this page surfaces supported calls and required request fields.',
         ],
     }
 
@@ -9569,6 +9851,125 @@ def list_resources(service_keys: set[str] | None = None) -> list[ResourceResult]
             for export in _safe_value(lambda: _operation_items(exports, 'list_exports', 'Exports'), [])
         ]
 
+    def batch_resources() -> list[dict[str, Any]]:
+        batch = factory.client('batch')
+        operations = set(batch.meta.service_model.operation_names)
+        resources: list[dict[str, Any]] = []
+
+        if 'DescribeComputeEnvironments' in operations:
+            resources.extend(
+                {
+                    'type': 'compute_environment',
+                    'name': environment.get('computeEnvironmentName'),
+                    'arn': environment.get('computeEnvironmentArn'),
+                    'state': environment.get('state'),
+                    'status': environment.get('status'),
+                }
+                for environment in _safe_value(
+                    lambda: _operation_items(batch, 'describe_compute_environments', 'computeEnvironments'),
+                    [],
+                )
+            )
+
+        if 'DescribeJobQueues' in operations:
+            resources.extend(
+                {
+                    'type': 'job_queue',
+                    'name': queue.get('jobQueueName'),
+                    'arn': queue.get('jobQueueArn'),
+                    'state': queue.get('state'),
+                    'status': queue.get('status'),
+                }
+                for queue in _safe_value(lambda: _operation_items(batch, 'describe_job_queues', 'jobQueues'), [])
+            )
+
+        if 'DescribeJobDefinitions' in operations:
+            resources.extend(
+                {
+                    'type': 'job_definition',
+                    'name': definition.get('jobDefinitionName'),
+                    'arn': definition.get('jobDefinitionArn'),
+                    'status': definition.get('status'),
+                }
+                for definition in _safe_value(
+                    lambda: _operation_items(batch, 'describe_job_definitions', 'jobDefinitions', status='ACTIVE'),
+                    [],
+                )
+            )
+
+        return resources
+
+    def emr_resources() -> list[dict[str, Any]]:
+        emr = factory.client('emr')
+        operations = set(emr.meta.service_model.operation_names)
+        if 'ListClusters' not in operations:
+            return []
+
+        return [
+            {
+                'type': 'cluster',
+                'name': cluster.get('Name') or cluster.get('Id'),
+                'id': cluster.get('Id'),
+                'state': (cluster.get('Status') or {}).get('State'),
+            }
+            for cluster in _safe_value(lambda: _operation_items(emr, 'list_clusters', 'Clusters'), [])
+        ]
+
+    def wafv2_resources() -> list[dict[str, Any]]:
+        wafv2 = factory.client('wafv2')
+        operations = set(wafv2.meta.service_model.operation_names)
+        resources: list[dict[str, Any]] = []
+
+        for scope in ['REGIONAL', 'CLOUDFRONT']:
+            if 'ListWebACLs' in operations:
+                resources.extend(
+                    {
+                        'type': 'web_acl',
+                        'name': acl.get('Name'),
+                        'id': acl.get('Id'),
+                        'arn': acl.get('ARN'),
+                        'scope': scope,
+                    }
+                    for acl in _safe_value(
+                        lambda scope=scope: _operation_items(wafv2, 'list_web_acls', 'WebACLs', Scope=scope),
+                        [],
+                    )
+                )
+            if 'ListRuleGroups' in operations:
+                resources.extend(
+                    {
+                        'type': 'rule_group',
+                        'name': group.get('Name'),
+                        'id': group.get('Id'),
+                        'arn': group.get('ARN'),
+                        'scope': scope,
+                    }
+                    for group in _safe_value(
+                        lambda scope=scope: _operation_items(wafv2, 'list_rule_groups', 'RuleGroups', Scope=scope),
+                        [],
+                    )
+                )
+
+        return resources
+
+    def rdsdata_resources() -> list[dict[str, Any]]:
+        operations = set(factory.client('rds-data').meta.service_model.operation_names)
+        return [
+            {
+                'type': 'operation',
+                'name': operation,
+                'status': 'supported',
+            }
+            for operation in [
+                'ExecuteStatement',
+                'BatchExecuteStatement',
+                'BeginTransaction',
+                'CommitTransaction',
+                'RollbackTransaction',
+            ]
+            if operation in operations
+        ]
+
     def neptune_resources() -> list[dict[str, Any]]:
         neptune = factory.client('neptune')
         operations = set(neptune.meta.service_model.operation_names)
@@ -9719,6 +10120,7 @@ def list_resources(service_keys: set[str] | None = None) -> list[ResourceResult]
         ('athena-resources', 'Athena resources', athena_resources),
         ('autoscaling-resources', 'Auto Scaling resources', autoscaling_resources),
         ('backup-resources', 'Backup resources', backup_resources),
+        ('batch-resources', 'AWS Batch resources', batch_resources),
         ('bedrockruntime-resources', 'Bedrock Runtime operations', bedrockruntime_resources),
         ('cloudfront-resources', 'CloudFront resources', cloudfront_resources),
         ('cloudmap-resources', 'Cloud Map resources', cloudmap_resources),
@@ -9729,6 +10131,7 @@ def list_resources(service_keys: set[str] | None = None) -> list[ResourceResult]
         ('eks-resources', 'EKS resources', eks_resources),
         ('elasticache-resources', 'ElastiCache resources', elasticache_resources),
         ('elasticloadbalancing-resources', 'Elastic Load Balancing resources', elasticloadbalancing_resources),
+        ('emr-resources', 'EMR resources', emr_resources),
         ('firehose-resources', 'Data Firehose resources', firehose_resources),
         ('kinesis-resources', 'Kinesis resources', kinesis_resources),
         ('kafka-resources', 'MSK / Kafka resources', kafka_resources),
@@ -9745,6 +10148,7 @@ def list_resources(service_keys: set[str] | None = None) -> list[ResourceResult]
         ('ecr-resources', 'ECR resources', ecr_resources),
         ('glue-resources', 'Glue resources', glue_resources),
         ('rds-resources', 'RDS resources', rds_resources),
+        ('rdsdata-resources', 'RDS Data API operations', rdsdata_resources),
         ('route53-resources', 'Route 53 resources', route53_resources),
         ('iam-users', 'IAM users', iam_users),
         ('iam-roles', 'IAM roles', iam_roles),
@@ -9760,6 +10164,7 @@ def list_resources(service_keys: set[str] | None = None) -> list[ResourceResult]
         ('textract-resources', 'Textract resources', textract_resources),
         ('transcribe-resources', 'Transcribe resources', transcribe_resources),
         ('transfer-resources', 'Transfer Family resources', transfer_resources),
+        ('wafv2-resources', 'WAF v2 resources', wafv2_resources),
         ('lambda-functions', 'Lambda functions', lambda_functions),
         ('kms-keys', 'KMS keys', kms_keys),
         ('secrets', 'Secrets Manager secrets', secrets),

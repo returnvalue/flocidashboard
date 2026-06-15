@@ -135,6 +135,9 @@ const backupGrid = document.querySelector('#backup-grid');
 const backupSummary = document.querySelector('#backup-summary');
 const backupLoadedAt = document.querySelector('#backup-loaded-at');
 const backupConsoleRoot = document.getElementById('backup-console-root');
+const batchGrid = document.querySelector('#batch-grid');
+const batchSummary = document.querySelector('#batch-summary');
+const batchLoadedAt = document.querySelector('#batch-loaded-at');
 const bcmdataexportsGrid = document.querySelector('#bcmdataexports-grid');
 const bcmdataexportsSummary = document.querySelector('#bcmdataexports-summary');
 const bcmdataexportsLoadedAt = document.querySelector('#bcmdataexports-loaded-at');
@@ -168,9 +171,15 @@ const ecrGrid = document.querySelector('#ecr-grid');
 const ecrSummary = document.querySelector('#ecr-summary');
 const ecrLoadedAt = document.querySelector('#ecr-loaded-at');
 const ecrConsoleRoot = document.getElementById('ecr-console-root');
+const emrGrid = document.querySelector('#emr-grid');
+const emrSummary = document.querySelector('#emr-summary');
+const emrLoadedAt = document.querySelector('#emr-loaded-at');
 const rdsGrid = document.querySelector('#rds-grid');
 const rdsSummary = document.querySelector('#rds-summary');
 const rdsLoadedAt = document.querySelector('#rds-loaded-at');
+const rdsdataGrid = document.querySelector('#rdsdata-grid');
+const rdsdataSummary = document.querySelector('#rdsdata-summary');
+const rdsdataLoadedAt = document.querySelector('#rdsdata-loaded-at');
 const route53Grid = document.querySelector('#route53-grid');
 const route53Summary = document.querySelector('#route53-summary');
 const route53LoadedAt = document.querySelector('#route53-loaded-at');
@@ -210,6 +219,9 @@ const neptuneGrid = document.querySelector('#neptune-grid');
 const neptuneSummary = document.querySelector('#neptune-summary');
 const neptuneLoadedAt = document.querySelector('#neptune-loaded-at');
 const neptuneConsoleRoot = document.getElementById('neptune-console-root');
+const wafv2Grid = document.querySelector('#wafv2-grid');
+const wafv2Summary = document.querySelector('#wafv2-summary');
+const wafv2LoadedAt = document.querySelector('#wafv2-loaded-at');
 
 let latestHealthData = null;
 
@@ -4806,6 +4818,200 @@ function renderGlue(data) {
   glueLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
 }
 
+function renderBatch(data) {
+  batchGrid.textContent = '';
+  renderSummary(data.summary, batchSummary);
+
+  const panels = [
+    renderDetailList('Compute environments', data.compute_environments || [], [
+      ['ARN', 'computeEnvironmentArn'],
+      ['State', 'state'],
+      ['Status', 'status'],
+      ['Status reason', 'statusReason'],
+      ['Type', 'type'],
+      ['Compute resources', 'computeResources'],
+      ['Service role', 'serviceRole'],
+    ]),
+    renderDetailList('Job queues', data.job_queues || [], [
+      ['ARN', 'jobQueueArn'],
+      ['State', 'state'],
+      ['Status', 'status'],
+      ['Priority', 'priority'],
+      ['Compute environment order', 'computeEnvironmentOrder'],
+    ]),
+    renderDetailList('Job definitions', data.job_definitions || [], [
+      ['ARN', 'jobDefinitionArn'],
+      ['Status', 'status'],
+      ['Type', 'type'],
+      ['Revision', 'revision'],
+      ['Container properties', 'containerProperties'],
+      ['Parameters', 'parameters'],
+    ]),
+    renderDetailList('Sampled jobs', data.jobs || [], [
+      ['Job ID', 'job_id'],
+      ['Queue', 'job_queue'],
+      ['Status', 'status'],
+      ['Created', 'created_at'],
+      ['Started', 'started_at'],
+      ['Stopped', 'stopped_at'],
+    ]),
+    renderDetailList('Supported from SDK', (data.supported_from_sdk || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
+  ];
+
+  batchGrid.append(...panels);
+  batchLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+}
+
+function renderEMR(data) {
+  emrGrid.textContent = '';
+  renderSummary(data.summary, emrSummary);
+
+  const panels = [
+    renderDetailList('Clusters', data.clusters || [], [
+      ['Cluster ID', 'id'],
+      ['State', 'state'],
+      ['Release label', 'release_label'],
+      ['Log URI', 'log_uri'],
+      ['Normalized instance hours', 'normalized_instance_hours'],
+      ['Instance groups', 'instance_group_count'],
+      ['Steps', 'step_count'],
+      ['Instance group details', 'instance_groups'],
+      ['Step details', 'steps'],
+      ['Details', 'details'],
+    ]),
+    renderDetailList('Security configurations', data.security_configurations || [], [
+      ['Created', 'CreationDateTime'],
+    ]),
+    renderDetailList('Supported from SDK', (data.supported_from_sdk || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Available SDK operations', (data.available_sdk_operations || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
+  ];
+
+  emrGrid.append(...panels);
+  emrLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+}
+
+function renderRDSData(data) {
+  rdsdataGrid.textContent = '';
+  renderSummary(data.summary, rdsdataSummary);
+
+  const panels = [
+    renderDetailList('Statement operations', data.statement_operations || [], [
+      ['Operation', 'name'],
+    ]),
+    renderDetailList('Transaction operations', data.transaction_operations || [], [
+      ['Operation', 'name'],
+    ]),
+    renderDetailList('Request fields', data.request_fields || [], [
+      ['Description', 'description'],
+    ]),
+    renderDetailList('Supported from SDK', (data.supported_from_sdk || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Available SDK operations', (data.available_sdk_operations || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
+  ];
+
+  rdsdataGrid.append(...panels);
+  rdsdataLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+}
+
+function renderWAFv2(data) {
+  wafv2Grid.textContent = '';
+  renderSummary(data.summary, wafv2Summary);
+
+  const panels = [
+    renderDetailList('Web ACLs', data.web_acls || [], [
+      ['ID', 'Id'],
+      ['ARN', 'ARN'],
+      ['Scope', 'Scope'],
+      ['Description', 'Description'],
+      ['Lock token', 'LockToken'],
+    ]),
+    renderDetailList('Rule groups', data.rule_groups || [], [
+      ['ID', 'Id'],
+      ['ARN', 'ARN'],
+      ['Scope', 'Scope'],
+      ['Description', 'Description'],
+      ['Lock token', 'LockToken'],
+    ]),
+    renderDetailList('IP sets', data.ip_sets || [], [
+      ['ID', 'Id'],
+      ['ARN', 'ARN'],
+      ['Scope', 'Scope'],
+      ['Description', 'Description'],
+      ['Lock token', 'LockToken'],
+    ]),
+    renderDetailList('Regex pattern sets', data.regex_pattern_sets || [], [
+      ['ID', 'Id'],
+      ['ARN', 'ARN'],
+      ['Scope', 'Scope'],
+      ['Description', 'Description'],
+      ['Lock token', 'LockToken'],
+    ]),
+    renderDetailList('Supported from SDK', (data.supported_from_sdk || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Available SDK operations', (data.available_sdk_operations || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
+  ];
+
+  wafv2Grid.append(...panels);
+  wafv2LoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+}
+
 function titleCaseService(name) {
   const labels = {
     acm: 'ACM',
@@ -4817,6 +5023,7 @@ function titleCaseService(name) {
     athena: 'Athena',
     'auto-scaling': 'Auto Scaling',
     autoscaling: 'Auto Scaling',
+    batch: 'AWS Batch',
     'bedrock-runtime': 'Bedrock Runtime',
     bedrockruntime: 'Bedrock Runtime',
     'bcm-data-exports': 'BCM Data Exports',
@@ -4835,6 +5042,7 @@ function titleCaseService(name) {
     ecr: 'ECR',
     ecs: 'ECS',
     eks: 'EKS',
+    emr: 'EMR',
     elasticache: 'ElastiCache',
     elasticloadbalancing: 'Elastic Load Balancing',
     elb: 'Classic ELB',
@@ -4856,6 +5064,8 @@ function titleCaseService(name) {
     pipes: 'EventBridge Pipes',
     pricing: 'AWS Price List',
     rds: 'RDS',
+    rdsdata: 'RDS Data API',
+    'rds-data': 'RDS Data API',
     route53: 'Route 53',
     resourcegroupstagging: 'Resource Groups Tagging',
     resourcegroupstaggingapi: 'Resource Groups Tagging',
@@ -4872,6 +5082,7 @@ function titleCaseService(name) {
     tagging: 'Resource Groups Tagging',
     textract: 'Textract',
     transfer: 'Transfer Family',
+    wafv2: 'WAF v2',
   };
 
   return labels[name] || name
@@ -4924,6 +5135,7 @@ function resourceServiceKey(resource) {
     'cognito-resources': 'cognito-idp',
     'athena-resources': 'athena',
     'autoscaling-resources': 'autoscaling',
+    'batch-resources': 'batch',
     'dynamodb-tables': 'dynamodb',
     'ec2-resources': 'ec2',
     'ecr-resources': 'ecr',
@@ -4931,6 +5143,7 @@ function resourceServiceKey(resource) {
     'eks-resources': 'eks',
     'elasticache-resources': 'elasticache',
     'elasticloadbalancing-resources': 'elasticloadbalancing',
+    'emr-resources': 'emr',
     'eventbridge-resources': 'events',
     'firehose-resources': 'firehose',
     'glue-resources': 'glue',
@@ -4959,6 +5172,7 @@ function resourceServiceKey(resource) {
     'log-groups': 'logs',
     'neptune-resources': 'neptune',
     'rds-resources': 'rds',
+    'rdsdata-resources': 'rdsdata',
     's3-buckets': 's3',
     'secrets': 'secretsmanager',
     'ssm-resources': 'ssm',
@@ -4969,6 +5183,7 @@ function resourceServiceKey(resource) {
     'stepfunctions-resources': 'stepfunctions',
     'textract-resources': 'textract',
     'transfer-resources': 'transfer',
+    'wafv2-resources': 'wafv2',
   };
 
   const key = keys[resource.name] || (
@@ -5487,12 +5702,15 @@ const servicePages = [
   { key: 'ssm', label: 'SSM', grid: ssmGrid, apiPath: '/api/ssm/', render: renderSsm },
   { key: 'athena', label: 'Athena', grid: athenaGrid, apiPath: '/api/athena/', render: renderAthena },
   { key: 'autoscaling', label: 'Auto Scaling', grid: autoscalingGrid, apiPath: '/api/autoscaling/', render: renderAutoScaling },
+  { key: 'batch', label: 'AWS Batch', grid: batchGrid, apiPath: '/api/batch/', render: renderBatch },
   { key: 'bedrockruntime', label: 'Bedrock Runtime', grid: bedrockruntimeGrid, apiPath: '/api/bedrockruntime/', render: renderBedrockRuntime },
   { key: 'sns', label: 'SNS', grid: snsGrid, apiPath: '/api/sns/', render: renderSNS },
   { key: 'ses', label: 'SES', grid: sesGrid, apiPath: '/api/ses/', render: renderSES },
   { key: 'cloudformation', label: 'CloudFormation', grid: cloudformationGrid, apiPath: '/api/cloudformation/', render: renderCloudFormation },
   { key: 'ecr', label: 'ECR', grid: ecrGrid, apiPath: '/api/ecr/', render: renderECR },
+  { key: 'emr', label: 'EMR', grid: emrGrid, apiPath: '/api/emr/', render: renderEMR },
   { key: 'rds', label: 'RDS', grid: rdsGrid, apiPath: '/api/rds/', render: renderRDS },
+  { key: 'rdsdata', label: 'RDS Data API', grid: rdsdataGrid, apiPath: '/api/rdsdata/', render: renderRDSData },
   { key: 'backup', label: 'Backup', grid: backupGrid, apiPath: '/api/backup/', render: renderBackup },
   { key: 'route53', label: 'Route 53', grid: route53Grid, apiPath: '/api/route53/', render: renderRoute53 },
   { key: 'transfer', label: 'Transfer Family', grid: transferGrid, apiPath: '/api/transfer/', render: renderTransfer },
@@ -5502,6 +5720,7 @@ const servicePages = [
   { key: 'textract', label: 'Textract', grid: textractGrid, apiPath: '/api/textract/', render: renderTextract },
   { key: 'transcribe', label: 'Transcribe', grid: transcribeGrid, apiPath: '/api/transcribe/', render: renderTranscribe },
   { key: 'glue', label: 'Glue', grid: glueGrid, apiPath: '/api/glue/', render: renderGlue },
+  { key: 'wafv2', label: 'WAF v2', grid: wafv2Grid, apiPath: '/api/wafv2/', render: renderWAFv2 },
 ];
 
 function activeServicePage() {

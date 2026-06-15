@@ -160,6 +160,7 @@ Core architecture files:
 - Expanded the EKS workbench with managed node group create and delete workflows on top of existing node group inventory.
 - Refreshed Floci 1.5.24 coverage notes across Cognito, Glue, KMS, S3, SES, Athena, EC2, ELB v2, and ElastiCache, and added Glue UpdateDatabase plus BatchDeleteTable workflows.
 - Reviewed Floci 1.5.25 and refreshed existing-service notes for RDS provisioning, Glue partitions/statistics, CloudFormation custom resources and VPC/subnet provisioning, STS secret persistence, SQS message sizing and delayed-message counts, S3 conformance, SES v2, ELBv2, ECS, Cognito, Athena, AppConfig, MSK, and EC2.
+- Added Floci 1.5.25 inventory coverage and service pages for the four new services: EMR, WAF v2, AWS Batch, and RDS Data API.
 
 ## Near-Term Priorities
 
