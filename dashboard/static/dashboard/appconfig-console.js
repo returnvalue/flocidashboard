@@ -5,7 +5,24 @@ const AppConfigConsole = (() => {
   const root = document.getElementById('appconfig-console-root');
   const summaryEl = document.getElementById('appconfig-summary');
   const loadedAtEl = document.getElementById('appconfig-loaded-at');
-  const state = { inventory: null, selectedApplicationId: '', configurationToken: '', lastResult: null };
+  const ACTION_FALLBACKS = [
+    { name: 'create_application', label: 'Create application', kind: 'create', safety: 'mutating' },
+    { name: 'delete_application', label: 'Delete application', kind: 'delete', safety: 'destructive', confirm: 'Delete this AppConfig application?' },
+    { name: 'create_environment', label: 'Create environment', kind: 'create', safety: 'mutating' },
+    { name: 'create_configuration_profile', label: 'Create configuration profile', kind: 'create', safety: 'mutating' },
+    { name: 'create_hosted_configuration_version', label: 'Create hosted version', kind: 'create', safety: 'mutating' },
+    { name: 'create_deployment_strategy', label: 'Create deployment strategy', kind: 'create', safety: 'mutating' },
+    { name: 'start_deployment', label: 'Start deployment', kind: 'execute', safety: 'mutating' },
+    { name: 'start_configuration_session', label: 'Start configuration session', kind: 'execute', safety: 'mutating' },
+    { name: 'get_latest_configuration', label: 'Get latest configuration', kind: 'read', safety: 'safe' },
+  ];
+  const ACTION_LABELS = {
+    create_configuration_profile: 'Create profile',
+    create_hosted_configuration_version: 'Create hosted version',
+    create_deployment_strategy: 'Create strategy',
+    start_configuration_session: 'Start session',
+  };
+  const state = { inventory: null, selectedApplicationId: '', configurationToken: '', lastResult: null, actions: ACTION_FALLBACKS, actionsLoaded: false };
   const el = ui.el;
   const apiJson = ui.apiJson;
   const btn = ui.button;
@@ -22,6 +39,25 @@ const AppConfigConsole = (() => {
   function textarea(value = '', placeholder = '') { const node = document.createElement('textarea'); node.value = value; node.placeholder = placeholder; return node; }
   function field(form, label, control) { form.append(el('label', null, label), control); }
   function renderSummary(summary) { ui.renderSummary(summary, summaryEl, { serviceKey: 'appconfig', targets: { applications: 'Applications', environments: 'Environments', configuration_profiles: 'Configuration profiles', hosted_versions: 'Hosted configuration versions', deployment_strategies: 'Deployment strategies', deployments: 'Deployments' } }); }
+  function serviceActions(names) {
+    const byName = new Map(state.actions.map((action) => [action.name, action]));
+    return names.map((name) => byName.get(name)).filter(Boolean);
+  }
+  function renderActionButtons(names, handlers) {
+    return ui.renderActionButtons(serviceActions(names), handlers, { classPrefix: 'appconfig', labels: ACTION_LABELS });
+  }
+  async function loadActions() {
+    if (state.actionsLoaded) return;
+    try {
+      const payload = await apiJson('/api/services/');
+      const service = (payload.services || []).find((item) => item.key === 'appconfig');
+      if (service?.actions?.length) state.actions = service.actions;
+    } catch (_error) {
+      state.actions = ACTION_FALLBACKS;
+    } finally {
+      state.actionsLoaded = true;
+    }
+  }
 
   function showCreateApplication() {
     const form = el('div', 'appconfig-modal-form'); const name = input('my-app'); const description = input('', 'Local application configuration');
@@ -99,8 +135,8 @@ const AppConfigConsole = (() => {
     });
   }
 
-  async function deleteSelectedApplication() {
-    const application = selectedApplication(); if (!application || !window.confirm(`Delete AppConfig application ${application.name}?`)) return;
+  async function deleteSelectedApplication(options = {}) {
+    const application = selectedApplication(); if (!application || (options.confirm !== false && !ui.confirmAction(`Delete AppConfig application ${application.name}?`))) return;
     state.lastResult = await apiJson(`/api/appconfig/applications/${encodeURIComponent(application.id)}/`, { method: 'DELETE' }); state.selectedApplicationId = ''; toast('Application deleted'); await refresh();
   }
 
@@ -127,7 +163,14 @@ const AppConfigConsole = (() => {
     const content = el('div', 'appconfig-detail');
     if (!application) content.append(el('p', 'appconfig-empty', 'Create an application, then add an environment and hosted configuration profile.'));
     else {
-      const actions = el('div', 'appconfig-action-row'); actions.append(btn('Create environment', null, () => showCreateEnvironment(application)), btn('Create profile', 'appconfig-btn-secondary', () => showCreateProfile(application)), btn('Create hosted version', 'appconfig-btn-secondary', () => showCreateVersion(application)), btn('Start deployment', 'appconfig-btn-secondary', () => showStartDeployment(application)), btn('Start session', 'appconfig-btn-secondary', () => showStartSession(application)), btn('Delete application', 'appconfig-btn-danger', () => deleteSelectedApplication().catch((error) => toast(error.message, true)))); content.append(actions);
+      const actions = renderActionButtons(['create_environment', 'create_configuration_profile', 'create_hosted_configuration_version', 'start_deployment', 'start_configuration_session', 'delete_application'], {
+        create_environment: () => showCreateEnvironment(application),
+        create_configuration_profile: () => showCreateProfile(application),
+        create_hosted_configuration_version: () => showCreateVersion(application),
+        start_deployment: () => showStartDeployment(application),
+        start_configuration_session: () => showStartSession(application),
+        delete_application: () => deleteSelectedApplication({ confirm: false }).catch((error) => toast(error.message, true)),
+      }); content.append(actions);
       content.append(renderCards('Environments', application.environments || [], [['ID', 'id'], ['State', 'state'], ['Deployments', 'deployment_count']]));
       content.append(renderCards('Configuration profiles', application.configuration_profiles || [], [['ID', 'id'], ['Location URI', 'location_uri'], ['Type', 'type'], ['Hosted versions', 'hosted_version_count']]));
     }
@@ -138,12 +181,17 @@ const AppConfigConsole = (() => {
 
   function render() {
     if (!root) return; root.textContent = '';
-    root.append(toolbar([btn('Create application', null, showCreateApplication), btn('Create strategy', 'appconfig-btn-secondary', showCreateStrategy), btn('Get latest configuration', 'appconfig-btn-secondary', showGetLatest), btn('Refresh', 'appconfig-btn-secondary', () => refresh().catch((error) => toast(error.message, true)))], [el('span', 'appconfig-toolbar-note', state.configurationToken ? 'A configuration session token is ready' : 'Management plane + AppConfigData')]));
+    const actions = renderActionButtons(['create_application', 'create_deployment_strategy', 'get_latest_configuration'], {
+      create_application: showCreateApplication,
+      create_deployment_strategy: showCreateStrategy,
+      get_latest_configuration: showGetLatest,
+    });
+    root.append(toolbar([...actions.children, btn('Refresh', 'appconfig-btn-secondary', () => refresh().catch((error) => toast(error.message, true)))], [el('span', 'appconfig-toolbar-note', state.configurationToken ? 'A configuration session token is ready' : 'Management plane + AppConfigData')]));
     const workbench = el('div', 'appconfig-workbench'); workbench.append(renderApplicationList(), renderDetail(selectedApplication())); root.append(workbench);
     if (loadedAtEl) loadedAtEl.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
   }
 
-  async function refresh() { const data = await apiJson('/api/appconfig/'); state.inventory = data; if (!selectedApplication() && applications().length) state.selectedApplicationId = applications()[0].id; renderSummary(data.summary || {}); render(); }
+  async function refresh() { const [data] = await Promise.all([apiJson('/api/appconfig/'), loadActions()]); state.inventory = data; if (!selectedApplication() && applications().length) state.selectedApplicationId = applications()[0].id; renderSummary(data.summary || {}); render(); }
   function init() { if (!root) return; root.append(el('div', 'appconfig-empty', 'Loading...')); refresh().catch((error) => toast(error.message, true)); }
   return { init, refresh };
 })();

@@ -241,6 +241,17 @@ Important conventions:
 - Keep destructive actions explicit. Add destructive action metadata with confirmation text.
 - Add focused tests for registry metadata, page rendering, and each new action endpoint.
 
+New service checklist:
+
+- Add the service to `dashboard/services.py` with title, category, maturity, docs URL when available, tags, optional static assets, and action metadata if it has interactive workflows.
+- Add or extend inventory loading in `dashboard/aws.py`, including a graceful empty/error shape for fresh local Floci instances.
+- Add the API route and view in `dashboard/urls.py` and `dashboard/views.py`, or a focused `<service>_views.py` when the service needs action endpoints.
+- Confirm the generic service page renders via `dashboard/templates/dashboard/service.html`; add service-specific JS/CSS only when the workflow needs it.
+- Register homepage resource loading in the resource loader map when the service should appear on the home dashboard.
+- Add focused tests for registry metadata, service page rendering, inventory/API behavior, and each action endpoint.
+- Run JS syntax checks for any changed console assets; `dashboard.tests.StaticJavaScriptTests` also checks dashboard JS during the test suite.
+- Update `ROADMAP.md` with the coverage note, maturity change, or follow-up gaps so contributors can see what changed and what remains.
+
 Recommended checks before opening a PR:
 
 ```bash

@@ -90,6 +90,10 @@ const ServiceConsole = (() => {
     return `${serviceKey}-section-${sectionSlug(label)}`;
   }
 
+  function emptySectionText(title) {
+    return `No ${title} found yet.`;
+  }
+
   function renderSummary(summary, container, options = {}) {
     if (!container) {
       return;
@@ -203,7 +207,7 @@ const ServiceConsole = (() => {
     section.append(heading);
 
     if (normalizedItems.length === 0) {
-      section.append(el('p', 'muted empty-state', `No ${title.toLowerCase()} found.`));
+      section.append(el('p', 'muted empty-state', emptySectionText(title)));
       return section;
     }
 
@@ -241,6 +245,53 @@ const ServiceConsole = (() => {
     rightItems.forEach((item) => right.append(item));
     bar.append(left, right);
     return bar;
+  }
+
+  function confirmAction(message) {
+    return window.confirm(message);
+  }
+
+  function actionButtonClass(action, classPrefix) {
+    if (action.safety === 'destructive' || action.kind === 'delete') {
+      return `${classPrefix}-btn-danger`;
+    }
+    if (action.safety === 'safe' || action.kind === 'read') {
+      return `${classPrefix}-btn-secondary`;
+    }
+    return null;
+  }
+
+  function renderActionButtons(actions, handlers = {}, options = {}) {
+    const classPrefix = options.classPrefix || 'service';
+    const row = el('div', options.className || `${classPrefix}-action-row`);
+    const labels = options.labels || {};
+    (actions || []).forEach((action) => {
+      if (!action || !action.name || !action.label) {
+        return;
+      }
+      const handler = handlers[action.name];
+      if (!handler && !options.includeDisabled) {
+        return;
+      }
+      const node = button(labels[action.name] || action.label, actionButtonClass(action, classPrefix), async (event) => {
+        if (!handler) {
+          return;
+        }
+        if (action.confirm && !confirmAction(action.confirm)) {
+          return;
+        }
+        await handler(action, event);
+      });
+      node.dataset.actionName = action.name;
+      node.dataset.actionKind = action.kind || '';
+      node.dataset.actionSafety = action.safety || '';
+      node.disabled = !handler;
+      if (action.description) {
+        node.title = action.description;
+      }
+      row.append(node);
+    });
+    return row;
   }
 
   function openModal(title, bodyNode, confirmLabel, onConfirm, options = {}) {
@@ -281,6 +332,7 @@ const ServiceConsole = (() => {
     addField,
     apiJson,
     button,
+    confirmAction,
     el,
     formatBytes,
     formatDate,
@@ -288,6 +340,7 @@ const ServiceConsole = (() => {
     displayValue,
     openModal,
     parsedJsonString,
+    renderActionButtons,
     renderDetailList,
     renderSummary,
     sectionIdForLabel,

@@ -161,78 +161,26 @@ Core architecture files:
 - Refreshed Floci 1.5.24 coverage notes across Cognito, Glue, KMS, S3, SES, Athena, EC2, ELB v2, and ElastiCache, and added Glue UpdateDatabase plus BatchDeleteTable workflows.
 - Reviewed Floci 1.5.25 and refreshed existing-service notes for RDS provisioning, Glue partitions/statistics, CloudFormation custom resources and VPC/subnet provisioning, STS secret persistence, SQS message sizing and delayed-message counts, S3 conformance, SES v2, ELBv2, ECS, Cognito, Athena, AppConfig, MSK, and EC2.
 - Added Floci 1.5.25 inventory coverage and service pages for the four new services: EMR, WAF v2, AWS Batch, and RDS Data API.
+- Added the Service Matrix page powered by `dashboard/services.py`, with homepage-order service rows, linked service names, API paths, maturity, shared console status, action counts, tags, and a horizontal coverage summary.
+- Refined homepage service filtering by removing the unused search box, keeping the selector compact, closing it on outside clicks, preserving selected-service loading, and making Refresh the explicit cache-bypass path.
+- Added short-cache headers for `/api/services/`, static JS cache-busting for dashboard and service console assets, and tests for selected-service resource loading.
+- Completed a service page consistency pass for generic summary links, zero-value rendering, targeted summary-card anchors, and clearer inventory empty states.
+- Hardened the shared console shell with `confirmAction`, registry-shaped `renderActionButtons`, destructive confirmation reuse, and pilot migrations for Transcribe and AppConfig action rows.
+- Added JS syntax checks across dashboard static JavaScript files through `dashboard.tests.StaticJavaScriptTests`.
+- Added a contributor new-service checklist to `README.md` covering registry entries, inventory/API wiring, service pages, optional static assets, resource loader registration, tests, JS checks, and roadmap notes.
 
 ## Near-Term Priorities
 
 These are the most likely next steps because they build directly on the current codebase.
 
-### 1. Service Matrix
+Recently completed from the previous build order:
 
-Create a public coverage page powered by `dashboard/services.py`.
+- Service Matrix.
+- Home page filtering follow-through.
+- Service Page Consistency Pass.
+- Shared Console Shell hardening first pass.
 
-Feasible first version:
-
-- List service name, category, page URL, API URL, maturity, shared console usage, and available actions.
-- Show which services are inventory-only vs interactive workbenches.
-- Link each row to the service page.
-- Keep the data manually maintained in the registry for now.
-
-Why it matters:
-
-- Contributors get a clear map of what exists.
-- Users can see dashboard coverage without clicking every service.
-- The service registry becomes visibly useful.
-
-### 2. Home Page Filtering Follow-Through
-
-Improve the new service selector and filtered resource loading.
-
-Feasible first version:
-
-- Add a compact search field inside the selector if the service list becomes hard to scan.
-- Consider a short-lived cache for `/api/services/`, since registry metadata changes only with app code.
-- Add focused tests for selected-service query parsing and resource-loader filtering as the loader map grows.
-- Keep the Refresh button as the user's explicit cache-bypass and recheck action.
-
-Why it matters:
-
-- The dashboard now avoids probing every supported service on first load.
-- Users can tune the home page to the services they are actively testing.
-
-### 3. Service Page Consistency Pass
-
-Make the generic service pages feel more consistent without rebuilding every service.
-
-Feasible first version:
-
-- Ensure summary cards render `0` instead of `-` or blank for empty numeric values.
-- Keep anchor targets stable for read-only panels.
-- Add better empty states for inventory-only services.
-- Standardize supported-operation and configuration panels where the data shape is simple.
-- Avoid large rewrites of `dashboard.js` until repeated patterns are clear.
-
-Why it matters:
-
-- The S3/SQS workbench pages now feel more polished than older pages.
-- A consistency pass improves the whole app without needing a new workbench.
-
-### 4. Shared Console Shell Hardening
-
-Improve shared frontend helpers based on what the current interactive workbenches now share.
-
-Feasible first version:
-
-- Move repeated toolbar, modal, empty-state, and destructive-confirmation patterns into `service-console.js`.
-- Add small helper APIs for rendering action buttons from registry metadata.
-- Keep service-specific renderers where workflows differ.
-- Add JS syntax checks for every service console file.
-
-Why it matters:
-
-- The next workbench should require less custom code than the early service-specific consoles.
-- Contributor changes become easier to review.
-
-### 5. Action API Follow-Through
+### 1. Action API Follow-Through
 
 Make interactive endpoint behavior more consistent.
 
@@ -249,7 +197,7 @@ Why it matters:
 - Tutorial mode and future workbenches can rely on predictable action behavior.
 - Users get consistent error toasts and response shapes.
 
-### 6. Environment Details Page
+### 2. Environment Details Page
 
 Expand the current status strip into a simple environment page.
 
@@ -265,7 +213,7 @@ Why it matters:
 - Many local debugging problems start with endpoint or credential confusion.
 - This is practical and low-risk.
 
-### 7. IAM Follow-Ups
+### 3. IAM Follow-Ups
 
 Keep improving the new IAM workbench.
 
@@ -282,7 +230,7 @@ Why it matters:
 - IAM is central to local AWS debugging.
 - The current workbench is already useful, and a few focused additions would make it a stronger identity debugger.
 
-### 8. Step Functions Follow-Ups
+### 4. Step Functions Follow-Ups
 
 Keep improving the new Step Functions execution workbench.
 
@@ -297,7 +245,7 @@ Why it matters:
 
 - Step Functions is a natural workflow debugger for local Lambda and service-integration testing.
 
-### 9. S3 Follow-Ups
+### 5. S3 Follow-Ups
 
 Keep improving the existing S3 workbench.
 
@@ -313,7 +261,7 @@ Why it matters:
 
 - S3 is the reference workbench and likely a high-traffic page.
 
-### 10. EC2 Follow-Ups
+### 6. EC2 Follow-Ups
 
 Keep improving the new EC2 instance workbench.
 
@@ -330,7 +278,7 @@ Why it matters:
 - EC2 is now a real local compute workflow in Floci.
 - Launch, lifecycle, key import, IMDS, and networking hints make the dashboard a better local debugger than raw inventory alone.
 
-### 11. EventBridge Follow-Ups
+### 7. EventBridge Follow-Ups
 
 Keep improving the new EventBridge event sender.
 
@@ -347,7 +295,7 @@ Why it matters:
 - EventBridge sits between many existing interactive workbenches.
 - Better cross-service links would turn it into a practical event-routing debugger.
 
-### 12. API Gateway Follow-Ups
+### 8. API Gateway Follow-Ups
 
 Keep improving the new API Gateway request workbench.
 
@@ -363,7 +311,7 @@ Why it matters:
 - API Gateway is now the local HTTP front door for Lambda and HTTP proxy workflows.
 - Replay and cross-service links would make it a stronger request debugger.
 
-### 13. Kinesis Follow-Ups
+### 9. Kinesis Follow-Ups
 
 Keep improving the new Kinesis stream workbench.
 
@@ -379,7 +327,7 @@ Why it matters:
 
 - Kinesis now completes the event/data-stream testing loop alongside SQS, SNS, EventBridge, Lambda, and CloudWatch.
 
-### 14. Secrets Manager And SSM Follow-Ups
+### 10. Secrets Manager And SSM Follow-Ups
 
 Keep improving local configuration and secret debugging.
 
@@ -414,20 +362,16 @@ These ideas are still interesting, but they likely need more design, Floci suppo
 
 This order is intentionally modest and can change:
 
-1. Service Matrix.
-2. Home page filtering follow-through.
-3. Service Page Consistency Pass.
-4. Shared Console Shell hardening.
-5. Action API follow-through.
-6. Environment Details page.
-7. IAM follow-ups.
-8. Step Functions follow-ups.
-9. S3 follow-ups.
-10. EC2 follow-ups.
-11. EventBridge follow-ups.
-12. API Gateway follow-ups.
-13. Kinesis follow-ups.
-14. Secrets Manager and SSM follow-ups.
+1. Action API follow-through.
+2. Environment Details page.
+3. IAM follow-ups.
+4. Step Functions follow-ups.
+5. S3 follow-ups.
+6. EC2 follow-ups.
+7. EventBridge follow-ups.
+8. API Gateway follow-ups.
+9. Kinesis follow-ups.
+10. Secrets Manager and SSM follow-ups.
 
 ## Contributor Checklist
 

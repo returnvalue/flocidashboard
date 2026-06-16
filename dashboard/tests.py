@@ -1,5 +1,8 @@
 import json
 import os
+import shutil
+import subprocess
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from botocore.exceptions import ClientError, NoCredentialsError, ProfileNotFound
@@ -8,8 +11,29 @@ from django.test import SimpleTestCase
 from django.urls import reverse
 
 from .actions import error_payload, error_status, handle_action_error, json_error
-from .aws import FlociClientFactory, cloudformation_inventory, rds_inventory
+from .aws import FlociClientFactory, ResourceResult, cloudformation_inventory, list_resources as aws_list_resources, rds_inventory
 from .services import SERVICE_PAGES, SERVICE_REGISTRY, SERVICES
+
+
+class StaticJavaScriptTests(SimpleTestCase):
+    def test_dashboard_javascript_files_are_valid(self):
+        node = shutil.which('node')
+        if not node:
+            self.skipTest('Node.js is required for JavaScript syntax checks.')
+
+        static_dir = Path(__file__).resolve().parent / 'static' / 'dashboard'
+        scripts = sorted(static_dir.glob('*.js'))
+        self.assertTrue(scripts)
+
+        for script in scripts:
+            with self.subTest(script=script.name):
+                result = subprocess.run(
+                    [node, '--check', str(script)],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
 
 
 class DashboardTemplateTests(SimpleTestCase):
@@ -19,8 +43,25 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<title>Floci Dashboard</title>', html=True)
         self.assertContains(response, 'id="service-grid"')
+        self.assertContains(response, reverse('dashboard:service-matrix'))
         self.assertContains(response, 'dashboard/styles.css')
         self.assertContains(response, 'dashboard/dashboard.js')
+
+    def test_service_matrix_renders_registry_coverage(self):
+        response = self.client.get(reverse('dashboard:service-matrix'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '<title>Service Matrix - Floci Dashboard</title>', html=True)
+        self.assertContains(response, 'Service Matrix')
+        self.assertContains(response, f'{len(SERVICES)} registered services')
+        self.assertContains(response, 'S3')
+        self.assertContains(response, '/api/s3/')
+        self.assertContains(response, 'href="/service/s3/"')
+        self.assertContains(response, 'Interactive Workbench')
+        self.assertContains(response, 'dashboard/s3-console.js', count=0)
+        self.assertNotContains(response, '<th scope="col">Page</th>', html=True)
+        content = response.content.decode()
+        self.assertLess(content.index('href="/service/iam/"'), content.index('href="/service/s3/"'))
 
     def test_all_service_pages_render(self):
         for key, service in SERVICE_PAGES.items():
@@ -334,6 +375,8 @@ class ServiceRegistryApiTests(SimpleTestCase):
         self.assertEqual(elasticache_actions['create_replication_group']['kind'], 'create')
         self.assertEqual(elasticache_actions['delete_replication_group']['safety'], 'destructive')
         self.assertEqual(elasticache_actions['validate_iam_auth_token']['safety'], 'safe')
+        self.assertIn('max-age=60', response.headers['Cache-Control'])
+        self.assertIn('public', response.headers['Cache-Control'])
         self.assertEqual(services['opensearch']['maturity'], 'interactive_workbench')
         self.assertEqual(services['opensearch']['console_js'], 'dashboard/opensearch-console.js')
         opensearch_actions = {action['name']: action for action in services['opensearch']['actions']}
@@ -451,6 +494,22 @@ class ServiceRegistryApiTests(SimpleTestCase):
         self.assertEqual(response['Content-Type'], 'application/json')
         self.assertEqual(response.json()['resources'], [])
         self.assertIn('invalid XML received', response.json()['error'])
+
+
+class ResourceLoaderFilterTests(SimpleTestCase):
+    @patch('dashboard.aws._resource')
+    def test_list_resources_filters_loaders_by_selected_services(self, resource):
+        resource.side_effect = lambda name, label, loader: ResourceResult(
+            name=name,
+            label=label,
+            count=0,
+            items=[],
+        )
+
+        results = aws_list_resources({'s3', 'lambda'})
+
+        self.assertEqual([result.name for result in results], ['s3-buckets', 'lambda-functions'])
+        self.assertEqual(resource.call_count, 2)
 
 
 class FlociClientFactoryTests(SimpleTestCase):

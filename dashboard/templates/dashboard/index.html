@@ -5,7 +5,10 @@
     <div>
       <p class="eyebrow">Floci Dashboard / Local AWS-compatible environment</p>
     </div>
-    <button id="refresh" type="button" aria-label="Refresh services">Refresh</button>
+    <div class="topbar-actions">
+      <a class="secondary-action" href="{% url 'dashboard:service-matrix' %}">Service Matrix</a>
+      <button id="refresh" type="button" aria-label="Refresh services">Refresh</button>
+    </div>
   </header>
 
   {% include 'dashboard/_status.html' %}

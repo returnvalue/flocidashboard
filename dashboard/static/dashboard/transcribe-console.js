@@ -6,7 +6,23 @@ const TranscribeConsole = (() => {
   const breadcrumbsEl = document.getElementById('transcribe-breadcrumbs');
   const summaryEl = document.getElementById('transcribe-summary');
   const loadedAtEl = document.getElementById('transcribe-loaded-at');
-  const state = { inventory: null, selectedJob: '', lastResult: null };
+  const ACTION_FALLBACKS = [
+    { name: 'start_transcription_job', label: 'Start transcription job', kind: 'execute', safety: 'mutating' },
+    { name: 'get_transcription_job', label: 'Get transcription job', kind: 'read', safety: 'safe' },
+    { name: 'delete_transcription_job', label: 'Delete transcription job', kind: 'delete', safety: 'destructive', confirm: 'Delete this transcription job?' },
+    { name: 'create_vocabulary', label: 'Create vocabulary', kind: 'create', safety: 'mutating' },
+    { name: 'get_vocabulary', label: 'Get vocabulary', kind: 'read', safety: 'safe' },
+    { name: 'delete_vocabulary', label: 'Delete vocabulary', kind: 'delete', safety: 'destructive', confirm: 'Delete this vocabulary?' },
+  ];
+  const ACTION_LABELS = {
+    start_transcription_job: 'Start job',
+    get_transcription_job: 'Get job',
+    create_vocabulary: 'Create vocabulary',
+    get_vocabulary: 'Get vocabulary',
+    delete_transcription_job: 'Delete job',
+    delete_vocabulary: 'Delete',
+  };
+  const state = { inventory: null, selectedJob: '', lastResult: null, actions: ACTION_FALLBACKS, actionsLoaded: false };
   const el = ui.el;
   const apiJson = ui.apiJson;
   const btn = ui.button;
@@ -25,6 +41,25 @@ const TranscribeConsole = (() => {
   }
   function renderSummary(summary) {
     ui.renderSummary(summary, summaryEl, { serviceKey: 'transcribe', targets: { transcription_jobs: 'Transcription jobs', vocabularies: 'Vocabularies', available_sdk_operations: 'Available SDK operations' } });
+  }
+  function serviceActions(names) {
+    const byName = new Map(state.actions.map((action) => [action.name, action]));
+    return names.map((name) => byName.get(name)).filter(Boolean);
+  }
+  function renderActionButtons(names, handlers) {
+    return ui.renderActionButtons(serviceActions(names), handlers, { classPrefix: 'transcribe', labels: ACTION_LABELS });
+  }
+  async function loadActions() {
+    if (state.actionsLoaded) return;
+    try {
+      const payload = await apiJson('/api/services/');
+      const service = (payload.services || []).find((item) => item.key === 'transcribe');
+      if (service?.actions?.length) state.actions = service.actions;
+    } catch (_error) {
+      state.actions = ACTION_FALLBACKS;
+    } finally {
+      state.actionsLoaded = true;
+    }
   }
   function renderBreadcrumbs() {
     if (!breadcrumbsEl) return;
@@ -72,12 +107,12 @@ const TranscribeConsole = (() => {
       state.lastResult = data; close(); toast('Vocabulary loaded'); render();
     });
   }
-  async function deleteJob(job) {
-    const name = jobName(job); if (!window.confirm(`Delete transcription job ${name}?`)) return;
+  async function deleteJob(job, options = {}) {
+    const name = jobName(job); if (options.confirm !== false && !ui.confirmAction(`Delete transcription job ${name}?`)) return;
     state.lastResult = await apiJson(`/api/transcribe/jobs/${encodeURIComponent(name)}/`, { method: 'DELETE' }); state.selectedJob = ''; toast('Transcription job deleted'); await refresh();
   }
-  async function deleteVocabulary(vocabulary) {
-    const name = vocabularyName(vocabulary); if (!window.confirm(`Delete vocabulary ${name}?`)) return;
+  async function deleteVocabulary(vocabulary, options = {}) {
+    const name = vocabularyName(vocabulary); if (options.confirm !== false && !ui.confirmAction(`Delete vocabulary ${name}?`)) return;
     state.lastResult = await apiJson(`/api/transcribe/vocabularies/${encodeURIComponent(name)}/`, { method: 'DELETE' }); toast('Vocabulary deleted'); await refresh();
   }
   function renderJobList() {
@@ -103,7 +138,10 @@ const TranscribeConsole = (() => {
     if (!job) content.append(el('p', 'transcribe-empty', 'Start a transcription job or refresh after your app creates one.'));
     else {
       const facts = document.createElement('dl'); ui.addField(facts, 'Status', job.TranscriptionJobStatus); ui.addField(facts, 'Language', job.LanguageCode); ui.addField(facts, 'Created', job.CreationTime); ui.addField(facts, 'Completed', job.CompletionTime); ui.addField(facts, 'Output', job.Transcript);
-      const actions = el('div', 'transcribe-action-row'); actions.append(btn('Get job', null, () => showGetJobModal(job)), btn('Delete job', 'transcribe-btn-danger', () => deleteJob(job).catch((error) => toast(error.message, true))));
+      const actions = renderActionButtons(['get_transcription_job', 'delete_transcription_job'], {
+        get_transcription_job: () => showGetJobModal(job),
+        delete_transcription_job: () => deleteJob(job, { confirm: false }).catch((error) => toast(error.message, true)),
+      });
       content.append(facts, actions);
     }
     content.append(el('h3', null, 'Custom vocabularies'));
@@ -112,17 +150,26 @@ const TranscribeConsole = (() => {
     vocabularies().forEach((vocabulary) => {
       const card = el('article', 'transcribe-card'); card.append(el('h3', null, vocabularyName(vocabulary)));
       const dl = document.createElement('dl'); ui.addField(dl, 'Language', vocabulary.LanguageCode); ui.addField(dl, 'State', vocabulary.VocabularyState); ui.addField(dl, 'Last modified', vocabulary.LastModifiedTime); card.append(dl);
-      const actions = el('div', 'transcribe-action-row'); actions.append(btn('Get', null, () => showGetVocabularyModal(vocabulary)), btn('Delete', 'transcribe-btn-danger', () => deleteVocabulary(vocabulary).catch((error) => toast(error.message, true)))); card.append(actions); list.append(card);
+      const actions = renderActionButtons(['get_vocabulary', 'delete_vocabulary'], {
+        get_vocabulary: () => showGetVocabularyModal(vocabulary),
+        delete_vocabulary: () => deleteVocabulary(vocabulary, { confirm: false }).catch((error) => toast(error.message, true)),
+      }); card.append(actions); list.append(card);
     });
     content.append(list); const result = renderLastResult(); if (result) content.append(result); panel.append(content); return panel;
   }
   function renderWorkbench() {
     const container = el('div');
-    container.append(toolbar([btn('Start job', null, showStartJobModal), btn('Get job', 'transcribe-btn-secondary', () => showGetJobModal()), btn('Create vocabulary', 'transcribe-btn-secondary', showCreateVocabularyModal), btn('Get vocabulary', 'transcribe-btn-secondary', () => showGetVocabularyModal()), btn('Refresh', 'transcribe-btn-secondary', () => refresh().catch((error) => toast(error.message, true)))], [el('span', 'transcribe-toolbar-note', 'Jobs complete and vocabularies become ready immediately')]));
+    const actions = renderActionButtons(['start_transcription_job', 'get_transcription_job', 'create_vocabulary', 'get_vocabulary'], {
+      start_transcription_job: showStartJobModal,
+      get_transcription_job: () => showGetJobModal(),
+      create_vocabulary: showCreateVocabularyModal,
+      get_vocabulary: () => showGetVocabularyModal(),
+    });
+    container.append(toolbar([...actions.children, btn('Refresh', 'transcribe-btn-secondary', () => refresh().catch((error) => toast(error.message, true)))], [el('span', 'transcribe-toolbar-note', 'Jobs complete and vocabularies become ready immediately')]));
     const workbench = el('div', 'transcribe-workbench'); workbench.append(renderJobList(), renderDetail(selectedJob())); container.append(workbench); return container;
   }
   function render() { if (!root) return; renderBreadcrumbs(); root.textContent = ''; root.append(renderWorkbench()); if (loadedAtEl) loadedAtEl.textContent = `Loaded ${new Date().toLocaleTimeString()}`; }
-  async function refresh() { const data = await apiJson('/api/transcribe/'); state.inventory = data; if (!selectedJob() && jobs().length) state.selectedJob = jobName(jobs()[0]); renderSummary(data.summary || {}); render(); }
+  async function refresh() { const [data] = await Promise.all([apiJson('/api/transcribe/'), loadActions()]); state.inventory = data; if (!selectedJob() && jobs().length) state.selectedJob = jobName(jobs()[0]); renderSummary(data.summary || {}); render(); }
   function init() { if (!root) return; root.append(el('div', 'transcribe-empty', 'Loading...')); refresh().catch((error) => toast(error.message, true)); }
   return { init, refresh };
 })();

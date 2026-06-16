@@ -87,18 +87,18 @@ const CloudMapConsole = (() => {
   }
 
   async function deleteNamespace(namespace) {
-    if (!window.confirm(`Delete namespace ${namespace.name || namespace.id}?`)) return;
+    if (!ui.confirmAction(`Delete namespace ${namespace.name || namespace.id}?`)) return;
     await runAction(`/api/cloudmap/namespaces/${encodeURIComponent(namespace.id)}/`, 'DELETE', {}, 'Namespace deletion started');
   }
 
   async function deleteService(service) {
-    if (!window.confirm(`Delete service ${service.name || service.id}?`)) return;
+    if (!ui.confirmAction(`Delete service ${service.name || service.id}?`)) return;
     await runAction(`/api/cloudmap/services/${encodeURIComponent(service.id)}/`, 'DELETE', {}, 'Service deleted');
     state.selectedServiceId = '';
   }
 
   async function deregister(service, instance) {
-    if (!window.confirm(`Deregister instance ${instance.id}?`)) return;
+    if (!ui.confirmAction(`Deregister instance ${instance.id}?`)) return;
     await runAction(`/api/cloudmap/services/${encodeURIComponent(service.id)}/instances/${encodeURIComponent(instance.id)}/`, 'DELETE', {}, 'Instance deregistration started');
   }
 

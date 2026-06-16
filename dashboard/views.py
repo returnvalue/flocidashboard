@@ -7,8 +7,9 @@ from botocore.parsers import ResponseParserError
 from django.conf import settings
 from django.http import Http404, JsonResponse
 from django.shortcuts import render
+from django.views.decorators.cache import cache_control
 from .aws import FlociClientFactory, acm_inventory, apigateway_inventory, appconfig_inventory, appsync_inventory, athena_inventory, autoscaling_inventory, backup_inventory, batch_inventory, bcmdataexports_inventory, bedrockruntime_inventory, cloudformation_inventory, cloudfront_inventory, cloudmap_inventory, cloudtrail_inventory, cloudwatch_inventory, codebuild_inventory, codedeploy_inventory, config_inventory, cognito_inventory, costexplorer_inventory, cur_inventory, dynamodb_inventory, ec2_inventory, ecr_inventory, ecs_inventory, eks_inventory, elasticache_inventory, elasticloadbalancing_inventory, emr_inventory, eventbridge_inventory, firehose_inventory, glue_inventory, iam_inventory, kafka_inventory, kinesis_inventory, kms_inventory, lambda_inventory, list_resources, neptune_inventory, opensearch_inventory, pipes_inventory, pricing_inventory, rds_inventory, rdsdata_inventory, resourcegroupstagging_inventory, route53_inventory, s3_inventory, scheduler_inventory, secretsmanager_inventory, ses_inventory, sns_inventory, sqs_inventory, ssm_inventory, stepfunctions_inventory, textract_inventory, transcribe_inventory, transfer_inventory, wafv2_inventory
-from .services import SERVICE_PAGES, get_service, services_payload
+from .services import SERVICES, SERVICE_PAGES, get_service, services_payload
 
 
 SERVICE_ALIASES = {
@@ -19,6 +20,63 @@ SERVICE_ALIASES = {
     'servicediscovery': 'cloudmap',
     'states': 'stepfunctions',
 }
+
+HOME_SERVICE_ORDER = (
+    'iam',
+    's3',
+    'ec2',
+    'elasticloadbalancing',
+    'route53',
+    'cloudwatch',
+    'rds',
+    'dynamodb',
+    'lambda',
+    'autoscaling',
+    'sqs',
+    'sns',
+    'cloudfront',
+    'cloudmap',
+    'cloudtrail',
+    'kms',
+    'cloudformation',
+    'apigateway',
+    'ssm',
+    'cognito',
+    'ecs',
+    'config',
+    'elasticache',
+    'secretsmanager',
+    'acm',
+    'athena',
+    'eventbridge',
+    'eks',
+    'costexplorer',
+    'backup',
+    'ecr',
+    'glue',
+    'kinesis',
+    'stepfunctions',
+    'codedeploy',
+    'codebuild',
+    'opensearch',
+    'cur',
+    'firehose',
+    'ses',
+    'transfer',
+    'textract',
+    'transcribe',
+    'bedrockruntime',
+    'kafka',
+    'resourcegroupstagging',
+    'appconfig',
+    'scheduler',
+    'pipes',
+    'neptune',
+    'pricing',
+    'bcmdataexports',
+)
+
+HOME_SERVICE_RANK = {key: index for index, key in enumerate(HOME_SERVICE_ORDER)}
 
 
 def selected_service_keys(request) -> Optional[set[str]]:
@@ -39,6 +97,50 @@ def index(request):
     return render(request, 'dashboard/index.html')
 
 
+def service_matrix(request):
+    rows = []
+    maturity_counts: dict[str, int] = {}
+    interactive_count = 0
+
+    for definition in sorted(
+        SERVICES,
+        key=lambda service_definition: (
+            HOME_SERVICE_RANK.get(service_definition.key, len(HOME_SERVICE_RANK)),
+            service_definition.title,
+        ),
+    ):
+        service_data = definition.as_dict()
+        action_count = len(definition.actions)
+        maturity = service_data['maturity']
+        maturity_counts[maturity] = maturity_counts.get(maturity, 0) + 1
+        if definition.shared_console or action_count:
+            interactive_count += 1
+
+        rows.append({
+            **service_data,
+            'action_count': action_count,
+            'maturity_label': maturity.replace('_', ' ').title(),
+            'shared_console_label': 'Yes' if definition.shared_console else 'No',
+            'tutorial_label': 'Yes' if definition.tutorial_available else 'No',
+            'tags_label': ', '.join(service_data['tags']) or 'None',
+        })
+
+    context = {
+        'interactive_count': interactive_count,
+        'maturity_counts': [
+            {
+                'key': key,
+                'label': key.replace('_', ' ').title(),
+                'count': count,
+            }
+            for key, count in sorted(maturity_counts.items())
+        ],
+        'services': rows,
+        'service_count': len(rows),
+    }
+    return render(request, 'dashboard/service_matrix.html', context)
+
+
 def service_page(request, service_key: str):
     service_definition = get_service(service_key)
     if not service_definition:
@@ -54,7 +156,7 @@ def service_page(request, service_key: str):
     for asset in static_assets:
         asset_path = Path(settings.BASE_DIR) / 'dashboard' / 'static' / asset
         try:
-            asset_versions.append(str(int(asset_path.stat().st_mtime)))
+            asset_versions.append(str(asset_path.stat().st_mtime_ns))
         except OSError:
             continue
     context['asset_version'] = '-'.join(asset_versions) or 'dev'
@@ -62,6 +164,7 @@ def service_page(request, service_key: str):
     return render(request, 'dashboard/service.html', {'service': context})
 
 
+@cache_control(public=True, max_age=60)
 def services(request):
     return JsonResponse(services_payload())
 

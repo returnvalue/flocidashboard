@@ -6,6 +6,7 @@ app_name = 'dashboard'
 
 urlpatterns = [
     path('', views.index, name='index'),
+    path('services/', views.service_matrix, name='service-matrix'),
     path('service/<slug:service_key>/', views.service_page, name='service-page'),
     path('api/acm/', views.acm, name='acm'),
     path('api/acm/certificates/', acm_views.acm_certificates_create, name='acm-certificates'),

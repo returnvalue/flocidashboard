@@ -580,7 +580,11 @@ function sectionIdForLabel(label) {
   return `${activeServiceKeyFromPath()}-section-${sectionSlug(label)}`;
 }
 
-function renderSummary(summary, container) {
+function emptySectionText(title) {
+  return `No ${title} found yet.`;
+}
+
+function renderSummary(summary, container, targets = {}) {
   if (!container) {
     return;
   }
@@ -598,11 +602,12 @@ function renderSummary(summary, container) {
 
   entries.forEach(([label, value]) => {
     const displayLabel = label.replaceAll('_', ' ');
+    const targetLabel = targets[label] || targets[displayLabel] || displayLabel;
     const card = document.createElement('a');
     const number = document.createElement('strong');
     const caption = document.createElement('span');
 
-    card.href = `#${sectionIdForLabel(displayLabel)}`;
+    card.href = `#${sectionIdForLabel(targetLabel)}`;
     card.className = 'summary-card';
     card.setAttribute('aria-label', `Jump to ${displayLabel}`);
     number.textContent = value ?? 0;
@@ -632,7 +637,7 @@ function renderDetailList(title, items, fields = []) {
   if (items.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'muted empty-state';
-    empty.textContent = `No ${title.toLowerCase()} found.`;
+    empty.textContent = emptySectionText(title);
     section.append(empty);
     return section;
   }
@@ -791,7 +796,11 @@ function renderS3CreateBucketPanel() {
 
 function renderS3(data) {
   s3Grid.textContent = '';
-  renderSummary(data.summary, s3Summary);
+  renderSummary(data.summary, s3Summary, {
+    objects: 'Buckets',
+    total_bytes: 'Buckets',
+    versioned_buckets: 'Buckets',
+  });
 
   const supportPanel = renderDetailList('Floci S3 support notes', [
     {
@@ -1236,7 +1245,10 @@ function renderDynamoDB(data) {
 
 function renderCloudWatch(data) {
   cloudwatchGrid.textContent = '';
-  renderSummary(data.summary, cloudwatchSummary);
+  renderSummary(data.summary, cloudwatchSummary, {
+    log_streams: 'Log groups',
+    recent_log_events: 'Log groups',
+  });
 
   const panels = [
     renderDetailList('Log groups', data.log_groups || [], [
@@ -1961,7 +1973,12 @@ function renderAppSync(data) {
 
 function renderBedrockRuntime(data) {
   bedrockruntimeGrid.textContent = '';
-  renderSummary(data.summary, bedrockruntimeSummary);
+  renderSummary(data.summary, bedrockruntimeSummary, {
+    supported_operations: 'Runtime operations',
+    unsupported_streaming_operations: 'Runtime operations',
+    management_plane_resources: 'Configuration',
+    real_inference: 'Configuration',
+  });
 
   const panels = [
     renderDetailList('Runtime operations', data.operations || [], [
@@ -5290,6 +5307,13 @@ function updateServiceFilterSummary(serviceMetadata = []) {
   serviceFilterSummary.textContent = `${selectedCount} service${selectedCount === 1 ? '' : 's'}`;
 }
 
+function closeServiceFilterOnOutsidePointerDown(event) {
+  if (!serviceFilter || !serviceFilter.open || serviceFilter.contains(event.target)) {
+    return;
+  }
+  serviceFilter.open = false;
+}
+
 function renderServiceFilter(serviceMetadata = []) {
   if (!serviceFilter || !serviceFilterOptions) {
     return;
@@ -5554,8 +5578,12 @@ function credentialLabel(data = {}) {
   return 'Default credential chain';
 }
 
-async function loadIdentity() {
-  const response = await fetch('/api/identity/');
+function fetchOptions(force = false) {
+  return force ? { cache: 'no-store' } : {};
+}
+
+async function loadIdentity(options = {}) {
+  const response = await fetch('/api/identity/', fetchOptions(options.force));
   const data = await response.json();
 
   endpoint.textContent = data.endpoint_url || 'Unknown';
@@ -5572,11 +5600,11 @@ async function loadIdentity() {
   return { ok: true, data };
 }
 
-async function loadStatusTiles() {
-  const healthResult = await loadHealth();
+async function loadStatusTiles(options = {}) {
+  const healthResult = await loadHealth(options);
   let identityResult = { ok: false, data: { error: 'Unable to resolve identity' } };
   try {
-    identityResult = await loadIdentity();
+    identityResult = await loadIdentity(options);
   } catch (error) {
     identity.textContent = healthResult.ok ? error.message : 'Unavailable until Floci starts';
     identityResult = { ok: false, data: { error: error.message } };
@@ -5584,8 +5612,8 @@ async function loadStatusTiles() {
   return { health: healthResult, identity: identityResult };
 }
 
-async function loadHealth() {
-  const response = await fetch('/api/health/');
+async function loadHealth(options = {}) {
+  const response = await fetch('/api/health/', fetchOptions(options.force));
   const data = await response.json();
 
   if (!response.ok || !data.ok) {
@@ -5601,8 +5629,9 @@ async function loadHealth() {
   return { ok: true, data };
 }
 
-async function loadHome(loadingStartedAt) {
-  const servicesPromise = fetch('/api/services/');
+async function loadHome(loadingStartedAt, options = {}) {
+  const fetchInit = fetchOptions(options.force);
+  const servicesPromise = fetch('/api/services/', fetchInit);
   const minimumLoadingPromise = waitForMinimumLoadingTime(loadingStartedAt);
   const servicesResponse = await servicesPromise;
   const servicesData = await servicesResponse.json();
@@ -5615,7 +5644,7 @@ async function loadHome(loadingStartedAt) {
   renderServiceFilter(serviceMetadata);
 
   const resourcesPath = `/api/resources/?services=${selectedHomeServiceQuery(serviceMetadata)}`;
-  const resourcesPromise = fetch(resourcesPath);
+  const resourcesPromise = fetch(resourcesPath, fetchInit);
   const [response] = await Promise.all([
     resourcesPromise,
     minimumLoadingPromise,
@@ -5633,8 +5662,8 @@ async function loadHome(loadingStartedAt) {
   );
 }
 
-async function loadJson(path, errorMessage) {
-  const response = await fetch(path);
+async function loadJson(path, errorMessage, options = {}) {
+  const response = await fetch(path, fetchOptions(options.force));
   const data = await response.json();
 
   if (!response.ok || data.error) {
@@ -5644,8 +5673,8 @@ async function loadJson(path, errorMessage) {
   return data;
 }
 
-async function loadServicePage(service) {
-  const data = await loadJson(service.apiPath, `Unable to load ${service.label} inventory`);
+async function loadServicePage(service, options = {}) {
+  const data = await loadJson(service.apiPath, `Unable to load ${service.label} inventory`, options);
   service.render(data);
 }
 
@@ -5754,28 +5783,28 @@ function renderRefreshError(error) {
   }
 }
 
-async function refresh() {
+async function refresh(options = {}) {
   refreshButton.disabled = true;
   refreshButton.textContent = 'Refreshing';
   const loadingStartedAt = performance.now();
   showLoadingStates();
 
   try {
-    const statusResult = await loadStatusTiles();
+    const statusResult = await loadStatusTiles(options);
 
     if (serviceGrid) {
       if (!statusResult.health.ok) {
         renderFlociUnavailable(statusResult.health.data);
         return;
       }
-      await loadHome(loadingStartedAt);
+      await loadHome(loadingStartedAt, options);
     }
 
     const service = activeServicePage();
     if (service?.isConsole && window.S3Console) {
       await window.S3Console.refresh();
     } else if (service) {
-      await loadServicePage(service);
+      await loadServicePage(service, options);
       if (service.key === 'acm' && acmConsoleRoot && window.ACMConsole) {
         await window.ACMConsole.refresh();
       } else if (service.key === 'backup' && backupConsoleRoot && window.BackupConsole) {
@@ -5869,13 +5898,16 @@ if (backToTopButton) {
   updateBackToTopVisibility();
 }
 
-refreshButton.addEventListener('click', refresh);
+document.addEventListener('pointerdown', closeServiceFilterOnOutsidePointerDown);
+if (refreshButton) {
+  refreshButton.addEventListener('click', () => refresh({ force: true }));
+}
 if (s3ConsoleRoot) {
   loadStatusTiles().catch((error) => {
     if (health) {
       health.textContent = error.message;
     }
   });
-} else {
+} else if (refreshButton) {
   refresh();
 }
