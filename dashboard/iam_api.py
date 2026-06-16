@@ -230,3 +230,57 @@ def create_managed_policy(name: str, document: Any, description: str | None = No
         'arn': policy.get('Arn'),
         'default_version': policy.get('DefaultVersionId'),
     }
+
+
+def create_policy_version(policy_arn: str, document: Any, set_as_default: bool = True) -> dict[str, Any]:
+    arn = validate_name(policy_arn, 'Policy ARN')
+    doc = policy_document(document)
+    response = _iam_client().create_policy_version(
+        PolicyArn=arn,
+        PolicyDocument=json.dumps(doc),
+        SetAsDefault=bool(set_as_default),
+    )['PolicyVersion']
+    return {
+        'arn': arn,
+        'version_id': response.get('VersionId'),
+        'default': response.get('IsDefaultVersion'),
+        'created': response.get('CreateDate'),
+    }
+
+
+def set_default_policy_version(policy_arn: str, version_id: str) -> dict[str, Any]:
+    arn = validate_name(policy_arn, 'Policy ARN')
+    version = validate_name(version_id, 'Version ID')
+    _iam_client().set_default_policy_version(PolicyArn=arn, VersionId=version)
+    return {'arn': arn, 'version_id': version, 'default': True}
+
+
+def delete_policy_version(policy_arn: str, version_id: str) -> dict[str, Any]:
+    arn = validate_name(policy_arn, 'Policy ARN')
+    version = validate_name(version_id, 'Version ID')
+    _iam_client().delete_policy_version(PolicyArn=arn, VersionId=version)
+    return {'arn': arn, 'version_id': version, 'deleted': True}
+
+
+def add_user_to_group(user_name: str, group_name: str) -> dict[str, Any]:
+    user = validate_name(user_name, 'User name')
+    group = validate_name(group_name, 'Group name')
+    _iam_client().add_user_to_group(UserName=user, GroupName=group)
+    return {'user_name': user, 'group_name': group, 'added': True}
+
+
+def remove_user_from_group(user_name: str, group_name: str) -> dict[str, Any]:
+    user = validate_name(user_name, 'User name')
+    group = validate_name(group_name, 'Group name')
+    _iam_client().remove_user_from_group(UserName=user, GroupName=group)
+    return {'user_name': user, 'group_name': group, 'removed': True}
+
+
+def update_role_trust_policy(role_name: str, document: Any) -> dict[str, Any]:
+    role = validate_name(role_name, 'Role name')
+    doc = policy_document(document)
+    _iam_client().update_assume_role_policy(
+        RoleName=role,
+        PolicyDocument=json.dumps(doc),
+    )
+    return {'role_name': role, 'saved': True, 'document': doc}

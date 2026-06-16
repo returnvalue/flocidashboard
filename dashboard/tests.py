@@ -16,47 +16,7 @@ from .aws import FlociClientFactory, ResourceResult, cloudformation_inventory, l
 from .services import SERVICE_PAGES, SERVICE_REGISTRY, SERVICES
 
 
-ACTION_TEST_REFERENCE_GAP_BASELINE = frozenset({
-    ('appsync', 'create_api_key', 'appsync-api-keys'),
-    ('appsync', 'delete_api_key', 'appsync-api-keys'),
-    ('appsync', 'create_resolver', 'appsync-resolvers'),
-    ('appsync', 'delete_resolver', 'appsync-resolvers'),
-    ('appsync', 'create_function', 'appsync-functions'),
-    ('appsync', 'delete_function', 'appsync-functions'),
-    ('appsync', 'create_type', 'appsync-types'),
-    ('appsync', 'delete_type', 'appsync-types'),
-    ('appsync', 'tag_resource', 'appsync-tags'),
-    ('appsync', 'untag_resource', 'appsync-tags'),
-    ('autoscaling', 'delete_launch_configuration', 'autoscaling-launch-configuration-detail'),
-    ('cloudfront', 'create_origin_access_identity', 'cloudfront-origin-access-identities'),
-    ('cloudfront', 'publish_function', 'cloudfront-function-detail'),
-    ('cloudmap', 'delete_namespace', 'cloudmap-namespace-detail'),
-    ('cloudmap', 'delete_service', 'cloudmap-service-detail'),
-    ('cloudmap', 'deregister_instance', 'cloudmap-instance-detail'),
-    ('cloudmap', 'update_instance_custom_health_status', 'cloudmap-instance-health'),
-    ('cloudmap', 'tag_resource', 'cloudmap-tags'),
-    ('cloudmap', 'untag_resource', 'cloudmap-tags'),
-    ('cognito', 'admin_delete_user', 'cognito-user-detail'),
-    ('ec2', 'start_instance', 'ec2-instance-start'),
-    ('ec2', 'reboot_instance', 'ec2-instance-reboot'),
-    ('elasticloadbalancing', 'delete_listener', 'elbv2-listener-detail'),
-    ('elasticloadbalancing', 'delete_target_group', 'elbv2-target-group-detail'),
-    ('iam', 'attach_managed_policy', 'iam-attached-policies'),
-    ('iam', 'create_managed_policy', 'iam-managed-policies'),
-    ('iam', 'delete_access_key', 'iam-user-access-key-detail'),
-    ('iam', 'detach_managed_policy', 'iam-attached-policies'),
-    ('iam', 'update_access_key', 'iam-user-access-key-detail'),
-    ('opensearch', 'get_compatible_versions', 'opensearch-compatible-versions'),
-    ('route53', 'delete_hosted_zone', 'route53-hosted-zone-detail'),
-    ('s3', 'copy_object', 's3-object-copy'),
-    ('s3', 'create_folder', 's3-folder-create'),
-    ('s3', 'delete_bucket', 's3-bucket-detail'),
-    ('s3', 'download_object', 's3-object-download'),
-    ('s3', 'empty_bucket', 's3-bucket-empty'),
-    ('s3', 'presign_object', 's3-object-presign'),
-    ('s3', 'put_object_tags', 's3-object-tags'),
-    ('sqs', 'delete_queue', 'sqs-queue-delete'),
-})
+ACTION_TEST_REFERENCE_GAP_BASELINE = frozenset()
 
 
 class StaticJavaScriptTests(SimpleTestCase):
@@ -1086,6 +1046,20 @@ class CognitoActionTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         set_password.assert_called_once_with('local-pool', 'alice@example.com', 'Perm1234!', permanent=True)
 
+    @patch('dashboard.cognito_views.admin_delete_user')
+    def test_admin_delete_user_endpoint_uses_action_helper(self, admin_delete_user):
+        admin_delete_user.return_value = {'username': 'alice@example.com'}
+
+        response = self.client.delete(
+            reverse('dashboard:cognito-user-detail', kwargs={
+                'user_pool_id': 'local-pool',
+                'username': 'alice@example.com',
+            }),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        admin_delete_user.assert_called_once_with('local-pool', 'alice@example.com')
+
     @patch('dashboard.cognito_views.create_group')
     def test_create_group_endpoint_uses_action_helper(self, create_group):
         create_group.return_value = {'group': {'GroupName': 'admin'}}
@@ -1368,6 +1342,17 @@ class AutoScalingActionTests(SimpleTestCase):
             iam_instance_profile='app-profile',
         )
 
+    @patch('dashboard.autoscaling_views.delete_launch_configuration')
+    def test_delete_launch_configuration_endpoint_uses_action_helper(self, delete_launch_configuration):
+        delete_launch_configuration.return_value = {'name': 'my-lc'}
+
+        response = self.client.delete(
+            reverse('dashboard:autoscaling-launch-configuration-detail', kwargs={'name': 'my-lc'}),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        delete_launch_configuration.assert_called_once_with('my-lc')
+
     @patch('dashboard.autoscaling_views.create_auto_scaling_group')
     def test_create_auto_scaling_group_endpoint_uses_action_helper(self, create_auto_scaling_group):
         create_auto_scaling_group.return_value = {'name': 'my-asg'}
@@ -1591,6 +1576,17 @@ class ElasticLoadBalancingActionTests(SimpleTestCase):
             health_check_path='/health',
         )
 
+    @patch('dashboard.elasticloadbalancing_views.delete_target_group')
+    def test_delete_target_group_endpoint_uses_action_helper(self, delete_target_group):
+        delete_target_group.return_value = {'target_group_arn': self.target_group_arn}
+
+        response = self.client.delete(
+            reverse('dashboard:elbv2-target-group-detail', kwargs={'target_group_arn': self.target_group_arn}),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        delete_target_group.assert_called_once_with(self.target_group_arn)
+
     @patch('dashboard.elasticloadbalancing_views.register_targets')
     def test_register_targets_endpoint_uses_action_helper(self, register_targets):
         register_targets.return_value = {'target_group_arn': self.target_group_arn}
@@ -1634,6 +1630,17 @@ class ElasticLoadBalancingActionTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         create_listener.assert_called_once_with(self.load_balancer_arn, 'HTTP', 80, self.target_group_arn)
+
+    @patch('dashboard.elasticloadbalancing_views.delete_listener')
+    def test_delete_listener_endpoint_uses_action_helper(self, delete_listener):
+        delete_listener.return_value = {'listener_arn': self.listener_arn}
+
+        response = self.client.delete(
+            reverse('dashboard:elbv2-listener-detail', kwargs={'listener_arn': self.listener_arn}),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        delete_listener.assert_called_once_with(self.listener_arn)
 
     @patch('dashboard.elasticloadbalancing_views.create_rule')
     def test_create_rule_endpoint_uses_action_helper(self, create_rule):
@@ -1734,6 +1741,26 @@ class EC2ActionTests(SimpleTestCase):
         self.assertEqual(response.json()['instance_id'], 'i-123')
         stop_instance.assert_called_once_with('i-123')
 
+    @patch('dashboard.ec2_views.start_instance')
+    def test_start_instance_endpoint_uses_action_helper(self, start_instance):
+        start_instance.return_value = {'instance_id': 'i-123', 'state_changes': []}
+
+        response = self.client.post(reverse('dashboard:ec2-instance-start', kwargs={'instance_id': 'i-123'}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['instance_id'], 'i-123')
+        start_instance.assert_called_once_with('i-123')
+
+    @patch('dashboard.ec2_views.reboot_instance')
+    def test_reboot_instance_endpoint_uses_action_helper(self, reboot_instance):
+        reboot_instance.return_value = {'instance_id': 'i-123', 'state_changes': []}
+
+        response = self.client.post(reverse('dashboard:ec2-instance-reboot', kwargs={'instance_id': 'i-123'}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['instance_id'], 'i-123')
+        reboot_instance.assert_called_once_with('i-123')
+
     @patch('dashboard.ec2_views.terminate_instance')
     def test_terminate_instance_endpoint_uses_action_helper(self, terminate_instance):
         terminate_instance.return_value = {'instance_id': 'i-123', 'state_changes': []}
@@ -1776,6 +1803,46 @@ class IAMActionTests(SimpleTestCase):
         self.assertEqual(response.json()['access_key_id'], 'AKIAEXAMPLE')
         create_access_key.assert_called_once_with('alice')
 
+    @patch('dashboard.iam_views.update_access_key')
+    def test_update_access_key_endpoint_uses_action_helper(self, update_access_key):
+        update_access_key.return_value = {
+            'user_name': 'alice',
+            'access_key_id': 'AKIAEXAMPLE',
+            'status': 'Inactive',
+        }
+
+        response = self.client.put(
+            reverse('dashboard:iam-user-access-key-detail', kwargs={
+                'user_name': 'alice',
+                'access_key_id': 'AKIAEXAMPLE',
+            }),
+            data=json.dumps({'status': 'Inactive'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['status'], 'Inactive')
+        update_access_key.assert_called_once_with('alice', 'AKIAEXAMPLE', 'Inactive')
+
+    @patch('dashboard.iam_views.delete_access_key')
+    def test_delete_access_key_endpoint_uses_action_helper(self, delete_access_key):
+        delete_access_key.return_value = {
+            'user_name': 'alice',
+            'access_key_id': 'AKIAEXAMPLE',
+            'deleted': True,
+        }
+
+        response = self.client.delete(
+            reverse('dashboard:iam-user-access-key-detail', kwargs={
+                'user_name': 'alice',
+                'access_key_id': 'AKIAEXAMPLE',
+            })
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['deleted'])
+        delete_access_key.assert_called_once_with('alice', 'AKIAEXAMPLE')
+
     @patch('dashboard.iam_views.assume_role')
     def test_assume_role_endpoint_uses_action_helper(self, assume_role):
         assume_role.return_value = {
@@ -1802,6 +1869,93 @@ class IAMActionTests(SimpleTestCase):
             duration_seconds=900,
         )
 
+    @patch('dashboard.iam_views.update_role_trust_policy')
+    def test_update_role_trust_policy_endpoint_uses_action_helper(self, update_role_trust_policy):
+        update_role_trust_policy.return_value = {'role_name': 'app', 'saved': True}
+        document = {'Version': '2012-10-17', 'Statement': []}
+
+        response = self.client.put(
+            reverse('dashboard:iam-role-trust-policy', kwargs={'role_name': 'app'}),
+            data=json.dumps({'document': document}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['saved'])
+        update_role_trust_policy.assert_called_once_with('app', document)
+
+    @patch('dashboard.iam_views.add_user_to_group')
+    def test_add_user_to_group_endpoint_uses_action_helper(self, add_user_to_group):
+        add_user_to_group.return_value = {'user_name': 'alice', 'group_name': 'admins', 'added': True}
+
+        response = self.client.post(
+            reverse('dashboard:iam-group-membership', kwargs={'group_name': 'admins'}),
+            data=json.dumps({'user_name': 'alice'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['added'])
+        add_user_to_group.assert_called_once_with('alice', 'admins')
+
+    @patch('dashboard.iam_views.remove_user_from_group')
+    def test_remove_user_from_group_endpoint_uses_action_helper(self, remove_user_from_group):
+        remove_user_from_group.return_value = {'user_name': 'alice', 'group_name': 'admins', 'removed': True}
+
+        response = self.client.delete(
+            reverse('dashboard:iam-group-membership', kwargs={'group_name': 'admins'}),
+            data=json.dumps({'user_name': 'alice'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['removed'])
+        remove_user_from_group.assert_called_once_with('alice', 'admins')
+
+    @patch('dashboard.iam_views.attach_managed_policy')
+    def test_attach_managed_policy_endpoint_uses_action_helper(self, attach_managed_policy):
+        attach_managed_policy.return_value = {
+            'principal_type': 'role',
+            'principal_name': 'app',
+            'policy_arn': 'arn:aws:iam::000000000000:policy/Local',
+            'attached': True,
+        }
+
+        response = self.client.post(
+            reverse('dashboard:iam-attached-policies', kwargs={
+                'principal_type': 'role',
+                'principal_name': 'app',
+            }),
+            data=json.dumps({'policy_arn': 'arn:aws:iam::000000000000:policy/Local'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['attached'])
+        attach_managed_policy.assert_called_once_with('role', 'app', 'arn:aws:iam::000000000000:policy/Local')
+
+    @patch('dashboard.iam_views.detach_managed_policy')
+    def test_detach_managed_policy_endpoint_uses_action_helper(self, detach_managed_policy):
+        detach_managed_policy.return_value = {
+            'principal_type': 'role',
+            'principal_name': 'app',
+            'policy_arn': 'arn:aws:iam::000000000000:policy/Local',
+            'detached': True,
+        }
+
+        response = self.client.delete(
+            reverse('dashboard:iam-attached-policies', kwargs={
+                'principal_type': 'role',
+                'principal_name': 'app',
+            }),
+            data=json.dumps({'policy_arn': 'arn:aws:iam::000000000000:policy/Local'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['detached'])
+        detach_managed_policy.assert_called_once_with('role', 'app', 'arn:aws:iam::000000000000:policy/Local')
+
     @patch('dashboard.iam_views.put_inline_policy')
     def test_put_inline_policy_endpoint_uses_action_helper(self, put_inline_policy):
         put_inline_policy.return_value = {
@@ -1825,3 +1979,96 @@ class IAMActionTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()['saved'])
         put_inline_policy.assert_called_once_with('role', 'app', 'local', document)
+
+    @patch('dashboard.iam_views.create_managed_policy')
+    def test_create_managed_policy_endpoint_uses_action_helper(self, create_managed_policy):
+        create_managed_policy.return_value = {
+            'policy_name': 'Local',
+            'policy_arn': 'arn:aws:iam::000000000000:policy/Local',
+        }
+
+        document = {'Version': '2012-10-17', 'Statement': []}
+        response = self.client.post(
+            reverse('dashboard:iam-managed-policies'),
+            data=json.dumps({
+                'name': 'Local',
+                'document': document,
+                'description': 'Local test policy',
+                'path': '/service-role/',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['policy_name'], 'Local')
+        create_managed_policy.assert_called_once_with(
+            'Local',
+            document,
+            description='Local test policy',
+            path='/service-role/',
+        )
+
+    @patch('dashboard.iam_views.create_policy_version')
+    def test_create_policy_version_endpoint_uses_action_helper(self, create_policy_version):
+        create_policy_version.return_value = {'arn': 'arn:aws:iam::000000000000:policy/Local', 'version_id': 'v2'}
+        document = {'Version': '2012-10-17', 'Statement': []}
+
+        response = self.client.post(
+            reverse('dashboard:iam-managed-policy-versions'),
+            data=json.dumps({
+                'policy_arn': 'arn:aws:iam::000000000000:policy/Local',
+                'document': document,
+                'set_as_default': False,
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['version_id'], 'v2')
+        create_policy_version.assert_called_once_with(
+            'arn:aws:iam::000000000000:policy/Local',
+            document,
+            set_as_default=False,
+        )
+
+    @patch('dashboard.iam_views.set_default_policy_version')
+    def test_set_default_policy_version_endpoint_uses_action_helper(self, set_default_policy_version):
+        set_default_policy_version.return_value = {
+            'arn': 'arn:aws:iam::000000000000:policy/Local',
+            'version_id': 'v2',
+            'default': True,
+        }
+
+        response = self.client.put(
+            reverse('dashboard:iam-managed-policy-version-detail'),
+            data=json.dumps({
+                'policy_arn': 'arn:aws:iam::000000000000:policy/Local',
+                'version_id': 'v2',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['default'])
+        set_default_policy_version.assert_called_once_with('arn:aws:iam::000000000000:policy/Local', 'v2')
+
+    @patch('dashboard.iam_views.delete_policy_version')
+    def test_delete_policy_version_endpoint_uses_action_helper(self, delete_policy_version):
+        delete_policy_version.return_value = {
+            'arn': 'arn:aws:iam::000000000000:policy/Local',
+            'version_id': 'v1',
+            'deleted': True,
+        }
+
+        response = self.client.delete(
+            reverse('dashboard:iam-managed-policy-version-detail'),
+            data=json.dumps({
+                'policy_arn': 'arn:aws:iam::000000000000:policy/Local',
+                'version_id': 'v1',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['deleted'])
+        delete_policy_version.assert_called_once_with('arn:aws:iam::000000000000:policy/Local', 'v1')

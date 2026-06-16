@@ -34,6 +34,15 @@ class Route53ApiTests(SimpleTestCase):
         self.assertEqual(response.json()['hosted_zone']['Id'], '/hostedzone/Z123')
         create_mock.assert_called_once_with('example.com', 'ref-1', comment='local')
 
+    @patch('dashboard.route53_views.delete_hosted_zone')
+    def test_delete_hosted_zone_success(self, delete_mock):
+        delete_mock.return_value = {'zone_id': 'Z123'}
+
+        response = self.client.delete(reverse('dashboard:route53-hosted-zone-detail', kwargs={'zone_id': 'Z123'}))
+
+        self.assertEqual(response.status_code, 200)
+        delete_mock.assert_called_once_with('Z123')
+
     @patch('dashboard.route53_views.change_record_set')
     def test_change_record_set_success(self, change_mock):
         change_mock.return_value = {'change_info': {'Status': 'INSYNC'}}

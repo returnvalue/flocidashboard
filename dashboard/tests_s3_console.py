@@ -58,6 +58,24 @@ class S3BucketsApiTests(SimpleTestCase):
         self.assertEqual(response.json()['name'], 'my-test-bucket')
         create_mock.assert_called_once_with('my-test-bucket', None)
 
+    @patch('dashboard.s3_views.delete_s3_bucket')
+    def test_delete_bucket(self, delete_mock):
+        delete_mock.return_value = {'deleted': True}
+
+        response = self.client.delete(reverse('dashboard:s3-bucket-detail', kwargs={'bucket_name': 'my-bucket'}))
+
+        self.assertEqual(response.status_code, 200)
+        delete_mock.assert_called_once_with('my-bucket')
+
+    @patch('dashboard.s3_views.empty_s3_bucket')
+    def test_empty_bucket(self, empty_mock):
+        empty_mock.return_value = {'deleted': 3}
+
+        response = self.client.post(reverse('dashboard:s3-bucket-empty', kwargs={'bucket_name': 'my-bucket'}))
+
+        self.assertEqual(response.status_code, 200)
+        empty_mock.assert_called_once_with('my-bucket')
+
 
 class S3ListObjectsTests(SimpleTestCase):
     @patch('dashboard.s3_api._s3_client')
@@ -150,3 +168,77 @@ class S3ObjectApiTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         put_mock.assert_called_once_with('my-bucket', 'Enabled')
+
+    @patch('dashboard.s3_views.download_s3_object')
+    def test_download_object(self, download_mock):
+        download_mock.return_value = (b'hello', {'content_type': 'text/plain', 'content_length': 5})
+
+        response = self.client.get(
+            reverse('dashboard:s3-object-download', kwargs={'bucket_name': 'my-bucket'}),
+            {'key': 'folder/file.txt', 'version_id': 'v1'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b'hello')
+        self.assertEqual(response['Content-Type'], 'text/plain')
+        self.assertEqual(response['Content-Length'], '5')
+        self.assertEqual(response['Content-Disposition'], 'attachment; filename="file.txt"')
+        download_mock.assert_called_once_with('my-bucket', 'folder/file.txt', 'v1')
+
+    @patch('dashboard.s3_views.copy_s3_object')
+    def test_copy_object(self, copy_mock):
+        copy_mock.return_value = {'copied': True}
+
+        response = self.client.post(
+            reverse('dashboard:s3-object-copy', kwargs={'bucket_name': 'my-bucket'}),
+            data=json.dumps({
+                'source_key': 'source.txt',
+                'dest_key': 'copies/source.txt',
+                'dest_bucket': 'other-bucket',
+                'source_version_id': 'v1',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        copy_mock.assert_called_once_with('my-bucket', 'source.txt', 'copies/source.txt', 'other-bucket', 'v1')
+
+    @patch('dashboard.s3_views.create_s3_folder')
+    def test_create_folder(self, create_mock):
+        create_mock.return_value = {'key': 'folder/'}
+
+        response = self.client.put(
+            reverse('dashboard:s3-folder-create', kwargs={'bucket_name': 'my-bucket'}),
+            data=json.dumps({'folder': 'folder'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        create_mock.assert_called_once_with('my-bucket', 'folder')
+
+    @patch('dashboard.s3_views.put_s3_object_tags')
+    def test_put_object_tags(self, put_mock):
+        put_mock.return_value = [{'Key': 'env', 'Value': 'local'}]
+
+        response = self.client.put(
+            reverse('dashboard:s3-object-tags', kwargs={'bucket_name': 'my-bucket'}),
+            data=json.dumps({'key': 'file.txt', 'tags': [{'Key': 'env', 'Value': 'local'}], 'version_id': 'v1'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        put_mock.assert_called_once_with('my-bucket', 'file.txt', [{'Key': 'env', 'Value': 'local'}], 'v1')
+
+    @patch('dashboard.s3_views.presign_s3_object')
+    def test_presign_object(self, presign_mock):
+        presign_mock.return_value = 'http://localhost:4566/my-bucket/file.txt?signature=sample'
+
+        response = self.client.post(
+            reverse('dashboard:s3-object-presign', kwargs={'bucket_name': 'my-bucket'}),
+            data=json.dumps({'key': 'file.txt', 'version_id': 'v1', 'expires_in': 120}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['expires_in'], 120)
+        presign_mock.assert_called_once_with('my-bucket', 'file.txt', 'v1', 120)

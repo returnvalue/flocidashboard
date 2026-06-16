@@ -7,16 +7,22 @@ from django.views.decorators.http import require_http_methods
 
 from .actions import handle_action_error, parse_json_body
 from .iam_api import (
+    add_user_to_group,
     assume_role,
     attach_managed_policy,
     create_access_key,
     create_managed_policy,
+    create_policy_version,
     delete_access_key,
     delete_inline_policy,
+    delete_policy_version,
     detach_managed_policy,
     get_inline_policy,
     get_managed_policy,
     put_inline_policy,
+    remove_user_from_group,
+    set_default_policy_version,
+    update_role_trust_policy,
     update_access_key,
 )
 
@@ -52,6 +58,15 @@ def iam_role_assume(request, role_name: str):
         ))
     except Exception as exc:
         return handle_action_error(exc, service='iam', operation='assume_role')
+
+
+@require_http_methods(['PUT'])
+def iam_role_trust_policy(request, role_name: str):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(update_role_trust_policy(role_name, body.get('document')))
+    except Exception as exc:
+        return handle_action_error(exc, service='iam', operation='update_role_trust_policy')
 
 
 @require_http_methods(['POST', 'DELETE'])
@@ -107,3 +122,40 @@ def iam_managed_policy_document(request):
         return JsonResponse(get_managed_policy(body.get('policy_arn', ''), version_id=body.get('version_id') or None))
     except Exception as exc:
         return handle_action_error(exc, service='iam', operation='get_managed_policy')
+
+
+@require_http_methods(['POST'])
+def iam_managed_policy_versions_create(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(create_policy_version(
+            body.get('policy_arn', ''),
+            body.get('document'),
+            set_as_default=body.get('set_as_default') is not False,
+        ))
+    except Exception as exc:
+        return handle_action_error(exc, service='iam', operation='create_policy_version')
+
+
+@require_http_methods(['PUT', 'DELETE'])
+def iam_managed_policy_version_detail(request):
+    try:
+        body = parse_json_body(request)
+        if request.method == 'DELETE':
+            return JsonResponse(delete_policy_version(body.get('policy_arn', ''), body.get('version_id', '')))
+        return JsonResponse(set_default_policy_version(body.get('policy_arn', ''), body.get('version_id', '')))
+    except Exception as exc:
+        operation = 'delete_policy_version' if request.method == 'DELETE' else 'set_default_policy_version'
+        return handle_action_error(exc, service='iam', operation=operation)
+
+
+@require_http_methods(['POST', 'DELETE'])
+def iam_group_membership(request, group_name: str):
+    try:
+        body = parse_json_body(request)
+        if request.method == 'DELETE':
+            return JsonResponse(remove_user_from_group(body.get('user_name', ''), group_name))
+        return JsonResponse(add_user_to_group(body.get('user_name', ''), group_name))
+    except Exception as exc:
+        operation = 'remove_user_from_group' if request.method == 'DELETE' else 'add_user_to_group'
+        return handle_action_error(exc, service='iam', operation=operation)

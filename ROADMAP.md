@@ -168,6 +168,12 @@ Core architecture files:
 - Hardened the shared console shell with `confirmAction`, registry-shaped `renderActionButtons`, destructive confirmation reuse, and pilot migrations for Transcribe and AppConfig action rows.
 - Added JS syntax checks across dashboard static JavaScript files through `dashboard.tests.StaticJavaScriptTests`.
 - Added a contributor new-service checklist to `README.md` covering registry entries, inventory/API wiring, service pages, optional static assets, resource loader registration, tests, JS checks, and roadmap notes.
+- Added `ActionRegistryAuditTests` to compare `dashboard/services.py` action metadata against Django route coverage, endpoint test references, and destructive confirmation metadata.
+- Moved action metadata loading into `service-console.js` with `ServiceConsole.loadServiceActions(serviceKey, fallbacks)`, then simplified the AppConfig and Transcribe console pilots.
+- Added the Environment Details page at `/environment/` for Floci health, AWS endpoint, region, credential source/profile, caller identity, and local-endpoint warnings.
+- Closed the action audit baseline by adding endpoint tests across S3, Cloud Map, IAM, SQS, AppSync, Auto Scaling, CloudFront, Cognito, EC2, ELB v2, OpenSearch, and Route 53, reducing `ACTION_TEST_REFERENCE_GAP_BASELINE` from 39 historical gaps to zero.
+- Migrated Cloud Map action rows to `ServiceConsole.loadServiceActions(...)`, making it the third registry-driven console after AppConfig and Transcribe.
+- Expanded the IAM workbench with managed policy version create/default/delete flows, user/group membership editing, and role trust policy editing.
 
 ## Near-Term Priorities
 
@@ -179,58 +185,46 @@ Recently completed from the previous build order:
 - Home page filtering follow-through.
 - Service Page Consistency Pass.
 - Shared Console Shell hardening first pass.
+- Action API registry audit.
+- Shared action metadata loading in `service-console.js`.
+- Environment Details page.
+- Completed action audit baseline cleanup across all historical route/test gaps.
+- Cloud Map shared action loader migration.
+- IAM policy version, group membership, and trust policy follow-ups.
 
-### 1. Action API Follow-Through
+### 1. Keep Action Audit Baseline At Zero
 
-Make interactive endpoint behavior more consistent.
-
-Feasible first version:
-
-- Keep using `dashboard/actions.py` for JSON parsing and error responses.
-- Add operation names to action errors.
-- Add tests for every interactive action endpoint.
-- Gradually move common validation patterns into small service-specific helpers.
-- Avoid an over-generalized dispatcher until the repeated IAM, Step Functions, S3, SQS, SNS, Lambda, DynamoDB, and CloudWatch patterns prove the shape.
-
-Why it matters:
-
-- Tutorial mode and future workbenches can rely on predictable action behavior.
-- Users get consistent error toasts and response shapes.
-
-### 2. Environment Details Page
-
-Expand the current status strip into a simple environment page.
+Use the new action metadata audit to prevent future route/test drift.
 
 Feasible first version:
 
-- Show endpoint, region, profile, identity, Floci version, and edition.
-- Show friendly warnings when Floci is unavailable or the endpoint is not local.
-- Keep using `/api/health/` and `/api/identity/`.
-- Add fields only when the current Floci response already exposes them.
+- Add endpoint tests in the same change as each new registry action.
+- Keep `ACTION_TEST_REFERENCE_GAP_BASELINE` empty unless a deliberately temporary exception is documented.
+- Fix or remove stale action metadata paths when the audit exposes dead links.
+- Keep destructive action confirmation metadata mandatory.
 
 Why it matters:
 
-- Many local debugging problems start with endpoint or credential confusion.
-- This is practical and low-risk.
+- The registry becomes a trustworthy map of what the UI can really execute.
+- Contributors get a measurable way to improve coverage without guessing.
 
-### 3. IAM Follow-Ups
+### 2. Continue Shared Action Loader Migration
 
-Keep improving the new IAM workbench.
+Keep moving service consoles toward registry-driven action rows.
 
-Feasible follow-ups:
+Feasible first version:
 
-- Add safer managed policy version management.
-- Add group membership editing for users and groups.
-- Add role trust policy editing with clear destructive confirmations.
-- Add optional principal search/filtering inside the IAM workbench.
-- Add better affordances for copying access key and assumed-role credential exports after refresh.
+- Migrate another compact console with several destructive actions, such as Athena or CloudFront.
+- Remove duplicated `ACTION_FALLBACKS`, local action lookup helpers, and label override code.
+- Keep service-specific JavaScript focused on workflow behavior and rendering.
+- Add or adjust JS syntax checks and page smoke tests as needed.
 
 Why it matters:
 
-- IAM is central to local AWS debugging.
-- The current workbench is already useful, and a few focused additions would make it a stronger identity debugger.
+- Action buttons become registry-driven instead of duplicated per workbench.
+- Future service migrations get smaller and less error-prone.
 
-### 4. Step Functions Follow-Ups
+### 3. Step Functions Follow-Ups
 
 Keep improving the new Step Functions execution workbench.
 
@@ -244,6 +238,21 @@ Feasible follow-ups:
 Why it matters:
 
 - Step Functions is a natural workflow debugger for local Lambda and service-integration testing.
+
+### 4. IAM Polish
+
+Keep improving the new IAM workbench.
+
+Feasible follow-ups:
+
+- Add optional principal search/filtering inside the IAM workbench.
+- Add better affordances for copying access key and assumed-role credential exports after refresh.
+- Add richer managed policy version document diffs if Floci exposes enough version metadata.
+
+Why it matters:
+
+- IAM is central to local AWS debugging.
+- The current workbench is already useful, and a few focused additions would make it a stronger identity debugger.
 
 ### 5. S3 Follow-Ups
 
@@ -362,10 +371,10 @@ These ideas are still interesting, but they likely need more design, Floci suppo
 
 This order is intentionally modest and can change:
 
-1. Action API follow-through.
-2. Environment Details page.
-3. IAM follow-ups.
-4. Step Functions follow-ups.
+1. Keep action audit baseline at zero.
+2. Finish shared action loader migration.
+3. Step Functions follow-ups.
+4. IAM polish.
 5. S3 follow-ups.
 6. EC2 follow-ups.
 7. EventBridge follow-ups.
@@ -395,4 +404,4 @@ When adding or improving a service page:
 - How much should `dashboard.js` be reduced in favor of declarative panel configs?
 - Should tutorial definitions live in this repo, Floci docs, or both?
 - Which remaining inventory-only service should become the next interactive workbench?
-- What health fields are stable enough in Floci to expose on an Environment Details page?
+- Should the Environment page grow a Docker/runtime lens when Floci exposes stable runtime fields?

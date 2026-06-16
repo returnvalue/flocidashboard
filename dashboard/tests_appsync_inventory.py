@@ -145,6 +145,142 @@ class AppSyncActionsTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         create_mock.assert_called_once_with('api-1', 'none-ds', source_type='NONE', description='')
 
+    @patch('dashboard.appsync_views.create_api_key')
+    def test_create_api_key(self, create_mock):
+        create_mock.return_value = {'api_id': 'api-1', 'api_key': {'id': 'key-1'}}
+
+        response = self.client.post(
+            reverse('dashboard:appsync-api-keys', kwargs={'api_id': 'api-1'}),
+            data=json.dumps({'description': 'local key', 'expires': 1893456000}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        create_mock.assert_called_once_with('api-1', description='local key', expires=1893456000)
+
+    @patch('dashboard.appsync_views.delete_api_key')
+    def test_delete_api_key(self, delete_mock):
+        delete_mock.return_value = {'api_id': 'api-1', 'key_id': 'key-1'}
+
+        response = self.client.delete(
+            reverse('dashboard:appsync-api-keys', kwargs={'api_id': 'api-1'}),
+            data=json.dumps({'key_id': 'key-1'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        delete_mock.assert_called_once_with('api-1', 'key-1')
+
+    @patch('dashboard.appsync_views.create_resolver')
+    def test_create_resolver(self, create_mock):
+        create_mock.return_value = {'api_id': 'api-1', 'resolver': {'fieldName': 'hello'}}
+
+        response = self.client.post(
+            reverse('dashboard:appsync-resolvers', kwargs={'api_id': 'api-1'}),
+            data=json.dumps({'type_name': 'Query', 'field_name': 'hello', 'data_source_name': 'none-ds'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        create_mock.assert_called_once_with('api-1', 'Query', 'hello', data_source_name='none-ds')
+
+    @patch('dashboard.appsync_views.delete_resolver')
+    def test_delete_resolver(self, delete_mock):
+        delete_mock.return_value = {'apiId': 'api-1', 'typeName': 'Query', 'fieldName': 'hello'}
+
+        response = self.client.delete(
+            reverse('dashboard:appsync-resolvers', kwargs={'api_id': 'api-1'}),
+            data=json.dumps({'type_name': 'Query', 'field_name': 'hello'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        delete_mock.assert_called_once_with('api-1', 'Query', 'hello')
+
+    @patch('dashboard.appsync_views.create_function')
+    def test_create_function(self, create_mock):
+        create_mock.return_value = {'api_id': 'api-1', 'function': {'functionId': 'fn-1'}}
+
+        response = self.client.post(
+            reverse('dashboard:appsync-functions', kwargs={'api_id': 'api-1'}),
+            data=json.dumps({'name': 'beforeResolver', 'data_source_name': 'none-ds', 'description': 'Local function'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        create_mock.assert_called_once_with('api-1', 'beforeResolver', 'none-ds', description='Local function')
+
+    @patch('dashboard.appsync_views.delete_function')
+    def test_delete_function(self, delete_mock):
+        delete_mock.return_value = {'api_id': 'api-1', 'function_id': 'fn-1'}
+
+        response = self.client.delete(
+            reverse('dashboard:appsync-functions', kwargs={'api_id': 'api-1'}),
+            data=json.dumps({'function_id': 'fn-1'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        delete_mock.assert_called_once_with('api-1', 'fn-1')
+
+    @patch('dashboard.appsync_views.create_type')
+    def test_create_type(self, create_mock):
+        create_mock.return_value = {'api_id': 'api-1', 'type': {'name': 'Order'}}
+
+        response = self.client.post(
+            reverse('dashboard:appsync-types', kwargs={'api_id': 'api-1'}),
+            data=json.dumps({'definition': 'type Order { id: ID! }', 'format': 'SDL'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        create_mock.assert_called_once_with('api-1', 'type Order { id: ID! }', format_name='SDL')
+
+    @patch('dashboard.appsync_views.delete_type')
+    def test_delete_type(self, delete_mock):
+        delete_mock.return_value = {'api_id': 'api-1', 'type_name': 'Order'}
+
+        response = self.client.delete(
+            reverse('dashboard:appsync-types', kwargs={'api_id': 'api-1'}),
+            data=json.dumps({'type_name': 'Order'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        delete_mock.assert_called_once_with('api-1', 'Order')
+
+    @patch('dashboard.appsync_views.tag_resource')
+    def test_tag_resource(self, tag_mock):
+        tag_mock.return_value = {
+            'resource_arn': 'arn:aws:appsync:us-east-1:000000000000:apis/api-1',
+            'tags': {'env': 'local'},
+        }
+
+        response = self.client.post(
+            reverse('dashboard:appsync-tags'),
+            data=json.dumps({'resource_arn': 'arn:aws:appsync:us-east-1:000000000000:apis/api-1', 'tags': {'env': 'local'}}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        tag_mock.assert_called_once_with('arn:aws:appsync:us-east-1:000000000000:apis/api-1', {'env': 'local'})
+
+    @patch('dashboard.appsync_views.untag_resource')
+    def test_untag_resource(self, untag_mock):
+        untag_mock.return_value = {
+            'resource_arn': 'arn:aws:appsync:us-east-1:000000000000:apis/api-1',
+            'tag_keys': ['env'],
+        }
+
+        response = self.client.delete(
+            reverse('dashboard:appsync-tags'),
+            data=json.dumps({'resource_arn': 'arn:aws:appsync:us-east-1:000000000000:apis/api-1', 'tag_keys': ['env']}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        untag_mock.assert_called_once_with('arn:aws:appsync:us-east-1:000000000000:apis/api-1', ['env'])
+
     @patch('dashboard.appsync_views.delete_graphql_api')
     def test_delete_graphql_api(self, delete_mock):
         delete_mock.return_value = {'api_id': 'api-1'}

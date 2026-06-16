@@ -7,8 +7,9 @@ A small Django UI for inspecting and testing a local [Floci](https://floci.io/) 
 ## What It Shows
 
 - Local Floci health and version
-- AWS endpoint, profile, and caller identity
+- Environment diagnostics for AWS endpoint, region, profile, credential source, caller identity, and local-endpoint warnings
 - Clickable service cards for supported local services, with persisted home-page service filtering to keep resource probes focused
+- Service Matrix coverage page showing registry maturity, API paths, shared console status, action counts, tags, and linked service pages
 - Interactive workbenches for S3, IAM, EC2, SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, EventBridge, EventBridge Pipes, EventBridge Scheduler, API Gateway, AppSync, Kinesis, KMS, Secrets Manager, SSM Parameter Store, CloudFormation, Cognito, AWS Config, RDS, Auto Scaling, ELB v2, CloudFront, AWS Cloud Map, Route 53, ACM, ECS, ECR, EKS, ElastiCache, OpenSearch, Athena, Backup, Firehose, Glue, Kafka, Neptune, SES, Transfer Family, Textract, Transcribe, CodeDeploy, CodeBuild, Bedrock Runtime, AppConfig, and Resource Groups Tagging
 - Inventory pages for new Floci 1.5.25 services including EMR, WAF v2, AWS Batch, and RDS Data API
 - Inventory pages for read-only or newly surfaced services such as CloudTrail
@@ -249,6 +250,7 @@ New service checklist:
 - Confirm the generic service page renders via `dashboard/templates/dashboard/service.html`; add service-specific JS/CSS only when the workflow needs it.
 - Register homepage resource loading in the resource loader map when the service should appear on the home dashboard.
 - Add focused tests for registry metadata, service page rendering, inventory/API behavior, and each action endpoint.
+- Keep action metadata paths, route coverage, and action endpoint tests in sync; `ActionRegistryAuditTests` flags stale registry paths and missing action test coverage.
 - Run JS syntax checks for any changed console assets; `dashboard.tests.StaticJavaScriptTests` also checks dashboard JS during the test suite.
 - Update `ROADMAP.md` with the coverage note, maturity change, or follow-up gaps so contributors can see what changed and what remains.
 
@@ -256,6 +258,7 @@ Recommended checks before opening a PR:
 
 ```bash
 python3 manage.py test dashboard
+python3 manage.py test dashboard.tests.ActionRegistryAuditTests
 python3 manage.py check
 node --check dashboard/static/dashboard/service-console.js
 node --check dashboard/static/dashboard/<service>-console.js

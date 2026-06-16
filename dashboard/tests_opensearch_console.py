@@ -164,6 +164,19 @@ class OpenSearchActionsApiTests(SimpleTestCase):
         self.assertEqual(response.json()['versions'], ['OpenSearch_2.19'])
         versions_mock.assert_called_once_with()
 
+    @patch('dashboard.opensearch_views.get_compatible_versions')
+    def test_get_compatible_versions_success(self, versions_mock):
+        versions_mock.return_value = {'compatible_versions': ['OpenSearch_3.0']}
+
+        response = self.client.post(
+            reverse('dashboard:opensearch-compatible-versions'),
+            data=json.dumps({'domain_name': 'my-search'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        versions_mock.assert_called_once_with('my-search')
+
     @patch('dashboard.opensearch_views.describe_instance_type_limits')
     def test_instance_type_limits_success(self, limits_mock):
         limits_mock.return_value = {'limits_by_role': {'data': []}}

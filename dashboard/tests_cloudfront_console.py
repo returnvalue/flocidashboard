@@ -100,6 +100,19 @@ class CloudFrontApiTests(SimpleTestCase):
             comment='',
         )
 
+    @patch('dashboard.cloudfront_views.create_origin_access_identity')
+    def test_create_origin_access_identity_success(self, oai_mock):
+        oai_mock.return_value = {'origin_access_identity': {'Id': 'OAI123'}}
+
+        response = self.client.post(
+            reverse('dashboard:cloudfront-origin-access-identities'),
+            data=json.dumps({'caller_reference': 'oai-ref-1', 'comment': 'Local OAI'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        oai_mock.assert_called_once_with('oai-ref-1', comment='Local OAI')
+
     @patch('dashboard.cloudfront_views.create_function')
     def test_create_function_success(self, function_mock):
         function_mock.return_value = {'function': {'Name': 'rewrite'}}
@@ -117,6 +130,19 @@ class CloudFrontApiTests(SimpleTestCase):
             comment='',
             runtime='cloudfront-js-1.0',
         )
+
+    @patch('dashboard.cloudfront_views.publish_function')
+    def test_publish_function_success(self, publish_mock):
+        publish_mock.return_value = {'function': {'Name': 'rewrite'}}
+
+        response = self.client.post(
+            reverse('dashboard:cloudfront-function-detail', kwargs={'function_name': 'rewrite'}),
+            data=json.dumps({'if_match': 'etag-1'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        publish_mock.assert_called_once_with('rewrite', if_match='etag-1')
 
     @patch('dashboard.cloudfront_views.tag_resource')
     def test_tag_resource_success(self, tag_mock):

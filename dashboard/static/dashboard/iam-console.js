@@ -188,13 +188,13 @@ const IAMConsole = (() => {
     });
   }
 
-  async function loadManagedPolicy(policy) {
+  async function loadManagedPolicy(policy, versionId = '') {
     const data = await apiJson('/api/iam/policies/document/', {
       method: 'POST',
-      body: JSON.stringify({ policy_arn: policy.arn }),
+      body: JSON.stringify({ policy_arn: policy.arn, version_id: versionId || null }),
     });
     selectPolicy({
-      label: data.name || policy.name,
+      label: `${data.name || policy.name}${data.version_id ? ` / ${data.version_id}` : ''}`,
       document: data.document,
     });
   }
@@ -260,6 +260,49 @@ const IAMConsole = (() => {
     });
   }
 
+  function showTrustPolicyModal(role) {
+    const form = el('div');
+    const documentInput = document.createElement('textarea');
+    documentInput.value = JSON.stringify(parsePolicyDocument(role.trust_policy) || {
+      Version: '2012-10-17',
+      Statement: [{
+        Effect: 'Allow',
+        Principal: { Service: 'lambda.amazonaws.com' },
+        Action: 'sts:AssumeRole',
+      }],
+    }, null, 2);
+    form.append(el('label', null, 'Trust policy JSON'), documentInput);
+    openModal('Edit trust policy', form, 'Save', async (close) => {
+      await apiJson(`/api/iam/roles/${encodeURIComponent(role.name)}/trust-policy/`, {
+        method: 'PUT',
+        body: JSON.stringify({ document: JSON.parse(documentInput.value) }),
+      });
+      close();
+      toast('Trust policy saved');
+      await refresh();
+    });
+  }
+
+  function showAddUserToGroupModal(options = {}) {
+    const form = el('div');
+    const userInput = document.createElement('input');
+    const groupInput = document.createElement('input');
+    userInput.value = options.userName || '';
+    groupInput.value = options.groupName || '';
+    userInput.placeholder = 'alice';
+    groupInput.placeholder = 'admins';
+    form.append(el('label', null, 'User name'), userInput, el('label', null, 'Group name'), groupInput);
+    openModal('Add user to group', form, 'Add', async (close) => {
+      await apiJson(`/api/iam/groups/${encodeURIComponent(groupInput.value.trim())}/members/`, {
+        method: 'POST',
+        body: JSON.stringify({ user_name: userInput.value.trim() }),
+      });
+      close();
+      toast('User added to group');
+      await refresh();
+    });
+  }
+
   function showInlinePolicyModal(principal, existingName = '') {
     const form = el('div');
     const nameInput = document.createElement('input');
@@ -311,6 +354,36 @@ const IAMConsole = (() => {
     });
   }
 
+  function showCreatePolicyVersionModal(policy) {
+    const form = el('div');
+    const documentInput = document.createElement('textarea');
+    documentInput.value = '{\n  "Version": "2012-10-17",\n  "Statement": []\n}';
+    const defaultInput = document.createElement('input');
+    defaultInput.type = 'checkbox';
+    defaultInput.checked = true;
+    form.append(
+      el('label', null, 'Policy ARN'),
+      el('pre', 'iam-arn-preview', policy.arn),
+      el('label', null, 'Policy document JSON'),
+      documentInput,
+      el('label', null, 'Set as default'),
+      defaultInput,
+    );
+    openModal('Create policy version', form, 'Create', async (close) => {
+      await apiJson('/api/iam/policies/versions/', {
+        method: 'POST',
+        body: JSON.stringify({
+          policy_arn: policy.arn,
+          document: JSON.parse(documentInput.value),
+          set_as_default: defaultInput.checked,
+        }),
+      });
+      close();
+      toast('Policy version created');
+      await refresh();
+    });
+  }
+
   function confirmDetachPolicy(principal, policy) {
     openModal('Detach managed policy', el('p', null, `Detach ${policy.name || policy.arn} from ${principal.name}?`), 'Detach', async (close) => {
       await apiJson(`/api/iam/principals/${encodeURIComponent(state.selectedType)}/${encodeURIComponent(principal.name)}/attached-policies/`, {
@@ -350,6 +423,39 @@ const IAMConsole = (() => {
       });
       close();
       toast('Access key deleted');
+      await refresh();
+    });
+  }
+
+  function confirmRemoveUserFromGroup(userName, groupName) {
+    openModal('Remove user from group', el('p', null, `Remove ${userName} from ${groupName}?`), 'Remove', async (close) => {
+      await apiJson(`/api/iam/groups/${encodeURIComponent(groupName)}/members/`, {
+        method: 'DELETE',
+        body: JSON.stringify({ user_name: userName }),
+      });
+      close();
+      toast('User removed from group');
+      await refresh();
+    });
+  }
+
+  async function setDefaultPolicyVersion(policy, version) {
+    await apiJson('/api/iam/policies/versions/detail/', {
+      method: 'PUT',
+      body: JSON.stringify({ policy_arn: policy.arn, version_id: version.id }),
+    });
+    toast('Default policy version updated');
+    await refresh();
+  }
+
+  function confirmDeletePolicyVersion(policy, version) {
+    openModal('Delete policy version', el('p', null, `Delete ${version.id} from ${policy.name || policy.arn}?`), 'Delete', async (close) => {
+      await apiJson('/api/iam/policies/versions/detail/', {
+        method: 'DELETE',
+        body: JSON.stringify({ policy_arn: policy.arn, version_id: version.id }),
+      });
+      close();
+      toast('Policy version deleted');
       await refresh();
     });
   }
@@ -439,6 +545,62 @@ const IAMConsole = (() => {
     return wrapper;
   }
 
+  function renderUserGroups(user) {
+    const wrapper = el('div', 'iam-policy-list-wrap');
+    wrapper.append(el('h3', null, 'Group membership'));
+    const groups = user.groups || [];
+    if (!groups.length) {
+      wrapper.append(el('div', 'iam-empty iam-empty-compact', 'This user is not in any groups.'));
+    }
+    groups.forEach((groupName) => {
+      const row = el('div', 'iam-policy-row');
+      row.append(el('span', 'iam-principal-name', groupName));
+      row.append(btn('Remove', 'iam-btn-danger', () => confirmRemoveUserFromGroup(user.name, groupName)));
+      wrapper.append(row);
+    });
+    wrapper.append(btn('Add to group', 'iam-btn-secondary', () => showAddUserToGroupModal({ userName: user.name })));
+    return wrapper;
+  }
+
+  function renderGroupUsers(group) {
+    const wrapper = el('div', 'iam-policy-list-wrap');
+    wrapper.append(el('h3', null, 'Users'));
+    const users = group.users || [];
+    if (!users.length) {
+      wrapper.append(el('div', 'iam-empty iam-empty-compact', 'No users in this group.'));
+    }
+    users.forEach((userName) => {
+      const row = el('div', 'iam-policy-row');
+      row.append(el('span', 'iam-principal-name', userName));
+      row.append(btn('Remove', 'iam-btn-danger', () => confirmRemoveUserFromGroup(userName, group.name)));
+      wrapper.append(row);
+    });
+    wrapper.append(btn('Add user', 'iam-btn-secondary', () => showAddUserToGroupModal({ groupName: group.name })));
+    return wrapper;
+  }
+
+  function renderPolicyVersions(policy) {
+    const wrapper = el('div', 'iam-policy-list-wrap');
+    wrapper.append(el('h3', null, 'Policy versions'));
+    const versions = policy.versions || [];
+    if (!versions.length) {
+      wrapper.append(el('div', 'iam-empty iam-empty-compact', 'No policy versions found.'));
+    }
+    versions.forEach((version) => {
+      const row = el('div', 'iam-policy-row');
+      row.append(
+        btn(`${version.id}${version.default ? ' (default)' : ''}`, 'iam-btn-secondary', () => loadManagedPolicy(policy, version.id).catch((error) => toast(error.message, true))),
+      );
+      if (!version.default) {
+        row.append(btn('Set default', 'iam-btn-secondary', () => setDefaultPolicyVersion(policy, version).catch((error) => toast(error.message, true))));
+        row.append(btn('Delete', 'iam-btn-danger', () => confirmDeletePolicyVersion(policy, version)));
+      }
+      wrapper.append(row);
+    });
+    wrapper.append(btn('Create version', 'iam-btn-secondary', () => showCreatePolicyVersionModal(policy)));
+    return wrapper;
+  }
+
   function renderAccessKeys(user) {
     const wrapper = el('div', 'iam-access-keys');
     wrapper.append(el('h3', null, 'Access keys'));
@@ -501,13 +663,19 @@ const IAMConsole = (() => {
 
     if (state.selectedType === 'policy') {
       content.append(btn('Open default version', 'iam-btn-secondary', () => loadManagedPolicy(principal).catch((error) => toast(error.message, true))));
+      content.append(renderPolicyVersions(principal));
     } else {
       content.append(renderPolicyList(principal));
     }
     if (state.selectedType === 'user') {
+      content.append(renderUserGroups(principal));
       content.append(renderAccessKeys(principal));
     }
+    if (state.selectedType === 'group') {
+      content.append(renderGroupUsers(principal));
+    }
     if (state.selectedType === 'role') {
+      content.append(btn('Edit trust policy', 'iam-btn-secondary', () => showTrustPolicyModal(principal)));
       const assumed = renderAssumeRoleResult();
       if (assumed) {
         content.append(assumed);

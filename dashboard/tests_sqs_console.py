@@ -47,6 +47,16 @@ class SQSQueuesApiTests(SimpleTestCase):
         self.assertEqual(response.json()['name'], 'orders')
         create_mock.assert_called_once_with('orders', fifo=False, visibility_timeout=None)
 
+    @patch('dashboard.sqs_views.delete_queue')
+    def test_delete_queue_success(self, delete_mock):
+        delete_mock.return_value = {'name': 'orders', 'deleted': True}
+
+        response = self.client.delete(reverse('dashboard:sqs-queue-delete', kwargs={'queue_name': 'orders'}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['deleted'])
+        delete_mock.assert_called_once_with('orders')
+
     @patch('dashboard.sqs_views.send_message')
     def test_send_message_success(self, send_mock):
         send_mock.return_value = {'message_id': 'abc123'}
