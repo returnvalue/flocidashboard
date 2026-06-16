@@ -22,7 +22,7 @@ const TranscribeConsole = (() => {
     delete_transcription_job: 'Delete job',
     delete_vocabulary: 'Delete',
   };
-  const state = { inventory: null, selectedJob: '', lastResult: null, actions: ACTION_FALLBACKS, actionsLoaded: false };
+  const state = { inventory: null, selectedJob: '', lastResult: null, actions: null };
   const el = ui.el;
   const apiJson = ui.apiJson;
   const btn = ui.button;
@@ -42,24 +42,8 @@ const TranscribeConsole = (() => {
   function renderSummary(summary) {
     ui.renderSummary(summary, summaryEl, { serviceKey: 'transcribe', targets: { transcription_jobs: 'Transcription jobs', vocabularies: 'Vocabularies', available_sdk_operations: 'Available SDK operations' } });
   }
-  function serviceActions(names) {
-    const byName = new Map(state.actions.map((action) => [action.name, action]));
-    return names.map((name) => byName.get(name)).filter(Boolean);
-  }
   function renderActionButtons(names, handlers) {
-    return ui.renderActionButtons(serviceActions(names), handlers, { classPrefix: 'transcribe', labels: ACTION_LABELS });
-  }
-  async function loadActions() {
-    if (state.actionsLoaded) return;
-    try {
-      const payload = await apiJson('/api/services/');
-      const service = (payload.services || []).find((item) => item.key === 'transcribe');
-      if (service?.actions?.length) state.actions = service.actions;
-    } catch (_error) {
-      state.actions = ACTION_FALLBACKS;
-    } finally {
-      state.actionsLoaded = true;
-    }
+    return state.actions.renderButtons(names, handlers, { classPrefix: 'transcribe', labels: ACTION_LABELS });
   }
   function renderBreadcrumbs() {
     if (!breadcrumbsEl) return;
@@ -169,7 +153,7 @@ const TranscribeConsole = (() => {
     const workbench = el('div', 'transcribe-workbench'); workbench.append(renderJobList(), renderDetail(selectedJob())); container.append(workbench); return container;
   }
   function render() { if (!root) return; renderBreadcrumbs(); root.textContent = ''; root.append(renderWorkbench()); if (loadedAtEl) loadedAtEl.textContent = `Loaded ${new Date().toLocaleTimeString()}`; }
-  async function refresh() { const [data] = await Promise.all([apiJson('/api/transcribe/'), loadActions()]); state.inventory = data; if (!selectedJob() && jobs().length) state.selectedJob = jobName(jobs()[0]); renderSummary(data.summary || {}); render(); }
+  async function refresh() { const [data, actions] = await Promise.all([apiJson('/api/transcribe/'), state.actions || ui.loadServiceActions('transcribe', ACTION_FALLBACKS)]); state.inventory = data; state.actions = actions; if (!selectedJob() && jobs().length) state.selectedJob = jobName(jobs()[0]); renderSummary(data.summary || {}); render(); }
   function init() { if (!root) return; root.append(el('div', 'transcribe-empty', 'Loading...')); refresh().catch((error) => toast(error.message, true)); }
   return { init, refresh };
 })();

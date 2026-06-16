@@ -1,5 +1,9 @@
 const refreshButton = document.querySelector('#refresh');
+const environmentRefreshButton = document.querySelector('#environment-refresh');
 const loadedAt = document.querySelector('#loaded-at');
+const environmentLoadedAt = document.querySelector('#environment-loaded-at');
+const environmentState = document.querySelector('#environment-state');
+const environmentAlerts = document.querySelector('#environment-alerts');
 const iamLoadedAt = document.querySelector('#iam-loaded-at');
 const health = document.querySelector('#health');
 const endpoint = document.querySelector('#endpoint');
@@ -5582,6 +5586,91 @@ function fetchOptions(force = false) {
   return force ? { cache: 'no-store' } : {};
 }
 
+function setText(id, value, fallback = 'Unknown') {
+  const node = document.getElementById(id);
+  if (!node) {
+    return;
+  }
+  node.textContent = value ?? fallback;
+}
+
+function sourceLabel(value, source) {
+  if (!value) {
+    return 'Not set';
+  }
+  return source ? `${value} (${source})` : value;
+}
+
+function isLocalEndpoint(url = '') {
+  try {
+    const parsed = new URL(url);
+    return ['localhost', '127.0.0.1', '0.0.0.0', 'floci'].includes(parsed.hostname)
+      || parsed.hostname.endsWith('.localhost');
+  } catch (_error) {
+    return false;
+  }
+}
+
+function addEnvironmentAlert(message, type = 'error') {
+  if (!environmentAlerts) {
+    return;
+  }
+  const alert = document.createElement('div');
+  alert.className = `environment-alert${type === 'info' ? ' environment-alert-info' : ''}`;
+  alert.textContent = message;
+  environmentAlerts.append(alert);
+}
+
+function renderEnvironmentDetails(statusResult = {}) {
+  if (!environmentState) {
+    return;
+  }
+
+  const healthData = statusResult.health?.data || {};
+  const identityData = statusResult.identity?.data || {};
+  const flociData = healthData.data || {};
+  const identityPayload = identityData.identity || {};
+  const healthOk = Boolean(statusResult.health?.ok);
+  const identityOk = Boolean(statusResult.identity?.ok);
+
+  environmentState.textContent = healthOk ? 'Connected' : 'Needs attention';
+  if (environmentLoadedAt) {
+    environmentLoadedAt.textContent = `Checked ${new Date().toLocaleTimeString()}`;
+  }
+  if (environmentAlerts) {
+    environmentAlerts.textContent = '';
+  }
+
+  setText('environment-health-status', healthOk ? 'Healthy' : 'Not running');
+  setText('environment-version', flociData.version, healthOk ? 'Unknown' : 'Unavailable');
+  setText('environment-edition', flociData.edition, healthOk ? 'Unknown' : 'Unavailable');
+  setText('environment-health-url', healthData.url || identityData.endpoint_url || 'Unknown');
+  setText('environment-endpoint', identityData.endpoint_url);
+  setText('environment-endpoint-source', identityData.endpoint_source);
+  setText('environment-region', identityData.region);
+  setText('environment-region-source', identityData.region_source);
+  setText('environment-credential-source', credentialLabel(identityData));
+  setText('environment-profile', sourceLabel(identityData.profile, identityData.profile_source));
+  setText('environment-identity-resolved', identityOk || identityData.identity_resolved === false ? String(identityOk) : 'Unknown');
+  setText('environment-identity-arn', identityPayload.arn);
+  setText('environment-identity-user', identityPayload.user_id);
+  setText('environment-identity-account', identityPayload.account);
+  setText('environment-identity-error', identityData.identity_error || identityData.error || 'None');
+
+  if (!healthOk) {
+    addEnvironmentAlert(healthData.error || 'Floci is not reachable on the configured local endpoint.');
+  }
+  if (identityData.endpoint_url && !isLocalEndpoint(identityData.endpoint_url)) {
+    addEnvironmentAlert('The configured AWS endpoint does not look local. The dashboard refuses non-local endpoints for safety.');
+  }
+  if (!identityOk && identityData.error) {
+    addEnvironmentAlert(identityData.error);
+  }
+  if (identityData.credential_source === 'local_default') {
+    addEnvironmentAlert('Using local test/test credentials because no explicit profile or environment credentials were available.', 'info');
+  }
+}
+
 async function loadIdentity(options = {}) {
   const response = await fetch('/api/identity/', fetchOptions(options.force));
   const data = await response.json();
@@ -5610,6 +5699,31 @@ async function loadStatusTiles(options = {}) {
     identityResult = { ok: false, data: { error: error.message } };
   }
   return { health: healthResult, identity: identityResult };
+}
+
+async function refreshEnvironment(options = {}) {
+  if (!environmentState) {
+    return;
+  }
+  if (environmentRefreshButton) {
+    environmentRefreshButton.disabled = true;
+    environmentRefreshButton.textContent = 'Refreshing...';
+  }
+  environmentState.textContent = 'Checking...';
+  try {
+    const statusResult = await loadStatusTiles(options);
+    renderEnvironmentDetails(statusResult);
+  } catch (error) {
+    renderEnvironmentDetails({
+      health: { ok: false, data: { error: error.message } },
+      identity: { ok: false, data: { error: error.message } },
+    });
+  } finally {
+    if (environmentRefreshButton) {
+      environmentRefreshButton.disabled = false;
+      environmentRefreshButton.textContent = 'Refresh';
+    }
+  }
 }
 
 async function loadHealth(options = {}) {
@@ -5901,6 +6015,14 @@ if (backToTopButton) {
 document.addEventListener('pointerdown', closeServiceFilterOnOutsidePointerDown);
 if (refreshButton) {
   refreshButton.addEventListener('click', () => refresh({ force: true }));
+}
+if (environmentRefreshButton) {
+  environmentRefreshButton.addEventListener('click', () => refreshEnvironment({ force: true }));
+  refreshEnvironment().catch((error) => {
+    if (environmentState) {
+      environmentState.textContent = error.message;
+    }
+  });
 }
 if (s3ConsoleRoot) {
   loadStatusTiles().catch((error) => {

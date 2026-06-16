@@ -97,6 +97,10 @@ def index(request):
     return render(request, 'dashboard/index.html')
 
 
+def environment(request):
+    return render(request, 'dashboard/environment.html')
+
+
 def service_matrix(request):
     rows = []
     maturity_counts: dict[str, int] = {}

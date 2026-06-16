@@ -294,6 +294,33 @@ const ServiceConsole = (() => {
     return row;
   }
 
+  async function loadServiceActions(serviceKey, fallbacks = []) {
+    let actions = fallbacks;
+    try {
+      const payload = await apiJson('/api/services/');
+      const service = (payload.services || []).find((item) => item.key === serviceKey);
+      if (service?.actions?.length) {
+        actions = service.actions;
+      }
+    } catch (_error) {
+      actions = fallbacks;
+    }
+
+    const byName = new Map(actions.map((action) => [action.name, action]));
+    return {
+      all: actions,
+      get(name) {
+        return byName.get(name) || null;
+      },
+      select(names) {
+        return names.map((name) => byName.get(name)).filter(Boolean);
+      },
+      renderButtons(names, handlers = {}, options = {}) {
+        return renderActionButtons(this.select(names), handlers, options);
+      },
+    };
+  }
+
   function openModal(title, bodyNode, confirmLabel, onConfirm, options = {}) {
     const classPrefix = options.classPrefix || 'service';
     const showToast = options.toast || ((message, isError) => toast(message, {
@@ -338,6 +365,7 @@ const ServiceConsole = (() => {
     formatDate,
     getCsrfToken,
     displayValue,
+    loadServiceActions,
     openModal,
     parsedJsonString,
     renderActionButtons,

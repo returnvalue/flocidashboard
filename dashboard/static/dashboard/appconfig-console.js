@@ -22,7 +22,7 @@ const AppConfigConsole = (() => {
     create_deployment_strategy: 'Create strategy',
     start_configuration_session: 'Start session',
   };
-  const state = { inventory: null, selectedApplicationId: '', configurationToken: '', lastResult: null, actions: ACTION_FALLBACKS, actionsLoaded: false };
+  const state = { inventory: null, selectedApplicationId: '', configurationToken: '', lastResult: null, actions: null };
   const el = ui.el;
   const apiJson = ui.apiJson;
   const btn = ui.button;
@@ -39,24 +39,8 @@ const AppConfigConsole = (() => {
   function textarea(value = '', placeholder = '') { const node = document.createElement('textarea'); node.value = value; node.placeholder = placeholder; return node; }
   function field(form, label, control) { form.append(el('label', null, label), control); }
   function renderSummary(summary) { ui.renderSummary(summary, summaryEl, { serviceKey: 'appconfig', targets: { applications: 'Applications', environments: 'Environments', configuration_profiles: 'Configuration profiles', hosted_versions: 'Hosted configuration versions', deployment_strategies: 'Deployment strategies', deployments: 'Deployments' } }); }
-  function serviceActions(names) {
-    const byName = new Map(state.actions.map((action) => [action.name, action]));
-    return names.map((name) => byName.get(name)).filter(Boolean);
-  }
   function renderActionButtons(names, handlers) {
-    return ui.renderActionButtons(serviceActions(names), handlers, { classPrefix: 'appconfig', labels: ACTION_LABELS });
-  }
-  async function loadActions() {
-    if (state.actionsLoaded) return;
-    try {
-      const payload = await apiJson('/api/services/');
-      const service = (payload.services || []).find((item) => item.key === 'appconfig');
-      if (service?.actions?.length) state.actions = service.actions;
-    } catch (_error) {
-      state.actions = ACTION_FALLBACKS;
-    } finally {
-      state.actionsLoaded = true;
-    }
+    return state.actions.renderButtons(names, handlers, { classPrefix: 'appconfig', labels: ACTION_LABELS });
   }
 
   function showCreateApplication() {
@@ -191,7 +175,7 @@ const AppConfigConsole = (() => {
     if (loadedAtEl) loadedAtEl.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
   }
 
-  async function refresh() { const [data] = await Promise.all([apiJson('/api/appconfig/'), loadActions()]); state.inventory = data; if (!selectedApplication() && applications().length) state.selectedApplicationId = applications()[0].id; renderSummary(data.summary || {}); render(); }
+  async function refresh() { const [data, actions] = await Promise.all([apiJson('/api/appconfig/'), state.actions || ui.loadServiceActions('appconfig', ACTION_FALLBACKS)]); state.inventory = data; state.actions = actions; if (!selectedApplication() && applications().length) state.selectedApplicationId = applications()[0].id; renderSummary(data.summary || {}); render(); }
   function init() { if (!root) return; root.append(el('div', 'appconfig-empty', 'Loading...')); refresh().catch((error) => toast(error.message, true)); }
   return { init, refresh };
 })();

@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -8,11 +9,54 @@ from unittest.mock import MagicMock, patch
 from botocore.exceptions import ClientError, NoCredentialsError, ProfileNotFound
 from botocore.parsers import ResponseParserError
 from django.test import SimpleTestCase
-from django.urls import reverse
+from django.urls import Resolver404, resolve, reverse
 
 from .actions import error_payload, error_status, handle_action_error, json_error
 from .aws import FlociClientFactory, ResourceResult, cloudformation_inventory, list_resources as aws_list_resources, rds_inventory
 from .services import SERVICE_PAGES, SERVICE_REGISTRY, SERVICES
+
+
+ACTION_TEST_REFERENCE_GAP_BASELINE = frozenset({
+    ('appsync', 'create_api_key', 'appsync-api-keys'),
+    ('appsync', 'delete_api_key', 'appsync-api-keys'),
+    ('appsync', 'create_resolver', 'appsync-resolvers'),
+    ('appsync', 'delete_resolver', 'appsync-resolvers'),
+    ('appsync', 'create_function', 'appsync-functions'),
+    ('appsync', 'delete_function', 'appsync-functions'),
+    ('appsync', 'create_type', 'appsync-types'),
+    ('appsync', 'delete_type', 'appsync-types'),
+    ('appsync', 'tag_resource', 'appsync-tags'),
+    ('appsync', 'untag_resource', 'appsync-tags'),
+    ('autoscaling', 'delete_launch_configuration', 'autoscaling-launch-configuration-detail'),
+    ('cloudfront', 'create_origin_access_identity', 'cloudfront-origin-access-identities'),
+    ('cloudfront', 'publish_function', 'cloudfront-function-detail'),
+    ('cloudmap', 'delete_namespace', 'cloudmap-namespace-detail'),
+    ('cloudmap', 'delete_service', 'cloudmap-service-detail'),
+    ('cloudmap', 'deregister_instance', 'cloudmap-instance-detail'),
+    ('cloudmap', 'update_instance_custom_health_status', 'cloudmap-instance-health'),
+    ('cloudmap', 'tag_resource', 'cloudmap-tags'),
+    ('cloudmap', 'untag_resource', 'cloudmap-tags'),
+    ('cognito', 'admin_delete_user', 'cognito-user-detail'),
+    ('ec2', 'start_instance', 'ec2-instance-start'),
+    ('ec2', 'reboot_instance', 'ec2-instance-reboot'),
+    ('elasticloadbalancing', 'delete_listener', 'elbv2-listener-detail'),
+    ('elasticloadbalancing', 'delete_target_group', 'elbv2-target-group-detail'),
+    ('iam', 'attach_managed_policy', 'iam-attached-policies'),
+    ('iam', 'create_managed_policy', 'iam-managed-policies'),
+    ('iam', 'delete_access_key', 'iam-user-access-key-detail'),
+    ('iam', 'detach_managed_policy', 'iam-attached-policies'),
+    ('iam', 'update_access_key', 'iam-user-access-key-detail'),
+    ('opensearch', 'get_compatible_versions', 'opensearch-compatible-versions'),
+    ('route53', 'delete_hosted_zone', 'route53-hosted-zone-detail'),
+    ('s3', 'copy_object', 's3-object-copy'),
+    ('s3', 'create_folder', 's3-folder-create'),
+    ('s3', 'delete_bucket', 's3-bucket-detail'),
+    ('s3', 'download_object', 's3-object-download'),
+    ('s3', 'empty_bucket', 's3-bucket-empty'),
+    ('s3', 'presign_object', 's3-object-presign'),
+    ('s3', 'put_object_tags', 's3-object-tags'),
+    ('sqs', 'delete_queue', 'sqs-queue-delete'),
+})
 
 
 class StaticJavaScriptTests(SimpleTestCase):
@@ -36,6 +80,64 @@ class StaticJavaScriptTests(SimpleTestCase):
                 self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
 
 
+class ActionRegistryAuditTests(SimpleTestCase):
+    placeholder_pattern = re.compile(r'\{[^/{}]+\}')
+
+    @classmethod
+    def sample_action_path(cls, path):
+        return cls.placeholder_pattern.sub('sample', path)
+
+    @staticmethod
+    def action_test_route_references():
+        route_names = set()
+        for test_file in Path(__file__).resolve().parent.glob('tests*.py'):
+            text = test_file.read_text()
+            route_names.update(re.findall(r"reverse\(\s*['\"]dashboard:([^'\"]+)", text))
+        return route_names
+
+    def test_action_metadata_paths_resolve_to_dashboard_routes(self):
+        missing_routes = []
+
+        for service in SERVICES:
+            for action in service.actions:
+                with self.subTest(service=service.key, action=action.name):
+                    try:
+                        match = resolve(self.sample_action_path(action.path))
+                    except Resolver404:
+                        missing_routes.append((service.key, action.name, action.method, action.path))
+                        continue
+                    self.assertEqual(match.app_name, 'dashboard')
+
+        self.assertEqual(missing_routes, [])
+
+    def test_action_metadata_has_endpoint_test_references(self):
+        route_names = self.action_test_route_references()
+        missing_references = set()
+
+        for service in SERVICES:
+            for action in service.actions:
+                match = resolve(self.sample_action_path(action.path))
+                if match.url_name not in route_names:
+                    missing_references.add((service.key, action.name, match.url_name))
+
+        self.assertEqual(
+            missing_references,
+            ACTION_TEST_REFERENCE_GAP_BASELINE,
+            'Action endpoint test coverage changed. Add tests for new gaps, or remove entries from '
+            'ACTION_TEST_REFERENCE_GAP_BASELINE when a historical gap is covered.',
+        )
+
+    def test_destructive_action_metadata_requires_confirm_text(self):
+        missing_confirmations = [
+            (service.key, action.name)
+            for service in SERVICES
+            for action in service.actions
+            if action.safety == 'destructive' and not action.confirm
+        ]
+
+        self.assertEqual(missing_confirmations, [])
+
+
 class DashboardTemplateTests(SimpleTestCase):
     def test_home_page_renders_dashboard_shell(self):
         response = self.client.get(reverse('dashboard:index'))
@@ -43,8 +145,22 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<title>Floci Dashboard</title>', html=True)
         self.assertContains(response, 'id="service-grid"')
+        self.assertContains(response, reverse('dashboard:environment'))
         self.assertContains(response, reverse('dashboard:service-matrix'))
         self.assertContains(response, 'dashboard/styles.css')
+        self.assertContains(response, 'dashboard/dashboard.js')
+
+    def test_environment_page_renders_diagnostics_shell(self):
+        response = self.client.get(reverse('dashboard:environment'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '<title>Environment - Floci Dashboard</title>', html=True)
+        self.assertContains(response, '<h1>Environment</h1>', html=True)
+        self.assertContains(response, 'id="environment-refresh"')
+        self.assertContains(response, 'id="environment-state"')
+        self.assertContains(response, 'id="environment-endpoint"')
+        self.assertContains(response, 'id="environment-identity-arn"')
+        self.assertContains(response, reverse('dashboard:service-matrix'))
         self.assertContains(response, 'dashboard/dashboard.js')
 
     def test_service_matrix_renders_registry_coverage(self):
