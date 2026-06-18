@@ -1,8 +1,10 @@
 import json
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase
 from django.urls import reverse
+
+from .aws import ssm_inventory
 
 
 class SSMPageTemplateTests(SimpleTestCase):
@@ -114,3 +116,26 @@ class SSMActionsApiTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['name'], '/local/app/config')
         delete_mock.assert_called_once_with('/local/app/config')
+
+
+class SSMInventoryTests(SimpleTestCase):
+    @patch('dashboard.aws._paginate')
+    @patch('dashboard.aws.FlociClientFactory')
+    def test_inventory_includes_default_patch_baselines(self, factory_mock, paginate_mock):
+        ssm = MagicMock()
+        ssm.get_default_patch_baseline.side_effect = lambda OperatingSystem: (
+            {'BaselineId': f'pb-{OperatingSystem.lower()}'}
+            if OperatingSystem in {'AMAZON_LINUX_2023', 'WINDOWS'}
+            else {}
+        )
+        factory_mock.return_value.client.return_value = ssm
+        paginate_mock.return_value = []
+
+        result = ssm_inventory()
+
+        self.assertEqual(result['summary']['default_patch_baselines'], 2)
+        self.assertEqual(
+            {baseline['operating_system'] for baseline in result['default_patch_baselines']},
+            {'AMAZON_LINUX_2023', 'WINDOWS'},
+        )
+        self.assertIn('GetDefaultPatchBaseline', result['supported_from_sdk'])

@@ -1505,6 +1505,18 @@ KMS_ACTIONS = (
         success_message='Rotation updated',
     ),
     action(
+        'set_key_enabled',
+        'Set key state',
+        'POST',
+        '/api/kms/key-state/',
+        'update',
+        fields=(
+            action_field('key_id', 'Key ID', required=True),
+            action_field('enabled', 'Enabled', field_type='boolean'),
+        ),
+        success_message='Key state updated',
+    ),
+    action(
         'schedule_key_deletion',
         'Schedule key deletion',
         'POST',
@@ -4082,6 +4094,15 @@ SERVICES: tuple[ServiceDefinition, ...] = (
         shared_console=True,
         tags=('layered-workbench',),
         actions=DYNAMODB_ACTIONS,
+    ),
+    service(
+        'docdb',
+        'DocumentDB',
+        'MongoDB-compatible clusters and instances',
+        'Database',
+        maturity='read_only_inspector',
+        docs_url='https://floci.io/floci/services/docdb/',
+        tags=('database', 'document-database', 'inventory'),
     ),
     service(
         'ec2',

@@ -174,6 +174,13 @@ Core architecture files:
 - Closed the action audit baseline by adding endpoint tests across S3, Cloud Map, IAM, SQS, AppSync, Auto Scaling, CloudFront, Cognito, EC2, ELB v2, OpenSearch, and Route 53, reducing `ACTION_TEST_REFERENCE_GAP_BASELINE` from 39 historical gaps to zero.
 - Migrated Cloud Map action rows to `ServiceConsole.loadServiceActions(...)`, making it the third registry-driven console after AppConfig and Transcribe.
 - Expanded the IAM workbench with managed policy version create/default/delete flows, user/group membership editing, and role trust policy editing.
+- Added a Tracked Resources homepage filter that discovers resources across all registered services and hides empty service cards.
+- Added Amazon DocumentDB cluster and instance inventory, resource counting, homepage coverage, and a dedicated read-only service page.
+- Expanded EC2 inventory with VPC endpoints and SSM inventory with per-operating-system default patch baselines.
+- Added KMS key enable/disable actions and surfaced S3 user metadata in the object detail drawer.
+- Added local AWS workflow labs with shared routes, UI, live-state verification, reset behavior, and breadcrumb navigation.
+- Completed eight IAM labs covering users, managed and inline policies, access keys, groups, roles, and EC2 instance profiles.
+- Completed twelve S3 labs covering bucket/object fundamentals, prefixes, metadata and tags, version recovery, presigned URLs, bucket security, default encryption, lifecycle retention, CORS, S3-to-SQS notifications, and multipart upload.
 
 ## Near-Term Priorities
 
@@ -265,12 +272,32 @@ Feasible follow-ups:
 - Replace any remaining unsafe HTML rendering.
 - Add clearer empty states for buckets, prefixes, and object details.
 - Add cross-service links where S3 notifications reference SQS, SNS, or Lambda resources.
+- Add optional links from completed S3 labs into the matching bucket, object, or queue workbench.
 
 Why it matters:
 
 - S3 is the reference workbench and likely a high-traffic page.
+- The completed S3 lab sequence now provides a repeatable regression and learning surface for these workflows.
 
-### 6. EC2 Follow-Ups
+### 6. Workflow Lab Framework
+
+Continue the local AWS workflow lab system beyond IAM and S3.
+
+Feasible follow-ups:
+
+- Split the growing `dashboard/labs.py` module into a small typed package with shared registry and runner code.
+- Add the first SQS lab for queue creation, send, receive, delete-message, purge, and queue cleanup.
+- Add SNS-to-SQS and Scheduler-to-SQS multi-service labs after the basic SQS sequence.
+- Add “View in dashboard” links after verified steps.
+- Consider step-order guidance while preserving live-state recovery after reloads.
+
+Why it matters:
+
+- Labs teach AWS-shaped workflows while proving Floci behavior end to end.
+- The curated runner model keeps command execution safe and repeatable.
+- Multi-service labs can turn the dashboard into a practical local integration-learning environment.
+
+### 7. EC2 Follow-Ups
 
 Keep improving the new EC2 instance workbench.
 
@@ -287,7 +314,7 @@ Why it matters:
 - EC2 is now a real local compute workflow in Floci.
 - Launch, lifecycle, key import, IMDS, and networking hints make the dashboard a better local debugger than raw inventory alone.
 
-### 7. EventBridge Follow-Ups
+### 8. EventBridge Follow-Ups
 
 Keep improving the new EventBridge event sender.
 
@@ -304,7 +331,7 @@ Why it matters:
 - EventBridge sits between many existing interactive workbenches.
 - Better cross-service links would turn it into a practical event-routing debugger.
 
-### 8. API Gateway Follow-Ups
+### 9. API Gateway Follow-Ups
 
 Keep improving the new API Gateway request workbench.
 
@@ -320,7 +347,7 @@ Why it matters:
 - API Gateway is now the local HTTP front door for Lambda and HTTP proxy workflows.
 - Replay and cross-service links would make it a stronger request debugger.
 
-### 9. Kinesis Follow-Ups
+### 10. Kinesis Follow-Ups
 
 Keep improving the new Kinesis stream workbench.
 
@@ -336,7 +363,7 @@ Why it matters:
 
 - Kinesis now completes the event/data-stream testing loop alongside SQS, SNS, EventBridge, Lambda, and CloudWatch.
 
-### 10. Secrets Manager And SSM Follow-Ups
+### 11. Secrets Manager And SSM Follow-Ups
 
 Keep improving local configuration and secret debugging.
 
@@ -361,7 +388,7 @@ These ideas are still interesting, but they likely need more design, Floci suppo
 - Docker runtime lens.
 - Full state export/import/reset manager.
 - Scenario launcher.
-- Tutorial mode with runnable steps.
+- Broader tutorial mode beyond the curated IAM and S3 workflow labs.
 - Large file transfer UI.
 - Deep CloudFormation stack graph.
 - Broad IAM policy simulation.
@@ -376,11 +403,12 @@ This order is intentionally modest and can change:
 3. Step Functions follow-ups.
 4. IAM polish.
 5. S3 follow-ups.
-6. EC2 follow-ups.
-7. EventBridge follow-ups.
-8. API Gateway follow-ups.
-9. Kinesis follow-ups.
-10. Secrets Manager and SSM follow-ups.
+6. Split and extend the workflow lab framework, beginning with SQS.
+7. EC2 follow-ups.
+8. EventBridge follow-ups.
+9. API Gateway follow-ups.
+10. Kinesis follow-ups.
+11. Secrets Manager and SSM follow-ups.
 
 ## Contributor Checklist
 

@@ -102,6 +102,7 @@ const EC2Console = (() => {
         security_groups: 'Security groups',
         internet_gateways: 'Internet gateways',
         route_tables: 'Route tables',
+        vpc_endpoints: 'VPC endpoints',
         elastic_ips: 'Elastic IPs',
         key_pairs: 'Key pairs',
       },

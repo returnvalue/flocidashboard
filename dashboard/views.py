@@ -8,7 +8,9 @@ from django.conf import settings
 from django.http import Http404, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.cache import cache_control
-from .aws import FlociClientFactory, acm_inventory, apigateway_inventory, appconfig_inventory, appsync_inventory, athena_inventory, autoscaling_inventory, backup_inventory, batch_inventory, bcmdataexports_inventory, bedrockruntime_inventory, cloudformation_inventory, cloudfront_inventory, cloudmap_inventory, cloudtrail_inventory, cloudwatch_inventory, codebuild_inventory, codedeploy_inventory, config_inventory, cognito_inventory, costexplorer_inventory, cur_inventory, dynamodb_inventory, ec2_inventory, ecr_inventory, ecs_inventory, eks_inventory, elasticache_inventory, elasticloadbalancing_inventory, emr_inventory, eventbridge_inventory, firehose_inventory, glue_inventory, iam_inventory, kafka_inventory, kinesis_inventory, kms_inventory, lambda_inventory, list_resources, neptune_inventory, opensearch_inventory, pipes_inventory, pricing_inventory, rds_inventory, rdsdata_inventory, resourcegroupstagging_inventory, route53_inventory, s3_inventory, scheduler_inventory, secretsmanager_inventory, ses_inventory, sns_inventory, sqs_inventory, ssm_inventory, stepfunctions_inventory, textract_inventory, transcribe_inventory, transfer_inventory, wafv2_inventory
+from django.views.decorators.http import require_POST
+from .aws import FlociClientFactory, acm_inventory, apigateway_inventory, appconfig_inventory, appsync_inventory, athena_inventory, autoscaling_inventory, backup_inventory, batch_inventory, bcmdataexports_inventory, bedrockruntime_inventory, cloudformation_inventory, cloudfront_inventory, cloudmap_inventory, cloudtrail_inventory, cloudwatch_inventory, codebuild_inventory, codedeploy_inventory, config_inventory, cognito_inventory, costexplorer_inventory, cur_inventory, docdb_inventory, dynamodb_inventory, ec2_inventory, ecr_inventory, ecs_inventory, eks_inventory, elasticache_inventory, elasticloadbalancing_inventory, emr_inventory, eventbridge_inventory, firehose_inventory, glue_inventory, iam_inventory, kafka_inventory, kinesis_inventory, kms_inventory, lambda_inventory, list_resources, neptune_inventory, opensearch_inventory, pipes_inventory, pricing_inventory, rds_inventory, rdsdata_inventory, resourcegroupstagging_inventory, route53_inventory, s3_inventory, scheduler_inventory, secretsmanager_inventory, ses_inventory, sns_inventory, sqs_inventory, ssm_inventory, stepfunctions_inventory, textract_inventory, transcribe_inventory, transfer_inventory, wafv2_inventory
+from .labs import get_lab, lab_status, labs_for_service, reset_lab, run_lab_step
 from .services import SERVICES, SERVICE_PAGES, get_service, services_payload
 
 
@@ -29,6 +31,7 @@ HOME_SERVICE_ORDER = (
     'route53',
     'cloudwatch',
     'rds',
+    'docdb',
     'dynamodb',
     'lambda',
     'autoscaling',
@@ -168,6 +171,67 @@ def service_page(request, service_key: str):
     return render(request, 'dashboard/service.html', {'service': context})
 
 
+def service_labs(request, service_key: str):
+    service_definition = get_service(service_key)
+    if not service_definition:
+        raise Http404('Service page not found')
+
+    labs = labs_for_service(service_key)
+    if not labs:
+        raise Http404('Labs not found')
+    requested_lab_key = request.GET.get('lab')
+    active_lab = next(
+        (lab for lab in labs if lab.get('key') == requested_lab_key),
+        labs[0],
+    )
+    status = lab_status(service_key, active_lab['key'])
+    step_statuses = status.get('steps', {})
+    active_lab = {
+        **active_lab,
+        'steps': [
+            {
+                **step,
+                'status': step_statuses.get(step.get('key'), {}),
+            }
+            for step in active_lab.get('steps', [])
+        ],
+    }
+
+    return render(
+        request,
+        'dashboard/labs.html',
+        {
+            'service': service_definition.as_dict(),
+            'labs': labs,
+            'active_lab': active_lab,
+            'lab_status': status,
+            'lab_complete': status.get('complete'),
+        },
+    )
+
+
+@require_POST
+def lab_step_run(request, service_key: str, lab_key: str, step_key: str):
+    if not get_lab(service_key, lab_key):
+        raise Http404('Lab not found')
+
+    try:
+        return JsonResponse(run_lab_step(service_key, lab_key, step_key))
+    except (BotoCoreError, ClientError, ValueError) as exc:
+        return JsonResponse({'error': str(exc)}, status=400)
+
+
+@require_POST
+def lab_reset(request, service_key: str, lab_key: str):
+    if not get_lab(service_key, lab_key):
+        raise Http404('Lab not found')
+
+    try:
+        return JsonResponse(reset_lab(service_key, lab_key))
+    except (BotoCoreError, ClientError, ValueError) as exc:
+        return JsonResponse({'error': str(exc)}, status=400)
+
+
 @cache_control(public=True, max_age=60)
 def services(request):
     return JsonResponse(services_payload())
@@ -255,6 +319,13 @@ def secretsmanager(request):
 def dynamodb(request):
     try:
         return JsonResponse(dynamodb_inventory())
+    except (BotoCoreError, ClientError, ValueError) as exc:
+        return JsonResponse({'error': str(exc)}, status=502)
+
+
+def docdb(request):
+    try:
+        return JsonResponse(docdb_inventory())
     except (BotoCoreError, ClientError, ValueError) as exc:
         return JsonResponse({'error': str(exc)}, status=502)
 

@@ -496,6 +496,110 @@ const IAMConsole = (() => {
     return row;
   }
 
+  function resourceMeta(type, resource) {
+    if (type === 'user') {
+      const parts = [
+        `${(resource.groups || []).length} groups`,
+        `${(resource.attached_policies || []).length + (resource.inline_policies || []).length} policies`,
+        `${(resource.access_keys || []).length} access keys`,
+      ];
+      return parts.join(' / ');
+    }
+    if (type === 'group') {
+      const parts = [
+        `${(resource.users || []).length} users`,
+        `${(resource.attached_policies || []).length + (resource.inline_policies || []).length} policies`,
+      ];
+      return parts.join(' / ');
+    }
+    if (type === 'policy') {
+      return `${resource.attachment_count || 0} attachments / default ${resource.default_version || 'unknown'}`;
+    }
+    return resource.arn || '';
+  }
+
+  function selectResource(type, name) {
+    state.selectedType = type;
+    state.selectedName = name;
+    state.selectedPolicy = null;
+    render();
+  }
+
+  function renderOverviewCard(type, label, items) {
+    const card = el('section', 'iam-overview-card');
+    const heading = el('div', 'iam-overview-heading');
+    heading.append(el('span', null, label), el('strong', null, String(items.length)));
+    card.append(heading);
+
+    const list = el('div', 'iam-overview-list');
+    if (!items.length) {
+      list.append(el('div', 'iam-empty iam-empty-compact', `No ${label.toLowerCase()} found.`));
+    } else {
+      items.forEach((item) => {
+        const name = item.name || item.arn || 'Unnamed';
+        const row = el('button', 'iam-overview-row');
+        row.append(
+          el('span', 'iam-principal-name', name),
+          el('span', 'iam-principal-meta', resourceMeta(type, item)),
+        );
+        row.addEventListener('click', () => selectResource(type, name));
+        list.append(row);
+      });
+    }
+    card.append(list);
+    return card;
+  }
+
+  function renderRelationshipOverview() {
+    const wrapper = el('div', 'iam-overview-relationships');
+    const relationships = [];
+    (state.inventory?.users || []).forEach((user) => {
+      (user.groups || []).forEach((groupName) => {
+        relationships.push(`${user.name} -> ${groupName}`);
+      });
+      (user.attached_policies || []).forEach((policy) => {
+        relationships.push(`${user.name} -> ${policy.name || policy.arn}`);
+      });
+    });
+    (state.inventory?.groups || []).forEach((group) => {
+      (group.attached_policies || []).forEach((policy) => {
+        relationships.push(`${group.name} -> ${policy.name || policy.arn}`);
+      });
+    });
+
+    if (!relationships.length) {
+      wrapper.append(el('div', 'iam-empty iam-empty-compact', 'No memberships or managed policy attachments found.'));
+      return wrapper;
+    }
+
+    relationships.slice(0, 8).forEach((relationship) => {
+      wrapper.append(el('span', 'iam-relationship-chip', relationship));
+    });
+    if (relationships.length > 8) {
+      wrapper.append(el('span', 'iam-relationship-chip', `+${relationships.length - 8} more`));
+    }
+    return wrapper;
+  }
+
+  function renderResourceOverview() {
+    const panel = el('section', 'iam-panel-console iam-resource-overview');
+    const heading = el('div', 'iam-panel-heading-console');
+    heading.append(el('span', null, 'Resource overview'), el('span', 'iam-principal-meta', 'Live IAM inventory'));
+    panel.append(heading);
+
+    const grid = el('div', 'iam-overview-grid');
+    grid.append(
+      renderOverviewCard('user', 'Users', state.inventory?.users || []),
+      renderOverviewCard('group', 'Groups', state.inventory?.groups || []),
+      renderOverviewCard('policy', 'Customer policies', state.inventory?.policies || []),
+    );
+    panel.append(grid);
+
+    const relationHeading = el('div', 'iam-overview-subheading', 'Relationships');
+    panel.append(relationHeading, renderRelationshipOverview());
+    return panel;
+  }
+
   function renderPrincipalList() {
     const panel = el('section', 'iam-panel-console');
     panel.append(el('div', 'iam-panel-heading-console', 'Principal explorer'));
@@ -654,7 +758,12 @@ const IAMConsole = (() => {
     const details = document.createElement('dl');
     consoleUi.addField(details, 'ARN', principal.arn);
     consoleUi.addField(details, 'Created', consoleUi.formatDate(principal.created));
-    consoleUi.addField(details, 'Groups', principal.groups || principal.users);
+    if (state.selectedType === 'user') {
+      consoleUi.addField(details, 'Groups', principal.groups);
+    }
+    if (state.selectedType === 'group') {
+      consoleUi.addField(details, 'Users', principal.users);
+    }
     consoleUi.addField(details, 'Permission boundary', principal.permissions_boundary);
     consoleUi.addField(details, 'Instance profiles', principal.instance_profiles);
     consoleUi.addField(details, 'Default version', principal.default_version);
@@ -707,7 +816,7 @@ const IAMConsole = (() => {
     const detail = el('div', 'iam-detail-stack');
     detail.append(renderPrincipalDetail(principal), renderPolicyViewer());
     workbench.append(renderPrincipalList(), detail);
-    container.append(workbench);
+    container.append(renderResourceOverview(), workbench);
     return container;
   }
 

@@ -1,0 +1,80 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+
+{% block title %}{{ service.title }} Labs - Floci Dashboard{% endblock %}
+
+{% block content %}
+  <header class="topbar">
+    <div>
+      <nav class="page-breadcrumbs" aria-label="Breadcrumb">
+        <a href="{% url 'dashboard:index' %}">Home</a>
+        <span class="page-breadcrumb-separator" aria-hidden="true">/</span>
+        <a href="{{ service.page_path }}">{{ service.title }}</a>
+        <span class="page-breadcrumb-separator" aria-hidden="true">/</span>
+        <span aria-current="page">Labs</span>
+      </nav>
+      <p class="eyebrow">{{ service.eyebrow }}</p>
+      <h1>{{ service.title }} Labs</h1>
+    </div>
+  </header>
+
+  <section class="section-block labs-shell" data-service="{{ service.key }}" data-lab="{{ active_lab.key }}">
+    <div class="labs-sidebar">
+      <h2>Labs</h2>
+      {% for lab in labs %}
+        <a class="lab-picker{% if lab.key == active_lab.key %} lab-picker-active{% endif %}" href="?lab={{ lab.key }}" data-lab-key="{{ lab.key }}">
+          {{ lab.title }}
+        </a>
+      {% endfor %}
+    </div>
+
+    <article class="labs-detail">
+      <div class="section-heading labs-heading">
+        <div>
+          <p class="eyebrow">Local AWS workflow lab</p>
+          <h2>{{ active_lab.title }}</h2>
+        </div>
+        <div class="labs-actions">
+          <span id="lab-state" class="lab-state">{% if lab_complete %}Complete{% else %}Not started{% endif %}</span>
+          <button id="lab-reset" class="secondary-button" type="button">Reset</button>
+        </div>
+      </div>
+      <p class="labs-description">{{ active_lab.description }}</p>
+
+      {% for step in active_lab.steps %}
+        <section class="lab-step{% if step.status.verified %} lab-step-complete{% endif %}" data-step-key="{{ step.key }}">
+          <div class="lab-step-heading">
+            <div>
+              <p class="eyebrow">Step {{ forloop.counter }}</p>
+              <h3>{{ step.title }}</h3>
+            </div>
+            <button class="lab-run-step" type="button"{% if step.status.verified %} disabled{% endif %}>{% if step.status.verified %}&#10003; Done{% else %}Run{% endif %}</button>
+          </div>
+          <pre class="lab-command"><code>{{ step.command }}</code></pre>
+          <details class="lab-explanation">
+            <summary>Explain command</summary>
+            <p>{{ step.explanation }}</p>
+          </details>
+          {% if step.artifact %}
+            <details class="lab-artifact">
+              <summary>{{ step.artifact_label }}</summary>
+              <pre><code>{{ step.artifact }}</code></pre>
+            </details>
+          {% endif %}
+          <div class="lab-response"{% if not step.status.verified %} hidden{% endif %}>
+            <div class="lab-response-heading">
+              <strong>Response</strong>
+              <span class="lab-response-status">{% if step.status.verified %}Verified{% endif %}</span>
+            </div>
+            <pre><code class="lab-response-body"></code></pre>
+            <p class="lab-verification">{% if step.status.verified %}{{ step.status.verification.message }}{% endif %}</p>
+          </div>
+        </section>
+      {% endfor %}
+    </article>
+  </section>
+{% endblock %}
+
+{% block extrascripts %}
+  <script src="{% static 'dashboard/labs.js' %}"></script>
+{% endblock %}

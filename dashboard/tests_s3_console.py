@@ -22,6 +22,20 @@ class S3PageTemplateTests(SimpleTestCase):
         self.assertContains(response, 'dashboard/s3-console.js')
         self.assertNotContains(response, 'id="s3-grid"')
 
+    def test_s3_console_object_drawer_displays_user_metadata(self):
+        from pathlib import Path
+        from django.conf import settings
+
+        source = (
+            Path(settings.BASE_DIR)
+            / 'dashboard'
+            / 'static'
+            / 'dashboard'
+            / 's3-console.js'
+        ).read_text()
+
+        self.assertIn("['User metadata', Object.keys(head.metadata || {}).length", source)
+
 
 class S3BucketsApiTests(SimpleTestCase):
     def test_create_bucket_rejects_invalid_name(self):

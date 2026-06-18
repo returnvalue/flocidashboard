@@ -242,6 +242,7 @@ def _resource_service_key(name: str) -> str:
         'costexplorer-resources': 'costexplorer',
         'cur-resources': 'cur',
         'dynamodb-tables': 'dynamodb',
+        'docdb-resources': 'docdb',
         'ec2-resources': 'ec2',
         'ecr-resources': 'ecr',
         'ecs-resources': 'ecs',
@@ -1005,6 +1006,51 @@ def wafv2_inventory() -> dict[str, Any]:
     }
 
 
+def docdb_inventory() -> dict[str, Any]:
+    factory = FlociClientFactory()
+    docdb = factory.client('docdb')
+    operations = set(docdb.meta.service_model.operation_names)
+
+    clusters = _safe_value(
+        lambda: _operation_items(docdb, 'describe_db_clusters', 'DBClusters'),
+        [],
+    ) if 'DescribeDBClusters' in operations else []
+    instances = _safe_value(
+        lambda: _operation_items(docdb, 'describe_db_instances', 'DBInstances'),
+        [],
+    ) if 'DescribeDBInstances' in operations else []
+
+    return {
+        'summary': {
+            'clusters': len(clusters),
+            'instances': len(instances),
+            'available_sdk_operations': len(operations),
+        },
+        'clusters': _clean_response(clusters),
+        'instances': _clean_response(instances),
+        'supported_from_sdk': [
+            operation
+            for operation in [
+                'CreateDBCluster',
+                'DescribeDBClusters',
+                'DeleteDBCluster',
+                'CreateDBInstance',
+                'DescribeDBInstances',
+                'DeleteDBInstance',
+                'ListTagsForResource',
+                'AddTagsToResource',
+                'RemoveTagsFromResource',
+            ]
+            if operation in operations
+        ],
+        'available_sdk_operations': sorted(operations),
+        'notes': [
+            'Floci adds Amazon DocumentDB service emulation with cluster and instance lifecycle APIs.',
+            'DocumentDB can run in mock mode or start a MongoDB-compatible data container for created clusters.',
+        ],
+    }
+
+
 def rdsdata_inventory() -> dict[str, Any]:
     factory = FlociClientFactory()
     rdsdata = factory.client('rds-data')
@@ -1208,6 +1254,7 @@ def ec2_inventory() -> dict[str, Any]:
     tags = _clean_response(_safe_value(lambda: ec2.describe_tags().get('Tags', []), []))
     internet_gateways = _clean_response(_safe_value(lambda: ec2.describe_internet_gateways().get('InternetGateways', []), []))
     route_tables = _clean_response(_safe_value(lambda: ec2.describe_route_tables().get('RouteTables', []), []))
+    vpc_endpoints = _clean_response(_safe_value(lambda: _paginate(ec2, 'describe_vpc_endpoints', 'VpcEndpoints'), []))
     addresses = _clean_response(_safe_value(lambda: ec2.describe_addresses().get('Addresses', []), []))
     iam_instance_profile_associations = _clean_response(_safe_value(
         lambda: _paginate(ec2, 'describe_iam_instance_profile_associations', 'IamInstanceProfileAssociations'),
@@ -1226,6 +1273,7 @@ def ec2_inventory() -> dict[str, Any]:
             'security_groups': len(security_groups),
             'internet_gateways': len(internet_gateways),
             'route_tables': len(route_tables),
+            'vpc_endpoints': len(vpc_endpoints),
             'elastic_ips': len(addresses),
             'key_pairs': len(key_pairs),
             'iam_instance_profile_associations': len(iam_instance_profile_associations),
@@ -1240,6 +1288,7 @@ def ec2_inventory() -> dict[str, Any]:
         'tags': tags,
         'internet_gateways': internet_gateways,
         'route_tables': route_tables,
+        'vpc_endpoints': vpc_endpoints,
         'addresses': addresses,
         'iam_instance_profile_associations': iam_instance_profile_associations,
         'availability_zones': availability_zones,
@@ -5447,6 +5496,31 @@ def ssm_inventory() -> dict[str, Any]:
     automation_executions = _safe_value(lambda: _paginate(ssm, 'describe_automation_executions', 'AutomationExecutionMetadataList'), [])
     maintenance_windows = _safe_value(lambda: _paginate(ssm, 'describe_maintenance_windows', 'WindowIdentities'), [])
     patch_baselines = _safe_value(lambda: _paginate(ssm, 'describe_patch_baselines', 'BaselineIdentities'), [])
+    default_patch_baselines = [
+        {
+            'name': operating_system,
+            'operating_system': operating_system,
+            'baseline_id': response.get('BaselineId'),
+        }
+        for operating_system in [
+            'AMAZON_LINUX',
+            'AMAZON_LINUX_2',
+            'AMAZON_LINUX_2022',
+            'AMAZON_LINUX_2023',
+            'CENTOS',
+            'DEBIAN',
+            'MACOS',
+            'ORACLE_LINUX',
+            'RASPBIAN',
+            'REDHAT_ENTERPRISE_LINUX',
+            'ROCKY_LINUX',
+            'SUSE',
+            'UBUNTU',
+            'WINDOWS',
+        ]
+        for response in [_safe_value(lambda operating_system=operating_system: ssm.get_default_patch_baseline(OperatingSystem=operating_system), {})]
+        if response.get('BaselineId')
+    ]
     associations = _safe_value(lambda: _paginate(ssm, 'list_associations', 'Associations'), [])
     commands = _safe_value(lambda: _paginate(ssm, 'list_commands', 'Commands'), [])
     command_invocations = _safe_value(lambda: _paginate(ssm, 'list_command_invocations', 'CommandInvocations', Details=True), [])
@@ -5508,6 +5582,7 @@ def ssm_inventory() -> dict[str, Any]:
             'automations': len(automation_executions),
             'maintenance_windows': len(maintenance_windows),
             'patch_baselines': len(patch_baselines),
+            'default_patch_baselines': len(default_patch_baselines),
             'associations': len(associations),
             'commands': len(commands),
             'ops_items': len(ops_items),
@@ -5521,6 +5596,7 @@ def ssm_inventory() -> dict[str, Any]:
         'automation_executions': automation_executions,
         'maintenance_windows': maintenance_windows,
         'patch_baselines': patch_baselines,
+        'default_patch_baselines': default_patch_baselines,
         'associations': associations,
         'commands': commands,
         'command_invocations': command_invocations,
@@ -5550,6 +5626,7 @@ def ssm_inventory() -> dict[str, Any]:
             'DescribeMaintenanceWindows',
             'CreatePatchBaseline',
             'DescribePatchBaselines',
+            'GetDefaultPatchBaseline',
             'ListAssociations',
             'DescribeInstanceInformation',
             'ListTagsForResource',
@@ -5558,6 +5635,7 @@ def ssm_inventory() -> dict[str, Any]:
             'This page is inferred from the SSM AWS SDK API because service docs were not provided for this pass.',
             'Parameter values are intentionally not fetched; the page shows metadata, types, tiers, policies, and tags.',
             'Document details are expanded for the first 50 document identifiers to keep page loads bounded.',
+            'AWS-owned patch baselines are shown separately from the per-operating-system defaults returned by GetDefaultPatchBaseline.',
         ],
     }
 
@@ -7760,6 +7838,7 @@ def scheduler_inventory() -> dict[str, Any]:
             'Lambda',
             'SNS',
             'EventBridge PutEvents',
+            'Universal AWS SDK targets for SNS Publish and SQS SendMessage',
         ],
         'not_supported': [
             'RetryPolicy and DeadLetterConfig enforcement',
@@ -7775,6 +7854,7 @@ def scheduler_inventory() -> dict[str, Any]:
             'Schedules without an explicit group are placed in the default group.',
             'The default group cannot be deleted.',
             'State=DISABLED schedules and schedules outside StartDate/EndDate are skipped.',
+            'FIFO SQS targets can carry MessageGroupId through Target.SqsParameters.',
         ],
     }
 
@@ -9999,6 +10079,35 @@ def list_resources(service_keys: set[str] | None = None) -> list[ResourceResult]
 
         return resources
 
+    def docdb_resources() -> list[dict[str, Any]]:
+        docdb = factory.client('docdb')
+        operations = set(docdb.meta.service_model.operation_names)
+        resources: list[dict[str, Any]] = []
+
+        if 'DescribeDBClusters' in operations:
+            resources.extend(
+                {
+                    'type': 'db_cluster',
+                    'name': cluster.get('DBClusterIdentifier'),
+                    'arn': cluster.get('DBClusterArn'),
+                    'status': cluster.get('Status'),
+                }
+                for cluster in _safe_value(lambda: _operation_items(docdb, 'describe_db_clusters', 'DBClusters'), [])
+            )
+
+        if 'DescribeDBInstances' in operations:
+            resources.extend(
+                {
+                    'type': 'db_instance',
+                    'name': instance.get('DBInstanceIdentifier'),
+                    'arn': instance.get('DBInstanceArn'),
+                    'status': instance.get('DBInstanceStatus'),
+                }
+                for instance in _safe_value(lambda: _operation_items(docdb, 'describe_db_instances', 'DBInstances'), [])
+            )
+
+        return resources
+
     def transcribe_resources() -> list[dict[str, Any]]:
         transcribe = factory.client('transcribe')
         operations = set(transcribe.meta.service_model.operation_names)
@@ -10108,6 +10217,7 @@ def list_resources(service_keys: set[str] | None = None) -> list[ResourceResult]
         resources.extend({'type': 'security_group', 'id': item.get('GroupId')} for item in _safe_value(lambda: ec2.describe_security_groups().get('SecurityGroups', []), []))
         resources.extend({'type': 'internet_gateway', 'id': item.get('InternetGatewayId')} for item in _safe_value(lambda: ec2.describe_internet_gateways().get('InternetGateways', []), []))
         resources.extend({'type': 'route_table', 'id': item.get('RouteTableId')} for item in _safe_value(lambda: ec2.describe_route_tables().get('RouteTables', []), []))
+        resources.extend({'type': 'vpc_endpoint', 'id': item.get('VpcEndpointId')} for item in _safe_value(lambda: _paginate(ec2, 'describe_vpc_endpoints', 'VpcEndpoints'), []))
         resources.extend({'type': 'elastic_ip', 'id': item.get('AllocationId') or item.get('PublicIp')} for item in _safe_value(lambda: ec2.describe_addresses().get('Addresses', []), []))
         resources.extend({'type': 'key_pair', 'id': item.get('KeyName')} for item in _safe_value(lambda: ec2.describe_key_pairs().get('KeyPairs', []), []))
         return resources
@@ -10157,6 +10267,7 @@ def list_resources(service_keys: set[str] | None = None) -> list[ResourceResult]
         ('s3-buckets', 'S3 buckets', s3_buckets),
         ('sqs-queues', 'SQS queues', sqs_queues),
         ('dynamodb-tables', 'DynamoDB tables', dynamodb_tables),
+        ('docdb-resources', 'DocumentDB resources', docdb_resources),
         ('sns-topics', 'SNS topics', sns_topics),
         ('ses-resources', 'SES resources', ses_resources),
         ('scheduler-resources', 'EventBridge Scheduler resources', scheduler_resources),

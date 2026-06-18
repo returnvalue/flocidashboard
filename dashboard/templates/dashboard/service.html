@@ -13,7 +13,12 @@
   <header class="topbar">
     <div>
       <a class="back-link" href="/">Services</a>
-      <p class="eyebrow">{{ service.eyebrow }}</p>
+      <p class="eyebrow service-eyebrow">
+        <span>{{ service.eyebrow }}</span>
+        {% if service.key == 'iam' or service.key == 's3' %}
+          <a class="service-labs-link" href="{% url 'dashboard:service-labs' service.key %}">Labs</a>
+        {% endif %}
+      </p>
       <h1>{{ service.title }}</h1>
     </div>
     <button id="refresh" type="button" aria-label="Refresh {{ service.title }}">Refresh</button>

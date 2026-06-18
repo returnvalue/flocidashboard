@@ -16,6 +16,7 @@ const serviceFilterOptions = document.querySelector('#service-filter-options');
 const serviceFilterTop = document.querySelector('#service-filter-top');
 const serviceFilterTop24 = document.querySelector('#service-filter-top-24');
 const serviceFilterTop36 = document.querySelector('#service-filter-top-36');
+const serviceFilterTracked = document.querySelector('#service-filter-tracked');
 const serviceFilterAll = document.querySelector('#service-filter-all');
 const backToTopButton = document.querySelector('.back-to-top');
 const iamGrid = document.querySelector('#iam-grid');
@@ -184,6 +185,9 @@ const rdsLoadedAt = document.querySelector('#rds-loaded-at');
 const rdsdataGrid = document.querySelector('#rdsdata-grid');
 const rdsdataSummary = document.querySelector('#rdsdata-summary');
 const rdsdataLoadedAt = document.querySelector('#rdsdata-loaded-at');
+const docdbGrid = document.querySelector('#docdb-grid');
+const docdbSummary = document.querySelector('#docdb-summary');
+const docdbLoadedAt = document.querySelector('#docdb-loaded-at');
 const route53Grid = document.querySelector('#route53-grid');
 const route53Summary = document.querySelector('#route53-summary');
 const route53LoadedAt = document.querySelector('#route53-loaded-at');
@@ -435,6 +439,7 @@ const servicePriorityOrder = [
   'route53',
   'cloudwatch',
   'rds',
+  'docdb',
   'dynamodb',
   'lambda',
   'autoscaling',
@@ -487,8 +492,13 @@ const servicePriorityRank = new Map(
 );
 const defaultHomeServiceCount = 12;
 const serviceFilterStorageKey = 'floci.dashboard.home.selectedServices';
+const homeServiceFilterModes = {
+  selected: 'selected',
+  trackedResources: 'tracked-resources',
+};
 
 let selectedHomeServices = null;
+let homeServiceFilterMode = homeServiceFilterModes.selected;
 
 function parsedJsonString(value) {
   const trimmed = String(value || '').trim();
@@ -932,6 +942,21 @@ function renderEC2(data) {
       ['VPC ID', 'VpcId'],
       ['Associations', 'Associations'],
       ['Routes', 'Routes'],
+      ['Tags', 'Tags'],
+    ]),
+    renderDetailList('VPC endpoints', data.vpc_endpoints || [], [
+      ['VPC endpoint ID', 'VpcEndpointId'],
+      ['Type', 'VpcEndpointType'],
+      ['Service name', 'ServiceName'],
+      ['State', 'State'],
+      ['VPC ID', 'VpcId'],
+      ['Subnets', 'SubnetIds'],
+      ['Route tables', 'RouteTableIds'],
+      ['Network interfaces', 'NetworkInterfaceIds'],
+      ['Security groups', 'Groups'],
+      ['Private DNS enabled', 'PrivateDnsEnabled'],
+      ['DNS entries', 'DnsEntries'],
+      ['Policy document', 'PolicyDocument'],
       ['Tags', 'Tags'],
     ]),
     renderDetailList('Elastic IPs', data.addresses || [], [
@@ -3385,6 +3410,10 @@ function renderSsm(data) {
       ['Description', 'BaselineDescription'],
       ['Default baseline', 'DefaultBaseline'],
     ]),
+    renderDetailList('Default patch baselines', data.default_patch_baselines || [], [
+      ['Operating system', 'operating_system'],
+      ['Baseline ID', 'baseline_id'],
+    ]),
     renderDetailList('Associations', data.associations || [], [
       ['Association ID', 'AssociationId'],
       ['Instance ID', 'InstanceId'],
@@ -4976,6 +5005,60 @@ function renderRDSData(data) {
   rdsdataLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
 }
 
+function renderDocumentDB(data) {
+  docdbGrid.textContent = '';
+  renderSummary(data.summary, docdbSummary);
+
+  const panels = [
+    renderDetailList('Clusters', data.clusters || [], [
+      ['Cluster identifier', 'DBClusterIdentifier'],
+      ['ARN', 'DBClusterArn'],
+      ['Status', 'Status'],
+      ['Engine', 'Engine'],
+      ['Engine version', 'EngineVersion'],
+      ['Endpoint', 'Endpoint'],
+      ['Port', 'Port'],
+      ['Members', 'DBClusterMembers'],
+      ['Availability zones', 'AvailabilityZones'],
+      ['Subnet group', 'DBSubnetGroup'],
+      ['VPC security groups', 'VpcSecurityGroups'],
+    ]),
+    renderDetailList('Instances', data.instances || [], [
+      ['Instance identifier', 'DBInstanceIdentifier'],
+      ['ARN', 'DBInstanceArn'],
+      ['Status', 'DBInstanceStatus'],
+      ['Class', 'DBInstanceClass'],
+      ['Engine', 'Engine'],
+      ['Cluster identifier', 'DBClusterIdentifier'],
+      ['Endpoint', 'Endpoint'],
+      ['Availability zone', 'AvailabilityZone'],
+      ['Subnet group', 'DBSubnetGroup'],
+      ['VPC security groups', 'VpcSecurityGroups'],
+    ]),
+    renderDetailList('Supported from SDK', (data.supported_from_sdk || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Available SDK operations', (data.available_sdk_operations || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
+  ];
+
+  docdbGrid.append(...panels);
+  docdbLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+}
+
 function renderWAFv2(data) {
   wafv2Grid.textContent = '';
   renderSummary(data.summary, wafv2Summary);
@@ -5059,6 +5142,7 @@ function titleCaseService(name) {
     'cognito-idp': 'Cognito IDP',
     cur: 'Cost and Usage Reports',
     dynamodb: 'DynamoDB',
+    docdb: 'DocumentDB',
     ec2: 'EC2',
     ecr: 'ECR',
     ecs: 'ECS',
@@ -5158,6 +5242,7 @@ function resourceServiceKey(resource) {
     'autoscaling-resources': 'autoscaling',
     'batch-resources': 'batch',
     'dynamodb-tables': 'dynamodb',
+    'docdb-resources': 'docdb',
     'ec2-resources': 'ec2',
     'ecr-resources': 'ecr',
     'ecs-resources': 'ecs',
@@ -5290,12 +5375,25 @@ function selectedHomeServiceMetadata(serviceMetadata = []) {
   return serviceMetadata.filter((service) => selected.has(service.key));
 }
 
+function displayedHomeServiceMetadata(serviceMetadata = []) {
+  if (homeServiceFilterMode === homeServiceFilterModes.trackedResources) {
+    return serviceMetadata;
+  }
+  return selectedHomeServiceMetadata(serviceMetadata);
+}
+
 function selectedHomeServiceQuery(serviceMetadata = []) {
+  if (homeServiceFilterMode === homeServiceFilterModes.trackedResources) {
+    return '';
+  }
   const selected = selectedHomeServiceKeys(serviceMetadata);
   return [...selected].sort().map(encodeURIComponent).join(',');
 }
 
 function filteredHealthServices(healthServices = {}, serviceMetadata = []) {
+  if (homeServiceFilterMode === homeServiceFilterModes.trackedResources) {
+    return healthServices;
+  }
   const selected = selectedHomeServiceKeys(serviceMetadata);
   const selectedCanonical = new Set([...selected].map(canonicalServiceKey));
   return Object.fromEntries(
@@ -5305,6 +5403,10 @@ function filteredHealthServices(healthServices = {}, serviceMetadata = []) {
 
 function updateServiceFilterSummary(serviceMetadata = []) {
   if (!serviceFilterSummary) {
+    return;
+  }
+  if (homeServiceFilterMode === homeServiceFilterModes.trackedResources) {
+    serviceFilterSummary.textContent = 'Tracked resources';
     return;
   }
   const selectedCount = selectedHomeServiceKeys(serviceMetadata).size;
@@ -5335,6 +5437,7 @@ function renderServiceFilter(serviceMetadata = []) {
     checkbox.value = service.key;
     checkbox.checked = selected.has(service.key);
     checkbox.addEventListener('change', () => {
+      homeServiceFilterMode = homeServiceFilterModes.selected;
       if (checkbox.checked) {
         selected.add(service.key);
       } else {
@@ -5351,6 +5454,7 @@ function renderServiceFilter(serviceMetadata = []) {
   });
 
   const applyTopPreset = (count) => {
+    homeServiceFilterMode = homeServiceFilterModes.selected;
     selectedHomeServices = topHomeServices(serviceMetadata, count);
     writeStoredHomeServices(selectedHomeServices);
     renderServiceFilter(serviceMetadata);
@@ -5372,8 +5476,16 @@ function renderServiceFilter(serviceMetadata = []) {
       applyTopPreset(36);
     };
   }
+  if (serviceFilterTracked) {
+    serviceFilterTracked.onclick = () => {
+      homeServiceFilterMode = homeServiceFilterModes.trackedResources;
+      updateServiceFilterSummary(serviceMetadata);
+      refresh();
+    };
+  }
   if (serviceFilterAll) {
     serviceFilterAll.onclick = () => {
+      homeServiceFilterMode = homeServiceFilterModes.selected;
       selectedHomeServices = new Set(serviceMetadata.map((service) => service.key));
       writeStoredHomeServices(selectedHomeServices);
       renderServiceFilter(serviceMetadata);
@@ -5464,11 +5576,14 @@ function mergeServiceCards(resources, healthServices = {}, serviceMetadata = [])
   });
 }
 
-function renderServices(resources, healthServices = {}, serviceMetadata = []) {
+function renderServices(resources, healthServices = {}, serviceMetadata = [], options = {}) {
   serviceGrid.textContent = '';
   serviceGrid.setAttribute('aria-busy', 'false');
 
-  mergeServiceCards(resources, healthServices, serviceMetadata).forEach((service) => {
+  const services = mergeServiceCards(resources, healthServices, serviceMetadata)
+    .filter((service) => !options.onlyTrackedResources || (!service.error && service.count > 0));
+
+  services.forEach((service) => {
     const card = document.createElement(service.href ? 'a' : 'article');
     card.className = 'service-card';
     card.dataset.service = service.key;
@@ -5757,7 +5872,9 @@ async function loadHome(loadingStartedAt, options = {}) {
   const serviceMetadata = servicesData.services || [];
   renderServiceFilter(serviceMetadata);
 
-  const resourcesPath = `/api/resources/?services=${selectedHomeServiceQuery(serviceMetadata)}`;
+  const resourcesPath = homeServiceFilterMode === homeServiceFilterModes.trackedResources
+    ? '/api/resources/'
+    : `/api/resources/?services=${selectedHomeServiceQuery(serviceMetadata)}`;
   const resourcesPromise = fetch(resourcesPath, fetchInit);
   const [response] = await Promise.all([
     resourcesPromise,
@@ -5772,7 +5889,8 @@ async function loadHome(loadingStartedAt, options = {}) {
   renderServices(
     data.resources || [],
     filteredHealthServices(latestHealthData?.services || {}, serviceMetadata),
-    selectedHomeServiceMetadata(serviceMetadata),
+    displayedHomeServiceMetadata(serviceMetadata),
+    { onlyTrackedResources: homeServiceFilterMode === homeServiceFilterModes.trackedResources },
   );
 }
 
@@ -5854,6 +5972,7 @@ const servicePages = [
   { key: 'emr', label: 'EMR', grid: emrGrid, apiPath: '/api/emr/', render: renderEMR },
   { key: 'rds', label: 'RDS', grid: rdsGrid, apiPath: '/api/rds/', render: renderRDS },
   { key: 'rdsdata', label: 'RDS Data API', grid: rdsdataGrid, apiPath: '/api/rdsdata/', render: renderRDSData },
+  { key: 'docdb', label: 'DocumentDB', grid: docdbGrid, apiPath: '/api/docdb/', render: renderDocumentDB },
   { key: 'backup', label: 'Backup', grid: backupGrid, apiPath: '/api/backup/', render: renderBackup },
   { key: 'route53', label: 'Route 53', grid: route53Grid, apiPath: '/api/route53/', render: renderRoute53 },
   { key: 'transfer', label: 'Transfer Family', grid: transferGrid, apiPath: '/api/transfer/', render: renderTransfer },

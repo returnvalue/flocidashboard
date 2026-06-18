@@ -856,6 +856,7 @@ const S3Console = (() => {
       ['ETag', head.etag || '—'],
       ['Storage class', head.storage_class || '—'],
       ['Content type', head.content_type || '—'],
+      ['User metadata', Object.keys(head.metadata || {}).length ? JSON.stringify(head.metadata) : '—'],
       ['Version ID', head.versioning || versionId || '—'],
     ].forEach(([label, value]) => {
       const row = el('div');

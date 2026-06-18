@@ -16,6 +16,7 @@ from .kms_api import (
     generate_data_key,
     generate_random,
     schedule_key_deletion,
+    set_key_enabled,
     set_key_rotation,
     tag_key,
     untag_key,
@@ -104,6 +105,15 @@ def kms_rotation(request):
         return JsonResponse(set_key_rotation(body.get('key_id') or '', _truthy(body.get('enabled'))))
     except Exception as exc:
         return handle_action_error(exc, service='kms', operation='set_key_rotation')
+
+
+@require_http_methods(['POST'])
+def kms_key_state(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(set_key_enabled(body.get('key_id') or '', _truthy(body.get('enabled'))))
+    except Exception as exc:
+        return handle_action_error(exc, service='kms', operation='set_key_enabled')
 
 
 @require_http_methods(['POST'])

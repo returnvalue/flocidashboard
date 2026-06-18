@@ -5,7 +5,7 @@ from unittest.mock import patch
 from django.test import SimpleTestCase
 from django.urls import reverse
 
-from .aws import batch_inventory, emr_inventory, rdsdata_inventory, wafv2_inventory
+from .aws import batch_inventory, docdb_inventory, emr_inventory, rdsdata_inventory, wafv2_inventory
 from .services import get_service
 
 
@@ -17,6 +17,7 @@ class NewServiceInventoryPageTests(SimpleTestCase):
     def test_new_service_pages_render_inventory_shells(self):
         cases = [
             ('batch', 'AWS Batch', 'Compute environments, job queues, definitions, and jobs'),
+            ('docdb', 'DocumentDB', 'MongoDB-compatible clusters and instances'),
             ('emr', 'EMR', 'Clusters, instance groups, and steps'),
             ('rdsdata', 'RDS Data API', 'Serverless SQL statement and transaction calls'),
             ('wafv2', 'WAF v2', 'Web ACLs, rule groups, IP sets, and regex pattern sets'),
@@ -36,6 +37,7 @@ class NewServiceInventoryPageTests(SimpleTestCase):
     def test_new_services_are_registered_as_read_only_inspectors(self):
         cases = [
             ('batch', 'Compute'),
+            ('docdb', 'Database'),
             ('emr', 'Analytics'),
             ('rdsdata', 'Database'),
             ('wafv2', 'Security'),
@@ -51,17 +53,20 @@ class NewServiceInventoryPageTests(SimpleTestCase):
                 self.assertEqual(service.category, category)
 
     @patch('dashboard.views.batch_inventory')
+    @patch('dashboard.views.docdb_inventory')
     @patch('dashboard.views.emr_inventory')
     @patch('dashboard.views.rdsdata_inventory')
     @patch('dashboard.views.wafv2_inventory')
-    def test_new_service_api_routes_return_inventory(self, wafv2, rdsdata, emr, batch):
+    def test_new_service_api_routes_return_inventory(self, wafv2, rdsdata, emr, docdb, batch):
         batch.return_value = {'summary': {'job_queues': 1}, 'job_queues': [{'jobQueueName': 'local'}]}
+        docdb.return_value = {'summary': {'clusters': 1}, 'clusters': [{'DBClusterIdentifier': 'docs'}]}
         emr.return_value = {'summary': {'clusters': 1}, 'clusters': [{'name': 'analytics'}]}
         rdsdata.return_value = {'summary': {'available_sdk_operations': 5}, 'statement_operations': [{'name': 'ExecuteStatement'}]}
         wafv2.return_value = {'summary': {'web_acls': 1}, 'web_acls': [{'Name': 'local-acl'}]}
 
         cases = [
             ('dashboard:batch', 'job_queues', 1),
+            ('dashboard:docdb', 'clusters', 1),
             ('dashboard:emr', 'clusters', 1),
             ('dashboard:rdsdata', 'available_sdk_operations', 5),
             ('dashboard:wafv2', 'web_acls', 1),
@@ -104,6 +109,25 @@ class NewServiceInventoryHelperTests(SimpleTestCase):
         self.assertEqual(result['summary']['job_queues'], 1)
         self.assertEqual(result['summary']['job_definitions'], 1)
         self.assertGreaterEqual(result['summary']['sampled_jobs'], 1)
+
+    @patch('dashboard.aws.FlociClientFactory')
+    def test_docdb_inventory_summarizes_clusters_and_instances(self, factory_mock):
+        docdb = MagicMock()
+        docdb.meta = service_model('DescribeDBClusters', 'DescribeDBInstances')
+        docdb.can_paginate.return_value = False
+        docdb.describe_db_clusters.return_value = {
+            'DBClusters': [{'DBClusterIdentifier': 'docs', 'Status': 'available'}],
+        }
+        docdb.describe_db_instances.return_value = {
+            'DBInstances': [{'DBInstanceIdentifier': 'docs-1', 'DBInstanceStatus': 'available'}],
+        }
+        factory_mock.return_value.client.return_value = docdb
+
+        result = docdb_inventory()
+
+        self.assertEqual(result['summary']['clusters'], 1)
+        self.assertEqual(result['summary']['instances'], 1)
+        self.assertEqual(result['clusters'][0]['DBClusterIdentifier'], 'docs')
 
     @patch('dashboard.aws.FlociClientFactory')
     def test_emr_inventory_summarizes_clusters(self, factory_mock):

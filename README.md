@@ -1,6 +1,6 @@
 # Floci Dashboard
 
-A small Django UI for inspecting and testing a local [Floci](https://floci.io/) AWS-compatible environment. The dashboard shows Floci health, endpoint/profile/identity details, selectable service cards, resource counts, service-specific inventory pages, and interactive workbenches for common local AWS workflows.
+A small Django UI for inspecting, testing, and learning against a local [Floci](https://floci.io/) AWS-compatible environment. The dashboard shows Floci health, endpoint/profile/identity details, selectable service cards, resource counts, service-specific inventory pages, interactive workbenches, and one-click local AWS workflow labs.
 
 ![Floci Dashboard UI](./djangofloci.png)
 
@@ -8,13 +8,30 @@ A small Django UI for inspecting and testing a local [Floci](https://floci.io/) 
 
 - Local Floci health and version
 - Environment diagnostics for AWS endpoint, region, profile, credential source, caller identity, and local-endpoint warnings
-- Clickable service cards for supported local services, with persisted home-page service filtering to keep resource probes focused
+- Clickable service cards for supported local services, with persisted home-page service filtering and a Tracked Resources view that shows only services with discovered resources
 - Service Matrix coverage page showing registry maturity, API paths, shared console status, action counts, tags, and linked service pages
+- Local AWS workflow labs for IAM and S3, with exact AWS CLI commands, approved one-click execution, live-state verification, reset actions, and breadcrumb navigation back to the service or homepage
 - Interactive workbenches for S3, IAM, EC2, SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, EventBridge, EventBridge Pipes, EventBridge Scheduler, API Gateway, AppSync, Kinesis, KMS, Secrets Manager, SSM Parameter Store, CloudFormation, Cognito, AWS Config, RDS, Auto Scaling, ELB v2, CloudFront, AWS Cloud Map, Route 53, ACM, ECS, ECR, EKS, ElastiCache, OpenSearch, Athena, Backup, Firehose, Glue, Kafka, Neptune, SES, Transfer Family, Textract, Transcribe, CodeDeploy, CodeBuild, Bedrock Runtime, AppConfig, and Resource Groups Tagging
-- Inventory pages for new Floci 1.5.25 services including EMR, WAF v2, AWS Batch, and RDS Data API
+- Inventory pages for newer Floci services including EMR, WAF v2, AWS Batch, RDS Data API, and Amazon DocumentDB
 - Inventory pages for read-only or newly surfaced services such as CloudTrail
 - Detail pages for services such as Cost Explorer, Cost and Usage Reports, BCM Data Exports, Pricing, and more
+- Expanded inventory for EC2 VPC endpoints and SSM default patch baselines, plus KMS key enable/disable actions and richer S3 object metadata
 - Loading state with the Floci cloud image while service data is fetched
+
+## Local AWS Workflow Labs
+
+IAM and S3 service pages link to curated labs at:
+
+```text
+/service/iam/labs/
+/service/s3/labs/
+```
+
+Labs show the AWS CLI command shape without local endpoint plumbing. Each Run button invokes a registered boto3-backed action, displays the response, and independently verifies the result against live Floci state. Reset removes only the resources owned by that lab.
+
+The initial curriculum includes eight IAM labs and twelve S3 labs. It covers IAM users, policies, access keys, groups, roles, and instance profiles, followed by S3 buckets, objects, prefixes, metadata, tags, versioning, presigned URLs, security, encryption, lifecycle retention, CORS, S3-to-SQS notifications, and multipart uploads.
+
+Lab definitions and implementation notes live in [`buildinglabs.md`](./buildinglabs.md).
 
 ## Quickstart
 
@@ -227,7 +244,9 @@ Core files:
 
 - `dashboard/services.py`: canonical service registry. Add service metadata, maturity, optional CSS/JS assets, and action metadata here.
 - `dashboard/actions.py`: shared action metadata plus JSON parsing and error normalization helpers for interactive service endpoints.
+- `dashboard/labs.py`: curated IAM and S3 lab definitions, approved runners, live-state verification, and reset behavior.
 - `dashboard/templates/dashboard/service.html`: common service page shell. Interactive workbenches should be layered into this page while keeping the original read-only inventory visible.
+- `dashboard/templates/dashboard/labs.html` and `dashboard/static/dashboard/labs.js`: shared workflow-lab UI and browser behavior.
 - `dashboard/static/dashboard/service-console.js`: shared browser-side helpers for API calls, summary cards, read-only cards, toolbars, modals, formatting, and lower-right toasts.
 - `dashboard/static/dashboard/dashboard.js`: generic read-only inventory rendering for service pages.
 - Service-specific files such as `s3_api.py`, `s3_views.py`, `s3-console.js`, and `s3-console.css`, `iam_api.py`, `iam_views.py`, `iam-console.js`, and `iam-console.css`, `ec2_api.py`, `ec2_views.py`, `ec2-console.js`, and `ec2-console.css`, `cloudformation_api.py`, `cloudformation_views.py`, `cloudformation-console.js`, and `cloudformation-console.css`, `cognito_api.py`, `cognito_views.py`, `cognito-console.js`, and `cognito-console.css`, `rds_api.py`, `rds_views.py`, `rds-console.js`, and `rds-console.css`, `autoscaling_api.py`, `autoscaling_views.py`, `autoscaling-console.js`, and `autoscaling-console.css`, `elasticloadbalancing_api.py`, `elasticloadbalancing_views.py`, `elasticloadbalancing-console.js`, and `elasticloadbalancing-console.css`, `cloudfront_api.py`, `cloudfront_views.py`, `cloudfront-console.js`, and `cloudfront-console.css`, `cloudmap_api.py`, `cloudmap_views.py`, `cloudmap-console.js`, and `cloudmap-console.css`, `route53_api.py`, `route53_views.py`, `route53-console.js`, and `route53-console.css`, `acm_api.py`, `acm_views.py`, `acm-console.js`, and `acm-console.css`, `ecs_api.py`, `ecs_views.py`, `ecs-console.js`, and `ecs-console.css`, `ecr_api.py`, `ecr_views.py`, `ecr-console.js`, and `ecr-console.css`, `eks_api.py`, `eks_views.py`, `eks-console.js`, and `eks-console.css`, `elasticache_api.py`, `elasticache_views.py`, `elasticache-console.js`, and `elasticache-console.css`, `opensearch_api.py`, `opensearch_views.py`, `opensearch-console.js`, and `opensearch-console.css`, `athena_api.py`, `athena_views.py`, `athena-console.js`, and `athena-console.css`, or the equivalent files for SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, EventBridge, API Gateway, AppSync, Kinesis, Secrets Manager, SSM Parameter Store, Backup, Firehose, Glue, Kafka, Neptune, SES, Transfer Family, Textract, Transcribe, CodeDeploy, CodeBuild, Bedrock Runtime, AppConfig, and Resource Groups Tagging: focused behavior for one service only.
@@ -235,6 +254,8 @@ Core files:
 Important conventions:
 
 - Treat interactive workbenches as additive. Do not remove summary cards, anchor-link behavior, read-only inventory cards, supported-operation panels, or service notes.
+- Treat labs as curated workflows rather than a browser terminal. The browser sends registered service/lab/step identifiers and never arbitrary shell commands.
+- Derive lab completion from live Floci state whenever possible, and keep reset ownership explicit.
 - Register service capabilities in `dashboard/services.py` before wiring service-specific UI.
 - Use `dashboard/actions.py` helpers for JSON request parsing and normalized action errors.
 - Use `ServiceConsole.toast()` for action feedback. Interactive success and failure messages should appear as lower-right toasts.
@@ -310,6 +331,9 @@ http://127.0.0.1:8000/service/bedrockruntime/
 http://127.0.0.1:8000/service/appconfig/
 http://127.0.0.1:8000/service/appsync/
 http://127.0.0.1:8000/service/resourcegroupstagging/
+http://127.0.0.1:8000/service/docdb/
+http://127.0.0.1:8000/service/iam/labs/
+http://127.0.0.1:8000/service/s3/labs/
 ```
 
 ## Prompt For AI-Assisted Contributors

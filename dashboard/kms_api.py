@@ -193,6 +193,16 @@ def set_key_rotation(key_id: str, enabled: bool) -> dict[str, Any]:
     return {'key_id': clean_key, 'rotation_enabled': enabled}
 
 
+def set_key_enabled(key_id: str, enabled: bool) -> dict[str, Any]:
+    clean_key = _clean_required(key_id, 'Key ID')
+    client = _client()
+    if enabled:
+        client.enable_key(KeyId=clean_key)
+    else:
+        client.disable_key(KeyId=clean_key)
+    return {'key_id': clean_key, 'enabled': enabled, 'key_state': 'Enabled' if enabled else 'Disabled'}
+
+
 def schedule_key_deletion(key_id: str, pending_window_in_days: Any = 7) -> dict[str, Any]:
     clean_key = _clean_required(key_id, 'Key ID')
     response = _client().schedule_key_deletion(

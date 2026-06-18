@@ -5,7 +5,7 @@ from unittest.mock import patch
 from django.test import SimpleTestCase
 from django.urls import reverse
 
-from .kms_api import generate_random
+from .kms_api import generate_random, set_key_enabled
 from .services import get_service
 
 
@@ -30,6 +30,7 @@ class KMSPageTemplateTests(SimpleTestCase):
         self.assertEqual(service.console_js, 'dashboard/kms-console.js')
         self.assertTrue(any(action.name == 'encrypt' for action in service.actions))
         self.assertTrue(any(action.name == 'generate_random' for action in service.actions))
+        self.assertTrue(any(action.name == 'set_key_enabled' for action in service.actions))
         self.assertTrue(any(action.name == 'schedule_key_deletion' for action in service.actions))
 
 
@@ -179,6 +180,20 @@ class KMSActionsApiTests(SimpleTestCase):
         self.assertTrue(response.json()['rotation_enabled'])
         rotation_mock.assert_called_once_with('key-1', True)
 
+    @patch('dashboard.kms_views.set_key_enabled')
+    def test_key_state_success(self, state_mock):
+        state_mock.return_value = {'key_id': 'key-1', 'enabled': False, 'key_state': 'Disabled'}
+
+        response = self.client.post(
+            reverse('dashboard:kms-key-state'),
+            data=json.dumps({'key_id': 'key-1', 'enabled': False}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()['enabled'])
+        state_mock.assert_called_once_with('key-1', False)
+
     @patch('dashboard.kms_views.schedule_key_deletion')
     def test_schedule_deletion_success(self, schedule_mock):
         schedule_mock.return_value = {'key_id': 'key-1', 'key_state': 'PendingDeletion'}
@@ -224,3 +239,19 @@ class KMSApiHelperTests(SimpleTestCase):
     def test_generate_random_rejects_more_than_aws_limit(self):
         with self.assertRaisesMessage(ValueError, 'Number of bytes must be 1024 or less'):
             generate_random(1025)
+
+    @patch('dashboard.kms_api._client')
+    def test_set_key_enabled_calls_kms_enable_key(self, client_factory):
+        result = set_key_enabled('key-1', True)
+
+        client_factory.return_value.enable_key.assert_called_once_with(KeyId='key-1')
+        client_factory.return_value.disable_key.assert_not_called()
+        self.assertEqual(result['key_state'], 'Enabled')
+
+    @patch('dashboard.kms_api._client')
+    def test_set_key_enabled_calls_kms_disable_key(self, client_factory):
+        result = set_key_enabled('key-1', False)
+
+        client_factory.return_value.disable_key.assert_called_once_with(KeyId='key-1')
+        client_factory.return_value.enable_key.assert_not_called()
+        self.assertEqual(result['key_state'], 'Disabled')

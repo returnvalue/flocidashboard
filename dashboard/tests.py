@@ -12,7 +12,7 @@ from django.test import SimpleTestCase
 from django.urls import Resolver404, resolve, reverse
 
 from .actions import error_payload, error_status, handle_action_error, json_error
-from .aws import FlociClientFactory, ResourceResult, cloudformation_inventory, list_resources as aws_list_resources, rds_inventory
+from .aws import FlociClientFactory, ResourceResult, cloudformation_inventory, ec2_inventory, list_resources as aws_list_resources, rds_inventory
 from .services import SERVICE_PAGES, SERVICE_REGISTRY, SERVICES
 
 
@@ -1686,6 +1686,60 @@ class ElasticLoadBalancingActionTests(SimpleTestCase):
 
 
 class EC2ActionTests(SimpleTestCase):
+    def _empty_ec2_client(self):
+        ec2 = MagicMock()
+        ec2.describe_instances.return_value = {'Reservations': []}
+        ec2.describe_vpcs.return_value = {'Vpcs': []}
+        ec2.describe_subnets.return_value = {'Subnets': []}
+        ec2.describe_security_groups.return_value = {'SecurityGroups': []}
+        ec2.describe_security_group_rules.return_value = {'SecurityGroupRules': []}
+        ec2.describe_key_pairs.return_value = {'KeyPairs': []}
+        ec2.describe_images.return_value = {'Images': []}
+        ec2.describe_tags.return_value = {'Tags': []}
+        ec2.describe_internet_gateways.return_value = {'InternetGateways': []}
+        ec2.describe_route_tables.return_value = {'RouteTables': []}
+        ec2.describe_addresses.return_value = {'Addresses': []}
+        ec2.describe_availability_zones.return_value = {'AvailabilityZones': []}
+        ec2.describe_regions.return_value = {'Regions': []}
+        ec2.describe_account_attributes.return_value = {'AccountAttributes': []}
+        ec2.describe_instance_types.return_value = {'InstanceTypes': []}
+        return ec2
+
+    @patch('dashboard.aws._paginate')
+    @patch('dashboard.aws.FlociClientFactory')
+    def test_inventory_includes_vpc_endpoints(self, factory_mock, paginate_mock):
+        endpoint = {
+            'VpcEndpointId': 'vpce-123',
+            'VpcEndpointType': 'Interface',
+            'ServiceName': 'com.amazonaws.us-east-1.s3',
+            'State': 'available',
+            'VpcId': 'vpc-default',
+        }
+        factory_mock.return_value.client.return_value = self._empty_ec2_client()
+        paginate_mock.side_effect = lambda _client, operation_name, _result_key, **_kwargs: (
+            [endpoint] if operation_name == 'describe_vpc_endpoints' else []
+        )
+
+        result = ec2_inventory()
+
+        self.assertEqual(result['summary']['vpc_endpoints'], 1)
+        self.assertEqual(result['vpc_endpoints'], [endpoint])
+
+    @patch('dashboard.aws._paginate')
+    @patch('dashboard.aws.FlociClientFactory')
+    def test_resource_count_includes_vpc_endpoints(self, factory_mock, paginate_mock):
+        endpoint = {'VpcEndpointId': 'vpce-123'}
+        factory_mock.return_value.client.return_value = self._empty_ec2_client()
+        paginate_mock.side_effect = lambda _client, operation_name, _result_key, **_kwargs: (
+            [endpoint] if operation_name == 'describe_vpc_endpoints' else []
+        )
+
+        results = aws_list_resources({'ec2'})
+
+        self.assertEqual(results[0].name, 'ec2-resources')
+        self.assertEqual(results[0].count, 1)
+        self.assertEqual(results[0].items, [{'type': 'vpc_endpoint', 'id': 'vpce-123'}])
+
     @patch('dashboard.ec2_views.run_instances')
     def test_run_instances_endpoint_uses_action_helper(self, run_instances):
         run_instances.return_value = {

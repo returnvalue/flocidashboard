@@ -266,6 +266,15 @@ const KMSConsole = (() => {
     await refresh();
   }
 
+  async function setKeyEnabled(key, enabled) {
+    await apiJson('/api/kms/key-state/', {
+      method: 'POST',
+      body: JSON.stringify({ key_id: keyId(key), enabled }),
+    });
+    toast(enabled ? 'Key enabled' : 'Key disabled');
+    await refresh();
+  }
+
   async function scheduleDeletion(key) {
     const days = window.prompt('Pending window days (7-30)', '7');
     if (days == null) {
@@ -404,8 +413,10 @@ const KMSConsole = (() => {
     consoleUi.addField(facts, 'Rotation enabled', key.rotation_enabled);
     body.append(facts);
     const actions = el('div', 'kms-action-row');
+    const isDisabled = keyState(key) === 'Disabled';
     actions.append(
       btn('Create alias', null, () => showAliasModal(key)),
+      btn(isDisabled ? 'Enable key' : 'Disable key', 'kms-btn-secondary', () => setKeyEnabled(key, isDisabled).catch((error) => toast(error.message, true))),
       btn(key.rotation_enabled ? 'Disable rotation' : 'Enable rotation', 'kms-btn-secondary', () => setRotation(key, !key.rotation_enabled).catch((error) => toast(error.message, true))),
       btn('Cancel deletion', 'kms-btn-secondary', () => cancelDeletion(key).catch((error) => toast(error.message, true))),
       btn('Schedule deletion', 'kms-btn-danger', () => scheduleDeletion(key).catch((error) => toast(error.message, true))),
