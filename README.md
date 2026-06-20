@@ -10,7 +10,8 @@ A small Django UI for inspecting, testing, and learning against a local [Floci](
 - Environment diagnostics for AWS endpoint, region, profile, credential source, caller identity, and local-endpoint warnings
 - Clickable service cards for supported local services, with persisted home-page service filtering and a Tracked Resources view that shows only services with discovered resources
 - Service Matrix coverage page showing registry maturity, API paths, shared console status, action counts, tags, and linked service pages
-- Local AWS workflow labs for IAM and S3, with exact AWS CLI commands, approved one-click execution, live-state verification, reset actions, and breadcrumb navigation back to the service or homepage
+- Labs directory at `/labs/` showing every service with active workflow labs, current lab counts, runnable step counts, and direct links
+- Local AWS workflow labs for IAM, S3, SQS, SNS, EventBridge Scheduler, CloudFormation, and EC2 networking, with exact AWS CLI commands, approved one-click execution, live-state verification, reset actions, and breadcrumb navigation back to the service or homepage
 - Interactive workbenches for S3, IAM, EC2, SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, EventBridge, EventBridge Pipes, EventBridge Scheduler, API Gateway, AppSync, Kinesis, KMS, Secrets Manager, SSM Parameter Store, CloudFormation, Cognito, AWS Config, RDS, Auto Scaling, ELB v2, CloudFront, AWS Cloud Map, Route 53, ACM, ECS, ECR, EKS, ElastiCache, OpenSearch, Athena, Backup, Firehose, Glue, Kafka, Neptune, SES, Transfer Family, Textract, Transcribe, CodeDeploy, CodeBuild, Bedrock Runtime, AppConfig, and Resource Groups Tagging
 - Inventory pages for newer Floci services including EMR, WAF v2, AWS Batch, RDS Data API, and Amazon DocumentDB
 - Inventory pages for read-only or newly surfaced services such as CloudTrail
@@ -20,16 +21,22 @@ A small Django UI for inspecting, testing, and learning against a local [Floci](
 
 ## Local AWS Workflow Labs
 
-IAM and S3 service pages link to curated labs at:
+IAM, S3, SQS, SNS, EventBridge Scheduler, CloudFormation, and EC2 service pages link to curated labs at:
 
 ```text
+/labs/
 /service/iam/labs/
 /service/s3/labs/
+/service/sqs/labs/
+/service/sns/labs/
+/service/scheduler/labs/
+/service/cloudformation/labs/
+/service/ec2/labs/
 ```
 
 Labs show the AWS CLI command shape without local endpoint plumbing. Each Run button invokes a registered boto3-backed action, displays the response, and independently verifies the result against live Floci state. Reset removes only the resources owned by that lab.
 
-The initial curriculum includes eight IAM labs and twelve S3 labs. It covers IAM users, policies, access keys, groups, roles, and instance profiles, followed by S3 buckets, objects, prefixes, metadata, tags, versioning, presigned URLs, security, encryption, lifecycle retention, CORS, S3-to-SQS notifications, and multipart uploads.
+The curriculum includes eight IAM labs, twelve S3 labs, nine SQS labs, two SNS labs, one EventBridge Scheduler lab, one CloudFormation lab, and four EC2 networking labs. It covers IAM users, policies, access keys, groups, roles, and instance profiles; S3 buckets, objects, prefixes, metadata, tags, versioning, presigned URLs, security, encryption, lifecycle retention, CORS, S3-to-SQS notifications, and multipart uploads; SQS queue inspection, message lifecycle, visibility timeout behavior, delayed delivery, batch operations, queue configuration, dead-letter queues, managed redrive, FIFO ordering, duplicate suppression, purge, and queue deletion; SNS-to-SQS fan-out, resource policies, raw delivery, and subscription filtering; scheduled SQS delivery through a scoped IAM execution role; infrastructure-as-code ownership of S3 and SQS resources; public/private VPC routing; stateful security-group traffic controls; private S3 connectivity through a gateway endpoint; and private SQS connectivity through an HTTPS-only interface endpoint with private DNS.
 
 Lab definitions and implementation notes live in [`buildinglabs.md`](./buildinglabs.md).
 
@@ -334,6 +341,11 @@ http://127.0.0.1:8000/service/resourcegroupstagging/
 http://127.0.0.1:8000/service/docdb/
 http://127.0.0.1:8000/service/iam/labs/
 http://127.0.0.1:8000/service/s3/labs/
+http://127.0.0.1:8000/service/sqs/labs/
+http://127.0.0.1:8000/service/sns/labs/
+http://127.0.0.1:8000/service/scheduler/labs/
+http://127.0.0.1:8000/service/cloudformation/labs/
+http://127.0.0.1:8000/service/ec2/labs/
 ```
 
 ## Prompt For AI-Assisted Contributors

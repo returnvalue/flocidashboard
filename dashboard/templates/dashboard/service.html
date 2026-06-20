@@ -15,7 +15,7 @@
       <a class="back-link" href="/">Services</a>
       <p class="eyebrow service-eyebrow">
         <span>{{ service.eyebrow }}</span>
-        {% if service.key == 'iam' or service.key == 's3' %}
+        {% if service.has_labs %}
           <a class="service-labs-link" href="{% url 'dashboard:service-labs' service.key %}">Labs</a>
         {% endif %}
       </p>

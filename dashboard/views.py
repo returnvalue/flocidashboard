@@ -104,6 +104,44 @@ def environment(request):
     return render(request, 'dashboard/environment.html')
 
 
+def labs_directory(request):
+    rows = []
+    total_labs = 0
+    total_steps = 0
+
+    for definition in sorted(
+        SERVICES,
+        key=lambda service_definition: (
+            HOME_SERVICE_RANK.get(service_definition.key, len(HOME_SERVICE_RANK)),
+            service_definition.title,
+        ),
+    ):
+        service_labs = labs_for_service(definition.key)
+        if not service_labs:
+            continue
+        lab_count = len(service_labs)
+        step_count = sum(len(lab.get('steps', [])) for lab in service_labs)
+        total_labs += lab_count
+        total_steps += step_count
+        rows.append({
+            **definition.as_dict(),
+            'lab_count': lab_count,
+            'step_count': step_count,
+            'labs': service_labs,
+        })
+
+    return render(
+        request,
+        'dashboard/labs_directory.html',
+        {
+            'services': rows,
+            'service_count': len(rows),
+            'lab_count': total_labs,
+            'step_count': total_steps,
+        },
+    )
+
+
 def service_matrix(request):
     rows = []
     maturity_counts: dict[str, int] = {}
@@ -167,6 +205,7 @@ def service_page(request, service_key: str):
         except OSError:
             continue
     context['asset_version'] = '-'.join(asset_versions) or 'dev'
+    context['has_labs'] = bool(labs_for_service(service_key))
 
     return render(request, 'dashboard/service.html', {'service': context})
 

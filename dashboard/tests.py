@@ -106,9 +106,19 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertContains(response, '<title>Floci Dashboard</title>', html=True)
         self.assertContains(response, 'id="service-grid"')
         self.assertContains(response, reverse('dashboard:environment'))
+        self.assertContains(response, reverse('dashboard:labs-directory'))
         self.assertContains(response, reverse('dashboard:service-matrix'))
         self.assertContains(response, 'dashboard/styles.css')
         self.assertContains(response, 'dashboard/dashboard.js')
+        content = response.content.decode()
+        self.assertLess(
+            content.index(reverse('dashboard:environment')),
+            content.index(reverse('dashboard:labs-directory')),
+        )
+        self.assertLess(
+            content.index(reverse('dashboard:labs-directory')),
+            content.index(reverse('dashboard:service-matrix')),
+        )
 
     def test_environment_page_renders_diagnostics_shell(self):
         response = self.client.get(reverse('dashboard:environment'))
@@ -138,6 +148,68 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertNotContains(response, '<th scope="col">Page</th>', html=True)
         content = response.content.decode()
         self.assertLess(content.index('href="/service/iam/"'), content.index('href="/service/s3/"'))
+
+    def test_labs_directory_lists_only_services_with_active_labs(self):
+        response = self.client.get(reverse('dashboard:labs-directory'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '<title>Labs - Floci Dashboard</title>', html=True)
+        self.assertContains(response, '<h1>Labs</h1>', html=True)
+        self.assertContains(response, '7 services with labs')
+        self.assertContains(response, 'Create an IAM user')
+        self.assertContains(response, 'Complete a multipart upload')
+        self.assertContains(response, 'Configure SQS queue attributes and tags')
+        self.assertContains(response, 'Fan out an SNS message to SQS queues')
+        self.assertContains(
+            response,
+            'Schedule an EventBridge Scheduler message to SQS',
+        )
+        self.assertContains(
+            response,
+            'Provision S3 and SQS resources with CloudFormation',
+        )
+        self.assertContains(
+            response,
+            'Build a VPC with public and private subnets',
+        )
+        self.assertContains(
+            response,
+            reverse('dashboard:service-labs', kwargs={'service_key': 'iam'}),
+        )
+        self.assertContains(
+            response,
+            reverse('dashboard:service-labs', kwargs={'service_key': 's3'}),
+        )
+        self.assertContains(
+            response,
+            reverse('dashboard:service-labs', kwargs={'service_key': 'sqs'}),
+        )
+        self.assertContains(
+            response,
+            reverse('dashboard:service-labs', kwargs={'service_key': 'sns'}),
+        )
+        self.assertContains(
+            response,
+            reverse(
+                'dashboard:service-labs',
+                kwargs={'service_key': 'scheduler'},
+            ),
+        )
+        self.assertContains(
+            response,
+            reverse(
+                'dashboard:service-labs',
+                kwargs={'service_key': 'cloudformation'},
+            ),
+        )
+        self.assertContains(
+            response,
+            reverse('dashboard:service-labs', kwargs={'service_key': 'ec2'}),
+        )
+        content = response.content.decode()
+        self.assertLess(content.index('href="/service/iam/"'), content.index('href="/service/s3/"'))
+        self.assertLess(content.index('href="/service/s3/"'), content.index('href="/service/sqs/"'))
+        self.assertLess(content.index('href="/service/sqs/"'), content.index('href="/service/sns/"'))
 
     def test_all_service_pages_render(self):
         for key, service in SERVICE_PAGES.items():

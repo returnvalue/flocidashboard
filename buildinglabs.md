@@ -11,7 +11,9 @@ The initial curriculum is complete as of June 18, 2026:
 - lab-owned cleanup and reset behavior,
 - end-to-end verification against local Floci.
 
-The next service sequence should begin with SQS queue and message lifecycle, then build toward SNS-to-SQS and Scheduler-to-SQS multi-service workflows.
+The foundational messaging sequence, first CloudFormation provisioning lab, and four VPC networking labs are complete. Continue with deeper endpoint and hybrid-connectivity scenarios when local support makes them useful.
+
+The dashboard also exposes `/labs/`, a registry-driven directory of every service with active labs. The homepage links to it between Environment and Service Matrix.
 
 ## Direction
 
@@ -1255,19 +1257,620 @@ This completes the initial S3 lab progression. The next service lab set should b
 SQS queue and message lifecycle
 ```
 
+## SQS Lab Progression
+
+Implemented first SQS lab:
+
+```text
+Create and inspect an SQS queue
+```
+
+Steps:
+
+```bash
+aws sqs create-queue --queue-name floci-lab-basics
+aws sqs get-queue-url --queue-name floci-lab-basics
+aws sqs get-queue-attributes --queue-url <queue-url> --attribute-names All
+aws sqs list-queues
+```
+
+Live completion requires:
+
+- the queue name to resolve to a URL ending in `floci-lab-basics`,
+- the queue attributes to contain `arn:aws:sqs:us-east-1:000000000000:floci-lab-basics`,
+- the queue URL to appear in `list-queues`.
+
+Reset discovers the queue URL from live state and deletes only `floci-lab-basics`.
+
+Recommended next SQS lab:
+
+```text
+Send, receive, and delete an SQS message
+```
+
+Implemented second SQS lab:
+
+```text
+Send, receive, and delete an SQS message
+```
+
+Steps:
+
+```bash
+aws sqs create-queue --queue-name floci-lab-basics
+aws sqs send-message --queue-url <queue-url> --message-body file://message.json --message-attributes file://message-attributes.json
+aws sqs receive-message --queue-url <queue-url> --max-number-of-messages 10 --visibility-timeout 0 --wait-time-seconds 1 --message-attribute-names All
+aws sqs delete-message --queue-url <queue-url> --receipt-handle <receipt-handle>
+```
+
+The message body is a known `order.created` JSON event with order ID `FLOCI-1001`. A `Lab=message-lifecycle` message attribute identifies the lab-owned message without touching unrelated queue contents.
+
+Receive uses a zero-second visibility timeout so the message remains available for reload-safe live verification. Delete discovers a current receipt handle with a normal visibility timeout before removing the message.
+
+Message deletion cannot be distinguished from “never sent” using SQS state alone, so this step uses a short-lived server-side completion marker after the live delete succeeds. Reset clears that marker and removes only matching lifecycle messages while leaving the shared `floci-lab-basics` queue in place.
+
+Recommended next SQS lab:
+
+```text
+Understand SQS visibility timeout
+```
+
+Implemented third SQS lab:
+
+```text
+Understand SQS visibility timeout
+```
+
+Steps:
+
+```bash
+aws sqs create-queue --queue-name floci-lab-basics
+aws sqs send-message --queue-url <queue-url> --message-body file://job.json --message-attributes file://message-attributes.json
+aws sqs receive-message --queue-url <queue-url> --max-number-of-messages 10 --visibility-timeout 30 --wait-time-seconds 1 --message-attribute-names All
+aws sqs change-message-visibility --queue-url <queue-url> --receipt-handle <receipt-handle> --visibility-timeout 60
+aws sqs receive-message --queue-url <queue-url> --max-number-of-messages 10 --visibility-timeout 0 --wait-time-seconds 0 --message-attribute-names All
+aws sqs change-message-visibility --queue-url <queue-url> --receipt-handle <receipt-handle> --visibility-timeout 2
+aws sqs receive-message --queue-url <queue-url> --max-number-of-messages 10 --visibility-timeout 0 --wait-time-seconds 3 --message-attribute-names All
+```
+
+The lab sends a known `job.ready` event, receives it without deletion, and captures the live receipt handle. It first extends visibility to 60 seconds so a human has ample time to run the hidden-state check. After that check passes, it shortens visibility to two seconds, waits briefly, and verifies the same undeleted job becomes available again.
+
+Short-lived server-side markers remember the verified hidden and returned phases because those temporal facts cannot be reconstructed after both moments have passed. Message body, attribute, receipt handle, hidden poll, and returned poll are all verified directly against Floci when their steps run.
+
+Reset makes any cached in-flight receipt visible immediately, removes only the matching visibility-lab message, clears timing state, and leaves the shared queue intact.
+
+Recommended next SQS lab:
+
+```text
+Work with delayed SQS messages
+```
+
+Implemented fourth SQS lab:
+
+```text
+Work with delayed SQS messages
+```
+
+Steps:
+
+```bash
+aws sqs create-queue --queue-name floci-lab-basics
+aws sqs send-message --queue-url <queue-url> --message-body file://report.json --message-attributes file://message-attributes.json --delay-seconds 10
+aws sqs get-queue-attributes --queue-url <queue-url> --attribute-names ApproximateNumberOfMessagesDelayed
+aws sqs receive-message --queue-url <queue-url> --max-number-of-messages 10 --visibility-timeout 0 --wait-time-seconds 12 --message-attribute-names All
+```
+
+The send step atomically verifies the temporal state before returning: Floci must report at least one delayed message, and an immediate receive must not return the attributed `report.generate` request. This avoids making successful verification depend on how quickly a user clicks the next step.
+
+The final step keeps polling through unrelated available messages until it finds the exact delayed-lab message or the delivery window expires. Live verification requires the known body and `Lab=delayed-message` attribute.
+
+Reset waits for a still-delayed lab message when necessary, removes only matching messages, clears temporal markers, and leaves the shared queue intact.
+
+Recommended next SQS lab:
+
+```text
+Send and delete SQS messages in batches
+```
+
+Implemented fifth SQS lab:
+
+```text
+Send and delete SQS messages in batches
+```
+
+Steps:
+
+```bash
+aws sqs create-queue --queue-name floci-lab-basics
+aws sqs send-message-batch --queue-url <queue-url> --entries file://send-batch.json
+aws sqs receive-message --queue-url <queue-url> --max-number-of-messages 10 --visibility-timeout 0 --wait-time-seconds 1 --message-attribute-names All
+aws sqs delete-message-batch --queue-url <queue-url> --entries file://delete-batch.json
+```
+
+The lab sends three `task.created` events with IDs `FLOCI-TASK-1` through `FLOCI-TASK-3`. Every message carries `Lab=batch-messages`, allowing verification and reset to leave unrelated queue contents untouched.
+
+Send requires all three batch entries to appear in `Successful` with no failures. Receive tolerates SQS returning fewer messages than requested by polling briefly and collecting unique task bodies. Delete discovers current receipt handles from live receives and builds a three-entry batch acknowledgement.
+
+After deletion, a short-lived server-side marker distinguishes successful batch processing from a batch that was never sent. Reset removes any remaining matching task messages, clears completion state, and preserves the shared queue.
+
+Recommended next SQS lab:
+
+```text
+Configure SQS queue attributes and tags
+```
+
+Implemented sixth SQS lab:
+
+```text
+Configure SQS queue attributes and tags
+```
+
+Steps:
+
+```bash
+aws sqs create-queue --queue-name floci-lab-basics
+aws sqs set-queue-attributes --queue-url <queue-url> --attributes file://queue-attributes.json
+aws sqs get-queue-attributes --queue-url <queue-url> --attribute-names VisibilityTimeout MessageRetentionPeriod ReceiveMessageWaitTimeSeconds
+aws sqs tag-queue --queue-url <queue-url> --tags Environment=lab,Purpose=training
+aws sqs list-queue-tags --queue-url <queue-url>
+```
+
+The lab configures:
+
+- `VisibilityTimeout=45`,
+- `MessageRetentionPeriod=86400`,
+- `ReceiveMessageWaitTimeSeconds=10`,
+- `Environment=lab`,
+- `Purpose=training`.
+
+Live completion requires every exact attribute and tag value. Reset restores the AWS defaults used by the local queue (`30`, `345600`, and `0`) and removes only the `Environment` and `Purpose` tags while leaving the shared queue in place.
+
+Recommended next SQS lab:
+
+```text
+Route failed messages to an SQS dead-letter queue
+```
+
+Implemented seventh SQS lab:
+
+```text
+Route failed messages to an SQS dead-letter queue
+```
+
+Steps:
+
+```bash
+aws sqs create-queue --queue-name floci-lab-redrive-dlq
+aws sqs create-queue --queue-name floci-lab-redrive-source
+aws sqs set-queue-attributes --queue-url <source-queue-url> --attributes file://redrive-policy.json
+aws sqs get-queue-attributes --queue-url <source-queue-url> --attribute-names RedrivePolicy
+aws sqs send-message --queue-url <source-queue-url> --message-body file://payment.json --message-attributes file://message-attributes.json
+aws sqs receive-message --queue-url <source-queue-url> --max-number-of-messages 1 --visibility-timeout 0 --wait-time-seconds 0 --attribute-names All --message-attribute-names All
+aws sqs receive-message --queue-url <source-queue-url> --max-number-of-messages 1 --visibility-timeout 0 --wait-time-seconds 0 --attribute-names All --message-attribute-names All
+aws sqs receive-message --queue-url <source-queue-url> --max-number-of-messages 1 --visibility-timeout 0 --wait-time-seconds 0 --attribute-names All --message-attribute-names All
+aws sqs receive-message --queue-url <dlq-url> --max-number-of-messages 1 --visibility-timeout 0 --wait-time-seconds 1 --attribute-names All --message-attribute-names All
+aws sqs start-message-move-task --source-arn arn:aws:sqs:us-east-1:000000000000:floci-lab-redrive-dlq --destination-arn arn:aws:sqs:us-east-1:000000000000:floci-lab-redrive-source --max-number-of-messages-per-second 10
+aws sqs list-message-move-tasks --source-arn arn:aws:sqs:us-east-1:000000000000:floci-lab-redrive-dlq --max-results 10
+aws sqs receive-message --queue-url <source-queue-url> --max-number-of-messages 1 --visibility-timeout 0 --wait-time-seconds 1 --attribute-names All --message-attribute-names All
+```
+
+The source queue uses `maxReceiveCount=2`. The first two receives return the message and deliberately omit `DeleteMessage`, simulating a consumer that repeatedly fails. The third source receive demonstrates the exact threshold behavior: after the receive count has reached the configured maximum, SQS withholds the message from the source response and moves it to the DLQ.
+
+The DLQ inspection verifies the exact `payment.process` body and `Lab=dead-letter-redrive` message attribute. `StartMessageMoveTask` then performs managed redrive to the original source queue. The final receive proves that the same event returned with a fresh `ApproximateReceiveCount=1`.
+
+Temporal milestones are stored as short-lived server-side markers, while queue existence, ARNs, `RedrivePolicy`, and message move task state are recomputed from live Floci. Reset cancels any running lab move task and deletes the dedicated source and dead-letter queues.
+
+Recommended next SQS lab:
+
+```text
+Preserve ordering and deduplicate messages with an SQS FIFO queue
+```
+
+Implemented eighth SQS lab:
+
+```text
+Preserve ordering and deduplicate messages with an SQS FIFO queue
+```
+
+Steps:
+
+```bash
+aws sqs create-queue --queue-name floci-lab-orders.fifo --attributes FifoQueue=true,ContentBasedDeduplication=false
+aws sqs get-queue-attributes --queue-url <fifo-queue-url> --attribute-names QueueArn FifoQueue ContentBasedDeduplication
+aws sqs send-message --queue-url <fifo-queue-url> --message-body file://order-created.json --message-group-id customer-FLOCI-1001 --message-deduplication-id FLOCI-ORDER-1001-1
+aws sqs send-message --queue-url <fifo-queue-url> --message-body file://duplicate-created.json --message-group-id customer-FLOCI-1001 --message-deduplication-id FLOCI-ORDER-1001-1
+aws sqs send-message --queue-url <fifo-queue-url> --message-body file://order-paid.json --message-group-id customer-FLOCI-1001 --message-deduplication-id FLOCI-ORDER-1001-2
+aws sqs send-message --queue-url <fifo-queue-url> --message-body file://order-fulfilled.json --message-group-id customer-FLOCI-1001 --message-deduplication-id FLOCI-ORDER-1001-3
+aws sqs get-queue-attributes --queue-url <fifo-queue-url> --attribute-names ApproximateNumberOfMessages
+aws sqs receive-message --queue-url <fifo-queue-url> --max-number-of-messages 10 --visibility-timeout 0 --wait-time-seconds 1 --attribute-names All --message-attribute-names All
+```
+
+The queue name ends with `.fifo`, sets `FifoQueue=true`, and leaves `ContentBasedDeduplication=false` so the workflow can teach explicit `MessageDeduplicationId` values.
+
+All three distinct order events use `MessageGroupId=customer-FLOCI-1001`. The lab sends `created`, retries a different body with the same first deduplication ID, then sends `paid` and `fulfilled`. Floci returns the original message ID and sequence number for the duplicate request, matching FIFO duplicate-suppression behavior.
+
+Four successful send requests leave exactly three available messages. ReceiveMessage returns those messages as `created`, `paid`, and `fulfilled`, with the expected group and deduplication IDs and strictly increasing sequence numbers.
+
+The duplicate-send fact is retained as short-lived server-side state because queue contents alone cannot prove that the duplicate API request occurred. Queue configuration, queue depth, message bodies, group IDs, deduplication IDs, and ordering are verified from live Floci state. Reset deletes the dedicated FIFO queue and clears the completion markers.
+
+Recommended next SQS lab:
+
+```text
+Purge messages and delete an SQS queue
+```
+
+Implemented ninth SQS lab:
+
+```text
+Purge messages and delete an SQS queue
+```
+
+Steps:
+
+```bash
+aws sqs create-queue --queue-name floci-lab-cleanup --attributes VisibilityTimeout=45 --tags Purpose=cleanup-training
+aws sqs send-message-batch --queue-url <cleanup-queue-url> --entries file://cleanup-messages.json
+aws sqs get-queue-attributes --queue-url <cleanup-queue-url> --attribute-names QueueArn VisibilityTimeout ApproximateNumberOfMessages
+aws sqs purge-queue --queue-url <cleanup-queue-url>
+aws sqs get-queue-attributes --queue-url <cleanup-queue-url> --attribute-names QueueArn VisibilityTimeout ApproximateNumberOfMessages
+aws sqs delete-queue --queue-url <cleanup-queue-url>
+```
+
+The lab creates a dedicated queue with `VisibilityTimeout=45` and `Purpose=cleanup-training`, then sends three attributed `cleanup.test` messages in a batch.
+
+Before purge, live verification requires the expected queue ARN, visibility timeout, tag, and exactly three available messages. `PurgeQueue` removes all queue messages. The next inspection proves that the queue still exists with zero messages and that its configuration and tag remain unchanged.
+
+`DeleteQueue` then removes the queue resource itself. Verification calls `GetQueueUrl` and requires `AWS.SimpleQueueService.NonExistentQueue`, making the difference between emptying a queue and deleting it concrete.
+
+Because successful deletion removes the live resource needed to reconstruct earlier steps, short-lived server-side markers retain the verified populated and purged milestones. Reset deletes the dedicated queue if it still exists and clears all markers.
+
+This completes the foundational SQS lab sequence:
+
+- queue creation and inspection,
+- message lifecycle,
+- visibility timeout,
+- delayed delivery,
+- batch operations,
+- queue attributes and tags,
+- dead-letter queues and managed redrive,
+- FIFO ordering and duplicate suppression,
+- purge and queue deletion.
+
+Recommended next multi-service lab:
+
+```text
+Fan out an SNS message to SQS queues
+```
+
+## SNS Lab Progression
+
+Implemented first SNS lab:
+
+```text
+Fan out an SNS message to SQS queues
+```
+
+Steps:
+
+```bash
+aws sns create-topic --name floci-lab-order-events
+aws sqs create-queue --queue-name floci-lab-order-processing
+aws sqs create-queue --queue-name floci-lab-order-audit
+aws sqs set-queue-attributes --queue-url <orders-queue-url> --attributes file://orders-queue-policy.json
+aws sqs set-queue-attributes --queue-url <audit-queue-url> --attributes file://audit-queue-policy.json
+aws sns subscribe --topic-arn arn:aws:sns:us-east-1:000000000000:floci-lab-order-events --protocol sqs --notification-endpoint arn:aws:sqs:us-east-1:000000000000:floci-lab-order-processing --attributes RawMessageDelivery=true --return-subscription-arn
+aws sns subscribe --topic-arn arn:aws:sns:us-east-1:000000000000:floci-lab-order-events --protocol sqs --notification-endpoint arn:aws:sqs:us-east-1:000000000000:floci-lab-order-audit --attributes RawMessageDelivery=true --return-subscription-arn
+aws sns list-subscriptions-by-topic --topic-arn arn:aws:sns:us-east-1:000000000000:floci-lab-order-events
+aws sns publish --topic-arn arn:aws:sns:us-east-1:000000000000:floci-lab-order-events --message file://order-created.json --subject "Order created" --message-attributes file://message-attributes.json
+aws sqs receive-message --queue-url <orders-queue-url> --max-number-of-messages 10 --visibility-timeout 0 --wait-time-seconds 1 --message-attribute-names All
+aws sqs receive-message --queue-url <audit-queue-url> --max-number-of-messages 10 --visibility-timeout 0 --wait-time-seconds 1 --message-attribute-names All
+```
+
+Each queue policy grants `sqs:SendMessage` to `sns.amazonaws.com` only when `aws:SourceArn` equals the dedicated topic ARN. Both subscriptions are immediately confirmed and use `RawMessageDelivery=true`.
+
+The published `order.created` event therefore arrives as the exact JSON body instead of an SNS notification envelope. Its `EventType=order.created` and `Environment=lab` attributes are preserved as SQS message attributes.
+
+Live completion requires the topic and both queue ARNs, both exact queue policies, two confirmed raw-delivery subscriptions, and the exact event body and attributes in both queues. Receive verification uses a zero-second visibility timeout so both copies remain available after reload.
+
+Reset unsubscribes both endpoints before deleting the topic, then deletes both lab-owned queues. This lab makes the architectural distinction concrete: a queue normally distributes work among competing consumers, while a topic independently delivers one publish to every matching subscription.
+
+Implemented second SNS lab:
+
+```text
+Route selected SNS messages with subscription filter policies
+```
+
+Steps:
+
+```bash
+aws sns create-topic --name floci-lab-filtered-events
+aws sqs create-queue --queue-name floci-lab-created-events
+aws sqs create-queue --queue-name floci-lab-priority-events
+aws sqs set-queue-attributes --queue-url <created-queue-url> --attributes file://created-queue-policy.json
+aws sqs set-queue-attributes --queue-url <priority-queue-url> --attributes file://priority-queue-policy.json
+aws sns subscribe --topic-arn arn:aws:sns:us-east-1:000000000000:floci-lab-filtered-events --protocol sqs --notification-endpoint arn:aws:sqs:us-east-1:000000000000:floci-lab-created-events --attributes file://created-filter.json --return-subscription-arn
+aws sns subscribe --topic-arn arn:aws:sns:us-east-1:000000000000:floci-lab-filtered-events --protocol sqs --notification-endpoint arn:aws:sqs:us-east-1:000000000000:floci-lab-priority-events --attributes file://priority-filter.json --return-subscription-arn
+aws sns get-subscription-attributes --subscription-arn <subscription-arn>
+aws sns publish --topic-arn arn:aws:sns:us-east-1:000000000000:floci-lab-filtered-events --message file://created-event.json --message-attributes file://created-attributes.json
+aws sns publish --topic-arn arn:aws:sns:us-east-1:000000000000:floci-lab-filtered-events --message file://priority-event.json --message-attributes file://priority-attributes.json
+aws sqs receive-message --queue-url <created-queue-url> --max-number-of-messages 10 --visibility-timeout 0 --wait-time-seconds 1 --message-attribute-names All
+aws sqs receive-message --queue-url <priority-queue-url> --max-number-of-messages 10 --visibility-timeout 0 --wait-time-seconds 1 --message-attribute-names All
+```
+
+The created-events subscription uses `{"EventType":["order.created"]}`. The priority subscription uses `{"Priority":["high"]}`. Both set `FilterPolicyScope=MessageAttributes` and use raw delivery.
+
+The lab publishes a normal-priority `order.created` event and a high-priority `order.cancelled` event. Completion requires the created-events queue to contain exactly the first event and the priority queue to contain exactly the second. This proves both positive matching and non-matching exclusion.
+
+Queue policies still scope `sqs:SendMessage` to the dedicated topic ARN. Reset unsubscribes both filtered endpoints, deletes the topic, and deletes both queues.
+
+Recommended next architecture lab:
+
+```text
+Provision S3 and SQS resources with CloudFormation
+```
+
+## CloudFormation Lab Progression
+
+Implemented first CloudFormation lab:
+
+```text
+Provision S3 and SQS resources with CloudFormation
+```
+
+Steps:
+
+```bash
+aws cloudformation validate-template --template-body file://storage-messaging-stack.json
+aws cloudformation create-stack --stack-name floci-lab-storage-messaging --template-body file://storage-messaging-stack.json
+aws cloudformation describe-stacks --stack-name floci-lab-storage-messaging
+aws cloudformation describe-stack-resources --stack-name floci-lab-storage-messaging
+aws cloudformation describe-stack-events --stack-name floci-lab-storage-messaging
+aws s3api head-bucket --bucket floci-lab-cfn-storage
+aws sqs get-queue-attributes --queue-url <queue-url> --attribute-names QueueArn VisibilityTimeout
+aws cloudformation delete-stack --stack-name floci-lab-storage-messaging
+aws cloudformation describe-stacks --stack-name floci-lab-storage-messaging
+aws s3api head-bucket --bucket floci-lab-cfn-storage
+aws sqs get-queue-url --queue-name floci-lab-cfn-jobs
+```
+
+The JSON template declares an `AWS::S3::Bucket` and `AWS::SQS::Queue`, plus outputs for the bucket name, queue URL, and queue ARN. Validation runs before resource creation.
+
+Creation completion requires `CREATE_COMPLETE` and exact outputs. Resource inspection maps the logical IDs `StorageBucket` and `JobsQueue` to their physical bucket name and queue URL. Event inspection requires successful creation events for the stack and both resources.
+
+The service-level check independently calls S3 and SQS to prove that the provisioned resources are usable and that the queue has the template-defined 30-second visibility timeout.
+
+Deletion is performed through CloudFormation rather than directly against S3 or SQS. Completion requires the stack, bucket, and queue all to be absent. Reset is defensive: it asks CloudFormation to delete the stack first and removes any remaining lab-owned resources only if necessary.
+
+Floci 1.5.26 capability boundary:
+
+- Stack create, outputs, resource inventory, event history, and deletion work end to end.
+- Change-set creation succeeds but currently reports an empty `Changes` list.
+- Updating a named SQS queue property currently attempts resource recreation and rolls back because the queue name already exists.
+- Template-defined S3 and SQS tags are not currently propagated to the underlying resources.
+
+Do not add a successful change-set/update lesson until Floci can preview and execute the update without rollback. In AWS, CloudFormation supports in-place updates for many resource properties, and change sets are an important production workflow.
+
+Recommended next architecture lab:
+
+```text
+Build a VPC with public and private subnets
+```
+
+## EC2 Networking Lab Progression
+
+Implemented first networking lab:
+
+```text
+Build a VPC with public and private subnets
+```
+
+Steps:
+
+```bash
+aws ec2 create-vpc --cidr-block 10.42.0.0/16 --tag-specifications file://vpc-tags.json
+aws ec2 create-subnet --vpc-id <vpc-id> --cidr-block 10.42.1.0/24 --availability-zone us-east-1a
+aws ec2 modify-subnet-attribute --subnet-id <public-subnet-id> --map-public-ip-on-launch
+aws ec2 create-subnet --vpc-id <vpc-id> --cidr-block 10.42.2.0/24 --availability-zone us-east-1b
+aws ec2 create-internet-gateway
+aws ec2 attach-internet-gateway --internet-gateway-id <igw-id> --vpc-id <vpc-id>
+aws ec2 create-route-table --vpc-id <vpc-id>
+aws ec2 create-route --route-table-id <public-route-table-id> --destination-cidr-block 0.0.0.0/0 --gateway-id <igw-id>
+aws ec2 associate-route-table --route-table-id <public-route-table-id> --subnet-id <public-subnet-id>
+aws ec2 create-route-table --vpc-id <vpc-id>
+aws ec2 associate-route-table --route-table-id <private-route-table-id> --subnet-id <private-subnet-id>
+aws ec2 describe-vpcs --vpc-ids <vpc-id>
+aws ec2 describe-subnets --filters Name=vpc-id,Values=<vpc-id>
+aws ec2 describe-internet-gateways --filters Name=attachment.vpc-id,Values=<vpc-id>
+aws ec2 describe-route-tables --filters Name=vpc-id,Values=<vpc-id>
+```
+
+The VPC uses `10.42.0.0/16`. Its public subnet is `10.42.1.0/24` in `us-east-1a`, while its private subnet is `10.42.2.0/24` in `us-east-1b`.
+
+The public subnet enables `MapPublicIpOnLaunch` and is associated with a route table containing `0.0.0.0/0` through the attached internet gateway. The private subnet is explicitly associated with a separate route table whose only route is the automatic local VPC route.
+
+This teaches that a subnet is public because its effective route table has a route to an internet gateway; naming a subnet “public” or merely attaching an internet gateway to the VPC is not sufficient. Public IP assignment is a separate subnet behavior.
+
+Live completion is recomputed from the VPC CIDR and tag, subnet CIDRs and attributes, gateway attachment, route-table associations, and route destinations. Reset discovers the live topology and removes associations, custom route tables, gateway attachment, gateway, subnets, and VPC in dependency order.
+
+Floci 1.5.26 capability boundary: VPC tags persist, but tags supplied while creating subnets, route tables, and internet gateways are not currently returned. The lab therefore identifies those resources through CIDRs, attachments, routes, and associations.
+
+Recommended next networking lab:
+
+```text
+Control VPC traffic with security groups and network ACLs
+```
+
+Implemented second networking lab:
+
+```text
+Control VPC traffic with security groups and network ACLs
+```
+
+Steps:
+
+```bash
+aws ec2 create-vpc --cidr-block 10.43.0.0/16 --tag-specifications file://vpc-tags.json
+aws ec2 create-subnet --vpc-id <vpc-id> --cidr-block 10.43.1.0/24 --availability-zone us-east-1a
+aws ec2 create-security-group --group-name floci-lab-web-sg --description "HTTPS web tier" --vpc-id <vpc-id>
+aws ec2 authorize-security-group-ingress --group-id <web-sg-id> --ip-permissions file://trusted-https.json
+aws ec2 create-security-group --group-name floci-lab-app-sg --description "Private application tier" --vpc-id <vpc-id>
+aws ec2 authorize-security-group-ingress --group-id <app-sg-id> --ip-permissions file://web-to-app.json
+aws ec2 describe-security-groups --group-ids <web-sg-id> <app-sg-id>
+aws ec2 describe-security-group-rules --filters Name=group-id,Values=<web-sg-id>,<app-sg-id>
+aws ec2 describe-network-acls --filters Name=vpc-id,Values=<vpc-id>
+```
+
+The web security group allows TCP 443 only from `203.0.113.0/24`. The app security group allows TCP 8080 using the web security group as its source, which follows workload identity instead of a fixed client CIDR.
+
+Both groups retain their default all-traffic egress. Because security groups are stateful, response traffic for an allowed inbound connection is automatically permitted without a separate ephemeral-port ingress rule.
+
+The accompanying NACL design demonstrates ordered, stateless rules:
+
+- rule 90 denies inbound SSH,
+- rule 100 allows inbound HTTPS from the trusted CIDR,
+- outbound rule 100 allows ephemeral response ports 1024–65535,
+- the final `*` rule denies unmatched traffic.
+
+Floci 1.5.26 capability boundary:
+
+- Security-group creation, CIDR ingress, and security-group source references are accepted.
+- Describe responses retain the TCP 8080 rule but currently omit its `UserIdGroupPairs` source. The lab records successful relationship creation as short-lived state while verifying the live port rule.
+- `CreateNetworkAcl` and `DescribeNetworkAcls` return `UnsupportedOperation`.
+
+The NACL step therefore verifies and displays the support boundary plus the exact AWS rule design; it does not claim that Floci enforced those NACL rules. Add a fully executable NACL sequence when the APIs become available.
+
+Reset deletes the app and web security groups before removing the subnet and dedicated VPC.
+
+Recommended next networking lab:
+
+```text
+Connect a private VPC to S3 with a gateway endpoint
+```
+
+Implemented third networking lab:
+
+```text
+Connect a private VPC to S3 with a gateway endpoint
+```
+
+Steps:
+
+```bash
+aws ec2 create-vpc --cidr-block 10.44.0.0/16 --tag-specifications file://vpc-tags.json
+aws ec2 create-subnet --vpc-id <vpc-id> --cidr-block 10.44.1.0/24 --availability-zone us-east-1a
+aws ec2 create-route-table --vpc-id <vpc-id>
+aws ec2 associate-route-table --route-table-id <route-table-id> --subnet-id <subnet-id>
+aws s3api create-bucket --bucket floci-lab-private-s3-data
+aws ec2 create-vpc-endpoint --vpc-id <vpc-id> --vpc-endpoint-type Gateway --service-name com.amazonaws.us-east-1.s3 --route-table-ids <route-table-id> --policy-document file://endpoint-policy.json
+aws ec2 describe-vpc-endpoints --vpc-endpoint-ids <endpoint-id>
+aws ec2 describe-route-tables --route-table-ids <route-table-id>
+aws s3api head-bucket --bucket floci-lab-private-s3-data
+```
+
+The dedicated `10.44.0.0/16` VPC has no internet gateway or NAT gateway. Its `10.44.1.0/24` subnet disables automatic public IP assignment and uses a custom route table with no `0.0.0.0/0` route.
+
+The S3 gateway endpoint uses the regional service name `com.amazonaws.us-east-1.s3`. Its endpoint policy grants only `s3:ListBucket` and `s3:GetObject` for the lab bucket and its objects. Gateway endpoints do not use security groups and do not incur the hourly and data-processing model associated with interface endpoints.
+
+In AWS, associating the route table causes AWS to add a managed route whose destination is the regional S3 prefix list and whose target is the gateway endpoint. S3 traffic matching that prefix list stays on the AWS network; the endpoint does not make the subnet generally internet-connected.
+
+Floci 1.5.26 capability boundary:
+
+- Gateway endpoint creation, description, and deletion work.
+- Floci currently returns an empty route-table ID in the endpoint description.
+- Floci does not inject the managed S3 prefix-list route into the selected route table.
+- The lab verifies that the real AWS request included the route-table ID and bucket-scoped policy, then explicitly inspects and reports the missing managed route.
+
+Reset removes the endpoint and bucket before disassociating and deleting the route table, subnet, and dedicated VPC.
+
+Recommended next networking lab:
+
+```text
+Connect a private subnet to an AWS service with an interface endpoint
+```
+
+Implemented fourth networking lab:
+
+```text
+Connect a private subnet to SQS with an interface endpoint
+```
+
+Steps:
+
+```bash
+aws ec2 create-vpc --cidr-block 10.45.0.0/16 --tag-specifications file://vpc-tags.json
+aws ec2 create-subnet --vpc-id <vpc-id> --cidr-block 10.45.1.0/24 --availability-zone us-east-1a
+aws ec2 create-security-group --group-name floci-lab-sqs-endpoint-sg --description "Private SQS endpoint HTTPS" --vpc-id <vpc-id>
+aws ec2 authorize-security-group-ingress --group-id <endpoint-sg-id> --ip-permissions file://endpoint-https.json
+aws sqs create-queue --queue-name floci-lab-private-sqs
+aws ec2 create-vpc-endpoint --vpc-id <vpc-id> --vpc-endpoint-type Interface --service-name com.amazonaws.us-east-1.sqs --subnet-ids <subnet-id> --security-group-ids <endpoint-sg-id> --private-dns-enabled --policy-document file://endpoint-policy.json
+aws ec2 describe-vpc-endpoints --vpc-endpoint-ids <endpoint-id>
+aws ec2 describe-network-interfaces --network-interface-ids <eni-id>
+aws sqs get-queue-attributes --queue-url <queue-url> --attribute-names QueueArn
+```
+
+The interface endpoint differs from the S3 gateway endpoint in the preceding lab. It places an endpoint network interface in the selected subnet, uses a security group, and can make the standard regional SQS hostname resolve to private endpoint addresses when private DNS is enabled. It does not add a service prefix-list route to the subnet route table.
+
+The endpoint security group allows TCP 443 only from the dedicated `10.45.0.0/16` VPC. The endpoint policy allows only `sqs:GetQueueAttributes` and `sqs:SendMessage` against `floci-lab-private-sqs`.
+
+Live completion requires the VPC, private subnet, HTTPS ingress rule, target queue, available interface endpoint, and a completed topology inspection. The inspection reports the endpoint fields and ENIs that Floci persists while retaining the exact AWS request as the source of truth for any omitted local fields.
+
+Reset deletes the interface endpoint first so its managed network interfaces can disappear, then removes the queue, endpoint security group, subnet, and dedicated VPC.
+
+Recommended next networking direction:
+
+```text
+Add multi-AZ endpoint placement or hybrid DNS/routing when local support is reliable
+```
+
+## EventBridge Scheduler Lab Progression
+
+Implemented first Scheduler lab:
+
+```text
+Schedule an EventBridge Scheduler message to SQS
+```
+
+Steps:
+
+```bash
+aws sqs create-queue --queue-name floci-lab-scheduled-reports
+aws iam create-role --role-name FlociSchedulerSqsRole --assume-role-policy-document file://scheduler-trust-policy.json
+aws iam put-role-policy --role-name FlociSchedulerSqsRole --policy-name SendScheduledReportToSqs --policy-document file://send-message-policy.json
+aws scheduler create-schedule-group --name floci-lab-scheduler
+aws scheduler create-schedule --name send-report-ready --group-name floci-lab-scheduler --schedule-expression "at(<utc-time-seconds-from-now>)" --flexible-time-window Mode=OFF --target file://target.json --action-after-completion DELETE
+aws scheduler get-schedule --name send-report-ready --group-name floci-lab-scheduler
+aws sqs receive-message --queue-url <scheduled-reports-queue-url> --max-number-of-messages 10 --visibility-timeout 0 --wait-time-seconds 12
+aws scheduler get-schedule --name send-report-ready --group-name floci-lab-scheduler
+```
+
+The IAM trust policy allows `scheduler.amazonaws.com` to assume the role. Its inline permissions policy grants only `sqs:SendMessage` on `arn:aws:sqs:us-east-1:000000000000:floci-lab-scheduled-reports`.
+
+The create-schedule runner generates a UTC `at(...)` expression several seconds in the future. The target stores the exact `report.ready` JSON input, the execution role ARN, and a bounded retry policy. `FlexibleTimeWindow=OFF` requests precise one-time invocation, while `ActionAfterCompletion=DELETE` removes the schedule after it runs.
+
+Scheduler invocation is asynchronous. The delivery step polls through local invocation latency and verifies the exact message body with a zero-second visibility timeout. The final step calls `GetSchedule` and requires `ResourceNotFoundException`, proving automatic schedule cleanup.
+
+Live status combines the remaining queue, role, inline policy, and schedule group with short-lived markers for schedule creation and automatic deletion. Reset tolerates a schedule already removed by `ActionAfterCompletion`, then deletes the group, role policy, role, and target queue in dependency order.
+
+Recommended next messaging lab:
+
+```text
+Route selected SNS messages with subscription filter policies
+```
+
 ## Future Services
 
 Good next services:
 
-- SQS: create queue, send message, receive message, delete message, purge/delete queue.
-- SNS: create topic, subscribe SQS queue, publish, inspect SQS delivery.
+- SQS: foundational sequence complete; continue through multi-service messaging labs.
+- SNS: fan-out and message-attribute filtering foundations complete.
 - KMS: create key, create alias, encrypt, decrypt, disable/enable key, cleanup.
-- CloudFormation: create stack that provisions S3/SQS/IAM, inspect stack resources, delete stack.
-- EventBridge Scheduler: schedule a message to SQS, wait, inspect queue, cleanup.
+- CloudFormation: create/delete foundation complete; add updates and rollback labs when local support is reliable.
+- EC2 networking: routing, security-group, S3 gateway endpoint, and SQS interface endpoint foundations complete.
+- EventBridge Scheduler: one-time SQS delivery foundation complete.
 - RDS: create local DB instance, inspect endpoint, connect instructions, cleanup.
 - DocumentDB: create cluster/instance, inspect endpoint, cleanup.
 
-The first strong multi-service lab should be:
+The completed Scheduler multi-service lab is:
 
 ```text
 Scheduler -> SQS

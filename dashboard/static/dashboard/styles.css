@@ -763,6 +763,39 @@ a.service-card-active:hover {
   color: #174ea6;
 }
 
+.labs-directory-intro {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.labs-directory-table {
+  min-width: 900px;
+}
+
+.labs-directory-list {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.labs-directory-list li {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.82rem;
+}
+
+.labs-directory-open {
+  min-height: 34px;
+  padding: 0 11px;
+  white-space: nowrap;
+}
+
 .environment-loaded-at {
   display: block;
   margin-top: 4px;

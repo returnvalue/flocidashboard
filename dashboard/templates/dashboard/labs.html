@@ -61,6 +61,12 @@
               <pre><code>{{ step.artifact }}</code></pre>
             </details>
           {% endif %}
+          {% if step.secondary_artifact %}
+            <details class="lab-artifact">
+              <summary>{{ step.secondary_artifact_label }}</summary>
+              <pre><code>{{ step.secondary_artifact }}</code></pre>
+            </details>
+          {% endif %}
           <div class="lab-response"{% if not step.status.verified %} hidden{% endif %}>
             <div class="lab-response-heading">
               <strong>Response</strong>

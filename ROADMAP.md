@@ -179,8 +179,26 @@ Core architecture files:
 - Expanded EC2 inventory with VPC endpoints and SSM inventory with per-operating-system default patch baselines.
 - Added KMS key enable/disable actions and surfaced S3 user metadata in the object detail drawer.
 - Added local AWS workflow labs with shared routes, UI, live-state verification, reset behavior, and breadcrumb navigation.
+- Added a top-level Labs directory that automatically lists services with registered labs and links it from the homepage between Environment and Service Matrix.
 - Completed eight IAM labs covering users, managed and inline policies, access keys, groups, roles, and EC2 instance profiles.
 - Completed twelve S3 labs covering bucket/object fundamentals, prefixes, metadata and tags, version recovery, presigned URLs, bucket security, default encryption, lifecycle retention, CORS, S3-to-SQS notifications, and multipart upload.
+- Started the SQS lab sequence with queue creation, URL resolution, full attribute inspection, account queue listing, live-state completion, and queue-owned reset.
+- Added the SQS message lifecycle lab with a known JSON event, message attributes, reload-safe receive verification, live receipt-handle discovery, delete verification, and message-only reset behavior.
+- Added the SQS visibility timeout lab with in-flight receipt tracking, ChangeMessageVisibility, immediate hidden-state verification, timed message reappearance, and message-only cleanup.
+- Added the delayed-message SQS lab with DelaySeconds, delayed-count inspection, atomic unavailable-state verification, timed delivery, and attributed message cleanup.
+- Added the SQS batch-message lab with three-entry SendMessageBatch, multi-message receive verification, live receipt-handle discovery, DeleteMessageBatch, and batch-only reset behavior.
+- Added the SQS queue-configuration lab with visibility, retention, long-poll attributes, operational tags, exact live-state verification, and default-restoring reset behavior.
+- Added the SQS dead-letter queue and redrive lab with dedicated source/DLQ topology, `RedrivePolicy`, repeated failed receives, explicit max-receive transition, DLQ inspection, managed message move task verification, and queue-owned reset.
+- Added the SQS FIFO ordering and deduplication lab with explicit FIFO attributes, one ordered message group, duplicate-send metadata comparison, queue-depth verification, sequence-number inspection, and queue-owned reset.
+- Completed the foundational SQS sequence with a purge/delete lab that verifies message removal, preserved queue configuration and tags, final queue absence, and idempotent reset behavior.
+- Added the first SNS lab and first dedicated multi-service messaging lab: one topic, two least-privilege SQS queue policies, two raw-delivery subscriptions, one publish, two independently verified queue copies, and dependency-aware reset.
+- Added the EventBridge Scheduler-to-SQS lab with a service trust policy, queue-scoped execution permission, dedicated schedule group, dynamic one-time expression, eventual-delivery polling, and automatic schedule deletion verification.
+- Added the SNS subscription filter policy lab with two message-attribute filters, two contrasting publishes, exact-route verification, exclusion checks, and dependency-aware cleanup.
+- Added the first CloudFormation lab with template validation, S3 and SQS stack provisioning, outputs, logical-to-physical resource mapping, event inspection, live service verification, stack deletion, and ownership cleanup proof.
+- Added the first EC2 networking lab with a dedicated VPC, public/private subnets, public-IP behavior, internet gateway attachment, separate route tables, explicit subnet associations, topology verification, and dependency-aware teardown.
+- Added the EC2 traffic-control lab with trusted-CIDR HTTPS ingress, web-to-app security-group references, stateful egress inspection, an explicit network ACL support probe, intended stateless NACL rule artifacts, and isolated teardown.
+- Added the EC2 S3 gateway endpoint lab with an isolated VPC and private subnet, explicit route-table association, a bucket-scoped endpoint policy, managed prefix-list route inspection, a documented Floci persistence boundary, and dependency-aware teardown.
+- Added the EC2 SQS interface endpoint lab with isolated subnet placement, HTTPS-only endpoint security, private DNS, queue-scoped endpoint policy, endpoint ENI inspection, and dependency-aware teardown.
 
 ## Near-Term Priorities
 
@@ -286,8 +304,7 @@ Continue the local AWS workflow lab system beyond IAM and S3.
 Feasible follow-ups:
 
 - Split the growing `dashboard/labs.py` module into a small typed package with shared registry and runner code.
-- Add the first SQS lab for queue creation, send, receive, delete-message, purge, and queue cleanup.
-- Add SNS-to-SQS and Scheduler-to-SQS multi-service labs after the basic SQS sequence.
+- Continue networking labs with multi-AZ interface endpoints, endpoint policy variations, or hybrid connectivity when local support makes them useful.
 - Add “View in dashboard” links after verified steps.
 - Consider step-order guidance while preserving live-state recovery after reloads.
 
