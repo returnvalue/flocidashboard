@@ -124,7 +124,7 @@
       <details class="iam-about-floci">
         <summary>About Floci IAM</summary>
         <p>Local IAM stores users, roles, groups, policies, access keys, and trust relationships for AWS-compatible development workflows.</p>
-        <p>IAM is most often used to shape what local SDK calls are allowed to do and to test role-based credentials. In Floci, a good learning flow is to inspect a principal, review its attached and inline policies, create a temporary access key or assume a role, then test those credentials from your app.</p>
+        <p>IAM is most often used to shape what local SDK calls are allowed to do and to test role-based credentials. In Floci, a good learning flow is to inspect a principal, review its attached and inline policies, create a temporary access key or assume a role, then test those credentials from your app. Floci 1.5.29 routes assumed-role credentials to the target account.</p>
         <p>Common local test cases include missing permissions, incorrect trust policies, inactive access keys, group policy inheritance, permission boundaries, and role-session credential wiring.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid iam-readonly-grid"></div>
@@ -205,7 +205,7 @@
       <details class="cloudformation-about-floci">
         <summary>About Floci CloudFormation</summary>
         <p>Local CloudFormation deploys templates through the AWS-compatible Query XML API and provisions supported local resources such as S3 buckets, SQS queues, SNS topics, DynamoDB tables, Lambda functions, Lambda layer versions, IAM identities, EC2 VPCs and subnets, SSM parameters, KMS keys, Secrets Manager secrets, API Gateway resources, EventBridge rules, ECS resources, ELBv2 resources, and more.</p>
-        <p>CloudFormation is most useful when testing whole local application slices. Floci 1.5.25 provisions Lambda-backed custom resources and EC2 VPC/subnet resources so cross-stack exports can resolve locally. A good learning flow is to validate a template, create a stack, watch stack events, inspect generated resources, then update or delete the stack from the workbench.</p>
+        <p>CloudFormation is most useful when testing whole local application slices. Recent Floci releases provision broader local stacks, including SAM-generated API Gateway resources, ECS cleanup on stack delete, EC2, RDS, EKS, CloudWatch, Auto Scaling, Kinesis, and Firehose resources. A good learning flow is to validate a template, create a stack, watch stack events, inspect generated resources, then update or delete the stack from the workbench.</p>
         <p>Unsupported resource types are accepted and assigned synthetic physical IDs so broader templates can deploy while you focus on the local services that Floci emulates.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid cloudformation-readonly-grid"></div>
@@ -251,7 +251,7 @@
         <summary>About Floci ECS</summary>
         <p>Local ECS stores clusters, task definitions, tasks, services, task sets, container instances, capacity providers, account settings, attributes, and tags through the AWS-compatible JSON API.</p>
         <p>ECS is most useful when testing containerized local workloads and service orchestration. In Floci, a good learning flow is to create a cluster, register a task definition, run a one-off task, then create a service and adjust its desired count.</p>
-        <p>By default tasks launch as real Docker containers and need Docker socket access. Set FLOCI_SERVICES_ECS_MOCK=true when tests or CI should run without Docker. Floci 1.5.25 validates Fargate task network mode and resource requirements more closely.</p>
+        <p>By default tasks launch as real Docker containers and need Docker socket access. Set FLOCI_SERVICES_ECS_MOCK=true when tests or CI should run without Docker. Recent Floci releases honor task hostPort mappings, mount EFS task volumes as shared local volumes, persist ECS resources, and validate Fargate task network mode and resource requirements more closely.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid ecs-readonly-grid"></div>
     {% elif service.key == 'apigateway' %}
@@ -305,7 +305,7 @@
         <summary>About Floci SSM Parameter Store</summary>
         <p>Local SSM includes Parameter Store metadata plus broader SSM inventory. This workbench focuses on parameters for application configuration, feature flags, endpoints, and non-secret runtime settings.</p>
         <p>Parameter values stay out of the read-only inventory by default. Use the explicit reveal action when you need to debug what a local app will receive from GetParameter.</p>
-        <p>Common local test cases include missing parameters, stale config versions, malformed JSON values, SecureString decryption, overwrite behavior, and application reloads after updates.</p>
+        <p>Common local test cases include missing parameters, stale config versions, malformed JSON values, SecureString decryption, overwrite behavior, application reloads after updates, and Floci 1.5.26 SendCommand execution in EC2 containers.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid ssm-readonly-grid"></div>
     {% elif service.key == 'rds' %}
@@ -350,7 +350,7 @@
         <summary>About Floci Transcribe</summary>
         <p>Local Transcribe is a small AWS-compatible control-plane stub for transcription jobs and custom vocabularies. No real audio parsing or speech-to-text processing is performed.</p>
         <p>Jobs transition to COMPLETED immediately and return a synthetic transcript file URI. Vocabularies transition to READY immediately, making both flows useful for local SDK and application control-path testing.</p>
-        <p>LanguageCode defaults to en-US and MediaFormat defaults to mp4. Job and vocabulary state is in memory and does not persist across Floci restarts.</p>
+        <p>LanguageCode defaults to en-US and MediaFormat defaults to mp4. Floci 1.5.29 persists vocabularies across restart, while transcription job execution remains a control-plane stub.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid transcribe-readonly-grid"></div>
     {% elif service.key == 'bedrockruntime' %}
@@ -375,9 +375,9 @@
       <div id="appsync-console-root" class="appsync-console-root" aria-live="polite"></div>
       <details class="appsync-about-floci">
         <summary>About Floci AppSync</summary>
-        <p>Floci 1.5.22 adds AppSync Phase 1 management API emulation for provisioning and configuring GraphQL APIs.</p>
+        <p>Floci supports AppSync management APIs for provisioning and configuring GraphQL APIs, with phased resolver support through the Phase 4 VTL engine added in Floci 1.5.29.</p>
         <p>The supported management surface includes GraphQL APIs, schemas, API keys, data sources, resolvers, functions, types, and resource tags.</p>
-        <p>This release focuses on stored management-plane state. GraphQL query and mutation execution is not part of Phase 1.</p>
+        <p>The workbench focuses on management-plane resources and resolver configuration so local GraphQL infrastructure can be inspected alongside its backing data sources.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid appsync-readonly-grid"></div>
     {% elif service.key == 'cloudmap' %}
@@ -413,7 +413,7 @@
         <summary>About Floci Auto Scaling</summary>
         <p>Local Auto Scaling stores launch configurations, groups, lifecycle hooks, policies, target group attachments, and activity history through the AWS-compatible Query API.</p>
         <p>Auto Scaling is especially useful in Floci because the capacity reconciler launches and terminates local EC2 instances to maintain desired capacity. A good learning flow is to create a launch configuration, create a group with desired capacity, watch instances move toward InService, then scale out or scale in.</p>
-        <p>Attached ELB v2 target groups are registered as instances become InService, and scale-in deregisters targets before terminating instances.</p>
+        <p>Attached ELB v2 target groups are registered as instances become InService, and scale-in deregisters targets before terminating instances. Floci 1.5.26 adds group reconciliation and refresh behavior plus mixed-instances parity improvements.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid autoscaling-readonly-grid"></div>
     {% elif service.key == 'elasticloadbalancing' %}
@@ -421,7 +421,7 @@
       <details class="elasticloadbalancing-about-floci">
         <summary>About Floci ELB v2</summary>
         <p>Local ELBv2 supports the Application Load Balancer and Network Load Balancer control plane: load balancers, target groups, targets, listeners, listener rules, tags, SSL policy metadata, and account limits.</p>
-        <p>This is a Phase 1 implementation. The AWS-compatible CRUD APIs are available, with Floci 1.5.25 enforcing ALB subnet availability-zone rules and improving target resolution and persistence.</p>
+        <p>The AWS-compatible CRUD APIs are available, with recent Floci releases enforcing ALB subnet availability-zone rules, improving target persistence, and publishing ALB DNS names that resolve locally.</p>
         <p>A good learning flow is to create a load balancer, create a target group, register local EC2 or IP targets, create a listener with a default forward action, then add a path-based rule.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid elasticloadbalancing-readonly-grid"></div>

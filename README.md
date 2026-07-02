@@ -13,10 +13,11 @@ A small Django UI for inspecting, testing, and learning against a local [Floci](
 - Labs directory at `/labs/` showing every service with active workflow labs, current lab counts, runnable step counts, and direct links
 - Local AWS workflow labs for IAM, S3, SQS, SNS, EventBridge Scheduler, CloudFormation, and EC2 networking, with exact AWS CLI commands, approved one-click execution, live-state verification, reset actions, and breadcrumb navigation back to the service or homepage
 - Interactive workbenches for S3, IAM, EC2, SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, EventBridge, EventBridge Pipes, EventBridge Scheduler, API Gateway, AppSync, Kinesis, KMS, Secrets Manager, SSM Parameter Store, CloudFormation, Cognito, AWS Config, RDS, Auto Scaling, ELB v2, CloudFront, AWS Cloud Map, Route 53, ACM, ECS, ECR, EKS, ElastiCache, OpenSearch, Athena, Backup, Firehose, Glue, Kafka, Neptune, SES, Transfer Family, Textract, Transcribe, CodeDeploy, CodeBuild, Bedrock Runtime, AppConfig, and Resource Groups Tagging
-- Inventory pages for newer Floci services including EMR, WAF v2, AWS Batch, RDS Data API, and Amazon DocumentDB
+- Inventory pages for newer Floci services including EMR, WAF v2, AWS Batch, RDS Data API, Amazon DocumentDB, MemoryDB, CodePipeline, S3 Vectors, IoT Core, and Elastic Beanstalk
 - Inventory pages for read-only or newly surfaced services such as CloudTrail
 - Detail pages for services such as Cost Explorer, Cost and Usage Reports, BCM Data Exports, Pricing, and more
-- Expanded inventory for EC2 VPC endpoints and SSM default patch baselines, plus KMS key enable/disable actions and richer S3 object metadata
+- Expanded inventory for EC2 VPC endpoints, EC2 Network ACLs, and SSM default patch baselines, plus KMS key enable/disable actions and richer S3 object metadata
+- Release-aware service notes refreshed through Floci 1.5.29, including AppSync VTL execution, IAM assumed-role routing, ECS conformance, Transcribe persistence, ELBv2 local DNS, and Step Functions aws-sdk integrations
 - Loading state with the Floci cloud image while service data is fetched
 
 ## Local AWS Workflow Labs
@@ -251,7 +252,7 @@ Core files:
 
 - `dashboard/services.py`: canonical service registry. Add service metadata, maturity, optional CSS/JS assets, and action metadata here.
 - `dashboard/actions.py`: shared action metadata plus JSON parsing and error normalization helpers for interactive service endpoints.
-- `dashboard/labs.py`: curated IAM and S3 lab definitions, approved runners, live-state verification, and reset behavior.
+- `dashboard/labs.py`: curated workflow lab definitions, approved runners, live-state verification, and reset behavior for IAM, S3, SQS, SNS, EventBridge Scheduler, CloudFormation, and EC2.
 - `dashboard/templates/dashboard/service.html`: common service page shell. Interactive workbenches should be layered into this page while keeping the original read-only inventory visible.
 - `dashboard/templates/dashboard/labs.html` and `dashboard/static/dashboard/labs.js`: shared workflow-lab UI and browser behavior.
 - `dashboard/static/dashboard/service-console.js`: shared browser-side helpers for API calls, summary cards, read-only cards, toolbars, modals, formatting, and lower-right toasts.
@@ -339,6 +340,11 @@ http://127.0.0.1:8000/service/appconfig/
 http://127.0.0.1:8000/service/appsync/
 http://127.0.0.1:8000/service/resourcegroupstagging/
 http://127.0.0.1:8000/service/docdb/
+http://127.0.0.1:8000/service/memorydb/
+http://127.0.0.1:8000/service/codepipeline/
+http://127.0.0.1:8000/service/s3vectors/
+http://127.0.0.1:8000/service/iot/
+http://127.0.0.1:8000/service/elasticbeanstalk/
 http://127.0.0.1:8000/service/iam/labs/
 http://127.0.0.1:8000/service/s3/labs/
 http://127.0.0.1:8000/service/sqs/labs/

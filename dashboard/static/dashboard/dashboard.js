@@ -158,6 +158,9 @@ const cloudmapLoadedAt = document.querySelector('#cloudmap-loaded-at');
 const cloudtrailGrid = document.querySelector('#cloudtrail-grid');
 const cloudtrailSummary = document.querySelector('#cloudtrail-summary');
 const cloudtrailLoadedAt = document.querySelector('#cloudtrail-loaded-at');
+const codepipelineGrid = document.querySelector('#codepipeline-grid');
+const codepipelineSummary = document.querySelector('#codepipeline-summary');
+const codepipelineLoadedAt = document.querySelector('#codepipeline-loaded-at');
 const snsGrid = document.querySelector('#sns-grid');
 const snsSummary = document.querySelector('#sns-summary');
 const snsLoadedAt = document.querySelector('#sns-loaded-at');
@@ -188,6 +191,12 @@ const rdsdataLoadedAt = document.querySelector('#rdsdata-loaded-at');
 const docdbGrid = document.querySelector('#docdb-grid');
 const docdbSummary = document.querySelector('#docdb-summary');
 const docdbLoadedAt = document.querySelector('#docdb-loaded-at');
+const memorydbGrid = document.querySelector('#memorydb-grid');
+const memorydbSummary = document.querySelector('#memorydb-summary');
+const memorydbLoadedAt = document.querySelector('#memorydb-loaded-at');
+const elasticbeanstalkGrid = document.querySelector('#elasticbeanstalk-grid');
+const elasticbeanstalkSummary = document.querySelector('#elasticbeanstalk-summary');
+const elasticbeanstalkLoadedAt = document.querySelector('#elasticbeanstalk-loaded-at');
 const route53Grid = document.querySelector('#route53-grid');
 const route53Summary = document.querySelector('#route53-summary');
 const route53LoadedAt = document.querySelector('#route53-loaded-at');
@@ -230,6 +239,12 @@ const neptuneConsoleRoot = document.getElementById('neptune-console-root');
 const wafv2Grid = document.querySelector('#wafv2-grid');
 const wafv2Summary = document.querySelector('#wafv2-summary');
 const wafv2LoadedAt = document.querySelector('#wafv2-loaded-at');
+const s3vectorsGrid = document.querySelector('#s3vectors-grid');
+const s3vectorsSummary = document.querySelector('#s3vectors-summary');
+const s3vectorsLoadedAt = document.querySelector('#s3vectors-loaded-at');
+const iotGrid = document.querySelector('#iot-grid');
+const iotSummary = document.querySelector('#iot-summary');
+const iotLoadedAt = document.querySelector('#iot-loaded-at');
 
 let latestHealthData = null;
 
@@ -350,6 +365,7 @@ const serviceDetailPages = {
   cloudtrail: '/service/cloudtrail/',
   servicediscovery: '/service/cloudmap/',
   codebuild: '/service/codebuild/',
+  codepipeline: '/service/codepipeline/',
   codedeploy: '/service/codedeploy/',
   cloudformation: '/service/cloudformation/',
   cloudwatch: '/service/cloudwatch/',
@@ -367,6 +383,7 @@ const serviceDetailPages = {
   ecs: '/service/ecs/',
   eks: '/service/eks/',
   elasticache: '/service/elasticache/',
+  elasticbeanstalk: '/service/elasticbeanstalk/',
   elb: '/service/elasticloadbalancing/',
   elbv2: '/service/elasticloadbalancing/',
   elasticloadbalancing: '/service/elasticloadbalancing/',
@@ -375,10 +392,12 @@ const serviceDetailPages = {
   firehose: '/service/firehose/',
   glue: '/service/glue/',
   iam: '/service/iam/',
+  iot: '/service/iot/',
   kafka: '/service/kafka/',
   kinesis: '/service/kinesis/',
   kms: '/service/kms/',
   lambda: '/service/lambda/',
+  memorydb: '/service/memorydb/',
   neptune: '/service/neptune/',
   es: '/service/opensearch/',
   opensearch: '/service/opensearch/',
@@ -387,8 +406,10 @@ const serviceDetailPages = {
   resourcegroupstagging: '/service/resourcegroupstagging/',
   resourcegroupstaggingapi: '/service/resourcegroupstagging/',
   rds: '/service/rds/',
+  rdsdata: '/service/rdsdata/',
   route53: '/service/route53/',
   s3: '/service/s3/',
+  s3vectors: '/service/s3vectors/',
   scheduler: '/service/scheduler/',
   secretsmanager: '/service/secretsmanager/',
   ssm: '/service/ssm/',
@@ -402,6 +423,7 @@ const serviceDetailPages = {
   textract: '/service/textract/',
   transcribe: '/service/transcribe/',
   transfer: '/service/transfer/',
+  wafv2: '/service/wafv2/',
 };
 
 function canonicalServiceKey(name) {
@@ -440,6 +462,7 @@ const servicePriorityOrder = [
   'cloudwatch',
   'rds',
   'docdb',
+  'memorydb',
   'dynamodb',
   'lambda',
   'autoscaling',
@@ -456,6 +479,7 @@ const servicePriorityOrder = [
   'ecs',
   'config',
   'elasticache',
+  'elasticbeanstalk',
   'secretsmanager',
   'acm',
   'athena',
@@ -469,6 +493,7 @@ const servicePriorityOrder = [
   'stepfunctions',
   'codedeploy',
   'codebuild',
+  'codepipeline',
   'opensearch',
   'cur',
   'firehose',
@@ -485,6 +510,8 @@ const servicePriorityOrder = [
   'neptune',
   'pricing',
   'bcmdataexports',
+  's3vectors',
+  'iot',
 ];
 
 const servicePriorityRank = new Map(
@@ -942,6 +969,14 @@ function renderEC2(data) {
       ['VPC ID', 'VpcId'],
       ['Associations', 'Associations'],
       ['Routes', 'Routes'],
+      ['Tags', 'Tags'],
+    ]),
+    renderDetailList('Network ACLs', data.network_acls || [], [
+      ['Network ACL ID', 'NetworkAclId'],
+      ['VPC ID', 'VpcId'],
+      ['Default', 'IsDefault'],
+      ['Associations', 'Associations'],
+      ['Entries', 'Entries'],
       ['Tags', 'Tags'],
     ]),
     renderDetailList('VPC endpoints', data.vpc_endpoints || [], [
@@ -5059,6 +5094,275 @@ function renderDocumentDB(data) {
   docdbLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
 }
 
+function renderMemoryDB(data) {
+  memorydbGrid.textContent = '';
+  renderSummary(data.summary, memorydbSummary);
+
+  const panels = [
+    renderDetailList('Clusters', data.clusters || [], [
+      ['Name', 'Name'],
+      ['ARN', 'ARN'],
+      ['Status', 'Status'],
+      ['Node type', 'NodeType'],
+      ['Engine version', 'EngineVersion'],
+      ['Endpoint', 'ClusterEndpoint'],
+      ['ACL name', 'ACLName'],
+      ['Subnet group', 'SubnetGroupName'],
+    ]),
+    renderDetailList('Users', data.users || [], [
+      ['Name', 'Name'],
+      ['ARN', 'ARN'],
+      ['Status', 'Status'],
+      ['Access string', 'AccessString'],
+      ['Authentication', 'Authentication'],
+    ]),
+    renderDetailList('ACLs', data.acls || [], [
+      ['Name', 'Name'],
+      ['ARN', 'ARN'],
+      ['Status', 'Status'],
+      ['Users', 'UserNames'],
+    ]),
+    renderDetailList('Subnet groups', data.subnet_groups || [], [
+      ['Name', 'Name'],
+      ['ARN', 'ARN'],
+      ['VPC ID', 'VpcId'],
+      ['Subnets', 'Subnets'],
+    ]),
+    renderDetailList('Parameter groups', data.parameter_groups || [], [
+      ['Name', 'Name'],
+      ['ARN', 'ARN'],
+      ['Family', 'Family'],
+      ['Description', 'Description'],
+    ]),
+    renderDetailList('Snapshots', data.snapshots || [], [
+      ['Name', 'Name'],
+      ['ARN', 'ARN'],
+      ['Status', 'Status'],
+      ['Cluster', 'ClusterName'],
+      ['Source', 'Source'],
+    ]),
+    renderDetailList('Supported from SDK', (data.supported_from_sdk || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
+  ];
+
+  memorydbGrid.append(...panels);
+  memorydbLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+}
+
+function renderCodePipeline(data) {
+  codepipelineGrid.textContent = '';
+  renderSummary(data.summary, codepipelineSummary);
+
+  const panels = [
+    renderDetailList('Pipelines', data.pipelines || [], [
+      ['Name', 'name'],
+      ['Version', 'version'],
+      ['Type', 'pipeline_type'],
+      ['Created', 'created'],
+      ['Updated', 'updated'],
+      ['Stages', 'stages'],
+      ['Stage states', 'stage_states'],
+      ['Executions', 'execution_count'],
+      ['Execution details', 'executions'],
+    ]),
+    renderDetailList('Webhooks', data.webhooks || [], [
+      ['Name', 'name'],
+      ['ARN', 'arn'],
+      ['URL', 'url'],
+      ['Definition', 'definition'],
+    ]),
+    renderDetailList('Action types', data.action_types || [], [
+      ['Category', 'category'],
+      ['Owner', 'owner'],
+      ['Provider', 'provider'],
+      ['Version', 'version'],
+      ['Settings', 'settings'],
+    ]),
+    renderDetailList('Supported from SDK', (data.supported_from_sdk || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
+  ];
+
+  codepipelineGrid.append(...panels);
+  codepipelineLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+}
+
+function renderS3Vectors(data) {
+  s3vectorsGrid.textContent = '';
+  renderSummary(data.summary, s3vectorsSummary);
+
+  const panels = [
+    renderDetailList('Vector buckets', data.vector_buckets || [], [
+      ['Name', 'vectorBucketName'],
+      ['ARN', 'vectorBucketArn'],
+      ['Creation time', 'creationTime'],
+    ]),
+    renderDetailList('Indexes', data.indexes || [], [
+      ['Vector bucket', 'vectorBucketName'],
+      ['Index name', 'indexName'],
+      ['ARN', 'indexArn'],
+      ['Dimension', 'dimension'],
+      ['Distance metric', 'distanceMetric'],
+      ['Data type', 'dataType'],
+      ['Metadata configuration', 'metadataConfiguration'],
+    ]),
+    renderDetailList('Supported from SDK', (data.supported_from_sdk || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
+  ];
+
+  s3vectorsGrid.append(...panels);
+  s3vectorsLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+}
+
+function renderIoT(data) {
+  iotGrid.textContent = '';
+  renderSummary(data.summary, iotSummary);
+
+  const panels = [
+    renderDetailList('Things', data.things || [], [
+      ['Name', 'thingName'],
+      ['ARN', 'thingArn'],
+      ['Type', 'thingTypeName'],
+      ['Version', 'version'],
+      ['Attributes', 'attributes'],
+    ]),
+    renderDetailList('Thing types', data.thing_types || [], [
+      ['Name', 'thingTypeName'],
+      ['ARN', 'thingTypeArn'],
+      ['Metadata', 'thingTypeMetadata'],
+    ]),
+    renderDetailList('Policies', data.policies || [], [
+      ['Name', 'policyName'],
+      ['ARN', 'policyArn'],
+    ]),
+    renderDetailList('Certificates', data.certificates || [], [
+      ['ID', 'certificateId'],
+      ['ARN', 'certificateArn'],
+      ['Status', 'status'],
+      ['Creation date', 'creationDate'],
+    ]),
+    renderDetailList('Topic rules', data.topic_rules || [], [
+      ['Name', 'ruleName'],
+      ['ARN', 'ruleArn'],
+      ['Disabled', 'ruleDisabled'],
+      ['SQL', 'topicPattern'],
+    ]),
+    renderDetailList('Jobs', data.jobs || [], [
+      ['Job ID', 'jobId'],
+      ['ARN', 'jobArn'],
+      ['Status', 'status'],
+      ['Targets', 'targetSelection'],
+    ]),
+    renderDetailList('Role aliases', (data.role_aliases || []).map((alias) => ({
+      name: alias,
+      alias,
+    })), [
+      ['Alias', 'alias'],
+    ]),
+    renderDetailList('Supported from SDK', (data.supported_from_sdk || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
+  ];
+
+  iotGrid.append(...panels);
+  iotLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+}
+
+function renderElasticBeanstalk(data) {
+  elasticbeanstalkGrid.textContent = '';
+  renderSummary(data.summary, elasticbeanstalkSummary);
+
+  const panels = [
+    renderDetailList('Applications', data.applications || [], [
+      ['Name', 'ApplicationName'],
+      ['ARN', 'ApplicationArn'],
+      ['Description', 'Description'],
+      ['Created', 'DateCreated'],
+      ['Updated', 'DateUpdated'],
+      ['Versions', 'Versions'],
+    ]),
+    renderDetailList('Environments', data.environments || [], [
+      ['Name', 'EnvironmentName'],
+      ['ID', 'EnvironmentId'],
+      ['ARN', 'EnvironmentArn'],
+      ['Application', 'ApplicationName'],
+      ['Status', 'Status'],
+      ['Health', 'Health'],
+      ['CNAME', 'CNAME'],
+      ['Solution stack', 'SolutionStackName'],
+    ]),
+    renderDetailList('Application versions', data.application_versions || [], [
+      ['Version label', 'VersionLabel'],
+      ['Application', 'ApplicationName'],
+      ['Status', 'Status'],
+      ['Source bundle', 'SourceBundle'],
+      ['Created', 'DateCreated'],
+    ]),
+    renderDetailList('Platforms', data.platforms || [], [
+      ['ARN', 'PlatformArn'],
+      ['Owner', 'PlatformOwner'],
+      ['Status', 'PlatformStatus'],
+      ['Category', 'PlatformCategory'],
+    ]),
+    renderDetailList('Solution stacks', data.solution_stacks || [], [
+      ['Name', 'name'],
+    ]),
+    renderDetailList('Supported from SDK', (data.supported_from_sdk || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
+  ];
+
+  elasticbeanstalkGrid.append(...panels);
+  elasticbeanstalkLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+}
+
 function renderWAFv2(data) {
   wafv2Grid.textContent = '';
   renderSummary(data.summary, wafv2Summary);
@@ -5138,6 +5442,7 @@ function titleCaseService(name) {
     cloudmap: 'Cloud Map',
     cloudtrail: 'CloudTrail',
     cloudformation: 'CloudFormation',
+    codepipeline: 'CodePipeline',
     config: 'AWS Config',
     'cognito-idp': 'Cognito IDP',
     cur: 'Cost and Usage Reports',
@@ -5149,6 +5454,7 @@ function titleCaseService(name) {
     eks: 'EKS',
     emr: 'EMR',
     elasticache: 'ElastiCache',
+    elasticbeanstalk: 'Elastic Beanstalk',
     elasticloadbalancing: 'Elastic Load Balancing',
     elb: 'Classic ELB',
     elbv2: 'Elastic Load Balancing v2',
@@ -5158,11 +5464,13 @@ function titleCaseService(name) {
     firehose: 'Firehose',
     glue: 'Glue',
     iam: 'IAM',
+    iot: 'IoT Core',
     kafka: 'MSK / Kafka',
     kinesis: 'Kinesis',
     kms: 'KMS',
     lambda: 'Lambda',
     logs: 'CloudWatch Logs',
+    memorydb: 'MemoryDB',
     neptune: 'Neptune',
     opensearch: 'OpenSearch',
     monitoring: 'CloudWatch Metrics',
@@ -5175,6 +5483,7 @@ function titleCaseService(name) {
     resourcegroupstagging: 'Resource Groups Tagging',
     resourcegroupstaggingapi: 'Resource Groups Tagging',
     s3: 'S3',
+    s3vectors: 'S3 Vectors',
     scheduler: 'EventBridge Scheduler',
     secretsmanager: 'Secrets Manager',
     ses: 'SES',
@@ -5248,6 +5557,7 @@ function resourceServiceKey(resource) {
     'ecs-resources': 'ecs',
     'eks-resources': 'eks',
     'elasticache-resources': 'elasticache',
+    'elasticbeanstalk-resources': 'elasticbeanstalk',
     'elasticloadbalancing-resources': 'elasticloadbalancing',
     'emr-resources': 'emr',
     'eventbridge-resources': 'events',
@@ -5268,18 +5578,22 @@ function resourceServiceKey(resource) {
     'cloudmap-resources': 'cloudmap',
     'cloudtrail-resources': 'cloudtrail',
     'codebuild-resources': 'codebuild',
+    'codepipeline-resources': 'codepipeline',
     'codedeploy-resources': 'codedeploy',
     'config-resources': 'config',
     'cur-resources': 'cur',
     'iam-roles': 'iam',
     'iam-users': 'iam',
+    'iot-resources': 'iot',
     'kms-keys': 'kms',
     'lambda-functions': 'lambda',
     'log-groups': 'logs',
+    'memorydb-resources': 'memorydb',
     'neptune-resources': 'neptune',
     'rds-resources': 'rds',
     'rdsdata-resources': 'rdsdata',
     's3-buckets': 's3',
+    's3vectors-resources': 's3vectors',
     'secrets': 'secretsmanager',
     'ssm-resources': 'ssm',
     'ses-resources': 'ses',
@@ -5935,6 +6249,7 @@ const servicePages = [
   { key: 'dynamodb', label: 'DynamoDB', grid: dynamodbGrid, apiPath: '/api/dynamodb/', render: renderDynamoDB },
   { key: 'cloudwatch', label: 'CloudWatch', grid: cloudwatchGrid, apiPath: '/api/cloudwatch/', render: renderCloudWatch },
   { key: 'codebuild', label: 'CodeBuild', grid: codebuildGrid, apiPath: '/api/codebuild/', render: renderCodeBuild },
+  { key: 'codepipeline', label: 'CodePipeline', grid: codepipelineGrid, apiPath: '/api/codepipeline/', render: renderCodePipeline },
   { key: 'codedeploy', label: 'CodeDeploy', grid: codedeployGrid, apiPath: '/api/codedeploy/', render: renderCodeDeploy },
   { key: 'cloudfront', label: 'CloudFront', grid: cloudfrontGrid, apiPath: '/api/cloudfront/', render: renderCloudFront },
   { key: 'cloudmap', label: 'Cloud Map', grid: cloudmapGrid, apiPath: '/api/cloudmap/', render: renderCloudMap },
@@ -5951,6 +6266,7 @@ const servicePages = [
   { key: 'ecs', label: 'ECS', grid: ecsGrid, apiPath: '/api/ecs/', render: renderECS },
   { key: 'eks', label: 'EKS', grid: eksGrid, apiPath: '/api/eks/', render: renderEKS },
   { key: 'elasticache', label: 'ElastiCache', grid: elasticacheGrid, apiPath: '/api/elasticache/', render: renderElastiCache },
+  { key: 'elasticbeanstalk', label: 'Elastic Beanstalk', grid: elasticbeanstalkGrid, apiPath: '/api/elasticbeanstalk/', render: renderElasticBeanstalk },
   { key: 'elasticloadbalancing', label: 'Elastic Load Balancing', grid: elasticloadbalancingGrid, apiPath: '/api/elasticloadbalancing/', render: renderElasticLoadBalancing },
   { key: 'firehose', label: 'Data Firehose', grid: firehoseGrid, apiPath: '/api/firehose/', render: renderFirehose },
   { key: 'kinesis', label: 'Kinesis', grid: kinesisGrid, apiPath: '/api/kinesis/', render: renderKinesis },
@@ -5973,6 +6289,7 @@ const servicePages = [
   { key: 'rds', label: 'RDS', grid: rdsGrid, apiPath: '/api/rds/', render: renderRDS },
   { key: 'rdsdata', label: 'RDS Data API', grid: rdsdataGrid, apiPath: '/api/rdsdata/', render: renderRDSData },
   { key: 'docdb', label: 'DocumentDB', grid: docdbGrid, apiPath: '/api/docdb/', render: renderDocumentDB },
+  { key: 'memorydb', label: 'MemoryDB', grid: memorydbGrid, apiPath: '/api/memorydb/', render: renderMemoryDB },
   { key: 'backup', label: 'Backup', grid: backupGrid, apiPath: '/api/backup/', render: renderBackup },
   { key: 'route53', label: 'Route 53', grid: route53Grid, apiPath: '/api/route53/', render: renderRoute53 },
   { key: 'transfer', label: 'Transfer Family', grid: transferGrid, apiPath: '/api/transfer/', render: renderTransfer },
@@ -5983,6 +6300,8 @@ const servicePages = [
   { key: 'transcribe', label: 'Transcribe', grid: transcribeGrid, apiPath: '/api/transcribe/', render: renderTranscribe },
   { key: 'glue', label: 'Glue', grid: glueGrid, apiPath: '/api/glue/', render: renderGlue },
   { key: 'wafv2', label: 'WAF v2', grid: wafv2Grid, apiPath: '/api/wafv2/', render: renderWAFv2 },
+  { key: 's3vectors', label: 'S3 Vectors', grid: s3vectorsGrid, apiPath: '/api/s3vectors/', render: renderS3Vectors },
+  { key: 'iot', label: 'IoT Core', grid: iotGrid, apiPath: '/api/iot/', render: renderIoT },
 ];
 
 function activeServicePage() {

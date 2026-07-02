@@ -280,6 +280,11 @@ def _resource_service_key(name: str) -> str:
         'transcribe-resources': 'transcribe',
         'transfer-resources': 'transfer',
         'wafv2-resources': 'wafv2',
+        'codepipeline-resources': 'codepipeline',
+        'memorydb-resources': 'memorydb',
+        's3vectors-resources': 's3vectors',
+        'iot-resources': 'iot',
+        'elasticbeanstalk-resources': 'elasticbeanstalk',
     }
     return keys.get(name, name.replace('-resources', ''))
 
@@ -508,6 +513,10 @@ def iam_inventory() -> dict[str, Any]:
                 ],
             }
             for profile in instance_profiles
+        ],
+        'notes': [
+            'Floci 1.5.29 routes assumed-role credentials to the target account and adds the AmazonRDSEnhancedMonitoringRole managed policy.',
+            'Floci 1.5.28 makes IAM entity stores thread-safe under concurrent mutation and resolves AWS-managed policies from any account context.',
         ],
     }
 
@@ -1045,8 +1054,294 @@ def docdb_inventory() -> dict[str, Any]:
         ],
         'available_sdk_operations': sorted(operations),
         'notes': [
-            'Floci adds Amazon DocumentDB service emulation with cluster and instance lifecycle APIs.',
+            'Floci 1.5.26 adds Amazon DocumentDB service emulation with cluster and instance lifecycle APIs.',
             'DocumentDB can run in mock mode or start a MongoDB-compatible data container for created clusters.',
+        ],
+    }
+
+
+def memorydb_inventory() -> dict[str, Any]:
+    factory = FlociClientFactory()
+    memorydb = factory.client('memorydb')
+    operations = set(memorydb.meta.service_model.operation_names)
+
+    clusters = _safe_value(lambda: _operation_items(memorydb, 'describe_clusters', 'Clusters'), []) if 'DescribeClusters' in operations else []
+    users = _safe_value(lambda: _operation_items(memorydb, 'describe_users', 'Users'), []) if 'DescribeUsers' in operations else []
+    acls = _safe_value(lambda: _operation_items(memorydb, 'describe_acls', 'ACLs'), []) if 'DescribeACLs' in operations else []
+    subnet_groups = _safe_value(lambda: _operation_items(memorydb, 'describe_subnet_groups', 'SubnetGroups'), []) if 'DescribeSubnetGroups' in operations else []
+    parameter_groups = _safe_value(lambda: _operation_items(memorydb, 'describe_parameter_groups', 'ParameterGroups'), []) if 'DescribeParameterGroups' in operations else []
+    snapshots = _safe_value(lambda: _operation_items(memorydb, 'describe_snapshots', 'Snapshots'), []) if 'DescribeSnapshots' in operations else []
+
+    return {
+        'summary': {
+            'clusters': len(clusters),
+            'users': len(users),
+            'acls': len(acls),
+            'subnet_groups': len(subnet_groups),
+            'parameter_groups': len(parameter_groups),
+            'snapshots': len(snapshots),
+            'available_sdk_operations': len(operations),
+        },
+        'clusters': _clean_response(clusters),
+        'users': _clean_response(users),
+        'acls': _clean_response(acls),
+        'subnet_groups': _clean_response(subnet_groups),
+        'parameter_groups': _clean_response(parameter_groups),
+        'snapshots': _clean_response(snapshots),
+        'supported_from_sdk': [
+            operation
+            for operation in [
+                'CreateCluster',
+                'DescribeClusters',
+                'DeleteCluster',
+                'CreateUser',
+                'DescribeUsers',
+                'CreateACL',
+                'DescribeACLs',
+                'CreateSubnetGroup',
+                'DescribeSubnetGroups',
+                'DescribeParameterGroups',
+                'DescribeSnapshots',
+                'TagResource',
+                'UntagResource',
+                'ListTags',
+            ]
+            if operation in operations
+        ],
+        'available_sdk_operations': sorted(operations),
+        'notes': [
+            'Floci 1.5.27 adds Amazon MemoryDB service emulation with mock mode.',
+            'Floci 1.5.28 models MemoryDB authentication through ACLs and users.',
+            'This read-only inspector focuses on cluster, user, ACL, subnet group, parameter group, and snapshot inventory.',
+        ],
+    }
+
+
+def codepipeline_inventory() -> dict[str, Any]:
+    factory = FlociClientFactory()
+    codepipeline = factory.client('codepipeline')
+    operations = set(codepipeline.meta.service_model.operation_names)
+
+    pipelines = _safe_value(lambda: _operation_items(codepipeline, 'list_pipelines', 'pipelines'), []) if 'ListPipelines' in operations else []
+    webhooks = _safe_value(lambda: _operation_items(codepipeline, 'list_webhooks', 'webhooks'), []) if 'ListWebhooks' in operations else []
+    action_types = _safe_value(lambda: _operation_items(codepipeline, 'list_action_types', 'actionTypes'), []) if 'ListActionTypes' in operations else []
+
+    def pipeline_detail(pipeline: dict[str, Any]) -> dict[str, Any]:
+        name = pipeline.get('name')
+        detail = _safe_value(lambda name=name: codepipeline.get_pipeline(name=name), {}) if name and 'GetPipeline' in operations else {}
+        state = _safe_value(lambda name=name: codepipeline.get_pipeline_state(name=name), {}) if name and 'GetPipelineState' in operations else {}
+        executions = _safe_value(
+            lambda name=name: _operation_items(codepipeline, 'list_pipeline_executions', 'pipelineExecutionSummaries', pipelineName=name),
+            [],
+        ) if name and 'ListPipelineExecutions' in operations else []
+        return {
+            'name': name,
+            'version': pipeline.get('version') or detail.get('pipeline', {}).get('version'),
+            'created': pipeline.get('created') or detail.get('metadata', {}).get('created'),
+            'updated': pipeline.get('updated') or detail.get('metadata', {}).get('updated'),
+            'pipeline_type': detail.get('pipeline', {}).get('pipelineType'),
+            'stages': detail.get('pipeline', {}).get('stages'),
+            'stage_states': state.get('stageStates'),
+            'execution_count': len(executions),
+            'executions': executions,
+        }
+
+    pipeline_details = [pipeline_detail(pipeline) for pipeline in pipelines[:50]]
+
+    return {
+        'summary': {
+            'pipelines': len(pipelines),
+            'sampled_executions': sum(pipeline.get('execution_count') or 0 for pipeline in pipeline_details),
+            'webhooks': len(webhooks),
+            'action_types': len(action_types),
+            'available_sdk_operations': len(operations),
+        },
+        'pipelines': _clean_response(pipeline_details),
+        'pipeline_summaries': _clean_response(pipelines),
+        'webhooks': _clean_response(webhooks),
+        'action_types': _clean_response(action_types),
+        'supported_from_sdk': [
+            operation
+            for operation in [
+                'CreatePipeline',
+                'ListPipelines',
+                'GetPipeline',
+                'GetPipelineState',
+                'ListPipelineExecutions',
+                'StartPipelineExecution',
+                'DeletePipeline',
+                'ListWebhooks',
+                'ListActionTypes',
+                'TagResource',
+                'UntagResource',
+            ]
+            if operation in operations
+        ],
+        'available_sdk_operations': sorted(operations),
+        'notes': [
+            'Floci 1.5.27 adds AWS CodePipeline emulation.',
+            'This read-only inspector expands the first 50 pipelines with pipeline definition, state, and execution summaries when supported.',
+        ],
+    }
+
+
+def s3vectors_inventory() -> dict[str, Any]:
+    factory = FlociClientFactory()
+    s3vectors = factory.client('s3vectors')
+    operations = set(s3vectors.meta.service_model.operation_names)
+
+    vector_buckets = _safe_value(lambda: _operation_items(s3vectors, 'list_vector_buckets', 'vectorBuckets'), []) if 'ListVectorBuckets' in operations else []
+    indexes: list[dict[str, Any]] = []
+    for bucket in vector_buckets[:50]:
+        bucket_name = bucket.get('vectorBucketName') or bucket.get('name')
+        if bucket_name and 'ListIndexes' in operations:
+            bucket_indexes = _safe_value(lambda bucket_name=bucket_name: _operation_items(s3vectors, 'list_indexes', 'indexes', vectorBucketName=bucket_name), [])
+            indexes.extend({'vectorBucketName': bucket_name, **index} for index in bucket_indexes)
+
+    return {
+        'summary': {
+            'vector_buckets': len(vector_buckets),
+            'indexes': len(indexes),
+            'available_sdk_operations': len(operations),
+        },
+        'vector_buckets': _clean_response(vector_buckets),
+        'indexes': _clean_response(indexes),
+        'supported_from_sdk': [
+            operation
+            for operation in [
+                'CreateVectorBucket',
+                'ListVectorBuckets',
+                'GetVectorBucket',
+                'DeleteVectorBucket',
+                'CreateIndex',
+                'ListIndexes',
+                'GetIndex',
+                'DeleteIndex',
+                'PutVectors',
+                'QueryVectors',
+                'GetVectors',
+                'DeleteVectors',
+            ]
+            if operation in operations
+        ],
+        'available_sdk_operations': sorted(operations),
+        'notes': [
+            'Floci 1.5.27 adds AWS S3 Vectors service support for local vector-search workflows.',
+            'The inspector lists vector buckets and samples indexes for the first 50 buckets when the SDK model exposes those operations.',
+        ],
+    }
+
+
+def iot_inventory() -> dict[str, Any]:
+    factory = FlociClientFactory()
+    iot = factory.client('iot')
+    operations = set(iot.meta.service_model.operation_names)
+
+    things = _safe_value(lambda: _operation_items(iot, 'list_things', 'things'), []) if 'ListThings' in operations else []
+    thing_types = _safe_value(lambda: _operation_items(iot, 'list_thing_types', 'thingTypes'), []) if 'ListThingTypes' in operations else []
+    policies = _safe_value(lambda: _operation_items(iot, 'list_policies', 'policies'), []) if 'ListPolicies' in operations else []
+    certificates = _safe_value(lambda: _operation_items(iot, 'list_certificates', 'certificates'), []) if 'ListCertificates' in operations else []
+    topic_rules = _safe_value(lambda: _operation_items(iot, 'list_topic_rules', 'rules'), []) if 'ListTopicRules' in operations else []
+    jobs = _safe_value(lambda: _operation_items(iot, 'list_jobs', 'jobs'), []) if 'ListJobs' in operations else []
+    role_aliases = _safe_value(lambda: _operation_items(iot, 'list_role_aliases', 'roleAliases'), []) if 'ListRoleAliases' in operations else []
+
+    return {
+        'summary': {
+            'things': len(things),
+            'thing_types': len(thing_types),
+            'policies': len(policies),
+            'certificates': len(certificates),
+            'topic_rules': len(topic_rules),
+            'jobs': len(jobs),
+            'role_aliases': len(role_aliases),
+            'available_sdk_operations': len(operations),
+        },
+        'things': _clean_response(things),
+        'thing_types': _clean_response(thing_types),
+        'policies': _clean_response(policies),
+        'certificates': _clean_response(certificates),
+        'topic_rules': _clean_response(topic_rules),
+        'jobs': _clean_response(jobs),
+        'role_aliases': _clean_response(role_aliases),
+        'supported_from_sdk': [
+            operation
+            for operation in [
+                'CreateThing',
+                'ListThings',
+                'DescribeThing',
+                'DeleteThing',
+                'CreatePolicy',
+                'ListPolicies',
+                'CreateKeysAndCertificate',
+                'ListCertificates',
+                'CreateTopicRule',
+                'ListTopicRules',
+                'CreateJob',
+                'ListJobs',
+                'CreateRoleAlias',
+                'ListRoleAliases',
+                'AttachPolicy',
+                'AttachThingPrincipal',
+                'ListTagsForResource',
+            ]
+            if operation in operations
+        ],
+        'available_sdk_operations': sorted(operations),
+        'notes': [
+            'Floci 1.5.28 adds AWS IoT Core service emulation for local MQTT-oriented IoT workflows.',
+            'Floci 1.5.29 aligns the IoT compatibility runner and MQTT lazy-startup coverage with the 1.5.28 service baseline.',
+            'This read-only inspector focuses on registry, policy, certificate, topic rule, job, and role-alias inventory.',
+        ],
+    }
+
+
+def elasticbeanstalk_inventory() -> dict[str, Any]:
+    factory = FlociClientFactory()
+    beanstalk = factory.client('elasticbeanstalk')
+    operations = set(beanstalk.meta.service_model.operation_names)
+
+    applications = _safe_value(lambda: _operation_items(beanstalk, 'describe_applications', 'Applications'), []) if 'DescribeApplications' in operations else []
+    environments = _safe_value(lambda: _operation_items(beanstalk, 'describe_environments', 'Environments'), []) if 'DescribeEnvironments' in operations else []
+    application_versions = _safe_value(lambda: _operation_items(beanstalk, 'describe_application_versions', 'ApplicationVersions'), []) if 'DescribeApplicationVersions' in operations else []
+    platforms = _safe_value(lambda: _operation_items(beanstalk, 'describe_platforms', 'PlatformSummaryList'), []) if 'DescribePlatforms' in operations else []
+    solution_stacks = _safe_value(lambda: beanstalk.list_available_solution_stacks().get('SolutionStacks', []), []) if 'ListAvailableSolutionStacks' in operations else []
+
+    return {
+        'summary': {
+            'applications': len(applications),
+            'environments': len(environments),
+            'application_versions': len(application_versions),
+            'platforms': len(platforms),
+            'solution_stacks': len(solution_stacks),
+            'available_sdk_operations': len(operations),
+        },
+        'applications': _clean_response(applications),
+        'environments': _clean_response(environments),
+        'application_versions': _clean_response(application_versions),
+        'platforms': _clean_response(platforms),
+        'solution_stacks': [{'name': stack} for stack in solution_stacks],
+        'supported_from_sdk': [
+            operation
+            for operation in [
+                'CreateApplication',
+                'DescribeApplications',
+                'DeleteApplication',
+                'CreateApplicationVersion',
+                'DescribeApplicationVersions',
+                'CreateEnvironment',
+                'DescribeEnvironments',
+                'TerminateEnvironment',
+                'DescribePlatforms',
+                'ListAvailableSolutionStacks',
+                'ListTagsForResource',
+                'UpdateTagsForResource',
+            ]
+            if operation in operations
+        ],
+        'available_sdk_operations': sorted(operations),
+        'notes': [
+            'Floci 1.5.28 adds initial Elastic Beanstalk Query API support.',
+            'This read-only inspector focuses on applications, environments, application versions, platforms, and solution stacks exposed by the local endpoint.',
         ],
     }
 
@@ -1204,7 +1499,7 @@ def transcribe_inventory() -> dict[str, Any]:
             'Floci Transcribe is a control-plane stub: jobs transition to COMPLETED immediately and vocabularies transition to READY immediately.',
             'StartTranscriptionJob accepts a media URI but performs no audio parsing or speech-to-text processing.',
             'LanguageCode defaults to en-US and MediaFormat defaults to mp4 when omitted.',
-            'Jobs and vocabularies are stored in memory and are not persisted across restarts.',
+            'Floci 1.5.29 persists vocabularies across restart; transcription job execution remains stubbed.',
             'Streaming, medical transcription, call analytics, and specialized Transcribe APIs are out of scope.',
         ],
     }
@@ -1254,6 +1549,7 @@ def ec2_inventory() -> dict[str, Any]:
     tags = _clean_response(_safe_value(lambda: ec2.describe_tags().get('Tags', []), []))
     internet_gateways = _clean_response(_safe_value(lambda: ec2.describe_internet_gateways().get('InternetGateways', []), []))
     route_tables = _clean_response(_safe_value(lambda: ec2.describe_route_tables().get('RouteTables', []), []))
+    network_acls = _clean_response(_safe_value(lambda: ec2.describe_network_acls().get('NetworkAcls', []), []))
     vpc_endpoints = _clean_response(_safe_value(lambda: _paginate(ec2, 'describe_vpc_endpoints', 'VpcEndpoints'), []))
     addresses = _clean_response(_safe_value(lambda: ec2.describe_addresses().get('Addresses', []), []))
     iam_instance_profile_associations = _clean_response(_safe_value(
@@ -1273,6 +1569,7 @@ def ec2_inventory() -> dict[str, Any]:
             'security_groups': len(security_groups),
             'internet_gateways': len(internet_gateways),
             'route_tables': len(route_tables),
+            'network_acls': len(network_acls),
             'vpc_endpoints': len(vpc_endpoints),
             'elastic_ips': len(addresses),
             'key_pairs': len(key_pairs),
@@ -1288,6 +1585,7 @@ def ec2_inventory() -> dict[str, Any]:
         'tags': tags,
         'internet_gateways': internet_gateways,
         'route_tables': route_tables,
+        'network_acls': network_acls,
         'vpc_endpoints': vpc_endpoints,
         'addresses': addresses,
         'iam_instance_profile_associations': iam_instance_profile_associations,
@@ -1311,6 +1609,9 @@ def ec2_inventory() -> dict[str, Any]:
             'Use ImportKeyPair with a real public key for working SSH access.',
             'Floci serves IMDS-compatible metadata on the configured host IMDS port, default 9169.',
             'Security group rules are stored and returned but local Docker networking handles enforcement.',
+            'Floci 1.5.27 adds EC2 Network ACL support for VPC subnet traffic-control workflows.',
+            'Floci 1.5.28 adds a Java-built Ubuntu AMI guest image, instance type metadata catalog, VPC endpoint compatibility improvements, and persisted default egress security group rules.',
+            'Floci 1.5.26 adds Spot Instance request actions and embedded DNS support for instances.',
             'Floci 1.5.25 embeds the EC2 image catalog in the native image and loads it lazily.',
             'Floci 1.5.21 improves EC2 parity for VPC, subnet, and instance methods, subnet attributes, block-device attachTime, volume throughput, DescribeAddressesAttribute, and IAM instance profiles.',
             'Floci 1.5.24 auto-creates the default security group and main route table when CreateVpc is used.',
@@ -1431,6 +1732,7 @@ def kms_inventory() -> dict[str, Any]:
             'Floci 1.5.18 adds KMS GenerateMac and VerifyMac support.',
             'Floci 1.5.22 adds KMS GenerateRandom support.',
             'Floci 1.5.24 expands key state and key description operations for closer AWS parity.',
+            'Floci 1.5.26 adds EnableKey support and improves RSA DIGEST signature wrapping.',
             'Floci 1.5.21 enforces the RotateKeyOnDemand rotation limit.',
             'Grant lifecycle APIs are stored and queryable but are not evaluated during cryptographic operations.',
         ],
@@ -1627,6 +1929,7 @@ def lambda_inventory() -> dict[str, Any]:
             'S3-based deployments support reactive hot reload when the source object changes.',
             'Bind-mount hot reload uses S3Bucket=hot-reload and requires explicit configuration.',
             'Reserved concurrency is enforced; provisioned concurrency is not implemented.',
+            'Floci 1.5.28 improves SQS event source mappings by carrying message attributes, FIFO system attributes, and persisted firstReceiveTimestamp, and resolves leading ./ handler paths inside packages.',
             'Floci 1.5.18 uses a checkout/release Lambda port pool with clearer exhaustion errors during concurrent invocations.',
             'Floci 1.5.19 adds Lambda layer publishing, lookup, version listing, and deletion.',
             'Floci 1.5.22 supports path-style ECR image URIs and lets spawned containers resolve public localhost.floci.io hostnames.',
@@ -1849,6 +2152,10 @@ def secretsmanager_inventory() -> dict[str, Any]:
             'protocol': 'JSON 1.1, X-Amz-Target: secretsmanager.*',
             'value_display': 'Secret values are masked; only type, length, and a short preview are shown.',
         },
+        'notes': [
+            'Floci 1.5.27 implements automatic secret rotation lifecycle behavior.',
+            'Floci 1.5.28 registers AWSPENDING before invoking the rotation Lambda.',
+        ],
     }
 
 
@@ -1975,6 +2282,8 @@ def dynamodb_inventory() -> dict[str, Any]:
             'ListTagsOfResource',
         ],
         'notes': [
+            'Floci 1.5.28 returns exact 400 error messages for invalid expressions.',
+            'Floci 1.5.27 adds TableId, TableClass, OnDemandThroughput, deletion-protection fixes, stricter expression validation, ExclusiveStartKey validation, and scan cursor improvements.',
             'Floci 1.5.17 adds DynamoDB PartiQL support for ExecuteStatement, ExecuteTransaction, and BatchExecuteStatement.',
             'Floci 1.5.21 merges nested map paths correctly in ProjectionExpression.',
             'UpdateItem now honors the legacy Expected condition shape for compatibility with older clients.',
@@ -2503,6 +2812,8 @@ def config_inventory() -> dict[str, Any]:
         'available_sdk_operations': sorted(operations),
         'notes': [
             'Floci 1.5.18 adds AWS Config service emulation for configuration recording, compliance rules, and resource tracking workflows.',
+            'Floci 1.5.27 persists Config rules, conformance packs, recorders, delivery channels, and tags across restart.',
+            'Floci 1.5.28 read APIs expand Steampipe-oriented resource collection across supported services.',
             'This page shows the management-plane inventory most useful for checking local compliance and recorder setup.',
             'Compliance status always returns INSUFFICIENT_DATA because Floci stores resources but does not perform actual evaluation.',
         ],
@@ -2619,6 +2930,7 @@ def eventbridge_inventory() -> dict[str, Any]:
         'notes': [
             'The default event bus is named default and accepts AWS service events.',
             'Custom event buses are for application events.',
+            'Floci 1.5.28 syncs EventBridge tags to Resource Groups Tagging discovery.',
             'Floci 1.5.22 preserves the PutEvents call region and account through pattern matching and delivered event envelopes.',
             'Floci 1.5.21 fixes rule tagging on custom buses whose name contains event-bus.',
         ],
@@ -2817,6 +3129,9 @@ def cognito_inventory() -> dict[str, Any]:
             'Client secrets are intentionally omitted from dashboard output.',
             'floci:override-id can pin a user pool ID at creation time and is stripped from persisted tags.',
             'OAuth client_credentials is emulator-friendly and does not require a Cognito domain.',
+            'Floci 1.5.28 aligns sign-up confirmation, CUSTOM_AUTH trigger failures, and AdminGetUser lookup behavior with AWS.',
+            'Floci 1.5.29 adds Cognito overrides for client ID and secret.',
+            'Floci 1.5.26 aligns user pool client configuration APIs, validates missing clients more closely, and tightens password recovery behavior.',
             'Floci 1.5.21 adds the OAuth2 userInfo endpoint plus custom schema attributes and attribute deletion APIs.',
             'Floci 1.5.24 adds a verification code store and dispatcher so email/SMS signup and recovery codes can be inspected locally through SNS/SES-backed flows.',
             'Floci 1.5.25 includes USERNAME in SRP PASSWORD_VERIFIER challenges for closer AWS client compatibility.',
@@ -3439,6 +3754,8 @@ def appsync_inventory() -> dict[str, Any]:
         'notes': [
             'Floci 1.5.22 adds AppSync Phase 1 management API emulation.',
             'Floci 1.5.23 adds AppSync Phase 2 with Schema Registry support, model fixes, CRUDL completion, and AWS scalar type support.',
+            'Floci 1.5.28 adds AppSync Phase 3 with the $util runtime library for VTL resolvers.',
+            'Floci 1.5.29 adds AppSync Phase 4 with a full VTL engine for end-to-end resolver template evaluation.',
             'GraphQL workloads that depend on schema introspection and the full data-source surface should now work end to end against Floci.',
         ],
     }
@@ -3769,6 +4086,8 @@ def codebuild_inventory() -> dict[str, Any]:
         ],
         'notes': [
             'Floci CodeBuild stores project, report-group, and source-credential state and runs builds inside real Docker containers.',
+            'Floci 1.5.27 persists CodeBuild projects, report groups, and source credentials across restart.',
+            'Floci 1.5.28 creates the build working directory before running build phases.',
             'Buildspec install, pre_build, build, and post_build phases run sequentially, with output streamed to /aws/codebuild/<project> in CloudWatch Logs.',
             'NO_SOURCE builds skip source injection; S3 artifacts are copied from the build container and uploaded to an existing bucket.',
             'Build execution is asynchronous: StartBuild returns IN_PROGRESS and BatchGetBuilds can be polled until buildComplete is true.',
@@ -3997,6 +4316,7 @@ def codedeploy_inventory() -> dict[str, Any]:
         ],
         'notes': [
             'This page is inferred from the CodeDeploy AWS SDK API because service docs are not available yet.',
+            'Floci 1.5.28 persists CodeDeploy applications, deployment groups, deployment configs, on-prem instances, and tags across restart.',
             'Deployment lists are collected from applications and deployment groups, then de-duplicated before detail lookup.',
         ],
     }
@@ -4658,6 +4978,8 @@ def elasticloadbalancing_inventory() -> dict[str, Any]:
             'Floci 1.5.19 adds ELBv2 listener attribute and capacity reservation action families.',
             'Floci 1.5.24 validates subnet VPC consistency when creating load balancers, matching AWS behavior more closely.',
             'Floci 1.5.25 enforces ALB subnet availability-zone rules and improves ELBv2 target resolution and persistence.',
+            'Floci 1.5.28 omits the terminal SSL policy marker for closer AWS compatibility.',
+            'Floci 1.5.29 publishes ALB DNS names that resolve locally.',
             'Target health is fetched per target group; listener rules are fetched per listener.',
         ],
     }
@@ -5018,6 +5340,7 @@ def kafka_inventory() -> dict[str, Any]:
             'Floci emulates Amazon MSK by orchestrating one Redpanda container per cluster unless mock mode is enabled.',
             'CreateClusterV2 is mapped to provisioned cluster creation for local compatibility.',
             'Kafka API port 9092 is mapped to a dynamic host port, and GetBootstrapBrokers returns the local connection strings.',
+            'Floci 1.5.28 advertises externally reachable broker addresses for local clients.',
             'Floci 1.5.25 populates currentBrokerSoftwareInfo in cluster describe responses.',
             'Each cluster gets a named Docker volume; in persistent modes the volume is retained on delete unless volume pruning is enabled.',
         ],
@@ -5268,6 +5591,7 @@ def pipes_inventory() -> dict[str, Any]:
             'EventBridge Pipes uses a REST-JSON API against the local Floci endpoint.',
             'Pipe summaries are expanded with DescribePipe so source, enrichment, target, logging, role, KMS, and tag data are visible.',
             'Supported sources include SQS, Kinesis, DynamoDB streams, and Kafka topics.',
+            'Floci 1.5.28 adds Kafka pipe sources and polling support.',
             'Supported targets include Lambda, SQS, SNS, Kinesis, and Step Functions.',
         ],
     }
@@ -5399,6 +5723,7 @@ def neptune_inventory() -> dict[str, Any]:
         'available_sdk_operations': sorted(operations),
         'notes': [
             'Floci manages real Apache TinkerPop Gremlin Server Docker containers and proxies Gremlin connections to them.',
+            'Floci 1.5.27 can use a neo4j backend for openCypher queries when NEPTUNE_DB_TYPE selects it.',
             'The management API uses AWS-compatible Query XML through localhost:4566; the data plane is exposed as localhost:<proxy-port> over TCP/WebSocket.',
             'The first cluster claims the configured proxy base port, commonly 8182, and each additional cluster increments within the configured range.',
             'IAM database authentication, Neptune Analytics, serverless auto-pause/resume, snapshots, and restore operations are out of scope.',
@@ -5636,6 +5961,9 @@ def ssm_inventory() -> dict[str, Any]:
             'Parameter values are intentionally not fetched; the page shows metadata, types, tiers, policies, and tags.',
             'Document details are expanded for the first 50 document identifiers to keep page loads bounded.',
             'AWS-owned patch baselines are shown separately from the per-operating-system defaults returned by GetDefaultPatchBaseline.',
+            'Floci 1.5.26 executes SendCommand in EC2 containers and adds patch baseline discovery APIs.',
+            'Floci 1.5.27 rejects send-command timeouts below the AWS minimum.',
+            'Floci 1.5.29 retains local service diagnostics on command failure.',
         ],
     }
 
@@ -5873,6 +6201,8 @@ def autoscaling_inventory() -> dict[str, Any]:
         'notes': [
             'This page uses the EC2 Auto Scaling SDK API and tolerates missing optional operations from local implementations.',
             'Group detail expands lifecycle hooks, warm pool data, instance refreshes, policies, activities, notifications, and tags when available.',
+            'Floci 1.5.27 rejects launch templates without image IDs.',
+            'Floci 1.5.26 adds group reconciliation and refresh behavior, preserves mixed instances policy parity, and validates mixed instances launch templates.',
         ],
     }
 
@@ -6461,9 +6791,12 @@ def ecs_inventory() -> dict[str, Any]:
         ],
         'notes': [
             'By default Floci ECS launches real Docker containers for tasks.',
+            'Floci 1.5.29 honors task portMappings hostPort values, registers persisted model records for native-image reflection, and supports idempotent CloudFormation stack-delete cleanup.',
+            'Floci 1.5.28 mounts efsVolumeConfiguration task volumes as shared local volumes.',
             'Floci 1.5.23 honors task-definition volumes and container mountPoints for stateful local task workflows.',
             'Floci 1.5.22 honors RunTask command and environment container overrides and preserves create-time resource tags.',
             'Floci 1.5.25 validates Fargate task network mode and resource requirements more closely.',
+            'Floci 1.5.27 persists ECS durable resources across restart.',
             'Floci 1.5.23 retains inactive services for Terraform draining and recreation idempotency.',
             'Floci 1.5.18 registers ECS service containers as ELBv2 targets.',
             'Set FLOCI_SERVICES_ECS_MOCK=true to run tasks as in-process stubs for CI or tests.',
@@ -6598,6 +6931,7 @@ def athena_inventory() -> dict[str, Any]:
             'Mock mode makes queries transition to SUCCEEDED immediately with empty results.',
             'The DuckDB sidecar is started lazily on the first StartQueryExecution call.',
             'The dashboard only previews a few result rows for completed queries.',
+            'Floci 1.5.28 serializes timestamps as epoch seconds in GetWorkGroup and GetTableMetadata.',
             'Floci 1.5.24 aligns CreateWorkGroup, DeleteWorkGroup, and ListWorkGroups behavior with AWS.',
             'Floci 1.5.25 aligns GetWorkGroup behavior with AWS.',
         ],
@@ -6976,8 +7310,11 @@ def ses_inventory() -> dict[str, Any]:
         'notes': [
             'Identity verification succeeds immediately in Floci.',
             'Emails are always stored locally and can be inspected through /_aws/ses.',
+            'Floci 1.5.29 makes FromEmailAddress optional for SES v2 SendEmail.',
+            'Floci 1.5.28 publishes SNS notifications to identity feedback topics and implements SES v1 PutConfigurationSetDeliveryOptions.',
             'SMTP relay failures are logged but do not affect the SES API response.',
             'SES v1 and SES v2 share identity, template, and sent-message state.',
+            'Floci 1.5.27 adds SES v2 dedicated IP pools, configuration-set option groups, v1 configuration-set tracking, and reputation-metrics options.',
             'Floci 1.5.25 persists inline options on SES v2 CreateConfigurationSet, keeps MAIL FROM attributes only when configured, and omits unknown identities from GetIdentityNotificationAttributes.',
             'Floci 1.5.24 publishes SES events to Firehose, EventBridge, and CloudWatch destinations in addition to existing SNS event destination support.',
             'Floci 1.5.22 publishes SES events to SNS configuration set destinations, adds v1 destination CRUD, and enforces suppression lists at send time with per-configuration-set overrides.',
@@ -7077,6 +7414,7 @@ def cloudfront_inventory() -> dict[str, Any]:
         'available_sdk_operations': sorted(operations),
         'notes': [
             'Floci 1.5.18 adds CloudFront service emulation for distributions, origins, behaviors, and the management API.',
+            'Floci 1.5.28 honors the configured domain suffix for generated distribution domains.',
             'This page focuses on local CloudFront management inventory so CDN infrastructure created by IaC is visible in the dashboard.',
         ],
     }
@@ -7212,6 +7550,12 @@ def cloudformation_inventory() -> dict[str, Any]:
         'notes': [
             'CloudFormation actions use the Query XML protocol at the Floci root endpoint.',
             'Stacks can expose templates, events, resources, outputs, stack policies, and change sets.',
+            'Floci 1.5.26 provisions EC2 instances, RDS resources, EKS clusters and node groups, CloudWatch Logs log groups, CloudWatch metric alarms, Auto Scaling groups and launch configurations, Kinesis streams, and Firehose delivery streams.',
+            'Floci 1.5.26 also adds Fn::GetAZs and Fn::Cidr intrinsics and creates API Gateway stages from inline StageName on AWS::ApiGateway::Deployment.',
+            'Floci 1.5.29 makes ECS resource deletion idempotent during CloudFormation stack delete.',
+            'Floci 1.5.28 fails stack delete when a managed resource cannot be deleted.',
+            'Floci 1.5.27 generates implicit API Gateway resources from SAM Api events and merges SAM Globals into resource properties.',
+            'Floci 1.5.27 also supports OAuth/callback settings in UserPoolClient resources and deletes EC2 security groups from stacks.',
             'Floci 1.5.25 provisions Lambda-backed custom resources, Lambda layer versions, and EC2 VPC/subnet resources so cross-stack exports resolve locally.',
             'Floci 1.5.22 provisions ECS and ELBv2 resources, persists stacks across restart, rolls back failed creates, and supports ApiGatewayV2 updates.',
             'Floci 1.5.21 forwards AWS::ApiGatewayV2::Api properties to the API Gateway v2 service.',
@@ -7508,6 +7852,7 @@ def rds_inventory() -> dict[str, Any]:
             'RDS management uses Query XML and the data plane uses PostgreSQL or MySQL wire protocol.',
             'Floci manages real PostgreSQL, MySQL, and MariaDB Docker containers.',
             'Instances expose local TCP proxy endpoints on localhost:<proxy-port>.',
+            'Floci 1.5.28 aligns CreateDBInstance/CreateDBCluster parameter group validation, subnet group placement, and requested database-name proxy handling with AWS behavior.',
             'Floci 1.5.25 adds RDS provisioning lifecycle support for create, describe, modify, and delete flows.',
             'Floci 1.5.25 persists STS session secret keys so RDS IAM database authentication validates across requests.',
             'Floci 1.5.21 restores persisted runtime state on startup for local RDS resources.',
@@ -7616,6 +7961,7 @@ def acm_inventory() -> dict[str, Any]:
             'Floci immediately issues requested certificates for local emulation.',
             'Certificates use real RSA or EC keys and valid X.509 structure.',
             'Only PRIVATE certificates can be exported with an encrypted private key.',
+            'Floci 1.5.27 restores ACM certificates after restart by ignoring computed getters in persisted state.',
             'The dashboard intentionally shows PEM availability instead of dumping certificate material.',
         ],
     }
@@ -7726,6 +8072,8 @@ def stepfunctions_inventory() -> dict[str, Any]:
         'protocol': 'JSON 1.1',
         'notes': [
             'Floci exposes Step Functions through the AmazonStatesService JSON 1.1 target.',
+            'Floci 1.5.29 adds aws-sdk integrations for CloudFormation, EC2, and S3 PutObject.',
+            'Floci 1.5.28 returns no execution data through the SDK where AWS omits it.',
             'Execution histories are previewed with a small event limit on the dashboard.',
             'Task token callbacks are available for waitForTaskToken workflows.',
         ],
@@ -10050,6 +10398,170 @@ def list_resources(service_keys: set[str] | None = None) -> list[ResourceResult]
             if operation in operations
         ]
 
+    def memorydb_resources() -> list[dict[str, Any]]:
+        memorydb = factory.client('memorydb')
+        operations = set(memorydb.meta.service_model.operation_names)
+        resources: list[dict[str, Any]] = []
+
+        if 'DescribeClusters' in operations:
+            resources.extend(
+                {
+                    'type': 'cluster',
+                    'name': cluster.get('Name'),
+                    'arn': cluster.get('ARN'),
+                    'status': cluster.get('Status'),
+                }
+                for cluster in _safe_value(lambda: _operation_items(memorydb, 'describe_clusters', 'Clusters'), [])
+            )
+        if 'DescribeUsers' in operations:
+            resources.extend(
+                {
+                    'type': 'user',
+                    'name': user.get('Name'),
+                    'arn': user.get('ARN'),
+                    'status': user.get('Status'),
+                }
+                for user in _safe_value(lambda: _operation_items(memorydb, 'describe_users', 'Users'), [])
+            )
+        if 'DescribeACLs' in operations:
+            resources.extend(
+                {
+                    'type': 'acl',
+                    'name': acl.get('Name'),
+                    'arn': acl.get('ARN'),
+                    'status': acl.get('Status'),
+                }
+                for acl in _safe_value(lambda: _operation_items(memorydb, 'describe_acls', 'ACLs'), [])
+            )
+
+        return resources
+
+    def codepipeline_resources() -> list[dict[str, Any]]:
+        codepipeline = factory.client('codepipeline')
+        operations = set(codepipeline.meta.service_model.operation_names)
+        resources: list[dict[str, Any]] = []
+
+        if 'ListPipelines' in operations:
+            resources.extend(
+                {
+                    'type': 'pipeline',
+                    'name': pipeline.get('name'),
+                    'version': pipeline.get('version'),
+                }
+                for pipeline in _safe_value(lambda: _operation_items(codepipeline, 'list_pipelines', 'pipelines'), [])
+            )
+        if 'ListWebhooks' in operations:
+            resources.extend(
+                {
+                    'type': 'webhook',
+                    'name': webhook.get('name'),
+                    'arn': webhook.get('arn'),
+                }
+                for webhook in _safe_value(lambda: _operation_items(codepipeline, 'list_webhooks', 'webhooks'), [])
+            )
+
+        return resources
+
+    def s3vectors_resources() -> list[dict[str, Any]]:
+        s3vectors = factory.client('s3vectors')
+        operations = set(s3vectors.meta.service_model.operation_names)
+        resources: list[dict[str, Any]] = []
+
+        if 'ListVectorBuckets' in operations:
+            buckets = _safe_value(lambda: _operation_items(s3vectors, 'list_vector_buckets', 'vectorBuckets'), [])
+            resources.extend(
+                {
+                    'type': 'vector_bucket',
+                    'name': bucket.get('vectorBucketName') or bucket.get('name'),
+                    'arn': bucket.get('vectorBucketArn'),
+                }
+                for bucket in buckets
+            )
+            if 'ListIndexes' in operations:
+                for bucket in buckets[:50]:
+                    bucket_name = bucket.get('vectorBucketName') or bucket.get('name')
+                    if not bucket_name:
+                        continue
+                    resources.extend(
+                        {
+                            'type': 'index',
+                            'name': index.get('indexName'),
+                            'vector_bucket': bucket_name,
+                            'arn': index.get('indexArn'),
+                        }
+                        for index in _safe_value(
+                            lambda bucket_name=bucket_name: _operation_items(s3vectors, 'list_indexes', 'indexes', vectorBucketName=bucket_name),
+                            [],
+                        )
+                    )
+
+        return resources
+
+    def iot_resources() -> list[dict[str, Any]]:
+        iot = factory.client('iot')
+        operations = set(iot.meta.service_model.operation_names)
+        resources: list[dict[str, Any]] = []
+
+        if 'ListThings' in operations:
+            resources.extend(
+                {
+                    'type': 'thing',
+                    'name': thing.get('thingName'),
+                    'arn': thing.get('thingArn'),
+                    'thing_type': thing.get('thingTypeName'),
+                }
+                for thing in _safe_value(lambda: _operation_items(iot, 'list_things', 'things'), [])
+            )
+        if 'ListPolicies' in operations:
+            resources.extend(
+                {
+                    'type': 'policy',
+                    'name': policy.get('policyName'),
+                    'arn': policy.get('policyArn'),
+                }
+                for policy in _safe_value(lambda: _operation_items(iot, 'list_policies', 'policies'), [])
+            )
+        if 'ListCertificates' in operations:
+            resources.extend(
+                {
+                    'type': 'certificate',
+                    'id': certificate.get('certificateId'),
+                    'arn': certificate.get('certificateArn'),
+                    'status': certificate.get('status'),
+                }
+                for certificate in _safe_value(lambda: _operation_items(iot, 'list_certificates', 'certificates'), [])
+            )
+
+        return resources
+
+    def elasticbeanstalk_resources() -> list[dict[str, Any]]:
+        beanstalk = factory.client('elasticbeanstalk')
+        operations = set(beanstalk.meta.service_model.operation_names)
+        resources: list[dict[str, Any]] = []
+
+        if 'DescribeApplications' in operations:
+            resources.extend(
+                {
+                    'type': 'application',
+                    'name': application.get('ApplicationName'),
+                    'arn': application.get('ApplicationArn'),
+                }
+                for application in _safe_value(lambda: _operation_items(beanstalk, 'describe_applications', 'Applications'), [])
+            )
+        if 'DescribeEnvironments' in operations:
+            resources.extend(
+                {
+                    'type': 'environment',
+                    'name': environment.get('EnvironmentName'),
+                    'id': environment.get('EnvironmentId'),
+                    'arn': environment.get('EnvironmentArn'),
+                    'status': environment.get('Status'),
+                }
+                for environment in _safe_value(lambda: _operation_items(beanstalk, 'describe_environments', 'Environments'), [])
+            )
+
+        return resources
+
     def neptune_resources() -> list[dict[str, Any]]:
         neptune = factory.client('neptune')
         operations = set(neptune.meta.service_model.operation_names)
@@ -10217,6 +10729,7 @@ def list_resources(service_keys: set[str] | None = None) -> list[ResourceResult]
         resources.extend({'type': 'security_group', 'id': item.get('GroupId')} for item in _safe_value(lambda: ec2.describe_security_groups().get('SecurityGroups', []), []))
         resources.extend({'type': 'internet_gateway', 'id': item.get('InternetGatewayId')} for item in _safe_value(lambda: ec2.describe_internet_gateways().get('InternetGateways', []), []))
         resources.extend({'type': 'route_table', 'id': item.get('RouteTableId')} for item in _safe_value(lambda: ec2.describe_route_tables().get('RouteTables', []), []))
+        resources.extend({'type': 'network_acl', 'id': item.get('NetworkAclId')} for item in _safe_value(lambda: ec2.describe_network_acls().get('NetworkAcls', []), []))
         resources.extend({'type': 'vpc_endpoint', 'id': item.get('VpcEndpointId')} for item in _safe_value(lambda: _paginate(ec2, 'describe_vpc_endpoints', 'VpcEndpoints'), []))
         resources.extend({'type': 'elastic_ip', 'id': item.get('AllocationId') or item.get('PublicIp')} for item in _safe_value(lambda: ec2.describe_addresses().get('Addresses', []), []))
         resources.extend({'type': 'key_pair', 'id': item.get('KeyName')} for item in _safe_value(lambda: ec2.describe_key_pairs().get('KeyPairs', []), []))
@@ -10236,10 +10749,12 @@ def list_resources(service_keys: set[str] | None = None) -> list[ResourceResult]
         ('cloudmap-resources', 'Cloud Map resources', cloudmap_resources),
         ('cloudtrail-resources', 'CloudTrail trails', cloudtrail_resources),
         ('codebuild-resources', 'CodeBuild resources', codebuild_resources),
+        ('codepipeline-resources', 'CodePipeline resources', codepipeline_resources),
         ('codedeploy-resources', 'CodeDeploy resources', codedeploy_resources),
         ('config-resources', 'AWS Config resources', config_resources),
         ('eks-resources', 'EKS resources', eks_resources),
         ('elasticache-resources', 'ElastiCache resources', elasticache_resources),
+        ('elasticbeanstalk-resources', 'Elastic Beanstalk resources', elasticbeanstalk_resources),
         ('elasticloadbalancing-resources', 'Elastic Load Balancing resources', elasticloadbalancing_resources),
         ('emr-resources', 'EMR resources', emr_resources),
         ('firehose-resources', 'Data Firehose resources', firehose_resources),
@@ -10251,6 +10766,7 @@ def list_resources(service_keys: set[str] | None = None) -> list[ResourceResult]
         ('costexplorer-resources', 'Cost Explorer resources', costexplorer_resources),
         ('cur-resources', 'Cost and Usage Reports', cur_resources),
         ('bcmdataexports-resources', 'BCM Data Exports', bcmdataexports_resources),
+        ('memorydb-resources', 'MemoryDB resources', memorydb_resources),
         ('neptune-resources', 'Neptune resources', neptune_resources),
         ('resourcegroupstagging-resources', 'Resource Groups Tagging resources', resourcegroupstagging_resources),
         ('ssm-resources', 'SSM resources', ssm_resources),
@@ -10262,9 +10778,11 @@ def list_resources(service_keys: set[str] | None = None) -> list[ResourceResult]
         ('route53-resources', 'Route 53 resources', route53_resources),
         ('iam-users', 'IAM users', iam_users),
         ('iam-roles', 'IAM roles', iam_roles),
+        ('iot-resources', 'IoT Core resources', iot_resources),
         ('ec2-resources', 'EC2 resources', ec2_resources),
         ('ecs-resources', 'ECS resources', ecs_resources),
         ('s3-buckets', 'S3 buckets', s3_buckets),
+        ('s3vectors-resources', 'S3 Vectors resources', s3vectors_resources),
         ('sqs-queues', 'SQS queues', sqs_queues),
         ('dynamodb-tables', 'DynamoDB tables', dynamodb_tables),
         ('docdb-resources', 'DocumentDB resources', docdb_resources),

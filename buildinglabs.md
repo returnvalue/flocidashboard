@@ -2,16 +2,21 @@
 
 ## Current Curriculum Status
 
-The initial curriculum is complete as of June 18, 2026:
+The current curriculum is complete through the first messaging, infrastructure, and networking sequences as of July 1, 2026:
 
 - eight IAM labs,
 - twelve S3 labs,
+- nine SQS labs,
+- two SNS labs,
+- one EventBridge Scheduler lab,
+- one CloudFormation lab,
+- four EC2 networking labs,
 - shared breadcrumb navigation from labs to the service page or dashboard homepage,
 - live-state completion for reload-safe progress,
 - lab-owned cleanup and reset behavior,
 - end-to-end verification against local Floci.
 
-The foundational messaging sequence, first CloudFormation provisioning lab, and four VPC networking labs are complete. Continue with deeper endpoint and hybrid-connectivity scenarios when local support makes them useful.
+Continue with deeper endpoint and hybrid-connectivity scenarios when local support makes them useful.
 
 The dashboard also exposes `/labs/`, a registry-driven directory of every service with active labs. The homepage links to it between Environment and Service Matrix.
 

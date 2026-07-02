@@ -9,7 +9,7 @@ from django.http import Http404, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.cache import cache_control
 from django.views.decorators.http import require_POST
-from .aws import FlociClientFactory, acm_inventory, apigateway_inventory, appconfig_inventory, appsync_inventory, athena_inventory, autoscaling_inventory, backup_inventory, batch_inventory, bcmdataexports_inventory, bedrockruntime_inventory, cloudformation_inventory, cloudfront_inventory, cloudmap_inventory, cloudtrail_inventory, cloudwatch_inventory, codebuild_inventory, codedeploy_inventory, config_inventory, cognito_inventory, costexplorer_inventory, cur_inventory, docdb_inventory, dynamodb_inventory, ec2_inventory, ecr_inventory, ecs_inventory, eks_inventory, elasticache_inventory, elasticloadbalancing_inventory, emr_inventory, eventbridge_inventory, firehose_inventory, glue_inventory, iam_inventory, kafka_inventory, kinesis_inventory, kms_inventory, lambda_inventory, list_resources, neptune_inventory, opensearch_inventory, pipes_inventory, pricing_inventory, rds_inventory, rdsdata_inventory, resourcegroupstagging_inventory, route53_inventory, s3_inventory, scheduler_inventory, secretsmanager_inventory, ses_inventory, sns_inventory, sqs_inventory, ssm_inventory, stepfunctions_inventory, textract_inventory, transcribe_inventory, transfer_inventory, wafv2_inventory
+from .aws import FlociClientFactory, acm_inventory, apigateway_inventory, appconfig_inventory, appsync_inventory, athena_inventory, autoscaling_inventory, backup_inventory, batch_inventory, bcmdataexports_inventory, bedrockruntime_inventory, cloudformation_inventory, cloudfront_inventory, cloudmap_inventory, cloudtrail_inventory, cloudwatch_inventory, codebuild_inventory, codepipeline_inventory, codedeploy_inventory, config_inventory, cognito_inventory, costexplorer_inventory, cur_inventory, docdb_inventory, dynamodb_inventory, ec2_inventory, ecr_inventory, ecs_inventory, eks_inventory, elasticache_inventory, elasticbeanstalk_inventory, elasticloadbalancing_inventory, emr_inventory, eventbridge_inventory, firehose_inventory, glue_inventory, iam_inventory, iot_inventory, kafka_inventory, kinesis_inventory, kms_inventory, lambda_inventory, list_resources, memorydb_inventory, neptune_inventory, opensearch_inventory, pipes_inventory, pricing_inventory, rds_inventory, rdsdata_inventory, resourcegroupstagging_inventory, route53_inventory, s3_inventory, s3vectors_inventory, scheduler_inventory, secretsmanager_inventory, ses_inventory, sns_inventory, sqs_inventory, ssm_inventory, stepfunctions_inventory, textract_inventory, transcribe_inventory, transfer_inventory, wafv2_inventory
 from .labs import get_lab, lab_status, labs_for_service, reset_lab, run_lab_step
 from .services import SERVICES, SERVICE_PAGES, get_service, services_payload
 
@@ -28,10 +28,12 @@ HOME_SERVICE_ORDER = (
     's3',
     'ec2',
     'elasticloadbalancing',
+    'elasticbeanstalk',
     'route53',
     'cloudwatch',
     'rds',
     'docdb',
+    'memorydb',
     'dynamodb',
     'lambda',
     'autoscaling',
@@ -61,6 +63,7 @@ HOME_SERVICE_ORDER = (
     'stepfunctions',
     'codedeploy',
     'codebuild',
+    'codepipeline',
     'opensearch',
     'cur',
     'firehose',
@@ -77,6 +80,8 @@ HOME_SERVICE_ORDER = (
     'neptune',
     'pricing',
     'bcmdataexports',
+    's3vectors',
+    'iot',
 )
 
 HOME_SERVICE_RANK = {key: index for index, key in enumerate(HOME_SERVICE_ORDER)}
@@ -365,6 +370,41 @@ def dynamodb(request):
 def docdb(request):
     try:
         return JsonResponse(docdb_inventory())
+    except (BotoCoreError, ClientError, ValueError) as exc:
+        return JsonResponse({'error': str(exc)}, status=502)
+
+
+def memorydb(request):
+    try:
+        return JsonResponse(memorydb_inventory())
+    except (BotoCoreError, ClientError, ValueError) as exc:
+        return JsonResponse({'error': str(exc)}, status=502)
+
+
+def codepipeline(request):
+    try:
+        return JsonResponse(codepipeline_inventory())
+    except (BotoCoreError, ClientError, ValueError) as exc:
+        return JsonResponse({'error': str(exc)}, status=502)
+
+
+def s3vectors(request):
+    try:
+        return JsonResponse(s3vectors_inventory())
+    except (BotoCoreError, ClientError, ValueError) as exc:
+        return JsonResponse({'error': str(exc)}, status=502)
+
+
+def iot(request):
+    try:
+        return JsonResponse(iot_inventory())
+    except (BotoCoreError, ClientError, ValueError) as exc:
+        return JsonResponse({'error': str(exc)}, status=502)
+
+
+def elasticbeanstalk(request):
+    try:
+        return JsonResponse(elasticbeanstalk_inventory())
     except (BotoCoreError, ClientError, ValueError) as exc:
         return JsonResponse({'error': str(exc)}, status=502)
 

@@ -175,6 +175,10 @@ Core architecture files:
 - Migrated Cloud Map action rows to `ServiceConsole.loadServiceActions(...)`, making it the third registry-driven console after AppConfig and Transcribe.
 - Expanded the IAM workbench with managed policy version create/default/delete flows, user/group membership editing, and role trust policy editing.
 - Added a Tracked Resources homepage filter that discovers resources across all registered services and hides empty service cards.
+- Reviewed Floci 1.5.29 and refreshed release-aware notes for AppSync Phase 4 VTL execution, IAM cross-account assumed-role routing and AmazonRDSEnhancedMonitoringRole, floci-core reset/nuke endpoints, ECS hostPort/native-image/CloudFormation cleanup behavior, Transcribe vocabulary persistence, shutdown persistence flushing, local ALB DNS names, Step Functions aws-sdk integrations, Cognito client overrides, SES v2 optional FromEmailAddress, SSM diagnostics, and IoT compatibility polish.
+- Reviewed Floci 1.5.28, added read-only inventory coverage for IoT Core and Elastic Beanstalk, and refreshed release-aware notes for AppSync Phase 3, Kafka-backed Pipes, Steampipe-oriented read APIs, ECS EFS volumes, MemoryDB ACL auth, CodeDeploy persistence, Cognito, Lambda/SQS ESM, RDS, EC2, IAM, S3, SES, Secrets Manager, CloudFormation, CloudFront, CodeBuild, DynamoDB, Step Functions, Athena, ELBv2, EventBridge, and MSK.
+- Reviewed Floci 1.5.27, added read-only inventory coverage for MemoryDB, CodePipeline, and S3 Vectors, folded EC2 Network ACLs into EC2 inventory, and refreshed release-aware notes for DynamoDB, CloudFormation SAM support, Neptune openCypher, persistence, Secrets Manager rotation, SES, ACM, SSM, and Auto Scaling.
+- Reviewed Floci 1.5.26 and refreshed release-aware notes for DocumentDB, CloudFormation provisioning, SSM SendCommand and patch baselines, Auto Scaling reconciliation and mixed instances, EC2 Spot/DNS behavior, KMS EnableKey, and Cognito client/password recovery alignment.
 - Added Amazon DocumentDB cluster and instance inventory, resource counting, homepage coverage, and a dedicated read-only service page.
 - Expanded EC2 inventory with VPC endpoints and SSM inventory with per-operating-system default patch baselines.
 - Added KMS key enable/disable actions and surfaced S3 user metadata in the object detail drawer.
@@ -405,7 +409,7 @@ These ideas are still interesting, but they likely need more design, Floci suppo
 - Docker runtime lens.
 - Full state export/import/reset manager.
 - Scenario launcher.
-- Broader tutorial mode beyond the curated IAM and S3 workflow labs.
+- Broader tutorial mode beyond the current curated workflow labs.
 - Large file transfer UI.
 - Deep CloudFormation stack graph.
 - Broad IAM policy simulation.

@@ -10,7 +10,7 @@ from .services import get_service
 
 
 class AppSyncPageTests(SimpleTestCase):
-    def test_page_renders_phase_one_inventory(self):
+    def test_page_renders_appsync_inventory(self):
         response = self.client.get(reverse('dashboard:service-page', kwargs={'service_key': 'appsync'}))
 
         self.assertEqual(response.status_code, 200)
@@ -20,7 +20,7 @@ class AppSyncPageTests(SimpleTestCase):
         self.assertContains(response, 'dashboard/appsync-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/appsync-console.js')
-        self.assertContains(response, 'AppSync Phase 1 management API emulation')
+        self.assertContains(response, 'Phase 4 VTL engine')
 
     def test_registry_marks_appsync_as_interactive(self):
         service = get_service('appsync')

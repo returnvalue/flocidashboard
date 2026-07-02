@@ -126,7 +126,7 @@ const AppSyncConsole = (() => {
 
   function renderDetail(api) {
     const panel = el('section', 'appsync-panel'); panel.append(el('div', 'appsync-panel-heading', api?.name || 'AppSync workflow')); const body = el('div', 'appsync-detail');
-    if (!api) body.append(el('p', 'appsync-empty', 'Create a GraphQL API to begin configuring AppSync Phase 1 resources.'));
+    if (!api) body.append(el('p', 'appsync-empty', 'Create a GraphQL API to begin configuring AppSync resolver resources.'));
     else {
       const facts = el('dl', 'appsync-facts'); [['API ID', apiId(api)], ['ARN', api.arn], ['Authentication', api.authenticationType], ['URIs', api.uris], ['Schema status', api.schema_status], ['Tags', api.tags]].forEach(([label, value]) => ui.addField(facts, label, value)); body.append(facts);
       const actions = el('div', 'appsync-action-row'); actions.append(btn('Upload schema', null, () => showSchema(api)), btn('Create API key', 'appsync-btn-secondary', () => showApiKey(api)), btn('Create data source', 'appsync-btn-secondary', () => showDataSource(api)), btn('Create resolver', 'appsync-btn-secondary', () => showResolver(api)), btn('Create function', 'appsync-btn-secondary', () => showFunction(api)), btn('Create type', 'appsync-btn-secondary', () => showType(api)), btn('Tags', 'appsync-btn-secondary', () => showTags(api)), btn('Delete API', 'appsync-btn-danger', () => deleteApi(api).catch((error) => toast(error.message, true)))); body.append(actions);
@@ -146,7 +146,7 @@ const AppSyncConsole = (() => {
   function render() {
     if (!root) return;
     root.textContent = ''; renderBreadcrumbs(); renderSummary(state.inventory?.summary || {});
-    root.append(toolbar([btn('Create GraphQL API', null, showCreateApi), btn('Refresh', 'appsync-btn-secondary', () => refresh().catch((error) => toast(error.message, true)))], [el('span', 'appsync-toolbar-note', 'Phase 1 management plane; GraphQL execution is out of scope')]));
+    root.append(toolbar([btn('Create GraphQL API', null, showCreateApi), btn('Refresh', 'appsync-btn-secondary', () => refresh().catch((error) => toast(error.message, true)))], [el('span', 'appsync-toolbar-note', 'Resolver configuration with Phase 4 VTL engine support')]));
     const workbench = el('div', 'appsync-workbench'); workbench.append(renderApiList(), renderDetail(selectedApi())); root.append(workbench);
     if (loadedAtEl) loadedAtEl.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
   }

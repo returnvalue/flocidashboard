@@ -4045,6 +4045,14 @@ SERVICES: tuple[ServiceDefinition, ...] = (
         actions=CODEBUILD_ACTIONS,
     ),
     service(
+        'codepipeline',
+        'CodePipeline',
+        'Pipelines, stages, executions, webhooks, and action types',
+        'Developer Tools',
+        maturity='read_only_inspector',
+        tags=('developer-tools', 'delivery-pipeline', 'inventory'),
+    ),
+    service(
         'codedeploy',
         'CodeDeploy',
         'Deployment applications and history',
@@ -4103,6 +4111,14 @@ SERVICES: tuple[ServiceDefinition, ...] = (
         maturity='read_only_inspector',
         docs_url='https://floci.io/floci/services/docdb/',
         tags=('database', 'document-database', 'inventory'),
+    ),
+    service(
+        'memorydb',
+        'MemoryDB',
+        'Redis-compatible clusters, users, ACLs, and subnet groups',
+        'Database',
+        maturity='read_only_inspector',
+        tags=('database', 'cache', 'inventory'),
     ),
     service(
         'ec2',
@@ -4174,6 +4190,14 @@ SERVICES: tuple[ServiceDefinition, ...] = (
         actions=ELASTICACHE_ACTIONS,
     ),
     service(
+        'elasticbeanstalk',
+        'Elastic Beanstalk',
+        'Applications, environments, versions, and platforms',
+        'Developer Tools',
+        maturity='read_only_inspector',
+        tags=('developer-tools', 'platform-as-a-service', 'inventory'),
+    ),
+    service(
         'elasticloadbalancing',
         'Elastic Load Balancing',
         'Classic and v2 load balancers',
@@ -4234,6 +4258,14 @@ SERVICES: tuple[ServiceDefinition, ...] = (
         shared_console=True,
         tags=('layered-workbench', 'identity-workbench'),
         actions=IAM_ACTIONS,
+    ),
+    service(
+        'iot',
+        'IoT Core',
+        'Things, policies, certificates, rules, jobs, and role aliases',
+        'Application Integration',
+        maturity='read_only_inspector',
+        tags=('iot', 'mqtt', 'inventory'),
     ),
     service(
         'kafka',
@@ -4379,6 +4411,14 @@ SERVICES: tuple[ServiceDefinition, ...] = (
         shared_console=True,
         tags=('layered-workbench',),
         actions=S3_ACTIONS,
+    ),
+    service(
+        's3vectors',
+        'S3 Vectors',
+        'Vector buckets and indexes',
+        'Storage',
+        maturity='read_only_inspector',
+        tags=('storage', 'vector-search', 'inventory'),
     ),
     service(
         'scheduler',
