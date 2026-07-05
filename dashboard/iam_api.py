@@ -42,6 +42,24 @@ def policy_document(value: Any) -> dict[str, Any]:
     return value
 
 
+def policy_arns(value: Any) -> list[dict[str, str]]:
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError as exc:
+            raise ValueError('Session policy ARNs must be valid JSON') from exc
+    if not isinstance(value, list):
+        raise ValueError('Session policy ARNs must be a JSON array')
+
+    arns = []
+    for item in value:
+        raw_arn = item.get('arn') if isinstance(item, dict) else item
+        arn = str(raw_arn or '').strip()
+        if arn:
+            arns.append({'arn': arn})
+    return arns
+
+
 def create_access_key(user_name: str) -> dict[str, Any]:
     name = validate_name(user_name, 'User name')
     response = _iam_client().create_access_key(UserName=name)['AccessKey']
@@ -71,7 +89,14 @@ def delete_access_key(user_name: str, access_key_id: str) -> dict[str, Any]:
     return {'user_name': name, 'access_key_id': key_id, 'deleted': True}
 
 
-def assume_role(role_arn: str, session_name: str, duration_seconds: int | None = None) -> dict[str, Any]:
+def assume_role(
+    role_arn: str,
+    session_name: str,
+    duration_seconds: int | None = None,
+    *,
+    session_policy: Any = None,
+    session_policy_arns: Any = None,
+) -> dict[str, Any]:
     arn = validate_name(role_arn, 'Role ARN')
     session = validate_name(session_name, 'Session name')
     payload: dict[str, Any] = {
@@ -80,6 +105,10 @@ def assume_role(role_arn: str, session_name: str, duration_seconds: int | None =
     }
     if duration_seconds:
         payload['DurationSeconds'] = int(duration_seconds)
+    if session_policy:
+        payload['Policy'] = json.dumps(policy_document(session_policy))
+    if session_policy_arns:
+        payload['PolicyArns'] = policy_arns(session_policy_arns)
     response = _sts_client().assume_role(**payload)
     credentials = response.get('Credentials', {})
     return {

@@ -220,6 +220,10 @@ const IAMConsole = (() => {
     durationInput.type = 'number';
     durationInput.min = '900';
     durationInput.placeholder = '3600';
+    const sessionPolicyInput = document.createElement('textarea');
+    sessionPolicyInput.placeholder = '{\n  "Version": "2012-10-17",\n  "Statement": []\n}';
+    const sessionPolicyArnsInput = document.createElement('textarea');
+    sessionPolicyArnsInput.placeholder = '[{"arn":"arn:aws:iam::000000000000:policy/example"}]';
     form.append(
       el('label', null, 'Role ARN'),
       el('pre', 'iam-arn-preview', role.arn),
@@ -227,14 +231,26 @@ const IAMConsole = (() => {
       sessionInput,
       el('label', null, 'Duration seconds'),
       durationInput,
+      el('label', null, 'Session policy JSON'),
+      sessionPolicyInput,
+      el('label', null, 'Session policy ARNs JSON'),
+      sessionPolicyArnsInput,
     );
     openModal('Assume role', form, 'Assume', async (close) => {
+      const sessionPolicy = sessionPolicyInput.value.trim()
+        ? JSON.parse(sessionPolicyInput.value)
+        : null;
+      const sessionPolicyArns = sessionPolicyArnsInput.value.trim()
+        ? JSON.parse(sessionPolicyArnsInput.value)
+        : null;
       const data = await apiJson(`/api/iam/roles/${encodeURIComponent(role.name)}/assume/`, {
         method: 'POST',
         body: JSON.stringify({
           role_arn: role.arn,
           session_name: sessionInput.value.trim(),
           duration_seconds: durationInput.value ? Number(durationInput.value) : null,
+          session_policy: sessionPolicy,
+          session_policy_arns: sessionPolicyArns,
         }),
       });
       state.lastCredentials = data.credentials;

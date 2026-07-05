@@ -35,6 +35,14 @@ def _records(value: Any) -> list[Any]:
     return value
 
 
+def _object(value: Any, label: str) -> dict[str, Any]:
+    if isinstance(value, str):
+        value = json.loads(value)
+    if not isinstance(value, dict):
+        raise ValueError(f'{label} must be a JSON object')
+    return value
+
+
 def create_delivery_stream(name: str, *, tags: Any = None) -> dict[str, Any]:
     clean_name = _required(name, 'Delivery stream name')
     kwargs: dict[str, Any] = {'DeliveryStreamName': clean_name}
@@ -55,6 +63,30 @@ def delete_delivery_stream(name: str) -> dict[str, Any]:
     clean_name = _required(name, 'Delivery stream name')
     response = _client().delete_delivery_stream(DeliveryStreamName=clean_name)
     return {'name': clean_name, 'response': _clean_response(response)}
+
+
+def update_destination(
+    stream_name: str,
+    current_version_id: str,
+    destination_id: str,
+    destination_update: Any,
+) -> dict[str, Any]:
+    clean_name = _required(stream_name, 'Delivery stream name')
+    clean_version = _required(current_version_id, 'Current version ID')
+    clean_destination = _required(destination_id, 'Destination ID')
+    update = _object(destination_update, 'Destination update')
+
+    response = _client().update_destination(
+        DeliveryStreamName=clean_name,
+        CurrentDeliveryStreamVersionId=clean_version,
+        DestinationId=clean_destination,
+        **update,
+    )
+    return {
+        'stream_name': clean_name,
+        'destination_id': clean_destination,
+        'response': _clean_response(response),
+    }
 
 
 def put_record(stream_name: str, data: Any) -> dict[str, Any]:

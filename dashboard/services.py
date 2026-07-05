@@ -936,6 +936,18 @@ FIREHOSE_ACTIONS = (
         fields=(action_field('records', 'Records', required=True, field_type='array'),),
         success_message='Record batch written',
     ),
+    action(
+        'update_destination',
+        'Update destination',
+        'PUT',
+        '/api/firehose/delivery-streams/{stream}/destinations/{destination}/',
+        'update',
+        fields=(
+            action_field('current_version_id', 'Current version ID', required=True),
+            action_field('destination_update', 'Destination update JSON', required=True, field_type='textarea'),
+        ),
+        success_message='Destination updated',
+    ),
 )
 
 
@@ -1924,6 +1936,8 @@ IAM_ACTIONS = (
             action_field('role_arn', 'Role ARN', required=True),
             action_field('session_name', 'Session name', required=True),
             action_field('duration_seconds', 'Duration seconds', field_type='number'),
+            action_field('session_policy', 'Session policy JSON', field_type='textarea'),
+            action_field('session_policy_arns', 'Session policy ARNs', field_type='array'),
         ),
         success_message='Role assumed',
     ),
@@ -2055,6 +2069,30 @@ IAM_ACTIONS = (
 
 
 STEPFUNCTIONS_ACTIONS = (
+    action(
+        'publish_state_machine_version',
+        'Publish version',
+        'POST',
+        '/api/stepfunctions/state-machine-versions/publish/',
+        'create',
+        fields=(
+            action_field('state_machine_arn', 'State machine ARN', required=True),
+            action_field('revision_id', 'Revision ID'),
+            action_field('description', 'Description'),
+        ),
+        success_message='State machine version published',
+    ),
+    action(
+        'delete_state_machine_version',
+        'Delete version',
+        'DELETE',
+        '/api/stepfunctions/state-machine-versions/delete/',
+        'delete',
+        safety='destructive',
+        fields=(action_field('state_machine_version_arn', 'State machine version ARN', required=True),),
+        confirm='Delete this state machine version?',
+        success_message='State machine version deleted',
+    ),
     action(
         'start_execution',
         'Start execution',
@@ -3913,6 +3951,14 @@ SERVICES: tuple[ServiceDefinition, ...] = (
         tutorial_available=True,
         tags=('layered-workbench', 'graphql-management-workbench'),
         actions=APPSYNC_ACTIONS,
+    ),
+    service(
+        'amazonmq',
+        'Amazon MQ',
+        'RabbitMQ-backed brokers and users',
+        'Application Integration',
+        maturity='read_only_inspector',
+        tags=('message-broker', 'rabbitmq', 'inventory'),
     ),
     service(
         'athena',

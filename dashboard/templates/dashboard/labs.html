@@ -29,6 +29,23 @@
     </div>
 
     <article class="labs-detail">
+      {% if next_batch %}
+        <section class="lab-next-batch">
+          <div>
+            <p class="eyebrow">Next recommended batch</p>
+            <h2>{{ next_batch.title }}</h2>
+            <p>{{ next_batch.summary }}</p>
+          </div>
+          <div class="lab-next-batch-actions">
+            {% if next_batch.href %}
+              <a class="primary-action" href="{{ next_batch.href }}">Open {{ next_batch.title }}</a>
+            {% else %}
+              <span class="lab-next-note">Ready to build</span>
+            {% endif %}
+          </div>
+        </section>
+      {% endif %}
+
       <div class="section-heading labs-heading">
         <div>
           <p class="eyebrow">Local AWS workflow lab</p>

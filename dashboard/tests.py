@@ -156,6 +156,8 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertContains(response, '<title>Labs - Floci Dashboard</title>', html=True)
         self.assertContains(response, '<h1>Labs</h1>', html=True)
         self.assertContains(response, '7 services with labs')
+        self.assertNotContains(response, 'Learning paths')
+        self.assertNotContains(response, 'Recommended starting point')
         self.assertContains(response, 'Create an IAM user')
         self.assertContains(response, 'Complete a multipart upload')
         self.assertContains(response, 'Configure SQS queue attributes and tags')
@@ -750,6 +752,49 @@ class FlociClientFactoryTests(SimpleTestCase):
 
 
 class StepFunctionsActionTests(SimpleTestCase):
+    @patch('dashboard.stepfunctions_views.publish_state_machine_version')
+    def test_publish_state_machine_version_endpoint_uses_action_helper(self, publish_version):
+        publish_version.return_value = {
+            'state_machine_arn': 'arn:aws:states:us-east-1:000000000000:stateMachine:orders',
+            'state_machine_version_arn': 'arn:aws:states:us-east-1:000000000000:stateMachine:orders:1',
+        }
+
+        response = self.client.post(
+            reverse('dashboard:stepfunctions-state-machine-versions-publish'),
+            data=json.dumps({
+                'state_machine_arn': 'arn:aws:states:us-east-1:000000000000:stateMachine:orders',
+                'revision_id': 'rev-1',
+                'description': 'stable test version',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()['state_machine_version_arn'],
+            'arn:aws:states:us-east-1:000000000000:stateMachine:orders:1',
+        )
+        publish_version.assert_called_once_with(
+            'arn:aws:states:us-east-1:000000000000:stateMachine:orders',
+            revision_id='rev-1',
+            description='stable test version',
+        )
+
+    @patch('dashboard.stepfunctions_views.delete_state_machine_version')
+    def test_delete_state_machine_version_endpoint_uses_action_helper(self, delete_version):
+        version_arn = 'arn:aws:states:us-east-1:000000000000:stateMachine:orders:1'
+        delete_version.return_value = {'state_machine_version_arn': version_arn}
+
+        response = self.client.delete(
+            reverse('dashboard:stepfunctions-state-machine-version-delete'),
+            data=json.dumps({'state_machine_version_arn': version_arn}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['state_machine_version_arn'], version_arn)
+        delete_version.assert_called_once_with(version_arn)
+
     @patch('dashboard.stepfunctions_views.start_execution')
     def test_start_execution_endpoint_uses_action_helper(self, start_execution):
         start_execution.return_value = {
@@ -1993,6 +2038,41 @@ class IAMActionTests(SimpleTestCase):
             'arn:aws:iam::000000000000:role/app',
             'dashboard',
             duration_seconds=900,
+            session_policy=None,
+            session_policy_arns=None,
+        )
+
+    @patch('dashboard.iam_views.assume_role')
+    def test_assume_role_endpoint_passes_session_policies(self, assume_role):
+        assume_role.return_value = {
+            'role_arn': 'arn:aws:iam::000000000000:role/app',
+            'session_name': 'dashboard',
+            'credentials': {'access_key_id': 'ASIAEXAMPLE'},
+        }
+        session_policy = {
+            'Version': '2012-10-17',
+            'Statement': [{'Effect': 'Allow', 'Action': 's3:ListAllMyBuckets', 'Resource': '*'}],
+        }
+        session_policy_arns = [{'arn': 'arn:aws:iam::000000000000:policy/Boundary'}]
+
+        response = self.client.post(
+            reverse('dashboard:iam-role-assume', kwargs={'role_name': 'app'}),
+            data=json.dumps({
+                'role_arn': 'arn:aws:iam::000000000000:role/app',
+                'session_name': 'dashboard',
+                'session_policy': session_policy,
+                'session_policy_arns': session_policy_arns,
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        assume_role.assert_called_once_with(
+            'arn:aws:iam::000000000000:role/app',
+            'dashboard',
+            duration_seconds=None,
+            session_policy=session_policy,
+            session_policy_arns=session_policy_arns,
         )
 
     @patch('dashboard.iam_views.update_role_trust_policy')

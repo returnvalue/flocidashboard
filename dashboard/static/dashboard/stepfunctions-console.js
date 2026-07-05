@@ -57,6 +57,7 @@ const StepFunctionsConsole = (() => {
         running: 'Executions',
         succeeded: 'Executions',
         failed: 'Executions',
+        versions: 'Versions',
       },
     });
   }
@@ -164,6 +165,48 @@ const StepFunctionsConsole = (() => {
     });
   }
 
+  function showPublishVersionModal(machine) {
+    const form = el('div');
+    const revisionInput = document.createElement('input');
+    revisionInput.placeholder = 'optional revision ID';
+    const descriptionInput = document.createElement('textarea');
+    descriptionInput.placeholder = 'Optional description';
+    form.append(
+      el('label', null, 'State machine'),
+      el('pre', 'stepfunctions-arn-preview', machine.arn),
+      el('label', null, 'Revision ID'),
+      revisionInput,
+      el('label', null, 'Description'),
+      descriptionInput,
+    );
+
+    openModal('Publish version', form, 'Publish', async (close) => {
+      const data = await apiJson('/api/stepfunctions/state-machine-versions/publish/', {
+        method: 'POST',
+        body: JSON.stringify({
+          state_machine_arn: machine.arn,
+          revision_id: revisionInput.value.trim() || null,
+          description: descriptionInput.value.trim() || null,
+        }),
+      });
+      close();
+      toast(data.state_machine_version_arn ? 'Version published' : 'Publish requested');
+      await refresh();
+    });
+  }
+
+  async function deleteVersion(version) {
+    if (!window.confirm(`Delete Step Functions version ${version.arn}?`)) {
+      return;
+    }
+    await apiJson('/api/stepfunctions/state-machine-versions/delete/', {
+      method: 'DELETE',
+      body: JSON.stringify({ state_machine_version_arn: version.arn }),
+    });
+    toast('Version deleted');
+    await refresh();
+  }
+
   function renderStateMachineRow(machine) {
     const active = machine.arn === selectedStateMachine()?.arn;
     const row = el('button', `stepfunctions-machine-row${active ? ' stepfunctions-machine-row-active' : ''}`);
@@ -225,6 +268,29 @@ const StepFunctionsConsole = (() => {
     return wrapper;
   }
 
+  function renderVersions(machine) {
+    const wrapper = el('div', 'stepfunctions-executions');
+    wrapper.append(el('h3', null, 'State machine versions'));
+    const versions = machine?.versions || [];
+    if (!versions.length) {
+      wrapper.append(el('div', 'stepfunctions-empty stepfunctions-empty-compact', 'No published versions found.'));
+      return wrapper;
+    }
+    const list = el('div', 'stepfunctions-execution-list');
+    versions.forEach((version) => {
+      const row = el('button', 'stepfunctions-execution-row');
+      row.append(
+        el('span', 'stepfunctions-execution-name', version.arn || 'Unnamed version'),
+        el('span', 'stepfunctions-machine-meta', version.revision_id || ''),
+        el('span', 'stepfunctions-machine-meta', consoleUi.formatDate(version.creation_date)),
+      );
+      row.addEventListener('click', () => deleteVersion(version).catch((error) => toast(error.message, true)));
+      list.append(row);
+    });
+    wrapper.append(list);
+    return wrapper;
+  }
+
   function renderJsonBlock(title, value) {
     const wrapper = el('div', 'stepfunctions-json-block');
     wrapper.append(el('h3', null, title));
@@ -282,10 +348,12 @@ const StepFunctionsConsole = (() => {
     consoleUi.addField(details, 'Status', machine.status);
     consoleUi.addField(details, 'Created', consoleUi.formatDate(machine.created));
     consoleUi.addField(details, 'Role ARN', machine.role_arn);
+    consoleUi.addField(details, 'Revision ID', machine.revision_id);
     consoleUi.addField(details, 'Logging', machine.logging_configuration || {});
     consoleUi.addField(details, 'Tracing', machine.tracing_configuration || {});
     content.append(details);
     content.append(renderJsonBlock('Definition', machine.definition || 'No definition returned.'));
+    content.append(renderVersions(machine));
     content.append(renderExecutions(machine));
     panel.append(content);
     return panel;
@@ -330,6 +398,7 @@ const StepFunctionsConsole = (() => {
     container.append(toolbar(
       [
         btn('Start execution', null, () => machine && showStartExecutionModal(machine)),
+        btn('Publish version', 'stepfunctions-btn-secondary', () => machine && showPublishVersionModal(machine)),
       ],
       [
         btn('Stop execution', 'stepfunctions-btn-danger', () => execution && showStopExecutionModal(execution)),
@@ -337,9 +406,13 @@ const StepFunctionsConsole = (() => {
     ));
 
     const startButton = container.querySelector('.stepfunctions-toolbar-left button');
+    const publishButton = container.querySelectorAll('.stepfunctions-toolbar-left button')[1];
     const stopButton = container.querySelector('.stepfunctions-toolbar-right button');
     if (startButton) {
       startButton.disabled = !machine;
+    }
+    if (publishButton) {
+      publishButton.disabled = !machine;
     }
     if (stopButton) {
       stopButton.disabled = !execution || !isRunning;

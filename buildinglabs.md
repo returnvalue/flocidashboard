@@ -2,9 +2,9 @@
 
 ## Current Curriculum Status
 
-The current curriculum is complete through the first messaging, infrastructure, and networking sequences as of July 1, 2026:
+The current curriculum is complete through the first messaging, infrastructure, and networking sequences as of July 5, 2026:
 
-- eight IAM labs,
+- nine IAM labs,
 - twelve S3 labs,
 - nine SQS labs,
 - two SNS labs,
@@ -14,11 +14,12 @@ The current curriculum is complete through the first messaging, infrastructure, 
 - shared breadcrumb navigation from labs to the service page or dashboard homepage,
 - live-state completion for reload-safe progress,
 - lab-owned cleanup and reset behavior,
+- completion-only next-batch recommendations after the final lab in a service batch,
 - end-to-end verification against local Floci.
 
 Continue with deeper endpoint and hybrid-connectivity scenarios when local support makes them useful.
 
-The dashboard also exposes `/labs/`, a registry-driven directory of every service with active labs. The homepage links to it between Environment and Service Matrix.
+The dashboard also exposes `/labs/`, a registry-driven directory of every service with active labs. The homepage links to it between Environment and Service Matrix. Keep this page as a catalog; guidance belongs on the service lab page only when a user completes the last lab in a batch.
 
 ## Direction
 
@@ -158,7 +159,22 @@ aws iam put-role-policy --role-name FlociApplicationRole --policy-name FlociAppl
 aws iam get-role-policy --role-name FlociApplicationRole --policy-name FlociApplicationListBuckets
 ```
 
-The eighth working lab proves EC2 instance-profile wiring:
+The eighth working lab proves STS session policies on assumed-role credentials:
+
+```bash
+aws iam create-role --role-name FlociStsSessionRole --assume-role-policy-document file://floci-sts-role-trust-policy.json
+aws iam put-role-policy --role-name FlociStsSessionRole --policy-name FlociStsListBuckets --policy-document file://floci-sts-list-buckets-policy.json
+aws sts assume-role --role-arn arn:aws:iam::000000000000:role/FlociStsSessionRole --role-session-name floci-session-policy-lab --policy file://session-policy.json
+```
+
+This lab makes the Floci 1.5.30 IAM/STS improvements concrete:
+
+- The role trust policy allows the local account root principal to call `sts:AssumeRole`.
+- The role permissions policy grants the base permissions available to the role.
+- The STS session policy is supplied during `AssumeRole` and can further constrain the temporary credentials.
+- Reset deletes the inline role policy, deletes `FlociStsSessionRole`, and clears the recorded temporary-session verification marker.
+
+The ninth working lab proves EC2 instance-profile wiring:
 
 ```bash
 aws iam create-role --role-name FlociEc2Role --assume-role-policy-document file://floci-ec2-role-trust-policy.json
@@ -256,6 +272,7 @@ Example:
 - If `FlociDevelopersListBucketsPolicy` exists, the group policy creation step is complete.
 - If `list-attached-group-policies` returns `FlociDevelopersListBucketsPolicy`, both the attach-group-policy step and list-attached-group-policies read step are complete.
 - If `get-user-policy` returns `AliceInlineListBuckets`, the put, list, and get inline-policy steps are complete.
+- If `FlociStsSessionRole` exists with the local account-root trust policy, `FlociStsListBuckets` is attached, and the lab has recorded a successful `AssumeRole` response with temporary credentials, the STS session policy lab is complete.
 
 This matters because users will move between the lab page and the normal service dashboard. If they create a resource in a lab and then inspect it elsewhere, returning to the lab should reflect reality.
 
@@ -513,6 +530,7 @@ Reset ownership matters:
 - The group policy lab depends on `Alice`, but owns `FlociDevelopers`, `FlociDevelopersListBucketsPolicy`, the group policy attachment, and Alice's membership in that group. Its reset should detach/delete the policy, remove Alice from the group, delete the group, and leave Alice alone.
 - The inline policy lab depends on `Alice`, but owns `AliceInlineListBuckets`. Its reset should delete the inline policy and leave Alice alone.
 - The role trust lab owns `FlociApplicationRole` and `FlociApplicationListBuckets`. Its reset should delete the inline role policy before deleting the role.
+- The STS session policy lab owns `FlociStsSessionRole` and `FlociStsListBuckets`. Its reset should delete the inline role policy, delete the role, and clear the recorded temporary-session marker.
 - The instance profile lab owns `FlociEc2Role` and `FlociEc2InstanceProfile`. Its reset should remove the role from the profile, delete the profile, then delete the role.
 
 This rule prevents a later lab from unexpectedly destroying a prerequisite that may have been created by an earlier lab or by the user.
@@ -581,6 +599,7 @@ Current UI lessons:
 - Lab selection should be link-based so a lab has a direct URL, such as `?lab=attach-policy-alice`.
 - Completed steps should look complete, not clickable.
 - Showing the supporting policy JSON made the `file://...` command understandable without requiring a real local file.
+- Do not show broad learning paths on every lab page. When the final lab in a service batch is complete, show a concise next-batch recommendation instead.
 
 ## First IAM Lab Set
 
@@ -593,10 +612,11 @@ Build IAM labs in this order:
 5. Attach managed policy to group
 6. Create user and attach inline policy
 7. Create role with trust policy
-8. Create instance profile and add role
-9. Simulate policy decision
+8. Assume a role with an STS session policy
+9. Create instance profile and add role
+10. Simulate policy decision
 
-The first lab proves the core one-step pattern. The second lab proves the multi-step pattern and the core IAM permissions story. The third lab proves credential creation, metadata listing, and live-state cleanup for generated IDs. The fourth lab proves group membership and relationship verification. The fifth lab proves group-based permission assignment. The sixth proves inline user policies. The seventh separates role trust from role permissions. The eighth proves EC2 instance-profile wiring.
+The first lab proves the core one-step pattern. The second lab proves the multi-step pattern and the core IAM permissions story. The third lab proves credential creation, metadata listing, and live-state cleanup for generated IDs. The fourth lab proves group membership and relationship verification. The fifth lab proves group-based permission assignment. The sixth proves inline user policies. The seventh separates role trust from role permissions. The eighth proves STS session policies on assumed-role credentials. The ninth proves EC2 instance-profile wiring.
 
 Implemented second lab:
 
@@ -739,6 +759,24 @@ Reset deletes the inline role policy before deleting `FlociApplicationRole`.
 Implemented eighth lab:
 
 ```text
+Assume a role with an STS session policy
+```
+
+Steps:
+
+```bash
+aws iam create-role --role-name FlociStsSessionRole --assume-role-policy-document file://floci-sts-role-trust-policy.json
+aws iam put-role-policy --role-name FlociStsSessionRole --policy-name FlociStsListBuckets --policy-document file://floci-sts-list-buckets-policy.json
+aws sts assume-role --role-arn arn:aws:iam::000000000000:role/FlociStsSessionRole --role-session-name floci-session-policy-lab --policy file://session-policy.json
+```
+
+This lab teaches that STS `AssumeRole` combines the role trust policy, the role permissions policy, and optional session policies on the temporary credentials.
+
+Reset deletes `FlociStsListBuckets`, deletes `FlociStsSessionRole`, and clears the ephemeral session verification marker.
+
+Implemented ninth lab:
+
+```text
 Create an EC2 instance profile
 ```
 
@@ -769,6 +807,7 @@ The IAM lab collection now covers most practical core workflows supported by Flo
 - roles,
 - service trust policies,
 - inline role permissions,
+- STS AssumeRole with session policies,
 - EC2 instance profiles,
 - live resource verification,
 - dependency-aware cleanup.
@@ -779,7 +818,7 @@ The primary remaining certification-relevant scenario is policy simulation:
 aws iam simulate-principal-policy --policy-source-arn arn:aws:iam::000000000000:role/FlociApplicationRole --action-names s3:ListAllMyBuckets
 ```
 
-As of June 17, 2026, local Floci returns:
+As of July 5, 2026, local Floci still returns:
 
 ```text
 UnsupportedOperation: Operation SimulatePrincipalPolicy is not supported.
@@ -820,7 +859,7 @@ This sequence deliberately teaches the S3 data model before its management featu
 - CORS and notifications connect S3 to browser and event-driven architectures.
 - Multipart upload teaches the standard large-object workflow.
 
-Before implementing each lab, verify every command against local Floci. The initial capability probe on June 17, 2026 confirmed working support for:
+Before implementing each lab, verify every command against local Floci. The capability baseline for this sequence includes working support for:
 
 - object upload and download,
 - object copy,

@@ -11,13 +11,13 @@ A small Django UI for inspecting, testing, and learning against a local [Floci](
 - Clickable service cards for supported local services, with persisted home-page service filtering and a Tracked Resources view that shows only services with discovered resources
 - Service Matrix coverage page showing registry maturity, API paths, shared console status, action counts, tags, and linked service pages
 - Labs directory at `/labs/` showing every service with active workflow labs, current lab counts, runnable step counts, and direct links
-- Local AWS workflow labs for IAM, S3, SQS, SNS, EventBridge Scheduler, CloudFormation, and EC2 networking, with exact AWS CLI commands, approved one-click execution, live-state verification, reset actions, and breadcrumb navigation back to the service or homepage
+- Local AWS workflow labs for IAM, S3, SQS, SNS, EventBridge Scheduler, CloudFormation, and EC2 networking, with exact AWS CLI commands, approved one-click execution, live-state verification, reset actions, next-batch recommendations after a service batch is complete, and breadcrumb navigation back to the service or homepage
 - Interactive workbenches for S3, IAM, EC2, SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, EventBridge, EventBridge Pipes, EventBridge Scheduler, API Gateway, AppSync, Kinesis, KMS, Secrets Manager, SSM Parameter Store, CloudFormation, Cognito, AWS Config, RDS, Auto Scaling, ELB v2, CloudFront, AWS Cloud Map, Route 53, ACM, ECS, ECR, EKS, ElastiCache, OpenSearch, Athena, Backup, Firehose, Glue, Kafka, Neptune, SES, Transfer Family, Textract, Transcribe, CodeDeploy, CodeBuild, Bedrock Runtime, AppConfig, and Resource Groups Tagging
-- Inventory pages for newer Floci services including EMR, WAF v2, AWS Batch, RDS Data API, Amazon DocumentDB, MemoryDB, CodePipeline, S3 Vectors, IoT Core, and Elastic Beanstalk
+- Inventory pages for newer Floci services including Amazon MQ, EMR, WAF v2, AWS Batch, RDS Data API, Amazon DocumentDB, MemoryDB, CodePipeline, S3 Vectors, IoT Core, and Elastic Beanstalk
 - Inventory pages for read-only or newly surfaced services such as CloudTrail
 - Detail pages for services such as Cost Explorer, Cost and Usage Reports, BCM Data Exports, Pricing, and more
-- Expanded inventory for EC2 VPC endpoints, EC2 Network ACLs, and SSM default patch baselines, plus KMS key enable/disable actions and richer S3 object metadata
-- Release-aware service notes refreshed through Floci 1.5.29, including AppSync VTL execution, IAM assumed-role routing, ECS conformance, Transcribe persistence, ELBv2 local DNS, and Step Functions aws-sdk integrations
+- Expanded inventory for EC2 VPC endpoints, EC2 Network ACLs, EC2 VPC Flow Logs, CloudFormation StackSets, SES v2 contact lists, and SSM default patch baselines, plus KMS key enable/disable actions and richer S3 object metadata
+- Release-aware service notes refreshed through Floci 1.5.30, including Amazon MQ, VPC Flow Logs, Step Functions state machine versions and ECS integrations, CloudFormation StackSets, IAM AssumeRole trust/session policy enforcement, Firehose UpdateDestination, SES v2 ContactList CRUD, and HTTPS-on-443 behavior
 - Loading state with the Floci cloud image while service data is fetched
 
 ## Local AWS Workflow Labs
@@ -35,9 +35,9 @@ IAM, S3, SQS, SNS, EventBridge Scheduler, CloudFormation, and EC2 service pages 
 /service/ec2/labs/
 ```
 
-Labs show the AWS CLI command shape without local endpoint plumbing. Each Run button invokes a registered boto3-backed action, displays the response, and independently verifies the result against live Floci state. Reset removes only the resources owned by that lab.
+Labs show the AWS CLI command shape without local endpoint plumbing. Each Run button invokes a registered boto3-backed action, displays the response, and independently verifies the result against live Floci state. Reset removes only the resources owned by that lab. When the final lab in a service batch is complete, the lab page recommends the next batch in the practical learning order: IAM, S3, SQS, SNS, EventBridge Scheduler, CloudFormation, then EC2 networking.
 
-The curriculum includes eight IAM labs, twelve S3 labs, nine SQS labs, two SNS labs, one EventBridge Scheduler lab, one CloudFormation lab, and four EC2 networking labs. It covers IAM users, policies, access keys, groups, roles, and instance profiles; S3 buckets, objects, prefixes, metadata, tags, versioning, presigned URLs, security, encryption, lifecycle retention, CORS, S3-to-SQS notifications, and multipart uploads; SQS queue inspection, message lifecycle, visibility timeout behavior, delayed delivery, batch operations, queue configuration, dead-letter queues, managed redrive, FIFO ordering, duplicate suppression, purge, and queue deletion; SNS-to-SQS fan-out, resource policies, raw delivery, and subscription filtering; scheduled SQS delivery through a scoped IAM execution role; infrastructure-as-code ownership of S3 and SQS resources; public/private VPC routing; stateful security-group traffic controls; private S3 connectivity through a gateway endpoint; and private SQS connectivity through an HTTPS-only interface endpoint with private DNS.
+The curriculum includes nine IAM labs, twelve S3 labs, nine SQS labs, two SNS labs, one EventBridge Scheduler lab, one CloudFormation lab, and four EC2 networking labs. It covers IAM users, policies, access keys, groups, roles, STS session policies, and instance profiles; S3 buckets, objects, prefixes, metadata, tags, versioning, presigned URLs, security, encryption, lifecycle retention, CORS, S3-to-SQS notifications, and multipart uploads; SQS queue inspection, message lifecycle, visibility timeout behavior, delayed delivery, batch operations, queue configuration, dead-letter queues, managed redrive, FIFO ordering, duplicate suppression, purge, and queue deletion; SNS-to-SQS fan-out, resource policies, raw delivery, and subscription filtering; scheduled SQS delivery through a scoped IAM execution role; infrastructure-as-code ownership of S3 and SQS resources; public/private VPC routing; stateful security-group traffic controls; private S3 connectivity through a gateway endpoint; and private SQS connectivity through an HTTPS-only interface endpoint with private DNS.
 
 Lab definitions and implementation notes live in [`buildinglabs.md`](./buildinglabs.md).
 
@@ -82,7 +82,8 @@ services:
     environment:
       # --- IAM ENFORCEMENT ENGINE ---
       # Evaluates inbound requests against identity policies, session policies,
-      # and permission boundaries. Enforces Explicit Deny > Explicit Allow > Implicit Deny.
+      # permission boundaries, and opt-in AssumeRole trust policy enforcement.
+      # Enforces Explicit Deny > Explicit Allow > Implicit Deny.
       - FLOCI_SERVICES_IAM_ENFORCEMENT_ENABLED=true
       - FLOCI_AUTH_VALIDATE_SIGNATURES=true
 
@@ -339,12 +340,14 @@ http://127.0.0.1:8000/service/bedrockruntime/
 http://127.0.0.1:8000/service/appconfig/
 http://127.0.0.1:8000/service/appsync/
 http://127.0.0.1:8000/service/resourcegroupstagging/
+http://127.0.0.1:8000/service/amazonmq/
 http://127.0.0.1:8000/service/docdb/
 http://127.0.0.1:8000/service/memorydb/
 http://127.0.0.1:8000/service/codepipeline/
 http://127.0.0.1:8000/service/s3vectors/
 http://127.0.0.1:8000/service/iot/
 http://127.0.0.1:8000/service/elasticbeanstalk/
+http://127.0.0.1:8000/service/cloudtrail/
 http://127.0.0.1:8000/service/iam/labs/
 http://127.0.0.1:8000/service/s3/labs/
 http://127.0.0.1:8000/service/sqs/labs/

@@ -6,7 +6,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 
 from .actions import handle_action_error, parse_json_body
-from .firehose_api import create_delivery_stream, delete_delivery_stream, put_record, put_record_batch
+from .firehose_api import create_delivery_stream, delete_delivery_stream, put_record, put_record_batch, update_destination
 
 
 @require_http_methods(['POST'])
@@ -27,6 +27,20 @@ def firehose_delivery_stream_detail(request, stream_name: str):
         return JsonResponse(delete_delivery_stream(stream_name))
     except Exception as exc:
         return handle_action_error(exc, service='firehose', operation='delete_delivery_stream')
+
+
+@require_http_methods(['PUT'])
+def firehose_delivery_stream_destination(request, stream_name: str, destination_id: str):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(update_destination(
+            stream_name,
+            body.get('current_version_id') or '',
+            destination_id,
+            body.get('destination_update') or {},
+        ))
+    except Exception as exc:
+        return handle_action_error(exc, service='firehose', operation='update_destination')
 
 
 @require_http_methods(['POST'])

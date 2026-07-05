@@ -123,6 +123,27 @@ button:hover {
   gap: 10px;
 }
 
+.primary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 0 14px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.primary-action:hover {
+  border-color: var(--accent-strong);
+  background: var(--accent-strong);
+  color: #fff;
+}
+
 .secondary-action {
   display: inline-flex;
   align-items: center;
@@ -313,6 +334,49 @@ button:hover {
   padding: 18px;
 }
 
+.lab-next-batch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  border-radius: 8px;
+  padding: 14px;
+  background: #f7f8fb;
+}
+
+.lab-next-batch h2 {
+  font-size: 1rem;
+}
+
+.lab-next-batch p {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.lab-next-note {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  margin-top: 10px;
+  border: 1px solid rgba(36, 161, 72, 0.28);
+  border-radius: 999px;
+  padding: 0 10px;
+  background: #e8f7ee;
+  color: #236d3c;
+  font-size: 0.78rem;
+  font-weight: 820;
+}
+
+.lab-next-batch-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .labs-heading {
   align-items: center;
 }
@@ -432,6 +496,11 @@ button:hover {
 }
 
 @media (max-width: 760px) {
+  .lab-next-batch {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .labs-shell {
     grid-template-columns: 1fr;
   }
@@ -445,6 +514,11 @@ button:hover {
   .labs-actions {
     width: 100%;
     justify-content: space-between;
+  }
+
+  .lab-next-batch-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 }
 

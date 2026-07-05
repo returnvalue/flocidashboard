@@ -100,3 +100,33 @@ class FirehoseActionsApiTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['record_count'], 2)
         batch_mock.assert_called_once_with('orders', records)
+
+    @patch('dashboard.firehose_views.update_destination')
+    def test_update_destination_success(self, update_mock):
+        update_mock.return_value = {'stream_name': 'orders', 'destination_id': 'destinationId-000000000001'}
+        destination_update = {
+            'ExtendedS3DestinationUpdate': {
+                'Prefix': 'events/',
+            },
+        }
+
+        response = self.client.put(
+            reverse('dashboard:firehose-delivery-stream-destination', kwargs={
+                'stream_name': 'orders',
+                'destination_id': 'destinationId-000000000001',
+            }),
+            data=json.dumps({
+                'current_version_id': '1',
+                'destination_update': destination_update,
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['destination_id'], 'destinationId-000000000001')
+        update_mock.assert_called_once_with(
+            'orders',
+            '1',
+            'destinationId-000000000001',
+            destination_update,
+        )

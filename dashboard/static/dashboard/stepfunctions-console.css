@@ -56,6 +56,15 @@
   cursor: not-allowed;
 }
 
+.stepfunctions-btn-secondary {
+  background: #fff;
+  color: var(--accent);
+}
+
+.stepfunctions-btn-secondary:hover {
+  background: #f0f4fc;
+}
+
 .stepfunctions-btn-danger {
   background: #a93d3d;
   color: #fff;

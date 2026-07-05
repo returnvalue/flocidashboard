@@ -25,6 +25,7 @@ class LabsPageTests(SimpleTestCase):
         self.assertContains(response, 'aria-current="page">Labs</span>')
         self.assertContains(response, 'Create an IAM user')
         self.assertContains(response, 'aws iam create-user --user-name Alice')
+        self.assertNotContains(response, 'Next recommended batch')
         self.assertContains(response, 'id="lab-reset"')
         self.assertContains(response, '>Not started</span>')
         self.assertNotContains(response, 'Floci health')
@@ -125,6 +126,23 @@ class LabsPageTests(SimpleTestCase):
         self.assertContains(response, 'lambda.amazonaws.com')
 
     @patch('dashboard.views.lab_status')
+    def test_iam_labs_page_renders_sts_session_policy_lab_when_selected(self, status_mock):
+        status_mock.return_value = {'complete': False, 'steps': {}}
+
+        response = self.client.get(
+            reverse('dashboard:service-labs', kwargs={'service_key': 'iam'}),
+            {'lab': 'sts-session-policy'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Assume a role with an STS session policy')
+        self.assertContains(response, 'aws iam create-role --role-name FlociStsSessionRole')
+        self.assertContains(response, 'aws iam put-role-policy --role-name FlociStsSessionRole --policy-name FlociStsListBuckets')
+        self.assertContains(response, 'aws sts assume-role --role-arn arn:aws:iam::000000000000:role/FlociStsSessionRole')
+        self.assertContains(response, 'session-policy.json')
+        self.assertContains(response, 'arn:aws:iam::000000000000:root')
+
+    @patch('dashboard.views.lab_status')
     def test_iam_labs_page_renders_instance_profile_lab_when_selected(self, status_mock):
         status_mock.return_value = {'complete': False, 'steps': {}}
 
@@ -168,6 +186,45 @@ class LabsPageTests(SimpleTestCase):
         self.assertContains(response, 'Identity and access management')
         self.assertContains(response, f'href="{reverse("dashboard:service-labs", kwargs={"service_key": "iam"})}"')
         self.assertContains(response, '>Labs</a>')
+
+    @patch('dashboard.views.lab_status')
+    def test_completed_final_lab_recommends_next_batch(self, status_mock):
+        status_mock.return_value = {
+            'complete': True,
+            'steps': {
+                'create-role': {
+                    'verified': True,
+                    'verification': {'message': 'Role exists.'},
+                },
+                'create-instance-profile': {
+                    'verified': True,
+                    'verification': {'message': 'Profile exists.'},
+                },
+                'add-role-to-instance-profile': {
+                    'verified': True,
+                    'verification': {'message': 'Role added.'},
+                },
+                'get-instance-profile': {
+                    'verified': True,
+                    'verification': {'message': 'Profile inspected.'},
+                },
+                'list-instance-profiles-for-role': {
+                    'verified': True,
+                    'verification': {'message': 'Profile listed.'},
+                },
+            },
+        }
+
+        response = self.client.get(
+            reverse('dashboard:service-labs', kwargs={'service_key': 'iam'}),
+            {'lab': 'ec2-instance-profile'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Next recommended batch')
+        self.assertContains(response, 'S3 labs')
+        self.assertContains(response, 'Open S3 labs')
+        self.assertContains(response, 'href="/service/s3/labs/?lab=create-bucket"')
 
     @patch('dashboard.views.lab_status')
     def test_s3_labs_page_renders_create_bucket_lab(self, status_mock):
@@ -840,8 +897,10 @@ class LabsRunnerTests(SimpleTestCase):
         self.assertEqual(len(labs[5]['steps']), 4)
         self.assertEqual(labs[6]['key'], 'role-trust-policy')
         self.assertEqual(len(labs[6]['steps']), 4)
-        self.assertEqual(labs[7]['key'], 'ec2-instance-profile')
-        self.assertEqual(len(labs[7]['steps']), 5)
+        self.assertEqual(labs[7]['key'], 'sts-session-policy')
+        self.assertEqual(len(labs[7]['steps']), 3)
+        self.assertEqual(labs[8]['key'], 'ec2-instance-profile')
+        self.assertEqual(len(labs[8]['steps']), 5)
 
     def test_s3_lab_registry_includes_create_bucket_workflow(self):
         labs = labs_for_service('s3')
@@ -1754,6 +1813,122 @@ class LabsRunnerTests(SimpleTestCase):
             PolicyName='FlociApplicationListBuckets',
         )
         iam.delete_role.assert_called_once_with(RoleName='FlociApplicationRole')
+        self.assertTrue(result['deleted_policy'])
+        self.assertTrue(result['deleted_role'])
+
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_sts_session_policy_lab_creates_account_trusted_role(self, factory_mock):
+        iam = MagicMock()
+        role = {
+            'RoleName': 'FlociStsSessionRole',
+            'AssumeRolePolicyDocument': {
+                'Statement': [{
+                    'Effect': 'Allow',
+                    'Principal': {'AWS': 'arn:aws:iam::000000000000:root'},
+                    'Action': 'sts:AssumeRole',
+                }],
+            },
+        }
+        iam.create_role.return_value = {'Role': role}
+        iam.get_role.return_value = {'Role': role}
+        factory_mock.return_value.client.return_value = iam
+
+        result = run_lab_step('iam', 'sts-session-policy', 'create-role')
+
+        iam.create_role.assert_called_once()
+        kwargs = iam.create_role.call_args.kwargs
+        self.assertEqual(kwargs['RoleName'], 'FlociStsSessionRole')
+        self.assertIn('arn:aws:iam::000000000000:root', kwargs['AssumeRolePolicyDocument'])
+        self.assertTrue(result['verified'])
+
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_sts_session_policy_lab_puts_role_permissions_policy(self, factory_mock):
+        iam = MagicMock()
+        iam.get_role_policy.return_value = {
+            'RoleName': 'FlociStsSessionRole',
+            'PolicyName': 'FlociStsListBuckets',
+            'PolicyDocument': {'Statement': [{'Action': 's3:ListAllMyBuckets'}]},
+        }
+        factory_mock.return_value.client.return_value = iam
+
+        result = run_lab_step('iam', 'sts-session-policy', 'put-role-policy')
+
+        iam.put_role_policy.assert_called_once()
+        kwargs = iam.put_role_policy.call_args.kwargs
+        self.assertEqual(kwargs['RoleName'], 'FlociStsSessionRole')
+        self.assertEqual(kwargs['PolicyName'], 'FlociStsListBuckets')
+        self.assertIn('s3:ListAllMyBuckets', kwargs['PolicyDocument'])
+        self.assertTrue(result['verified'])
+
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_sts_session_policy_lab_assumes_role_with_session_policy(self, factory_mock):
+        sts = MagicMock()
+        sts.assume_role.return_value = {
+            'Credentials': {
+                'AccessKeyId': 'ASIASESSION',
+                'SecretAccessKey': 'secret',
+                'SessionToken': 'token',
+            },
+            'AssumedRoleUser': {'Arn': 'arn:aws:sts::000000000000:assumed-role/FlociStsSessionRole/floci-session-policy-lab'},
+        }
+        factory_mock.return_value.client.return_value = sts
+        cache.delete('floci-lab:iam:sts-session-policy:assumed')
+
+        result = run_lab_step('iam', 'sts-session-policy', 'assume-role')
+
+        sts.assume_role.assert_called_once()
+        kwargs = sts.assume_role.call_args.kwargs
+        self.assertEqual(kwargs['RoleArn'], 'arn:aws:iam::000000000000:role/FlociStsSessionRole')
+        self.assertEqual(kwargs['RoleSessionName'], 'floci-session-policy-lab')
+        self.assertIn('s3:ListAllMyBuckets', kwargs['Policy'])
+        self.assertTrue(result['verified'])
+        self.assertEqual(cache.get('floci-lab:iam:sts-session-policy:assumed')['access_key_id'], 'ASIASESSION')
+
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_sts_session_policy_lab_status_marks_steps_complete(self, factory_mock):
+        iam = MagicMock()
+        iam.get_role.return_value = {
+            'Role': {
+                'RoleName': 'FlociStsSessionRole',
+                'AssumeRolePolicyDocument': {
+                    'Statement': [{
+                        'Effect': 'Allow',
+                        'Principal': {'AWS': 'arn:aws:iam::000000000000:root'},
+                        'Action': 'sts:AssumeRole',
+                    }],
+                },
+            },
+        }
+        iam.get_role_policy.return_value = {
+            'RoleName': 'FlociStsSessionRole',
+            'PolicyName': 'FlociStsListBuckets',
+        }
+        factory_mock.return_value.client.return_value = iam
+        cache.set('floci-lab:iam:sts-session-policy:assumed', {'access_key_id': 'ASIASESSION'}, timeout=3600)
+
+        from .labs import lab_status
+
+        status = lab_status('iam', 'sts-session-policy')
+
+        self.assertTrue(status['complete'])
+        self.assertTrue(status['steps']['create-role']['verified'])
+        self.assertTrue(status['steps']['put-role-policy']['verified'])
+        self.assertTrue(status['steps']['assume-role']['verified'])
+
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_sts_session_policy_lab_reset_deletes_policy_role_and_session_marker(self, factory_mock):
+        iam = MagicMock()
+        factory_mock.return_value.client.return_value = iam
+        cache.set('floci-lab:iam:sts-session-policy:assumed', {'access_key_id': 'ASIASESSION'}, timeout=3600)
+
+        result = reset_lab('iam', 'sts-session-policy')
+
+        iam.delete_role_policy.assert_called_once_with(
+            RoleName='FlociStsSessionRole',
+            PolicyName='FlociStsListBuckets',
+        )
+        iam.delete_role.assert_called_once_with(RoleName='FlociStsSessionRole')
+        self.assertIsNone(cache.get('floci-lab:iam:sts-session-policy:assumed'))
         self.assertTrue(result['deleted_policy'])
         self.assertTrue(result['deleted_role'])
 

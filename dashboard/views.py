@@ -7,10 +7,11 @@ from botocore.parsers import ResponseParserError
 from django.conf import settings
 from django.http import Http404, JsonResponse
 from django.shortcuts import render
+from django.urls import reverse
 from django.views.decorators.cache import cache_control
 from django.views.decorators.http import require_POST
-from .aws import FlociClientFactory, acm_inventory, apigateway_inventory, appconfig_inventory, appsync_inventory, athena_inventory, autoscaling_inventory, backup_inventory, batch_inventory, bcmdataexports_inventory, bedrockruntime_inventory, cloudformation_inventory, cloudfront_inventory, cloudmap_inventory, cloudtrail_inventory, cloudwatch_inventory, codebuild_inventory, codepipeline_inventory, codedeploy_inventory, config_inventory, cognito_inventory, costexplorer_inventory, cur_inventory, docdb_inventory, dynamodb_inventory, ec2_inventory, ecr_inventory, ecs_inventory, eks_inventory, elasticache_inventory, elasticbeanstalk_inventory, elasticloadbalancing_inventory, emr_inventory, eventbridge_inventory, firehose_inventory, glue_inventory, iam_inventory, iot_inventory, kafka_inventory, kinesis_inventory, kms_inventory, lambda_inventory, list_resources, memorydb_inventory, neptune_inventory, opensearch_inventory, pipes_inventory, pricing_inventory, rds_inventory, rdsdata_inventory, resourcegroupstagging_inventory, route53_inventory, s3_inventory, s3vectors_inventory, scheduler_inventory, secretsmanager_inventory, ses_inventory, sns_inventory, sqs_inventory, ssm_inventory, stepfunctions_inventory, textract_inventory, transcribe_inventory, transfer_inventory, wafv2_inventory
-from .labs import get_lab, lab_status, labs_for_service, reset_lab, run_lab_step
+from .aws import FlociClientFactory, acm_inventory, amazonmq_inventory, apigateway_inventory, appconfig_inventory, appsync_inventory, athena_inventory, autoscaling_inventory, backup_inventory, batch_inventory, bcmdataexports_inventory, bedrockruntime_inventory, cloudformation_inventory, cloudfront_inventory, cloudmap_inventory, cloudtrail_inventory, cloudwatch_inventory, codebuild_inventory, codepipeline_inventory, codedeploy_inventory, config_inventory, cognito_inventory, costexplorer_inventory, cur_inventory, docdb_inventory, dynamodb_inventory, ec2_inventory, ecr_inventory, ecs_inventory, eks_inventory, elasticache_inventory, elasticbeanstalk_inventory, elasticloadbalancing_inventory, emr_inventory, eventbridge_inventory, firehose_inventory, glue_inventory, iam_inventory, iot_inventory, kafka_inventory, kinesis_inventory, kms_inventory, lambda_inventory, list_resources, memorydb_inventory, neptune_inventory, opensearch_inventory, pipes_inventory, pricing_inventory, rds_inventory, rdsdata_inventory, resourcegroupstagging_inventory, route53_inventory, s3_inventory, s3vectors_inventory, scheduler_inventory, secretsmanager_inventory, ses_inventory, sns_inventory, sqs_inventory, ssm_inventory, stepfunctions_inventory, textract_inventory, transcribe_inventory, transfer_inventory, wafv2_inventory
+from .labs import get_lab, lab_status, labs_for_service, next_lab_batch, reset_lab, run_lab_step
 from .services import SERVICES, SERVICE_PAGES, get_service, services_payload
 
 
@@ -75,6 +76,7 @@ HOME_SERVICE_ORDER = (
     'kafka',
     'resourcegroupstagging',
     'appconfig',
+    'amazonmq',
     'scheduler',
     'pipes',
     'neptune',
@@ -107,6 +109,20 @@ def index(request):
 
 def environment(request):
     return render(request, 'dashboard/environment.html')
+
+
+def _next_batch_context(service_key, lab_key, complete):
+    if not complete:
+        return None
+    batch = next_lab_batch(service_key, lab_key)
+    if not batch:
+        return None
+    if batch.get('service') and batch.get('lab'):
+        batch = {
+            **batch,
+            'href': f'{reverse("dashboard:service-labs", kwargs={"service_key": batch["service"]})}?lab={batch["lab"]}',
+        }
+    return batch
 
 
 def labs_directory(request):
@@ -229,6 +245,11 @@ def service_labs(request, service_key: str):
         labs[0],
     )
     status = lab_status(service_key, active_lab['key'])
+    next_batch = _next_batch_context(
+        service_key,
+        active_lab['key'],
+        status.get('complete'),
+    )
     step_statuses = status.get('steps', {})
     active_lab = {
         **active_lab,
@@ -250,6 +271,7 @@ def service_labs(request, service_key: str):
             'active_lab': active_lab,
             'lab_status': status,
             'lab_complete': status.get('complete'),
+            'next_batch': next_batch,
         },
     )
 
@@ -468,6 +490,13 @@ def appconfig(request):
 def appsync(request):
     try:
         return JsonResponse(appsync_inventory())
+    except (BotoCoreError, ClientError, ValueError) as exc:
+        return JsonResponse({'error': str(exc)}, status=502)
+
+
+def amazonmq(request):
+    try:
+        return JsonResponse(amazonmq_inventory())
     except (BotoCoreError, ClientError, ValueError) as exc:
         return JsonResponse({'error': str(exc)}, status=502)
 

@@ -63,6 +63,36 @@ def start_execution(
     }
 
 
+def publish_state_machine_version(
+    state_machine_arn: str,
+    *,
+    revision_id: str | None = None,
+    description: str | None = None,
+) -> dict[str, Any]:
+    arn = validate_state_machine_arn(state_machine_arn)
+    payload: dict[str, Any] = {'stateMachineArn': arn}
+    if revision_id:
+        payload['revisionId'] = revision_id.strip()
+    if description:
+        payload['description'] = description.strip()
+
+    response = _stepfunctions_client().publish_state_machine_version(**payload)
+    return {
+        'state_machine_arn': arn,
+        'state_machine_version_arn': response.get('stateMachineVersionArn'),
+        'creation_date': response.get('creationDate'),
+    }
+
+
+def delete_state_machine_version(state_machine_version_arn: str) -> dict[str, Any]:
+    arn = validate_state_machine_arn(state_machine_version_arn)
+    response = _stepfunctions_client().delete_state_machine_version(stateMachineVersionArn=arn)
+    return {
+        'state_machine_version_arn': arn,
+        'response': response,
+    }
+
+
 def stop_execution(
     execution_arn: str,
     *,

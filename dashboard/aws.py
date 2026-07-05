@@ -226,6 +226,7 @@ def _resource_service_key(name: str) -> str:
         'apigateway-apis': 'apigateway',
         'appconfig-resources': 'appconfig',
         'appsync-resources': 'appsync',
+        'amazonmq-resources': 'amazonmq',
         'athena-resources': 'athena',
         'autoscaling-resources': 'autoscaling',
         'backup-resources': 'backup',
@@ -515,6 +516,7 @@ def iam_inventory() -> dict[str, Any]:
             for profile in instance_profiles
         ],
         'notes': [
+            'Floci 1.5.30 enforces AssumeRole trust policies when enforcement is enabled and evaluates STS session policies.',
             'Floci 1.5.29 routes assumed-role credentials to the target account and adds the AmazonRDSEnhancedMonitoringRole managed policy.',
             'Floci 1.5.28 makes IAM entity stores thread-safe under concurrent mutation and resolves AWS-managed policies from any account context.',
         ],
@@ -787,6 +789,82 @@ def bcmdataexports_inventory() -> dict[str, Any]:
         'notes': [
             'Floci 1.5.17 adds BCM Data Exports support under the bcm-data-exports service name.',
             'BCM exports round out the local cost-services flow alongside Pricing, Cost Explorer, and CUR.',
+        ],
+    }
+
+
+def amazonmq_inventory() -> dict[str, Any]:
+    factory = FlociClientFactory()
+    mq = factory.client('mq')
+    operations = set(mq.meta.service_model.operation_names)
+
+    brokers = _safe_value(
+        lambda: _operation_items(mq, 'list_brokers', 'BrokerSummaries'),
+        [],
+    ) if 'ListBrokers' in operations else []
+
+    def broker_detail(broker: dict[str, Any]) -> dict[str, Any]:
+        broker_id = broker.get('BrokerId')
+        details = _safe_value(
+            lambda: mq.describe_broker(BrokerId=broker_id),
+            {},
+        ) if broker_id and 'DescribeBroker' in operations else {}
+        users = _safe_value(
+            lambda: _operation_items(mq, 'list_users', 'Users', BrokerId=broker_id),
+            [],
+        ) if broker_id and 'ListUsers' in operations else []
+        configurations = _safe_value(
+            lambda: _operation_items(mq, 'list_configurations', 'Configurations'),
+            [],
+        ) if 'ListConfigurations' in operations else []
+
+        return {
+            'name': broker.get('BrokerName') or details.get('BrokerName') or broker_id,
+            'broker_id': broker_id,
+            'arn': broker.get('BrokerArn') or details.get('BrokerArn'),
+            'engine_type': broker.get('EngineType') or details.get('EngineType'),
+            'engine_version': broker.get('EngineVersion') or details.get('EngineVersion'),
+            'instance_type': broker.get('HostInstanceType') or details.get('HostInstanceType'),
+            'deployment_mode': broker.get('DeploymentMode') or details.get('DeploymentMode'),
+            'state': broker.get('BrokerState') or details.get('BrokerState'),
+            'created': broker.get('Created') or details.get('Created'),
+            'publicly_accessible': details.get('PubliclyAccessible'),
+            'endpoints': details.get('BrokerInstances') or details.get('Endpoints'),
+            'users': _clean_response(users),
+            'user_count': len(users),
+            'configurations': _clean_response(configurations),
+            'details': _clean_response(details),
+        }
+
+    detailed_brokers = [broker_detail(broker) for broker in brokers]
+
+    return {
+        'summary': {
+            'brokers': len(detailed_brokers),
+            'running_brokers': sum(1 for broker in detailed_brokers if broker.get('state') == 'RUNNING'),
+            'users': sum(broker.get('user_count') or 0 for broker in detailed_brokers),
+            'available_sdk_operations': len(operations),
+        },
+        'brokers': detailed_brokers,
+        'supported_from_sdk': [
+            operation
+            for operation in [
+                'CreateBroker',
+                'DescribeBroker',
+                'ListBrokers',
+                'DeleteBroker',
+                'CreateUser',
+                'ListUsers',
+                'DeleteUser',
+                'CreateConfiguration',
+                'ListConfigurations',
+            ]
+            if operation in operations
+        ],
+        'available_sdk_operations': sorted(operations),
+        'notes': [
+            'Floci 1.5.30 adds the Amazon MQ broker control plane backed by RabbitMQ.',
+            'The dashboard inspects brokers, users, and configurations when the local SDK model exposes those APIs.',
         ],
     }
 
@@ -1508,6 +1586,7 @@ def transcribe_inventory() -> dict[str, Any]:
 def ec2_inventory() -> dict[str, Any]:
     factory = FlociClientFactory()
     ec2 = factory.client('ec2')
+    operations = set(ec2.meta.service_model.operation_names)
 
     reservations = _clean_response(_safe_value(lambda: ec2.describe_instances().get('Reservations', []), []))
     instances = [
@@ -1560,6 +1639,10 @@ def ec2_inventory() -> dict[str, Any]:
     regions = _clean_response(_safe_value(lambda: ec2.describe_regions().get('Regions', []), []))
     account_attributes = _clean_response(_safe_value(lambda: ec2.describe_account_attributes().get('AccountAttributes', []), []))
     instance_types = _clean_response(_safe_value(lambda: ec2.describe_instance_types().get('InstanceTypes', []), []))
+    flow_logs = _clean_response(_safe_value(
+        lambda: _paginate(ec2, 'describe_flow_logs', 'FlowLogs'),
+        [],
+    )) if 'DescribeFlowLogs' in operations else []
 
     return {
         'summary': {
@@ -1574,6 +1657,7 @@ def ec2_inventory() -> dict[str, Any]:
             'elastic_ips': len(addresses),
             'key_pairs': len(key_pairs),
             'iam_instance_profile_associations': len(iam_instance_profile_associations),
+            'flow_logs': len(flow_logs),
         },
         'instances': instances,
         'vpcs': vpcs,
@@ -1593,6 +1677,18 @@ def ec2_inventory() -> dict[str, Any]:
         'regions': regions,
         'account_attributes': account_attributes,
         'instance_types': instance_types,
+        'flow_logs': flow_logs,
+        'supported_from_sdk': [
+            operation
+            for operation in [
+                'CreateFlowLogs',
+                'DescribeFlowLogs',
+                'DeleteFlowLogs',
+                'DescribeInstanceAttribute',
+                'DescribeSecurityGroupRules',
+            ]
+            if operation in operations
+        ],
         'default_resources': [
             {'type': 'Default VPC', 'id': 'vpc-default', 'details': 'CIDR 172.31.0.0/16'},
             {'type': 'Default Subnet', 'id': 'subnet-default-a', 'details': 'CIDR 172.31.0.0/20'},
@@ -1609,6 +1705,7 @@ def ec2_inventory() -> dict[str, Any]:
             'Use ImportKeyPair with a real public key for working SSH access.',
             'Floci serves IMDS-compatible metadata on the configured host IMDS port, default 9169.',
             'Security group rules are stored and returned but local Docker networking handles enforcement.',
+            'Floci 1.5.30 adds VPC Flow Logs and publishes security-group TCP ingress ports on the host.',
             'Floci 1.5.27 adds EC2 Network ACL support for VPC subnet traffic-control workflows.',
             'Floci 1.5.28 adds a Java-built Ubuntu AMI guest image, instance type metadata catalog, VPC endpoint compatibility improvements, and persisted default egress security group rules.',
             'Floci 1.5.26 adds Spot Instance request actions and embedded DNS support for instances.',
@@ -2673,15 +2770,21 @@ def cloudtrail_inventory() -> dict[str, Any]:
         }
 
     trails = [trail_detail(trail) for trail in trail_summaries]
+    lookup_events = _cloudtrail_optional(
+        lambda: _operation_items(cloudtrail, 'lookup_events', 'Events'),
+        {'InvalidLookupAttributesException'},
+    ) if 'LookupEvents' in operations else []
 
     return {
         'summary': {
             'trails': len(trails),
             'logging': sum(1 for trail in trails if (trail.get('status') or {}).get('IsLogging')),
             'multi_region_trails': sum(1 for trail in trails if trail.get('is_multi_region_trail')),
+            'lookup_events': len(lookup_events) if isinstance(lookup_events, list) else 0,
             'available_sdk_operations': len(operations),
         },
         'trails': trails,
+        'lookup_events': lookup_events,
         'supported_from_sdk': [
             operation
             for operation in [
@@ -2698,12 +2801,14 @@ def cloudtrail_inventory() -> dict[str, Any]:
                 'ListTags',
                 'AddTags',
                 'RemoveTags',
+                'LookupEvents',
             ]
             if operation in operations
         ],
         'available_sdk_operations': sorted(operations),
         'notes': [
             'Floci 1.5.24 adds CloudTrail trail lifecycle support for local audit-log workflows.',
+            'Floci 1.5.30 allows empty LookupEvents responses so observability pipelines can poll safely before events exist.',
             'This inventory page surfaces trail configuration, logging status, event selectors, and tags when the local SDK endpoint exposes them.',
         ],
     }
@@ -4987,6 +5092,7 @@ def elasticloadbalancing_inventory() -> dict[str, Any]:
 def firehose_inventory() -> dict[str, Any]:
     factory = FlociClientFactory()
     firehose = factory.client('firehose')
+    operations = set(firehose.meta.service_model.operation_names)
     stream_names = _safe_value(lambda: _paginate(firehose, 'list_delivery_streams', 'DeliveryStreamNames'), [])
 
     def stream_tags(name: str) -> list[dict[str, Any]]:
@@ -5055,21 +5161,33 @@ def firehose_inventory() -> dict[str, Any]:
             'active_streams': sum(1 for stream in streams if stream.get('status') == 'ACTIVE'),
             'destinations': len(destinations),
             'tagged_streams': sum(1 for stream in streams if stream.get('tags')),
+            'extended_s3_destinations': sum(
+                1 for destination in destinations
+                if destination.get('extended_s3_destination_description')
+            ),
+            'available_sdk_operations': len(operations),
         },
         'delivery_streams': streams,
         'destinations': destinations,
         'supported_from_sdk': [
-            'CreateDeliveryStream',
-            'DescribeDeliveryStream',
-            'ListDeliveryStreams',
-            'DeleteDeliveryStream',
-            'PutRecord',
-            'PutRecordBatch',
+            operation
+            for operation in [
+                'CreateDeliveryStream',
+                'DescribeDeliveryStream',
+                'ListDeliveryStreams',
+                'DeleteDeliveryStream',
+                'PutRecord',
+                'PutRecordBatch',
+                'UpdateDestination',
+            ]
+            if operation in operations
         ],
+        'available_sdk_operations': sorted(operations),
         'notes': [
             'Incoming records are buffered in memory and flushed to S3 after every 5 records for immediate local feedback.',
             'Floci writes flushed records as raw NDJSON to the floci-firehose-results bucket.',
             'Destinations are flattened from each delivery stream so delivery configuration can be scanned together.',
+            'Floci 1.5.30 returns ExtendedS3DestinationDescription and supports UpdateDestination.',
         ],
     }
 
@@ -7093,6 +7211,7 @@ def ses_inventory() -> dict[str, Any]:
     factory = FlociClientFactory()
     ses = factory.client('ses')
     sesv2 = factory.client('sesv2')
+    sesv2_operations = set(sesv2.meta.service_model.operation_names)
     identities = _safe_value(lambda: _paginate(ses, 'list_identities', 'Identities'), [])
     templates = _safe_value(lambda: _paginate(ses, 'list_templates', 'TemplatesMetadata'), [])
     verified_emails = _safe_value(lambda: ses.list_verified_email_addresses().get('VerifiedEmailAddresses', []), [])
@@ -7168,6 +7287,10 @@ def ses_inventory() -> dict[str, Any]:
         lambda: sesv2.list_configuration_sets().get('ConfigurationSets', []),
         {'NotFoundException', 'BadRequestException'},
     )
+    v2_contact_lists = _ses_optional(
+        lambda: _operation_items(sesv2, 'list_contact_lists', 'ContactLists'),
+        {'NotFoundException', 'BadRequestException'},
+    ) if 'ListContactLists' in sesv2_operations else []
 
     def configuration_set_name(configuration_set: Any) -> str | None:
         if isinstance(configuration_set, str):
@@ -7210,6 +7333,36 @@ def ses_inventory() -> dict[str, Any]:
                 'event_destination_count': len(event_destinations) if isinstance(event_destinations, list) else 0,
             })
 
+    detailed_v2_contact_lists: list[dict[str, Any]] | Any = v2_contact_lists
+    if isinstance(v2_contact_lists, list):
+        detailed_v2_contact_lists = []
+        for contact_list in v2_contact_lists:
+            name = contact_list.get('ContactListName')
+            details = _ses_optional(
+                lambda name=name: sesv2.get_contact_list(ContactListName=name),
+                {'NotFoundException', 'BadRequestException'},
+            ) if name and 'GetContactList' in sesv2_operations else None
+            contacts = _ses_optional(
+                lambda name=name: _operation_items(sesv2, 'list_contacts', 'Contacts', ContactListName=name),
+                {'NotFoundException', 'BadRequestException'},
+            ) if name and 'ListContacts' in sesv2_operations else []
+            detailed_v2_contact_lists.append({
+                'name': name,
+                'description': contact_list.get('Description') or (
+                    details.get('Description') if isinstance(details, dict) else None
+                ),
+                'created': contact_list.get('CreatedTimestamp') or (
+                    details.get('CreatedTimestamp') if isinstance(details, dict) else None
+                ),
+                'updated': contact_list.get('LastUpdatedTimestamp') or (
+                    details.get('LastUpdatedTimestamp') if isinstance(details, dict) else None
+                ),
+                'topics': details.get('Topics') if isinstance(details, dict) else None,
+                'contacts': contacts,
+                'contact_count': len(contacts) if isinstance(contacts, list) else 0,
+                'details': details,
+            })
+
     return {
         'summary': {
             'identities': len(detailed_identities),
@@ -7220,6 +7373,13 @@ def ses_inventory() -> dict[str, Any]:
             'v2_templates': len(v2_templates) if isinstance(v2_templates, list) else 0,
             'v2_configuration_sets': (
                 len(detailed_v2_configuration_sets) if isinstance(detailed_v2_configuration_sets, list) else 0
+            ),
+            'v2_contact_lists': (
+                len(detailed_v2_contact_lists) if isinstance(detailed_v2_contact_lists, list) else 0
+            ),
+            'v2_contacts': (
+                sum(item.get('contact_count') or 0 for item in detailed_v2_contact_lists)
+                if isinstance(detailed_v2_contact_lists, list) else 0
             ),
             'v2_event_destinations': (
                 sum(item.get('event_destination_count') or 0 for item in detailed_v2_configuration_sets)
@@ -7240,6 +7400,7 @@ def ses_inventory() -> dict[str, Any]:
         'v2_identities': v2_identities,
         'v2_templates': v2_templates,
         'v2_configuration_sets': detailed_v2_configuration_sets,
+        'v2_contact_lists': detailed_v2_contact_lists,
         'supported_v1': [
             'VerifyEmailIdentity',
             'VerifyEmailAddress',
@@ -7288,6 +7449,15 @@ def ses_inventory() -> dict[str, Any]:
             'GetConfigurationSetEventDestinations',
             'UpdateConfigurationSetEventDestination',
             'DeleteConfigurationSetEventDestination',
+            'CreateContactList',
+            'ListContactLists',
+            'GetContactList',
+            'DeleteContactList',
+            'CreateContact',
+            'ListContacts',
+            'GetContact',
+            'UpdateContact',
+            'DeleteContact',
         ],
         'inspection_endpoints': [
             'GET /_aws/ses',
@@ -7309,6 +7479,7 @@ def ses_inventory() -> dict[str, Any]:
         ],
         'notes': [
             'Identity verification succeeds immediately in Floci.',
+            'Floci 1.5.30 implements SES v2 ContactList CRUD.',
             'Emails are always stored locally and can be inspected through /_aws/ses.',
             'Floci 1.5.29 makes FromEmailAddress optional for SES v2 SendEmail.',
             'Floci 1.5.28 publishes SNS notifications to identity feedback topics and implements SES v1 PutConfigurationSetDeliveryOptions.',
@@ -7423,6 +7594,7 @@ def cloudfront_inventory() -> dict[str, Any]:
 def cloudformation_inventory() -> dict[str, Any]:
     factory = FlociClientFactory()
     cloudformation = factory.client('cloudformation')
+    operations = set(cloudformation.meta.service_model.operation_names)
     stack_summaries = _safe_value(lambda: _paginate(cloudformation, 'list_stacks', 'StackSummaries'), [])
 
     def stack_name(summary: dict[str, Any]) -> str:
@@ -7492,7 +7664,7 @@ def cloudformation_inventory() -> dict[str, Any]:
     stack_sets = _cloudformation_optional(
         lambda: _paginate(cloudformation, 'list_stack_sets', 'Summaries'),
         {'ValidationError'},
-    )
+    ) if 'ListStackSets' in operations else []
 
     detailed_stack_sets = []
     if isinstance(stack_sets, list):
@@ -7501,7 +7673,25 @@ def cloudformation_inventory() -> dict[str, Any]:
             details = _cloudformation_optional(
                 lambda name=name: cloudformation.describe_stack_set(StackSetName=name).get('StackSet', {}),
                 {'ValidationError'},
-            )
+            ) if 'DescribeStackSet' in operations else None
+            instances = _cloudformation_optional(
+                lambda name=name: _operation_items(
+                    cloudformation,
+                    'list_stack_instances',
+                    'Summaries',
+                    StackSetName=name,
+                ),
+                {'ValidationError'},
+            ) if 'ListStackInstances' in operations else []
+            stack_set_operations = _cloudformation_optional(
+                lambda name=name: _operation_items(
+                    cloudformation,
+                    'list_stack_set_operations',
+                    'Summaries',
+                    StackSetName=name,
+                ),
+                {'ValidationError'},
+            ) if 'ListStackSetOperations' in operations else []
             detailed_stack_sets.append({
                 'name': name,
                 'id': stack_set.get('StackSetId'),
@@ -7509,6 +7699,15 @@ def cloudformation_inventory() -> dict[str, Any]:
                 'description': stack_set.get('Description'),
                 'created': stack_set.get('CreationTime'),
                 'updated': stack_set.get('LastUpdatedTime'),
+                'permission_model': (
+                    details.get('PermissionModel')
+                    if isinstance(details, dict) and not details.get('error')
+                    else stack_set.get('PermissionModel')
+                ),
+                'instance_count': len(instances) if isinstance(instances, list) else 0,
+                'operation_count': len(stack_set_operations) if isinstance(stack_set_operations, list) else 0,
+                'instances': instances,
+                'operations': stack_set_operations,
                 'details': details,
             })
 
@@ -7520,6 +7719,8 @@ def cloudformation_inventory() -> dict[str, Any]:
             'events': sum(stack.get('event_count') or 0 for stack in detailed_stacks),
             'change_sets': sum(stack.get('change_set_count') or 0 for stack in detailed_stacks),
             'stack_sets': len(detailed_stack_sets),
+            'stack_set_instances': sum(stack_set.get('instance_count') or 0 for stack_set in detailed_stack_sets),
+            'stack_set_operations': sum(stack_set.get('operation_count') or 0 for stack_set in detailed_stack_sets),
         },
         'stacks': detailed_stacks,
         'stack_sets': detailed_stack_sets,
@@ -7545,11 +7746,18 @@ def cloudformation_inventory() -> dict[str, Any]:
             'ListStackSets',
             'DescribeStackSet',
             'CreateStackSet',
+            'UpdateStackSet',
+            'DeleteStackSet',
+            'CreateStackInstances',
+            'DeleteStackInstances',
+            'ListStackInstances',
+            'ListStackSetOperations',
         ],
         'protocol': 'Query XML',
         'notes': [
             'CloudFormation actions use the Query XML protocol at the Floci root endpoint.',
             'Stacks can expose templates, events, resources, outputs, stack policies, and change sets.',
+            'Floci 1.5.30 adds StackSets with account-aware provisioning for multi-account CloudFormation patterns.',
             'Floci 1.5.26 provisions EC2 instances, RDS resources, EKS clusters and node groups, CloudWatch Logs log groups, CloudWatch metric alarms, Auto Scaling groups and launch configurations, Kinesis streams, and Firehose delivery streams.',
             'Floci 1.5.26 also adds Fn::GetAZs and Fn::Cidr intrinsics and creates API Gateway stages from inline StageName on AWS::ApiGateway::Deployment.',
             'Floci 1.5.29 makes ECS resource deletion idempotent during CloudFormation stack delete.',
@@ -7981,6 +8189,7 @@ def _stepfunctions_optional(loader: Callable[[], Any], empty_codes: set[str]) ->
 def stepfunctions_inventory() -> dict[str, Any]:
     factory = FlociClientFactory()
     stepfunctions = factory.client('stepfunctions')
+    operations = set(stepfunctions.meta.service_model.operation_names)
     state_machines = _safe_value(lambda: _paginate(stepfunctions, 'list_state_machines', 'stateMachines'), [])
 
     def execution_detail(execution: dict[str, Any]) -> dict[str, Any]:
@@ -8020,11 +8229,23 @@ def stepfunctions_inventory() -> dict[str, Any]:
             lambda: _paginate(stepfunctions, 'list_executions', 'executions', stateMachineArn=arn),
             {'StateMachineDoesNotExist'},
         )
+        versions = _stepfunctions_optional(
+            lambda: _operation_items(stepfunctions, 'list_state_machine_versions', 'stateMachineVersions', stateMachineArn=arn),
+            {'StateMachineDoesNotExist'},
+        ) if 'ListStateMachineVersions' in operations else []
         described = details if isinstance(details, dict) and not details.get('error') else {}
         execution_details = [
             execution_detail(execution)
             for execution in executions
         ] if isinstance(executions, list) else []
+        version_details = [
+            {
+                'arn': version.get('stateMachineVersionArn'),
+                'revision_id': version.get('revisionId'),
+                'creation_date': version.get('creationDate'),
+            }
+            for version in versions
+        ] if isinstance(versions, list) else []
 
         return {
             'name': machine.get('name') or described.get('name') or arn,
@@ -8036,6 +8257,10 @@ def stepfunctions_inventory() -> dict[str, Any]:
             'definition': described.get('definition'),
             'logging_configuration': described.get('loggingConfiguration'),
             'tracing_configuration': described.get('tracingConfiguration'),
+            'revision_id': described.get('revisionId'),
+            'label': described.get('label'),
+            'versions': version_details,
+            'version_count': len(version_details),
             'executions': execution_details,
             'execution_count': len(execution_details),
             'running_executions': sum(1 for execution in execution_details if execution.get('status') == 'RUNNING'),
@@ -8050,6 +8275,7 @@ def stepfunctions_inventory() -> dict[str, Any]:
         'summary': {
             'state_machines': len(detailed_state_machines),
             'executions': sum(machine.get('execution_count') or 0 for machine in detailed_state_machines),
+            'versions': sum(machine.get('version_count') or 0 for machine in detailed_state_machines),
             'running': sum(machine.get('running_executions') or 0 for machine in detailed_state_machines),
             'succeeded': sum(machine.get('succeeded_executions') or 0 for machine in detailed_state_machines),
             'failed': sum(machine.get('failed_executions') or 0 for machine in detailed_state_machines),
@@ -8065,6 +8291,9 @@ def stepfunctions_inventory() -> dict[str, Any]:
             'ListExecutions',
             'StopExecution',
             'GetExecutionHistory',
+            'PublishStateMachineVersion',
+            'ListStateMachineVersions',
+            'DeleteStateMachineVersion',
             'SendTaskSuccess',
             'SendTaskFailure',
             'SendTaskHeartbeat',
@@ -8072,6 +8301,7 @@ def stepfunctions_inventory() -> dict[str, Any]:
         'protocol': 'JSON 1.1',
         'notes': [
             'Floci exposes Step Functions through the AmazonStatesService JSON 1.1 target.',
+            'Floci 1.5.30 adds state machine version APIs, ECS runTask integration, ResultSelector, ResultPath wildcard projection, ArrayContains, and account-aware execution routing.',
             'Floci 1.5.29 adds aws-sdk integrations for CloudFormation, EC2, and S3 PutObject.',
             'Floci 1.5.28 returns no execution data through the SDK where AWS omits it.',
             'Execution histories are previewed with a small event limit on the dashboard.',

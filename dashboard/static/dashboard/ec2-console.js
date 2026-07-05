@@ -105,6 +105,7 @@ const EC2Console = (() => {
         vpc_endpoints: 'VPC endpoints',
         elastic_ips: 'Elastic IPs',
         key_pairs: 'Key pairs',
+        flow_logs: 'Flow logs',
       },
     });
   }

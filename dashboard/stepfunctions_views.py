@@ -6,7 +6,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 
 from .actions import handle_action_error, parse_json_body
-from .stepfunctions_api import start_execution, stop_execution
+from .stepfunctions_api import delete_state_machine_version, publish_state_machine_version, start_execution, stop_execution
 
 
 @require_http_methods(['POST'])
@@ -21,6 +21,28 @@ def stepfunctions_executions_start(request):
         ))
     except Exception as exc:
         return handle_action_error(exc, service='stepfunctions', operation='start_execution')
+
+
+@require_http_methods(['POST'])
+def stepfunctions_state_machine_versions_publish(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(publish_state_machine_version(
+            body.get('state_machine_arn', ''),
+            revision_id=body.get('revision_id') or None,
+            description=body.get('description') or None,
+        ))
+    except Exception as exc:
+        return handle_action_error(exc, service='stepfunctions', operation='publish_state_machine_version')
+
+
+@require_http_methods(['DELETE'])
+def stepfunctions_state_machine_version_delete(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(delete_state_machine_version(body.get('state_machine_version_arn', '')))
+    except Exception as exc:
+        return handle_action_error(exc, service='stepfunctions', operation='delete_state_machine_version')
 
 
 @require_http_methods(['POST'])

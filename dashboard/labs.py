@@ -25,6 +25,9 @@ FLOCI_DEVELOPERS_POLICY_NAME = 'FlociDevelopersListBucketsPolicy'
 FLOCI_DEVELOPERS_POLICY_ARN = f'arn:aws:iam::{AWS_ACCOUNT_ID}:policy/{FLOCI_DEVELOPERS_POLICY_NAME}'
 FLOCI_APPLICATION_ROLE_NAME = 'FlociApplicationRole'
 FLOCI_APPLICATION_ROLE_POLICY_NAME = 'FlociApplicationListBuckets'
+FLOCI_STS_SESSION_ROLE_NAME = 'FlociStsSessionRole'
+FLOCI_STS_SESSION_NAME = 'floci-session-policy-lab'
+FLOCI_STS_ROLE_POLICY_NAME = 'FlociStsListBuckets'
 FLOCI_EC2_ROLE_NAME = 'FlociEc2Role'
 FLOCI_EC2_INSTANCE_PROFILE_NAME = 'FlociEc2InstanceProfile'
 S3_BASICS_BUCKET_NAME = 'floci-lab-basics'
@@ -613,6 +616,27 @@ FLOCI_APPLICATION_TRUST_POLICY = {
         },
     ],
 }
+FLOCI_STS_TRUST_POLICY = {
+    'Version': '2012-10-17',
+    'Statement': [
+        {
+            'Effect': 'Allow',
+            'Principal': {'AWS': f'arn:aws:iam::{AWS_ACCOUNT_ID}:root'},
+            'Action': 'sts:AssumeRole',
+        },
+    ],
+}
+FLOCI_STS_SESSION_POLICY = {
+    'Version': '2012-10-17',
+    'Statement': [
+        {
+            'Effect': 'Allow',
+            'Action': 's3:ListAllMyBuckets',
+            'Resource': '*',
+        },
+    ],
+}
+FLOCI_STS_ASSUME_CACHE_KEY = 'floci-lab:iam:sts-session-policy:assumed'
 FLOCI_EC2_TRUST_POLICY = {
     'Version': '2012-10-17',
     'Statement': [
@@ -849,6 +873,39 @@ IAM_ROLE_TRUST_LAB = {
             'title': 'Inspect the role permissions',
             'command': f'aws iam get-role-policy --role-name {FLOCI_APPLICATION_ROLE_NAME} --policy-name {FLOCI_APPLICATION_ROLE_POLICY_NAME}',
             'explanation': 'Retrieves the inline permissions policy so it can be compared with the role trust policy.',
+        },
+    ],
+}
+
+IAM_STS_SESSION_POLICY_LAB = {
+    'service': 'iam',
+    'key': 'sts-session-policy',
+    'title': 'Assume a role with an STS session policy',
+    'description': 'Create a trusted role, attach base permissions, then assume it with an inline session policy so STS policy enforcement can be exercised locally.',
+    'steps': [
+        {
+            'key': 'create-role',
+            'title': 'Create the STS test role',
+            'command': f'aws iam create-role --role-name {FLOCI_STS_SESSION_ROLE_NAME} --assume-role-policy-document file://floci-sts-role-trust-policy.json',
+            'explanation': 'Creates a role whose trust policy allows the local account root principal to call sts:AssumeRole.',
+            'artifact_label': 'floci-sts-role-trust-policy.json',
+            'artifact': json.dumps(FLOCI_STS_TRUST_POLICY, indent=2),
+        },
+        {
+            'key': 'put-role-policy',
+            'title': 'Add base role permissions',
+            'command': f'aws iam put-role-policy --role-name {FLOCI_STS_SESSION_ROLE_NAME} --policy-name {FLOCI_STS_ROLE_POLICY_NAME} --policy-document file://floci-sts-list-buckets-policy.json',
+            'explanation': 'Adds the role identity policy that the session policy can further constrain.',
+            'artifact_label': 'floci-sts-list-buckets-policy.json',
+            'artifact': json.dumps(ALICE_LIST_BUCKETS_POLICY, indent=2),
+        },
+        {
+            'key': 'assume-role',
+            'title': 'Assume the role with a session policy',
+            'command': f'aws sts assume-role --role-arn arn:aws:iam::{AWS_ACCOUNT_ID}:role/{FLOCI_STS_SESSION_ROLE_NAME} --role-session-name {FLOCI_STS_SESSION_NAME} --policy file://session-policy.json',
+            'explanation': 'Requests temporary credentials with an inline STS session policy, exercising the session-policy enforcement path added in Floci 1.5.30.',
+            'artifact_label': 'session-policy.json',
+            'artifact': json.dumps(FLOCI_STS_SESSION_POLICY, indent=2),
         },
     ],
 }
@@ -2507,6 +2564,7 @@ def labs_for_service(service_key: str) -> list[dict[str, Any]]:
             IAM_GROUP_POLICY_LAB,
             IAM_INLINE_POLICY_LAB,
             IAM_ROLE_TRUST_LAB,
+            IAM_STS_SESSION_POLICY_LAB,
             IAM_INSTANCE_PROFILE_LAB,
         ]
     if service_key == 's3':
@@ -2552,6 +2610,85 @@ def labs_for_service(service_key: str) -> list[dict[str, Any]]:
     return []
 
 
+LAB_BATCH_ORDER = [
+    {
+        'service': 'iam',
+        'title': 'IAM labs',
+        'summary': 'Continue into storage after the identity foundation: users, policies, groups, roles, STS, and instance profiles.',
+    },
+    {
+        'service': 's3',
+        'title': 'S3 labs',
+        'summary': 'Continue into queueing after storage: buckets, objects, versioning, policies, encryption, lifecycle, notifications, and multipart uploads.',
+    },
+    {
+        'service': 'sqs',
+        'title': 'SQS labs',
+        'summary': 'Continue into pub/sub after queueing: message lifecycle, visibility, delays, batches, DLQs, FIFO, purge, and deletion.',
+    },
+    {
+        'service': 'sns',
+        'title': 'SNS labs',
+        'summary': 'Continue into scheduled delivery after pub/sub fan-out and message filtering.',
+    },
+    {
+        'service': 'scheduler',
+        'title': 'EventBridge Scheduler lab',
+        'summary': 'Continue into infrastructure as code after scheduled SQS delivery through a scoped IAM role.',
+    },
+    {
+        'service': 'cloudformation',
+        'title': 'CloudFormation lab',
+        'summary': 'Continue into networking after stack validation, provisioning, outputs, events, and dependency-aware teardown.',
+    },
+    {
+        'service': 'ec2',
+        'title': 'EC2 networking labs',
+        'summary': 'This completes the current foundational lab sequence. The next best build area is the serverless application spine.',
+    },
+]
+
+
+NEXT_BUILD_RECOMMENDATIONS = [
+    'Lambda create, invoke, and inspect CloudWatch logs',
+    'API Gateway to Lambda request workflow',
+    'DynamoDB table CRUD and query patterns',
+    'KMS key, alias, encrypt, and decrypt workflow',
+    'Secrets Manager or SSM Parameter Store app configuration',
+]
+
+
+def next_lab_batch(service_key: str, lab_key: str) -> dict[str, Any] | None:
+    labs = labs_for_service(service_key)
+    if not labs or labs[-1]['key'] != lab_key:
+        return None
+
+    batch_services = [batch['service'] for batch in LAB_BATCH_ORDER]
+    if service_key not in batch_services:
+        return None
+
+    batch_index = batch_services.index(service_key)
+    if batch_index + 1 >= len(LAB_BATCH_ORDER):
+        return {
+            'title': 'Serverless application spine',
+            'summary': 'Next best builds: Lambda invocation with CloudWatch logs, API Gateway to Lambda, DynamoDB CRUD and queries, KMS, and Secrets Manager or SSM Parameter Store.',
+            'service': None,
+            'lab': None,
+            'lab_title': None,
+        }
+
+    next_batch = LAB_BATCH_ORDER[batch_index + 1]
+    next_labs = labs_for_service(next_batch['service'])
+    if not next_labs:
+        return None
+    first_lab = next_labs[0]
+    return {
+        **next_batch,
+        'lab': first_lab['key'],
+        'lab_title': first_lab['title'],
+    }
+
+
 def get_lab(service_key: str, lab_key: str) -> dict[str, Any] | None:
     for lab in labs_for_service(service_key):
         if lab['key'] == lab_key:
@@ -2561,6 +2698,10 @@ def get_lab(service_key: str, lab_key: str) -> dict[str, Any] | None:
 
 def _iam_client():
     return FlociClientFactory().client('iam')
+
+
+def _sts_client():
+    return FlociClientFactory().client('sts')
 
 
 def _s3_client():
@@ -2861,6 +3002,70 @@ def _verify_application_role_policy() -> dict[str, Any]:
     return {
         'status': 'failed',
         'message': f'Inline policy {FLOCI_APPLICATION_ROLE_POLICY_NAME} was not returned.',
+    }
+
+
+def _verify_sts_session_role() -> dict[str, Any]:
+    try:
+        role = _iam_client().get_role(RoleName=FLOCI_STS_SESSION_ROLE_NAME).get('Role', {})
+    except ClientError as exc:
+        return {'status': 'failed', 'message': str(exc)}
+
+    trust_policy = role.get('AssumeRolePolicyDocument') or {}
+    statements = trust_policy.get('Statement', [])
+    trusted = any(
+        statement.get('Effect') == 'Allow'
+        and statement.get('Action') == 'sts:AssumeRole'
+        and statement.get('Principal', {}).get('AWS') == f'arn:aws:iam::{AWS_ACCOUNT_ID}:root'
+        for statement in statements
+    )
+    if role.get('RoleName') == FLOCI_STS_SESSION_ROLE_NAME and trusted:
+        return {
+            'status': 'passed',
+            'message': f'Role {FLOCI_STS_SESSION_ROLE_NAME} trusts the local account root principal.',
+            'resource': _clean_response(role),
+        }
+
+    return {
+        'status': 'failed',
+        'message': f'Role {FLOCI_STS_SESSION_ROLE_NAME} does not have the expected account-root trust policy.',
+    }
+
+
+def _verify_sts_session_role_policy() -> dict[str, Any]:
+    try:
+        response = _iam_client().get_role_policy(
+            RoleName=FLOCI_STS_SESSION_ROLE_NAME,
+            PolicyName=FLOCI_STS_ROLE_POLICY_NAME,
+        )
+    except ClientError as exc:
+        return {'status': 'failed', 'message': str(exc)}
+
+    if response.get('PolicyName') == FLOCI_STS_ROLE_POLICY_NAME:
+        return {
+            'status': 'passed',
+            'message': f'Inline policy {FLOCI_STS_ROLE_POLICY_NAME} is embedded in {FLOCI_STS_SESSION_ROLE_NAME}.',
+            'resource': _clean_response(response),
+        }
+
+    return {
+        'status': 'failed',
+        'message': f'Inline policy {FLOCI_STS_ROLE_POLICY_NAME} was not returned.',
+    }
+
+
+def _verify_sts_assumed_role_session() -> dict[str, Any]:
+    cached = cache.get(FLOCI_STS_ASSUME_CACHE_KEY)
+    if cached:
+        return {
+            'status': 'passed',
+            'message': 'STS returned temporary credentials for the role and inline session policy.',
+            'resource': cached,
+        }
+
+    return {
+        'status': 'failed',
+        'message': 'No successful STS AssumeRole session has been recorded for this lab run.',
     }
 
 
@@ -5898,6 +6103,15 @@ def run_lab_step(service_key: str, lab_key: str, step_key: str) -> dict[str, Any
         if step_key in runners:
             return runners[step_key]()
 
+    if service_key == 'iam' and lab_key == 'sts-session-policy':
+        runners = {
+            'create-role': _run_iam_create_sts_session_role,
+            'put-role-policy': _run_iam_put_sts_session_role_policy,
+            'assume-role': _run_sts_assume_session_policy_role,
+        }
+        if step_key in runners:
+            return runners[step_key]()
+
     if service_key == 'iam' and lab_key == 'ec2-instance-profile':
         runners = {
             'create-role': _run_iam_create_ec2_role,
@@ -6573,6 +6787,24 @@ def lab_status(service_key: str, lab_key: str) -> dict[str, Any]:
                 'get-role': {'verified': role_verified, 'verification': role_verification if role_verified else None},
                 'put-role-policy': {'verified': policy_verified, 'verification': policy_verification if policy_verified else None},
                 'get-role-policy': {'verified': policy_verified, 'verification': policy_verification if policy_verified else None},
+            },
+        }
+
+    if service_key == 'iam' and lab_key == 'sts-session-policy':
+        role_verification = _verify_sts_session_role()
+        policy_verification = _verify_sts_session_role_policy()
+        session_verification = _verify_sts_assumed_role_session()
+        role_verified = role_verification.get('status') == 'passed'
+        policy_verified = policy_verification.get('status') == 'passed'
+        session_verified = session_verification.get('status') == 'passed'
+        return {
+            'service': service_key,
+            'lab': lab_key,
+            'complete': role_verified and policy_verified and session_verified,
+            'steps': {
+                'create-role': {'verified': role_verified, 'verification': role_verification if role_verified else None},
+                'put-role-policy': {'verified': policy_verified, 'verification': policy_verification if policy_verified else None},
+                'assume-role': {'verified': session_verified, 'verification': session_verification if session_verified else None},
             },
         }
 
@@ -8301,6 +8533,9 @@ def reset_lab(service_key: str, lab_key: str) -> dict[str, Any]:
     if service_key == 'iam' and lab_key == 'role-trust-policy':
         return _reset_iam_role_trust_policy()
 
+    if service_key == 'iam' and lab_key == 'sts-session-policy':
+        return _reset_iam_sts_session_policy()
+
     if service_key == 'iam' and lab_key == 'ec2-instance-profile':
         return _reset_iam_ec2_instance_profile()
 
@@ -8895,6 +9130,122 @@ def _run_iam_get_application_role_policy() -> dict[str, Any]:
         'service': 'iam',
         'lab': 'role-trust-policy',
         'step': 'get-role-policy',
+        'command': command,
+        'exit_code': 0,
+        'stdout': _json_text(response),
+        'stderr': '',
+        'json': _clean_response(response),
+        'duration_ms': duration_ms,
+        'verified': verification.get('status') == 'passed',
+        'verification': verification,
+    }
+
+
+def _run_iam_create_sts_session_role() -> dict[str, Any]:
+    command = (
+        f'aws iam create-role --role-name {FLOCI_STS_SESSION_ROLE_NAME} '
+        '--assume-role-policy-document file://floci-sts-role-trust-policy.json'
+    )
+    started = time.perf_counter()
+    try:
+        response = _iam_client().create_role(
+            RoleName=FLOCI_STS_SESSION_ROLE_NAME,
+            AssumeRolePolicyDocument=json.dumps(FLOCI_STS_TRUST_POLICY),
+        )
+    except ClientError as exc:
+        if _error_code(exc) != 'EntityAlreadyExists':
+            raise
+        response = _iam_client().get_role(RoleName=FLOCI_STS_SESSION_ROLE_NAME)
+    duration_ms = round((time.perf_counter() - started) * 1000)
+    verification = _verify_sts_session_role()
+
+    return {
+        'service': 'iam',
+        'lab': 'sts-session-policy',
+        'step': 'create-role',
+        'command': command,
+        'exit_code': 0,
+        'stdout': _json_text(response),
+        'stderr': '',
+        'json': _clean_response(response),
+        'duration_ms': duration_ms,
+        'verified': verification.get('status') == 'passed',
+        'verification': verification,
+    }
+
+
+def _run_iam_put_sts_session_role_policy() -> dict[str, Any]:
+    command = (
+        f'aws iam put-role-policy --role-name {FLOCI_STS_SESSION_ROLE_NAME} '
+        f'--policy-name {FLOCI_STS_ROLE_POLICY_NAME} '
+        '--policy-document file://floci-sts-list-buckets-policy.json'
+    )
+    started = time.perf_counter()
+    _iam_client().put_role_policy(
+        RoleName=FLOCI_STS_SESSION_ROLE_NAME,
+        PolicyName=FLOCI_STS_ROLE_POLICY_NAME,
+        PolicyDocument=json.dumps(ALICE_LIST_BUCKETS_POLICY),
+    )
+    duration_ms = round((time.perf_counter() - started) * 1000)
+    verification = _verify_sts_session_role_policy()
+
+    return {
+        'service': 'iam',
+        'lab': 'sts-session-policy',
+        'step': 'put-role-policy',
+        'command': command,
+        'exit_code': 0,
+        'stdout': _json_text({}),
+        'stderr': '',
+        'json': {},
+        'duration_ms': duration_ms,
+        'verified': verification.get('status') == 'passed',
+        'verification': verification,
+    }
+
+
+def _run_sts_assume_session_policy_role() -> dict[str, Any]:
+    role_arn = f'arn:aws:iam::{AWS_ACCOUNT_ID}:role/{FLOCI_STS_SESSION_ROLE_NAME}'
+    command = (
+        f'aws sts assume-role --role-arn {role_arn} '
+        f'--role-session-name {FLOCI_STS_SESSION_NAME} '
+        '--policy file://session-policy.json'
+    )
+    started = time.perf_counter()
+    response = _sts_client().assume_role(
+        RoleArn=role_arn,
+        RoleSessionName=FLOCI_STS_SESSION_NAME,
+        Policy=json.dumps(FLOCI_STS_SESSION_POLICY),
+    )
+    duration_ms = round((time.perf_counter() - started) * 1000)
+    credentials = response.get('Credentials', {})
+    verification_resource = {
+        'role_arn': role_arn,
+        'session_name': FLOCI_STS_SESSION_NAME,
+        'access_key_id': credentials.get('AccessKeyId'),
+        'assumed_role_user': _clean_response(response.get('AssumedRoleUser')),
+    }
+    verified = bool(
+        credentials.get('AccessKeyId')
+        and credentials.get('SecretAccessKey')
+        and credentials.get('SessionToken')
+    )
+    if verified:
+        cache.set(FLOCI_STS_ASSUME_CACHE_KEY, verification_resource, timeout=3600)
+    verification = (
+        _verify_sts_assumed_role_session()
+        if verified
+        else {
+            'status': 'failed',
+            'message': 'STS did not return a complete temporary credential set.',
+            'resource': _clean_response(response),
+        }
+    )
+
+    return {
+        'service': 'iam',
+        'lab': 'sts-session-policy',
+        'step': 'assume-role',
         'command': command,
         'exit_code': 0,
         'stdout': _json_text(response),
@@ -14311,6 +14662,41 @@ def _reset_iam_role_trust_policy() -> dict[str, Any]:
         'verification': {
             'status': 'passed',
             'message': f'Role {FLOCI_APPLICATION_ROLE_NAME} and its inline policy were removed.',
+        },
+    }
+
+
+def _reset_iam_sts_session_policy() -> dict[str, Any]:
+    command = (
+        f'aws iam delete-role-policy --role-name {FLOCI_STS_SESSION_ROLE_NAME} '
+        f'--policy-name {FLOCI_STS_ROLE_POLICY_NAME}\n'
+        f'aws iam delete-role --role-name {FLOCI_STS_SESSION_ROLE_NAME}'
+    )
+    started = time.perf_counter()
+    iam = _iam_client()
+    deleted_policy = _ignore_missing(lambda: iam.delete_role_policy(
+        RoleName=FLOCI_STS_SESSION_ROLE_NAME,
+        PolicyName=FLOCI_STS_ROLE_POLICY_NAME,
+    ))
+    deleted_role = _ignore_missing(lambda: iam.delete_role(RoleName=FLOCI_STS_SESSION_ROLE_NAME))
+    cache.delete(FLOCI_STS_ASSUME_CACHE_KEY)
+    duration_ms = round((time.perf_counter() - started) * 1000)
+
+    return {
+        'service': 'iam',
+        'lab': 'sts-session-policy',
+        'command': command,
+        'exit_code': 0,
+        'stdout': _json_text({'deleted_policy': deleted_policy, 'deleted_role': deleted_role}),
+        'stderr': '',
+        'json': {'deleted_policy': deleted_policy, 'deleted_role': deleted_role},
+        'duration_ms': duration_ms,
+        'reset': True,
+        'deleted_policy': deleted_policy,
+        'deleted_role': deleted_role,
+        'verification': {
+            'status': 'passed',
+            'message': f'Role {FLOCI_STS_SESSION_ROLE_NAME}, its inline policy, and the recorded STS session were removed.',
         },
     }
 

@@ -101,6 +101,7 @@ const FirehoseConsole = (() => {
         delivery_streams: 'Delivery streams',
         active_streams: 'Delivery streams',
         destinations: 'Destinations',
+        extended_s3_destinations: 'Destinations',
         tagged_streams: 'Delivery streams',
       },
     });

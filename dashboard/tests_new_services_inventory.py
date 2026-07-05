@@ -5,7 +5,7 @@ from unittest.mock import patch
 from django.test import SimpleTestCase
 from django.urls import reverse
 
-from .aws import batch_inventory, codepipeline_inventory, docdb_inventory, ec2_inventory, elasticbeanstalk_inventory, emr_inventory, iot_inventory, list_resources, memorydb_inventory, rdsdata_inventory, s3vectors_inventory, wafv2_inventory
+from .aws import amazonmq_inventory, batch_inventory, codepipeline_inventory, docdb_inventory, ec2_inventory, elasticbeanstalk_inventory, emr_inventory, iot_inventory, list_resources, memorydb_inventory, rdsdata_inventory, s3vectors_inventory, wafv2_inventory
 from .services import get_service
 
 
@@ -17,6 +17,7 @@ class NewServiceInventoryPageTests(SimpleTestCase):
     def test_new_service_pages_render_inventory_shells(self):
         cases = [
             ('batch', 'AWS Batch', 'Compute environments, job queues, definitions, and jobs'),
+            ('amazonmq', 'Amazon MQ', 'RabbitMQ-backed brokers and users'),
             ('docdb', 'DocumentDB', 'MongoDB-compatible clusters and instances'),
             ('emr', 'EMR', 'Clusters, instance groups, and steps'),
             ('memorydb', 'MemoryDB', 'Redis-compatible clusters, users, ACLs, and subnet groups'),
@@ -42,6 +43,7 @@ class NewServiceInventoryPageTests(SimpleTestCase):
     def test_new_services_are_registered_as_read_only_inspectors(self):
         cases = [
             ('batch', 'Compute'),
+            ('amazonmq', 'Application Integration'),
             ('docdb', 'Database'),
             ('emr', 'Analytics'),
             ('memorydb', 'Database'),
@@ -62,6 +64,7 @@ class NewServiceInventoryPageTests(SimpleTestCase):
                 self.assertEqual(service.api_path, None)
                 self.assertEqual(service.category, category)
 
+    @patch('dashboard.views.amazonmq_inventory')
     @patch('dashboard.views.batch_inventory')
     @patch('dashboard.views.docdb_inventory')
     @patch('dashboard.views.memorydb_inventory')
@@ -72,8 +75,9 @@ class NewServiceInventoryPageTests(SimpleTestCase):
     @patch('dashboard.views.emr_inventory')
     @patch('dashboard.views.rdsdata_inventory')
     @patch('dashboard.views.wafv2_inventory')
-    def test_new_service_api_routes_return_inventory(self, wafv2, rdsdata, emr, elasticbeanstalk, iot, s3vectors, codepipeline, memorydb, docdb, batch):
+    def test_new_service_api_routes_return_inventory(self, wafv2, rdsdata, emr, elasticbeanstalk, iot, s3vectors, codepipeline, memorydb, docdb, batch, amazonmq):
         batch.return_value = {'summary': {'job_queues': 1}, 'job_queues': [{'jobQueueName': 'local'}]}
+        amazonmq.return_value = {'summary': {'brokers': 1}, 'brokers': [{'name': 'broker'}]}
         docdb.return_value = {'summary': {'clusters': 1}, 'clusters': [{'DBClusterIdentifier': 'docs'}]}
         memorydb.return_value = {'summary': {'clusters': 1}, 'clusters': [{'Name': 'cache'}]}
         codepipeline.return_value = {'summary': {'pipelines': 1}, 'pipelines': [{'name': 'release'}]}
@@ -86,6 +90,7 @@ class NewServiceInventoryPageTests(SimpleTestCase):
 
         cases = [
             ('dashboard:batch', 'job_queues', 1),
+            ('dashboard:amazonmq', 'brokers', 1),
             ('dashboard:docdb', 'clusters', 1),
             ('dashboard:memorydb', 'clusters', 1),
             ('dashboard:codepipeline', 'pipelines', 1),
@@ -106,6 +111,32 @@ class NewServiceInventoryPageTests(SimpleTestCase):
 
 
 class NewServiceInventoryHelperTests(SimpleTestCase):
+    @patch('dashboard.aws.FlociClientFactory')
+    def test_amazonmq_inventory_summarizes_brokers(self, factory_mock):
+        mq = MagicMock()
+        mq.meta = service_model('ListBrokers', 'DescribeBroker', 'ListUsers', 'ListConfigurations')
+        mq.can_paginate.return_value = False
+        mq.list_brokers.return_value = {
+            'BrokerSummaries': [{'BrokerId': 'broker-1', 'BrokerName': 'orders', 'BrokerState': 'RUNNING'}],
+        }
+        mq.describe_broker.return_value = {
+            'BrokerId': 'broker-1',
+            'BrokerName': 'orders',
+            'BrokerArn': 'arn:aws:amazonmq:us-east-1:000000000000:broker:orders:broker-1',
+            'EngineType': 'RabbitMQ',
+            'BrokerState': 'RUNNING',
+        }
+        mq.list_users.return_value = {'Users': [{'Username': 'app'}]}
+        mq.list_configurations.return_value = {'Configurations': [{'Name': 'default'}]}
+        factory_mock.return_value.client.return_value = mq
+
+        result = amazonmq_inventory()
+
+        self.assertEqual(result['summary']['brokers'], 1)
+        self.assertEqual(result['summary']['running_brokers'], 1)
+        self.assertEqual(result['summary']['users'], 1)
+        self.assertEqual(result['brokers'][0]['name'], 'orders')
+
     @patch('dashboard.aws.FlociClientFactory')
     def test_batch_inventory_summarizes_batch_resources(self, factory_mock):
         batch = MagicMock()

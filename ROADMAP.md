@@ -31,7 +31,7 @@ Core architecture files:
 - `dashboard/actions.py`: shared action metadata, JSON parsing, and normalized action errors.
 - `dashboard/templates/dashboard/service.html`: common service page shell.
 - `dashboard/static/dashboard/service-console.js`: shared frontend helpers for API calls, summary cards, read-only cards, toolbars, modals, formatting, and lower-right toasts.
-- Service-specific modules such as `s3_api.py`, `s3_views.py`, `s3-console.js`, and `s3-console.css`, `iam_api.py`, `iam_views.py`, `iam-console.js`, and `iam-console.css`, `ec2_api.py`, `ec2_views.py`, `ec2-console.js`, and `ec2-console.css`, `stepfunctions_api.py`, `stepfunctions_views.py`, `stepfunctions-console.js`, and `stepfunctions-console.css`, `eventbridge_api.py`, `eventbridge_views.py`, `eventbridge-console.js`, and `eventbridge-console.css`, or the equivalent files for SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, API Gateway, AppSync, Kinesis, Secrets Manager, SSM Parameter Store, CloudFormation, Cognito, RDS, Auto Scaling, ELB v2, CloudFront, Cloud Map, CloudTrail, Route 53, ACM, ECS, ECR, EKS, ElastiCache, OpenSearch, Athena, Backup, Firehose, Glue, Kafka, Neptune, SES, Transfer Family, Textract, Transcribe, CodeDeploy, CodeBuild, Bedrock Runtime, AppConfig, and Resource Groups Tagging.
+- Service-specific modules such as `s3_api.py`, `s3_views.py`, `s3-console.js`, and `s3-console.css`, `iam_api.py`, `iam_views.py`, `iam-console.js`, and `iam-console.css`, `ec2_api.py`, `ec2_views.py`, `ec2-console.js`, and `ec2-console.css`, `stepfunctions_api.py`, `stepfunctions_views.py`, `stepfunctions-console.js`, and `stepfunctions-console.css`, `eventbridge_api.py`, `eventbridge_views.py`, `eventbridge-console.js`, and `eventbridge-console.css`, or the equivalent files for SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, API Gateway, AppSync, Kinesis, Secrets Manager, SSM Parameter Store, CloudFormation, Cognito, RDS, Auto Scaling, ELB v2, CloudFront, Cloud Map, CloudTrail, Route 53, ACM, ECS, ECR, EKS, ElastiCache, OpenSearch, Athena, Backup, Firehose, Glue, Kafka, Neptune, SES, Transfer Family, Textract, Transcribe, CodeDeploy, CodeBuild, Bedrock Runtime, AppConfig, Resource Groups Tagging, and newer read-only service pages such as Amazon MQ.
 
 ## Guiding Principles
 
@@ -175,6 +175,7 @@ Core architecture files:
 - Migrated Cloud Map action rows to `ServiceConsole.loadServiceActions(...)`, making it the third registry-driven console after AppConfig and Transcribe.
 - Expanded the IAM workbench with managed policy version create/default/delete flows, user/group membership editing, and role trust policy editing.
 - Added a Tracked Resources homepage filter that discovers resources across all registered services and hides empty service cards.
+- Reviewed Floci 1.5.30, added read-only Amazon MQ inventory coverage, expanded EC2 flow-log and CloudTrail event visibility, surfaced CloudFormation StackSets, SES v2 contact lists, Firehose extended S3 destination detail plus UpdateDestination, Step Functions versions, and updated IAM/STS AssumeRole session-policy support.
 - Reviewed Floci 1.5.29 and refreshed release-aware notes for AppSync Phase 4 VTL execution, IAM cross-account assumed-role routing and AmazonRDSEnhancedMonitoringRole, floci-core reset/nuke endpoints, ECS hostPort/native-image/CloudFormation cleanup behavior, Transcribe vocabulary persistence, shutdown persistence flushing, local ALB DNS names, Step Functions aws-sdk integrations, Cognito client overrides, SES v2 optional FromEmailAddress, SSM diagnostics, and IoT compatibility polish.
 - Reviewed Floci 1.5.28, added read-only inventory coverage for IoT Core and Elastic Beanstalk, and refreshed release-aware notes for AppSync Phase 3, Kafka-backed Pipes, Steampipe-oriented read APIs, ECS EFS volumes, MemoryDB ACL auth, CodeDeploy persistence, Cognito, Lambda/SQS ESM, RDS, EC2, IAM, S3, SES, Secrets Manager, CloudFormation, CloudFront, CodeBuild, DynamoDB, Step Functions, Athena, ELBv2, EventBridge, and MSK.
 - Reviewed Floci 1.5.27, added read-only inventory coverage for MemoryDB, CodePipeline, and S3 Vectors, folded EC2 Network ACLs into EC2 inventory, and refreshed release-aware notes for DynamoDB, CloudFormation SAM support, Neptune openCypher, persistence, Secrets Manager rotation, SES, ACM, SSM, and Auto Scaling.
@@ -184,9 +185,10 @@ Core architecture files:
 - Added KMS key enable/disable actions and surfaced S3 user metadata in the object detail drawer.
 - Added local AWS workflow labs with shared routes, UI, live-state verification, reset behavior, and breadcrumb navigation.
 - Added a top-level Labs directory that automatically lists services with registered labs and links it from the homepage between Environment and Service Matrix.
-- Completed eight IAM labs covering users, managed and inline policies, access keys, groups, roles, and EC2 instance profiles.
+- Added completion-only next-batch recommendations so the final lab in each service batch points learners toward the next practical batch without turning the labs directory into a separate path system.
+- Completed nine IAM labs covering users, managed and inline policies, access keys, groups, roles, STS session policies, and EC2 instance profiles.
 - Completed twelve S3 labs covering bucket/object fundamentals, prefixes, metadata and tags, version recovery, presigned URLs, bucket security, default encryption, lifecycle retention, CORS, S3-to-SQS notifications, and multipart upload.
-- Started the SQS lab sequence with queue creation, URL resolution, full attribute inspection, account queue listing, live-state completion, and queue-owned reset.
+- Built the SQS lab foundation with queue creation, URL resolution, full attribute inspection, account queue listing, live-state completion, and queue-owned reset.
 - Added the SQS message lifecycle lab with a known JSON event, message attributes, reload-safe receive verification, live receipt-handle discovery, delete verification, and message-only reset behavior.
 - Added the SQS visibility timeout lab with in-flight receipt tracking, ChangeMessageVisibility, immediate hidden-state verification, timed message reappearance, and message-only cleanup.
 - Added the delayed-message SQS lab with DelaySeconds, delayed-count inspection, atomic unavailable-state verification, timed delivery, and attributed message cleanup.
@@ -255,13 +257,14 @@ Why it matters:
 
 ### 3. Step Functions Follow-Ups
 
-Keep improving the new Step Functions execution workbench.
+Keep improving the Step Functions execution and version workbench.
 
 Feasible follow-ups:
 
 - Add ASL definition graph rendering.
 - Improve execution-history filtering and grouping.
 - Add task-token callback helpers for waitForTaskToken workflows.
+- Add richer state-machine version and alias navigation if local support grows beyond publish/delete version workflows.
 - Add cross-service links from state machine Lambda tasks where the resource ARN is easy to identify.
 
 Why it matters:
@@ -276,6 +279,7 @@ Feasible follow-ups:
 
 - Add optional principal search/filtering inside the IAM workbench.
 - Add better affordances for copying access key and assumed-role credential exports after refresh.
+- Add templates or validation hints for AssumeRole session policies and managed session policy ARNs.
 - Add richer managed policy version document diffs if Floci exposes enough version metadata.
 
 Why it matters:
@@ -303,13 +307,15 @@ Why it matters:
 
 ### 6. Workflow Lab Framework
 
-Continue the local AWS workflow lab system beyond IAM and S3.
+Continue the local AWS workflow lab system beyond the completed IAM, S3, SQS, SNS, Scheduler, CloudFormation, and EC2 foundations.
 
 Feasible follow-ups:
 
 - Split the growing `dashboard/labs.py` module into a small typed package with shared registry and runner code.
+- Add new lab families where they prove a real local workflow rather than repeating inventory, with EventBridge/API Gateway/Lambda integration flows as likely candidates.
 - Continue networking labs with multi-AZ interface endpoints, endpoint policy variations, or hybrid connectivity when local support makes them useful.
 - Add “View in dashboard” links after verified steps.
+- Keep next-batch recommendations completion-driven and minimal; avoid reintroducing a separate learning-path layer unless progress tracking becomes richer.
 - Consider step-order guidance while preserving live-state recovery after reloads.
 
 Why it matters:
@@ -424,7 +430,7 @@ This order is intentionally modest and can change:
 3. Step Functions follow-ups.
 4. IAM polish.
 5. S3 follow-ups.
-6. Split and extend the workflow lab framework, beginning with SQS.
+6. Split and extend the workflow lab framework beyond the completed foundational sequences.
 7. EC2 follow-ups.
 8. EventBridge follow-ups.
 9. API Gateway follow-ups.

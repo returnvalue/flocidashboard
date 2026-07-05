@@ -55,6 +55,8 @@ def iam_role_assume(request, role_name: str):
             body.get('role_arn', ''),
             body.get('session_name') or f'{role_name}-dashboard',
             duration_seconds=body.get('duration_seconds') or None,
+            session_policy=body.get('session_policy') or None,
+            session_policy_arns=body.get('session_policy_arns') or None,
         ))
     except Exception as exc:
         return handle_action_error(exc, service='iam', operation='assume_role')
