@@ -869,7 +869,8 @@ const S3Console = (() => {
     const tagArea = document.createElement('textarea');
     tagArea.value = JSON.stringify(tags, null, 2);
     drawer.append(tagArea);
-    drawer.append(
+    const actions = el('div', 's3-drawer-actions');
+    actions.append(
       btn('Save tags', null, async () => {
         const parsed = JSON.parse(tagArea.value);
         await apiJson(`/api/s3/buckets/${encodeURIComponent(bucket)}/objects/tags/`, {
@@ -879,8 +880,7 @@ const S3Console = (() => {
         toast('Tags saved');
       }),
     );
-
-    drawer.append(
+    actions.append(
       btn('Copy presigned URL', 's3-btn-secondary', async () => {
         const data = await apiJson(`/api/s3/buckets/${encodeURIComponent(bucket)}/objects/presign/`, {
           method: 'POST',
@@ -890,12 +890,12 @@ const S3Console = (() => {
         toast('URL copied to clipboard');
       }),
     );
-
-    drawer.append(
+    actions.append(
       btn('Download', null, () => {
         window.location.href = `/api/s3/buckets/${encodeURIComponent(bucket)}/objects/download/?${params}`;
       }),
     );
+    drawer.append(actions);
 
     overlay.addEventListener('click', () => {
       overlay.remove();

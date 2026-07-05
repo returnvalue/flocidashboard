@@ -1,5 +1,8 @@
 import json
+import zipfile
+import base64
 from contextlib import ExitStack
+from io import BytesIO
 from unittest.mock import MagicMock, patch
 
 from botocore.exceptions import ClientError
@@ -872,7 +875,7 @@ class LabsPageTests(SimpleTestCase):
         response = self.client.get(
             reverse(
                 'dashboard:service-labs',
-                kwargs={'service_key': 'lambda'},
+                kwargs={'service_key': 'cloudwatch'},
             ),
         )
 
@@ -6360,6 +6363,689 @@ class LabsRunnerTests(SimpleTestCase):
             status['steps']['create-sqs-interface-endpoint']['verified']
         )
         self.assertTrue(status['steps']['inspect-private-sqs-path']['verified'])
+
+    @patch('dashboard.views.lab_status')
+    def test_lambda_labs_page_renders_create_invoke_logs_lab(self, status_mock):
+        status_mock.return_value = {'complete': False, 'steps': {}}
+
+        response = self.client.get(
+            reverse('dashboard:service-labs', kwargs={'service_key': 'lambda'}),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '<title>Lambda Labs - Floci Dashboard</title>', html=True)
+        self.assertContains(response, 'Create, invoke, and inspect a Lambda function')
+        self.assertContains(response, 'aws iam create-role --role-name FlociLambdaLabRole')
+        self.assertContains(response, 'aws iam put-role-policy --role-name FlociLambdaLabRole')
+        self.assertContains(response, 'aws lambda create-function --function-name floci-lab-echo')
+        self.assertContains(response, '--zip-file fileb://function.zip')
+        self.assertContains(response, 'aws lambda invoke --function-name floci-lab-echo --payload file://event.json response.json')
+        self.assertContains(response, 'aws logs describe-log-streams --log-group-name /aws/lambda/floci-lab-echo')
+        self.assertContains(response, 'lambda-trust-policy.json')
+        self.assertContains(response, 'lambda-logs-policy.json')
+        self.assertContains(response, 'handler.py')
+        self.assertContains(response, 'event.json')
+        self.assertContains(response, 'FLOCI-LAMBDA-1001')
+
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_lambda_lab_create_function_packages_handler_zip(self, factory_mock):
+        lambda_client = MagicMock()
+        lambda_client.create_function.return_value = {
+            'FunctionName': 'floci-lab-echo',
+            'Role': 'arn:aws:iam::000000000000:role/FlociLambdaLabRole',
+        }
+        lambda_client.get_function.return_value = {
+            'Configuration': {
+                'FunctionName': 'floci-lab-echo',
+                'Role': 'arn:aws:iam::000000000000:role/FlociLambdaLabRole',
+            },
+        }
+        factory_mock.return_value.client.return_value = lambda_client
+
+        result = run_lab_step('lambda', 'create-invoke-logs', 'create-function')
+
+        call = lambda_client.create_function.call_args.kwargs
+        self.assertEqual(call['FunctionName'], 'floci-lab-echo')
+        self.assertEqual(call['Runtime'], 'python3.11')
+        self.assertEqual(call['Handler'], 'handler.lambda_handler')
+        with zipfile.ZipFile(BytesIO(call['Code']['ZipFile'])) as archive:
+            source = archive.read('handler.py').decode('utf-8')
+        self.assertIn('def lambda_handler', source)
+        self.assertTrue(result['verified'])
+
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_lambda_lab_invoke_records_expected_echo_response(self, factory_mock):
+        cache.clear()
+        lambda_client = MagicMock()
+        lambda_client.invoke.return_value = {
+            'StatusCode': 200,
+            'ExecutedVersion': '$LATEST',
+            'Payload': BytesIO(json.dumps({
+                'ok': True,
+                'request_id': 'FLOCI-LAMBDA-1001',
+                'echo': {'message': 'hello from the Lambda lab'},
+            }).encode('utf-8')),
+        }
+        factory_mock.return_value.client.return_value = lambda_client
+
+        result = run_lab_step('lambda', 'create-invoke-logs', 'invoke-function')
+
+        call = lambda_client.invoke.call_args.kwargs
+        self.assertEqual(call['FunctionName'], 'floci-lab-echo')
+        self.assertEqual(call['InvocationType'], 'RequestResponse')
+        self.assertIn(b'FLOCI-LAMBDA-1001', call['Payload'])
+        self.assertTrue(result['verified'])
+        self.assertTrue(cache.get('floci-lab:lambda:create-invoke-logs:invoke'))
+        cache.clear()
+
+    def test_lambda_lab_status_requires_role_function_invoke_and_logs(self):
+        passed = {'status': 'passed', 'message': 'verified'}
+        with ExitStack() as stack:
+            for verifier in (
+                '_verify_lambda_role',
+                '_verify_lambda_role_policy',
+                '_verify_lambda_function',
+                '_verify_lambda_invocation',
+                '_verify_lambda_log_group',
+                '_verify_lambda_logs',
+            ):
+                stack.enter_context(patch(
+                    f'dashboard.labs.{verifier}',
+                    return_value=passed,
+                ))
+            from .labs import lab_status
+
+            status = lab_status('lambda', 'create-invoke-logs')
+
+        self.assertTrue(status['complete'])
+        self.assertTrue(status['steps']['create-role']['verified'])
+        self.assertTrue(status['steps']['create-function']['verified'])
+        self.assertTrue(status['steps']['invoke-function']['verified'])
+        self.assertTrue(status['steps']['inspect-logs']['verified'])
+
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_lambda_lab_reset_deletes_function_logs_role_and_cache(self, factory_mock):
+        cache.set('floci-lab:lambda:create-invoke-logs:invoke', {'ok': True})
+        cache.set('floci-lab:lambda:create-invoke-logs:logs', {'ok': True})
+        lambda_client = MagicMock()
+        logs = MagicMock()
+        iam = MagicMock()
+        factory_mock.return_value.client.side_effect = lambda service: {
+            'lambda': lambda_client,
+            'logs': logs,
+            'iam': iam,
+        }[service]
+
+        result = reset_lab('lambda', 'create-invoke-logs')
+
+        lambda_client.delete_function.assert_called_once_with(FunctionName='floci-lab-echo')
+        logs.delete_log_group.assert_called_once_with(logGroupName='/aws/lambda/floci-lab-echo')
+        iam.delete_role_policy.assert_called_once_with(
+            RoleName='FlociLambdaLabRole',
+            PolicyName='FlociLambdaLabLogs',
+        )
+        iam.delete_role.assert_called_once_with(RoleName='FlociLambdaLabRole')
+        self.assertTrue(result['reset'])
+        self.assertIsNone(cache.get('floci-lab:lambda:create-invoke-logs:invoke'))
+        self.assertIsNone(cache.get('floci-lab:lambda:create-invoke-logs:logs'))
+
+    @patch('dashboard.views.lab_status')
+    def test_apigateway_labs_page_renders_lambda_request_lab(self, status_mock):
+        status_mock.return_value = {'complete': False, 'steps': {}}
+
+        response = self.client.get(
+            reverse('dashboard:service-labs', kwargs={'service_key': 'apigateway'}),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '<title>API Gateway Labs - Floci Dashboard</title>', html=True)
+        self.assertContains(response, 'Send an API Gateway request to Lambda')
+        self.assertContains(response, 'aws apigatewayv2 create-api --name floci-lab-lambda-api --protocol-type HTTP')
+        self.assertContains(response, 'aws apigatewayv2 create-integration --api-id &lt;api-id&gt;')
+        self.assertContains(response, 'aws apigatewayv2 create-route --api-id &lt;api-id&gt; --route-key &quot;POST /echo&quot;')
+        self.assertContains(response, 'aws apigatewayv2 create-stage --api-id &lt;api-id&gt; --stage-name $default --auto-deploy')
+        self.assertContains(response, 'aws lambda add-permission --function-name floci-lab-echo')
+        self.assertContains(response, 'curl -X POST &lt;api-endpoint&gt;/echo')
+        self.assertContains(response, 'event.json')
+        self.assertContains(response, 'FLOCI-LAMBDA-1001')
+
+    @patch('dashboard.labs._verify_apigw_lambda_integration')
+    @patch('dashboard.labs._apigw_lambda_api_id')
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_apigateway_lab_creates_lambda_proxy_integration(
+        self,
+        factory_mock,
+        api_id_mock,
+        verify_mock,
+    ):
+        cache.clear()
+        api_id_mock.return_value = 'api123'
+        verify_mock.return_value = {'status': 'passed', 'message': 'verified'}
+        apigw = MagicMock()
+        apigw.get_paginator.side_effect = ValueError('no paginator')
+        apigw.get_integrations.return_value = {'Items': []}
+        apigw.create_integration.return_value = {'IntegrationId': 'int123'}
+        factory_mock.return_value.client.return_value = apigw
+
+        result = run_lab_step('apigateway', 'lambda-request', 'create-integration')
+
+        apigw.create_integration.assert_called_once_with(
+            ApiId='api123',
+            IntegrationType='AWS_PROXY',
+            IntegrationUri='arn:aws:lambda:us-east-1:000000000000:function:floci-lab-echo',
+            PayloadFormatVersion='2.0',
+        )
+        self.assertTrue(result['verified'])
+        self.assertEqual(cache.get('floci-lab:apigateway:lambda-request:integration-id'), 'int123')
+        cache.clear()
+
+    @patch('dashboard.labs.urlopen')
+    @patch('dashboard.labs._find_apigw_lambda_api')
+    def test_apigateway_lab_send_request_records_lambda_echo(
+        self,
+        api_mock,
+        urlopen_mock,
+    ):
+        cache.clear()
+        api_mock.return_value = {'ApiId': 'api123', 'ApiEndpoint': 'http://localhost:4566/api123'}
+        response_mock = MagicMock()
+        response_mock.__enter__.return_value = response_mock
+        response_mock.read.return_value = b'{"ok": true, "request_id": "FLOCI-LAMBDA-1001"}'
+        response_mock.getcode.return_value = 200
+        response_mock.headers.items.return_value = [('Content-Type', 'application/json')]
+        urlopen_mock.return_value = response_mock
+
+        result = run_lab_step('apigateway', 'lambda-request', 'send-request')
+
+        request = urlopen_mock.call_args.args[0]
+        self.assertEqual(request.get_method(), 'POST')
+        self.assertEqual(request.full_url, 'http://localhost:4566/api123/echo')
+        self.assertIn(b'FLOCI-LAMBDA-1001', request.data)
+        self.assertTrue(result['verified'])
+        self.assertTrue(cache.get('floci-lab:apigateway:lambda-request:request'))
+        cache.clear()
+
+    def test_apigateway_lab_status_requires_api_lambda_and_request(self):
+        passed = {'status': 'passed', 'message': 'verified'}
+        with ExitStack() as stack:
+            for verifier in (
+                '_verify_lambda_role',
+                '_verify_lambda_role_policy',
+                '_verify_lambda_function',
+                '_verify_apigw_lambda_api',
+                '_verify_apigw_lambda_integration',
+                '_verify_apigw_lambda_route',
+                '_verify_apigw_lambda_stage',
+                '_verify_apigw_lambda_permission',
+                '_verify_apigw_lambda_request',
+            ):
+                stack.enter_context(patch(
+                    f'dashboard.labs.{verifier}',
+                    return_value=passed,
+                ))
+            from .labs import lab_status
+
+            status = lab_status('apigateway', 'lambda-request')
+
+        self.assertTrue(status['complete'])
+        self.assertTrue(status['steps']['create-api']['verified'])
+        self.assertTrue(status['steps']['create-integration']['verified'])
+        self.assertTrue(status['steps']['create-route']['verified'])
+        self.assertTrue(status['steps']['send-request']['verified'])
+
+    @patch('dashboard.labs._find_apigw_lambda_api')
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_apigateway_lab_reset_deletes_api_lambda_and_cache(
+        self,
+        factory_mock,
+        api_mock,
+    ):
+        cache.set('floci-lab:apigateway:lambda-request:request', {'ok': True})
+        cache.set('floci-lab:apigateway:lambda-request:api-id', 'api123')
+        cache.set('floci-lab:apigateway:lambda-request:integration-id', 'int123')
+        cache.set('floci-lab:apigateway:lambda-request:route-id', 'route123')
+        api_mock.return_value = {'ApiId': 'api123'}
+        apigw = MagicMock()
+        lambda_client = MagicMock()
+        logs = MagicMock()
+        iam = MagicMock()
+        factory_mock.return_value.client.side_effect = lambda service: {
+            'apigatewayv2': apigw,
+            'lambda': lambda_client,
+            'logs': logs,
+            'iam': iam,
+        }[service]
+
+        result = reset_lab('apigateway', 'lambda-request')
+
+        apigw.delete_api.assert_called_once_with(ApiId='api123')
+        lambda_client.remove_permission.assert_called_once_with(
+            FunctionName='floci-lab-echo',
+            StatementId='AllowFlociApiGatewayInvoke',
+        )
+        lambda_client.delete_function.assert_called_once_with(FunctionName='floci-lab-echo')
+        logs.delete_log_group.assert_called_once_with(logGroupName='/aws/lambda/floci-lab-echo')
+        iam.delete_role_policy.assert_called_once_with(
+            RoleName='FlociLambdaLabRole',
+            PolicyName='FlociLambdaLabLogs',
+        )
+        iam.delete_role.assert_called_once_with(RoleName='FlociLambdaLabRole')
+        self.assertTrue(result['reset'])
+        self.assertIsNone(cache.get('floci-lab:apigateway:lambda-request:request'))
+        self.assertIsNone(cache.get('floci-lab:apigateway:lambda-request:api-id'))
+
+    @patch('dashboard.views.lab_status')
+    def test_dynamodb_labs_page_renders_crud_query_lab(self, status_mock):
+        status_mock.return_value = {'complete': False, 'steps': {}}
+
+        response = self.client.get(
+            reverse('dashboard:service-labs', kwargs={'service_key': 'dynamodb'}),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '<title>DynamoDB Labs - Floci Dashboard</title>', html=True)
+        self.assertContains(response, 'Create a DynamoDB table and query items')
+        self.assertContains(response, 'aws dynamodb create-table --table-name floci-lab-orders')
+        self.assertContains(response, 'aws dynamodb put-item --table-name floci-lab-orders --item file://order-item.json')
+        self.assertContains(response, 'aws dynamodb get-item --table-name floci-lab-orders --key file://order-key.json')
+        self.assertContains(response, 'aws dynamodb update-item --table-name floci-lab-orders')
+        self.assertContains(response, 'aws dynamodb query --table-name floci-lab-orders --index-name CustomerIdIndex')
+        self.assertContains(response, 'aws dynamodb delete-item --table-name floci-lab-orders')
+        self.assertContains(response, 'aws dynamodb delete-table --table-name floci-lab-orders')
+        self.assertContains(response, 'order-item.json')
+        self.assertContains(response, 'ORDER#1001')
+
+    @patch('dashboard.labs._verify_dynamodb_table_exists')
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_dynamodb_lab_create_table_uses_on_demand_table_with_customer_index(
+        self,
+        factory_mock,
+        verify_mock,
+    ):
+        dynamodb = MagicMock()
+        dynamodb.create_table.return_value = {'TableDescription': {'TableName': 'floci-lab-orders'}}
+        factory_mock.return_value.client.return_value = dynamodb
+        verify_mock.return_value = {'status': 'passed', 'message': 'verified'}
+
+        result = run_lab_step('dynamodb', 'crud-query', 'create-table')
+
+        call = dynamodb.create_table.call_args.kwargs
+        self.assertEqual(call['TableName'], 'floci-lab-orders')
+        self.assertEqual(call['BillingMode'], 'PAY_PER_REQUEST')
+        self.assertEqual(call['KeySchema'], [{'AttributeName': 'OrderId', 'KeyType': 'HASH'}])
+        self.assertEqual(call['GlobalSecondaryIndexes'][0]['IndexName'], 'CustomerIdIndex')
+        self.assertTrue(result['verified'])
+
+    @patch('dashboard.labs._verify_dynamodb_order_updated')
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_dynamodb_lab_update_item_sets_paid_status_and_records_marker(
+        self,
+        factory_mock,
+        verify_mock,
+    ):
+        cache.clear()
+        dynamodb = MagicMock()
+        dynamodb.update_item.return_value = {'Attributes': {'Status': {'S': 'PAID'}}}
+        factory_mock.return_value.client.return_value = dynamodb
+        verify_mock.return_value = {
+            'status': 'passed',
+            'message': 'verified',
+            'resource': {'Status': {'S': 'PAID'}},
+        }
+
+        result = run_lab_step('dynamodb', 'crud-query', 'update-item')
+
+        call = dynamodb.update_item.call_args.kwargs
+        self.assertEqual(call['UpdateExpression'], 'SET #status = :status, Total = :total')
+        self.assertEqual(call['ExpressionAttributeNames'], {'#status': 'Status'})
+        self.assertEqual(call['ExpressionAttributeValues'][':total']['N'], '84.00')
+        self.assertTrue(result['verified'])
+        self.assertTrue(cache.get('floci-lab:dynamodb:crud-query:update-item'))
+        cache.clear()
+
+    @patch('dashboard.labs._verify_dynamodb_customer_query')
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_dynamodb_lab_queries_customer_index_and_records_marker(
+        self,
+        factory_mock,
+        verify_mock,
+    ):
+        cache.clear()
+        dynamodb = MagicMock()
+        dynamodb.query.return_value = {'Items': [{'OrderId': {'S': 'ORDER#1001'}}]}
+        factory_mock.return_value.client.return_value = dynamodb
+        verify_mock.return_value = {
+            'status': 'passed',
+            'message': 'verified',
+            'resource': {'Items': []},
+        }
+
+        result = run_lab_step('dynamodb', 'crud-query', 'query-customer-index')
+
+        call = dynamodb.query.call_args.kwargs
+        self.assertEqual(call['IndexName'], 'CustomerIdIndex')
+        self.assertEqual(call['KeyConditionExpression'], 'CustomerId = :customer')
+        self.assertEqual(call['ExpressionAttributeValues'][':customer']['S'], 'CUSTOMER#42')
+        self.assertTrue(result['verified'])
+        self.assertTrue(cache.get('floci-lab:dynamodb:crud-query:query'))
+        cache.clear()
+
+    def test_dynamodb_lab_status_uses_delete_table_marker_for_completion(self):
+        passed = {'status': 'passed', 'message': 'verified'}
+        cache.set('floci-lab:dynamodb:crud-query:delete-table', True)
+        with ExitStack() as stack:
+            stack.enter_context(patch(
+                'dashboard.labs._verify_dynamodb_table_deleted',
+                return_value=passed,
+            ))
+            from .labs import lab_status
+
+            status = lab_status('dynamodb', 'crud-query')
+
+        self.assertTrue(status['complete'])
+        self.assertTrue(status['steps']['delete-table']['verified'])
+        cache.clear()
+
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_dynamodb_lab_reset_deletes_item_table_and_cache(self, factory_mock):
+        cache.set('floci-lab:dynamodb:crud-query:put-item', {'ok': True})
+        cache.set('floci-lab:dynamodb:crud-query:update-item', {'ok': True})
+        cache.set('floci-lab:dynamodb:crud-query:query', {'ok': True})
+        cache.set('floci-lab:dynamodb:crud-query:delete-item', True)
+        cache.set('floci-lab:dynamodb:crud-query:delete-table', True)
+        dynamodb = MagicMock()
+        factory_mock.return_value.client.return_value = dynamodb
+
+        result = reset_lab('dynamodb', 'crud-query')
+
+        dynamodb.delete_item.assert_called_once_with(
+            TableName='floci-lab-orders',
+            Key={'OrderId': {'S': 'ORDER#1001'}},
+        )
+        dynamodb.delete_table.assert_called_once_with(TableName='floci-lab-orders')
+        self.assertTrue(result['reset'])
+        self.assertIsNone(cache.get('floci-lab:dynamodb:crud-query:put-item'))
+        self.assertIsNone(cache.get('floci-lab:dynamodb:crud-query:delete-table'))
+
+    @patch('dashboard.views.lab_status')
+    def test_dynamodb_labs_page_renders_lambda_writes_lab(self, status_mock):
+        status_mock.return_value = {'complete': False, 'steps': {}}
+
+        response = self.client.get(
+            reverse('dashboard:service-labs', kwargs={'service_key': 'dynamodb'}),
+            {'lab': 'lambda-writes'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Write DynamoDB items from Lambda')
+        self.assertContains(response, 'aws dynamodb create-table --table-name floci-lab-lambda-orders')
+        self.assertContains(response, 'aws iam create-role --role-name FlociLambdaDynamoDbRole')
+        self.assertContains(response, 'aws iam put-role-policy --role-name FlociLambdaDynamoDbRole')
+        self.assertContains(response, 'aws lambda create-function --function-name floci-lab-order-writer')
+        self.assertContains(response, 'TABLE_NAME=floci-lab-lambda-orders')
+        self.assertContains(response, 'aws lambda invoke --function-name floci-lab-order-writer')
+        self.assertContains(response, 'aws dynamodb get-item --table-name floci-lab-lambda-orders')
+        self.assertContains(response, 'aws logs describe-log-streams --log-group-name /aws/lambda/floci-lab-order-writer')
+        self.assertContains(response, 'lambda-dynamodb-policy.json')
+        self.assertContains(response, 'order-event.json')
+        self.assertContains(response, 'FLOCI-LAMBDA-DDB-2001')
+
+    @patch('dashboard.labs._verify_lambda_dynamodb_function')
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_dynamodb_lambda_lab_create_function_packages_writer_with_table_env(
+        self,
+        factory_mock,
+        verify_mock,
+    ):
+        lambda_client = MagicMock()
+        lambda_client.create_function.return_value = {
+            'FunctionName': 'floci-lab-order-writer',
+            'Role': 'arn:aws:iam::000000000000:role/FlociLambdaDynamoDbRole',
+        }
+        factory_mock.return_value.client.return_value = lambda_client
+        verify_mock.return_value = {'status': 'passed', 'message': 'verified'}
+
+        result = run_lab_step('dynamodb', 'lambda-writes', 'create-function')
+
+        call = lambda_client.create_function.call_args.kwargs
+        self.assertEqual(call['FunctionName'], 'floci-lab-order-writer')
+        self.assertEqual(call['Environment'], {'Variables': {'TABLE_NAME': 'floci-lab-lambda-orders'}})
+        with zipfile.ZipFile(BytesIO(call['Code']['ZipFile'])) as archive:
+            source = archive.read('handler.py').decode('utf-8')
+        self.assertIn('dynamodb.put_item', source)
+        self.assertTrue(result['verified'])
+
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_dynamodb_lambda_lab_invoke_records_write_response(self, factory_mock):
+        cache.clear()
+        lambda_client = MagicMock()
+        lambda_client.invoke.return_value = {
+            'StatusCode': 200,
+            'Payload': BytesIO(json.dumps({
+                'ok': True,
+                'order_id': 'ORDER#2001',
+                'request_id': 'FLOCI-LAMBDA-DDB-2001',
+            }).encode('utf-8')),
+        }
+        factory_mock.return_value.client.return_value = lambda_client
+
+        result = run_lab_step('dynamodb', 'lambda-writes', 'invoke-function')
+
+        call = lambda_client.invoke.call_args.kwargs
+        self.assertEqual(call['FunctionName'], 'floci-lab-order-writer')
+        self.assertIn(b'FLOCI-LAMBDA-DDB-2001', call['Payload'])
+        self.assertTrue(result['verified'])
+        self.assertTrue(cache.get('floci-lab:dynamodb:lambda-writes:invoke'))
+        cache.clear()
+
+    def test_dynamodb_lambda_lab_status_requires_table_function_item_and_logs(self):
+        passed = {'status': 'passed', 'message': 'verified'}
+        with ExitStack() as stack:
+            for verifier in (
+                '_verify_lambda_dynamodb_table',
+                '_verify_lambda_dynamodb_role',
+                '_verify_lambda_dynamodb_policy',
+                '_verify_lambda_dynamodb_function',
+                '_verify_lambda_dynamodb_invocation',
+                '_verify_lambda_dynamodb_item',
+                '_verify_lambda_dynamodb_logs',
+            ):
+                stack.enter_context(patch(
+                    f'dashboard.labs.{verifier}',
+                    return_value=passed,
+                ))
+            from .labs import lab_status
+
+            status = lab_status('dynamodb', 'lambda-writes')
+
+        self.assertTrue(status['complete'])
+        self.assertTrue(status['steps']['create-table']['verified'])
+        self.assertTrue(status['steps']['invoke-function']['verified'])
+        self.assertTrue(status['steps']['get-written-item']['verified'])
+        self.assertTrue(status['steps']['inspect-logs']['verified'])
+
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_dynamodb_lambda_lab_reset_deletes_writer_table_and_cache(self, factory_mock):
+        cache.set('floci-lab:dynamodb:lambda-writes:invoke', {'ok': True})
+        cache.set('floci-lab:dynamodb:lambda-writes:logs', {'ok': True})
+        lambda_client = MagicMock()
+        logs = MagicMock()
+        iam = MagicMock()
+        dynamodb = MagicMock()
+        factory_mock.return_value.client.side_effect = lambda service: {
+            'lambda': lambda_client,
+            'logs': logs,
+            'iam': iam,
+            'dynamodb': dynamodb,
+        }[service]
+
+        result = reset_lab('dynamodb', 'lambda-writes')
+
+        lambda_client.delete_function.assert_called_once_with(FunctionName='floci-lab-order-writer')
+        logs.delete_log_group.assert_called_once_with(logGroupName='/aws/lambda/floci-lab-order-writer')
+        iam.delete_role_policy.assert_called_once_with(
+            RoleName='FlociLambdaDynamoDbRole',
+            PolicyName='FlociLambdaDynamoDbWrite',
+        )
+        iam.delete_role.assert_called_once_with(RoleName='FlociLambdaDynamoDbRole')
+        dynamodb.delete_item.assert_called_once_with(
+            TableName='floci-lab-lambda-orders',
+            Key={'OrderId': {'S': 'ORDER#2001'}},
+        )
+        dynamodb.delete_table.assert_called_once_with(TableName='floci-lab-lambda-orders')
+        self.assertTrue(result['reset'])
+        self.assertIsNone(cache.get('floci-lab:dynamodb:lambda-writes:invoke'))
+        self.assertIsNone(cache.get('floci-lab:dynamodb:lambda-writes:logs'))
+
+    @patch('dashboard.views.lab_status')
+    def test_kms_labs_page_renders_crypto_lab(self, status_mock):
+        status_mock.return_value = {'complete': False, 'steps': {}}
+
+        response = self.client.get(
+            reverse('dashboard:service-labs', kwargs={'service_key': 'kms'}),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '<title>KMS Labs - Floci Dashboard</title>', html=True)
+        self.assertContains(response, 'Protect local app data with KMS')
+        self.assertContains(response, 'aws kms create-key --description &quot;Floci dashboard local workflow lab key&quot;')
+        self.assertContains(response, 'aws kms create-alias --alias-name alias/floci-lab-data-key')
+        self.assertContains(response, 'aws kms describe-key --key-id alias/floci-lab-data-key')
+        self.assertContains(response, 'aws kms encrypt --key-id alias/floci-lab-data-key')
+        self.assertContains(response, 'aws kms decrypt --ciphertext-blob fileb://ciphertext.bin')
+        self.assertContains(response, 'key-tags.json')
+        self.assertContains(response, 'app-config.json')
+        self.assertContains(response, 'sample-local-token')
+
+    @patch('dashboard.labs._verify_kms_lab_key')
+    @patch('dashboard.labs._find_kms_lab_key_id')
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_kms_lab_create_key_tags_symmetric_key(
+        self,
+        factory_mock,
+        find_mock,
+        verify_mock,
+    ):
+        cache.clear()
+        find_mock.return_value = None
+        kms = MagicMock()
+        kms.create_key.return_value = {
+            'KeyMetadata': {
+                'KeyId': 'key-123',
+                'KeyUsage': 'ENCRYPT_DECRYPT',
+                'KeySpec': 'SYMMETRIC_DEFAULT',
+            },
+        }
+        factory_mock.return_value.client.return_value = kms
+        verify_mock.return_value = {'status': 'passed', 'message': 'verified'}
+
+        result = run_lab_step('kms', 'key-alias-encrypt-decrypt', 'create-key')
+
+        call = kms.create_key.call_args.kwargs
+        self.assertEqual(call['Description'], 'Floci dashboard local workflow lab key')
+        self.assertEqual(call['KeyUsage'], 'ENCRYPT_DECRYPT')
+        self.assertEqual(call['KeySpec'], 'SYMMETRIC_DEFAULT')
+        self.assertIn({'TagKey': 'Lab', 'TagValue': 'kms-crypto'}, call['Tags'])
+        self.assertEqual(cache.get('floci-lab:kms:crypto:key-id'), 'key-123')
+        self.assertTrue(result['verified'])
+        cache.clear()
+
+    @patch('dashboard.labs._verify_kms_lab_ciphertext')
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_kms_lab_encrypt_records_ciphertext(self, factory_mock, verify_mock):
+        cache.clear()
+        kms = MagicMock()
+        kms.encrypt.return_value = {
+            'KeyId': 'key-123',
+            'CiphertextBlob': b'encrypted-config',
+            'EncryptionAlgorithm': 'SYMMETRIC_DEFAULT',
+        }
+        factory_mock.return_value.client.return_value = kms
+        verify_mock.return_value = {'status': 'passed', 'message': 'verified'}
+
+        result = run_lab_step('kms', 'key-alias-encrypt-decrypt', 'encrypt')
+
+        call = kms.encrypt.call_args.kwargs
+        self.assertEqual(call['KeyId'], 'alias/floci-lab-data-key')
+        self.assertIn(b'sample-local-token', call['Plaintext'])
+        self.assertEqual(
+            cache.get('floci-lab:kms:crypto:ciphertext')['CiphertextBlob'],
+            base64.b64encode(b'encrypted-config').decode('ascii'),
+        )
+        self.assertTrue(result['verified'])
+        cache.clear()
+
+    @patch('dashboard.labs._verify_kms_lab_decrypt')
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_kms_lab_decrypt_records_plaintext_match(self, factory_mock, verify_mock):
+        cache.clear()
+        cache.set('floci-lab:kms:crypto:ciphertext', {
+            'CiphertextBlob': base64.b64encode(b'encrypted-config').decode('ascii'),
+        })
+        kms = MagicMock()
+        kms.decrypt.return_value = {
+            'KeyId': 'key-123',
+            'Plaintext': b'{"application":"orders","environment":"local","secret":"sample-local-token"}',
+            'EncryptionAlgorithm': 'SYMMETRIC_DEFAULT',
+        }
+        factory_mock.return_value.client.return_value = kms
+        verify_mock.return_value = {'status': 'passed', 'message': 'verified'}
+
+        result = run_lab_step('kms', 'key-alias-encrypt-decrypt', 'decrypt')
+
+        kms.decrypt.assert_called_once_with(CiphertextBlob=b'encrypted-config')
+        self.assertTrue(cache.get('floci-lab:kms:crypto:decrypt'))
+        self.assertTrue(result['verified'])
+        cache.clear()
+
+    def test_kms_lab_status_requires_key_alias_ciphertext_and_decrypt(self):
+        passed = {'status': 'passed', 'message': 'verified'}
+        with ExitStack() as stack:
+            for verifier in (
+                '_verify_kms_lab_key',
+                '_verify_kms_lab_alias',
+                '_verify_kms_lab_ciphertext',
+                '_verify_kms_lab_decrypt',
+            ):
+                stack.enter_context(patch(
+                    f'dashboard.labs.{verifier}',
+                    return_value=passed,
+                ))
+            from .labs import lab_status
+
+            status = lab_status('kms', 'key-alias-encrypt-decrypt')
+
+        self.assertTrue(status['complete'])
+        self.assertTrue(status['steps']['create-key']['verified'])
+        self.assertTrue(status['steps']['create-alias']['verified'])
+        self.assertTrue(status['steps']['encrypt']['verified'])
+        self.assertTrue(status['steps']['decrypt']['verified'])
+
+    @patch('dashboard.labs._find_kms_lab_key_id')
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_kms_lab_reset_deletes_alias_schedules_key_and_clears_cache(
+        self,
+        factory_mock,
+        find_mock,
+    ):
+        cache.set('floci-lab:kms:crypto:key-id', 'key-123')
+        cache.set('floci-lab:kms:crypto:ciphertext', {'ok': True})
+        cache.set('floci-lab:kms:crypto:decrypt', {'ok': True})
+        find_mock.return_value = 'key-123'
+        kms = MagicMock()
+        factory_mock.return_value.client.return_value = kms
+
+        result = reset_lab('kms', 'key-alias-encrypt-decrypt')
+
+        kms.delete_alias.assert_called_once_with(AliasName='alias/floci-lab-data-key')
+        kms.schedule_key_deletion.assert_called_once_with(
+            KeyId='key-123',
+            PendingWindowInDays=7,
+        )
+        self.assertTrue(result['reset'])
+        self.assertIsNone(cache.get('floci-lab:kms:crypto:key-id'))
+        self.assertIsNone(cache.get('floci-lab:kms:crypto:ciphertext'))
+        self.assertIsNone(cache.get('floci-lab:kms:crypto:decrypt'))
 
     @patch('dashboard.labs.FlociClientFactory')
     def test_run_iam_create_user_step_creates_and_verifies_alice(self, factory_mock):

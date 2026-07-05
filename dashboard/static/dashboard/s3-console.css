@@ -359,17 +359,19 @@
   top: 0;
   right: 0;
   z-index: 95;
-  width: min(420px, 100vw);
+  width: min(640px, calc(100vw - 32px));
   height: 100vh;
   overflow: auto;
-  padding: 20px;
+  padding: 24px;
   background: var(--panel);
   box-shadow: -8px 0 30px rgba(23, 32, 51, 0.12);
 }
 
 .s3-drawer h3 {
-  margin: 0 0 12px;
-  padding-right: 28px;
+  margin: 0 0 16px;
+  padding-right: 44px;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
 }
 
 .s3-drawer-close {
@@ -381,7 +383,51 @@
 }
 
 .s3-drawer dl {
+  display: grid;
+  gap: 10px;
   margin-bottom: 16px;
+}
+
+.s3-drawer dl > div {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.32fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.s3-drawer dt {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.s3-drawer dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+
+.s3-drawer textarea {
+  width: 100%;
+  min-height: 180px;
+  margin-bottom: 12px;
+  padding: 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  resize: vertical;
+}
+
+.s3-drawer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.s3-drawer-actions button {
+  min-width: 132px;
 }
 
 .s3-about-floci {
@@ -435,6 +481,20 @@
 }
 
 @media (max-width: 720px) {
+  .s3-drawer {
+    width: 100vw;
+    padding: 20px;
+  }
+
+  .s3-drawer dl > div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .s3-drawer-actions button {
+    width: 100%;
+  }
+
   .s3-toolbar {
     flex-direction: column;
     align-items: stretch;

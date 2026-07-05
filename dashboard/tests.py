@@ -155,7 +155,7 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<title>Labs - Floci Dashboard</title>', html=True)
         self.assertContains(response, '<h1>Labs</h1>', html=True)
-        self.assertContains(response, '7 services with labs')
+        self.assertContains(response, '11 services with labs')
         self.assertNotContains(response, 'Learning paths')
         self.assertNotContains(response, 'Recommended starting point')
         self.assertContains(response, 'Create an IAM user')
@@ -173,6 +173,22 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertContains(
             response,
             'Build a VPC with public and private subnets',
+        )
+        self.assertContains(
+            response,
+            'Create, invoke, and inspect a Lambda function',
+        )
+        self.assertContains(
+            response,
+            'Send an API Gateway request to Lambda',
+        )
+        self.assertContains(
+            response,
+            'Create a DynamoDB table and query items',
+        )
+        self.assertContains(
+            response,
+            'Protect local app data with KMS',
         )
         self.assertContains(
             response,
@@ -207,6 +223,22 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertContains(
             response,
             reverse('dashboard:service-labs', kwargs={'service_key': 'ec2'}),
+        )
+        self.assertContains(
+            response,
+            reverse('dashboard:service-labs', kwargs={'service_key': 'lambda'}),
+        )
+        self.assertContains(
+            response,
+            reverse('dashboard:service-labs', kwargs={'service_key': 'apigateway'}),
+        )
+        self.assertContains(
+            response,
+            reverse('dashboard:service-labs', kwargs={'service_key': 'dynamodb'}),
+        )
+        self.assertContains(
+            response,
+            reverse('dashboard:service-labs', kwargs={'service_key': 'kms'}),
         )
         content = response.content.decode()
         self.assertLess(content.index('href="/service/iam/"'), content.index('href="/service/s3/"'))

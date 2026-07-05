@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+import zipfile
+import base64
+from io import BytesIO
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.error import URLError
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 from botocore.exceptions import ClientError
 from django.core.cache import cache
@@ -30,6 +33,84 @@ FLOCI_STS_SESSION_NAME = 'floci-session-policy-lab'
 FLOCI_STS_ROLE_POLICY_NAME = 'FlociStsListBuckets'
 FLOCI_EC2_ROLE_NAME = 'FlociEc2Role'
 FLOCI_EC2_INSTANCE_PROFILE_NAME = 'FlociEc2InstanceProfile'
+LAMBDA_FUNCTION_NAME = 'floci-lab-echo'
+LAMBDA_ROLE_NAME = 'FlociLambdaLabRole'
+LAMBDA_ROLE_POLICY_NAME = 'FlociLambdaLabLogs'
+LAMBDA_ROLE_ARN = f'arn:aws:iam::{AWS_ACCOUNT_ID}:role/{LAMBDA_ROLE_NAME}'
+LAMBDA_FUNCTION_ARN = f'arn:aws:lambda:{AWS_REGION}:{AWS_ACCOUNT_ID}:function:{LAMBDA_FUNCTION_NAME}'
+LAMBDA_LOG_GROUP_NAME = f'/aws/lambda/{LAMBDA_FUNCTION_NAME}'
+LAMBDA_RUNTIME = 'python3.11'
+LAMBDA_HANDLER = 'handler.lambda_handler'
+LAMBDA_INVOKE_PAYLOAD = {
+    'message': 'hello from the Lambda lab',
+    'request_id': 'FLOCI-LAMBDA-1001',
+}
+LAMBDA_INVOKE_PAYLOAD_TEXT = json.dumps(LAMBDA_INVOKE_PAYLOAD, separators=(',', ':'))
+LAMBDA_INVOKE_CACHE_KEY = 'floci-lab:lambda:create-invoke-logs:invoke'
+LAMBDA_LOGS_CACHE_KEY = 'floci-lab:lambda:create-invoke-logs:logs'
+APIGW_LAMBDA_API_NAME = 'floci-lab-lambda-api'
+APIGW_LAMBDA_ROUTE_KEY = 'POST /echo'
+APIGW_LAMBDA_PATH = '/echo'
+APIGW_LAMBDA_STAGE_NAME = '$default'
+APIGW_LAMBDA_PERMISSION_SID = 'AllowFlociApiGatewayInvoke'
+APIGW_LAMBDA_REQUEST_CACHE_KEY = 'floci-lab:apigateway:lambda-request:request'
+APIGW_LAMBDA_API_ID_CACHE_KEY = 'floci-lab:apigateway:lambda-request:api-id'
+APIGW_LAMBDA_INTEGRATION_ID_CACHE_KEY = 'floci-lab:apigateway:lambda-request:integration-id'
+APIGW_LAMBDA_ROUTE_ID_CACHE_KEY = 'floci-lab:apigateway:lambda-request:route-id'
+DYNAMODB_TABLE_NAME = 'floci-lab-orders'
+DYNAMODB_CUSTOMER_INDEX_NAME = 'CustomerIdIndex'
+DYNAMODB_ORDER_ID = 'ORDER#1001'
+DYNAMODB_CUSTOMER_ID = 'CUSTOMER#42'
+DYNAMODB_INITIAL_TOTAL = '42.50'
+DYNAMODB_UPDATED_TOTAL = '84.00'
+DYNAMODB_ORDER_ITEM = {
+    'OrderId': {'S': DYNAMODB_ORDER_ID},
+    'CustomerId': {'S': DYNAMODB_CUSTOMER_ID},
+    'Status': {'S': 'CREATED'},
+    'Total': {'N': DYNAMODB_INITIAL_TOTAL},
+}
+DYNAMODB_UPDATED_ATTRIBUTES = {
+    ':status': {'S': 'PAID'},
+    ':total': {'N': DYNAMODB_UPDATED_TOTAL},
+}
+DYNAMODB_PUT_CACHE_KEY = 'floci-lab:dynamodb:crud-query:put-item'
+DYNAMODB_UPDATE_CACHE_KEY = 'floci-lab:dynamodb:crud-query:update-item'
+DYNAMODB_QUERY_CACHE_KEY = 'floci-lab:dynamodb:crud-query:query'
+DYNAMODB_DELETE_ITEM_CACHE_KEY = 'floci-lab:dynamodb:crud-query:delete-item'
+DYNAMODB_DELETE_TABLE_CACHE_KEY = 'floci-lab:dynamodb:crud-query:delete-table'
+LAMBDA_DYNAMODB_TABLE_NAME = 'floci-lab-lambda-orders'
+LAMBDA_DYNAMODB_FUNCTION_NAME = 'floci-lab-order-writer'
+LAMBDA_DYNAMODB_ROLE_NAME = 'FlociLambdaDynamoDbRole'
+LAMBDA_DYNAMODB_POLICY_NAME = 'FlociLambdaDynamoDbWrite'
+LAMBDA_DYNAMODB_ROLE_ARN = f'arn:aws:iam::{AWS_ACCOUNT_ID}:role/{LAMBDA_DYNAMODB_ROLE_NAME}'
+LAMBDA_DYNAMODB_FUNCTION_ARN = f'arn:aws:lambda:{AWS_REGION}:{AWS_ACCOUNT_ID}:function:{LAMBDA_DYNAMODB_FUNCTION_NAME}'
+LAMBDA_DYNAMODB_LOG_GROUP_NAME = f'/aws/lambda/{LAMBDA_DYNAMODB_FUNCTION_NAME}'
+LAMBDA_DYNAMODB_ORDER_ID = 'ORDER#2001'
+LAMBDA_DYNAMODB_CUSTOMER_ID = 'CUSTOMER#84'
+LAMBDA_DYNAMODB_PAYLOAD = {
+    'order_id': LAMBDA_DYNAMODB_ORDER_ID,
+    'customer_id': LAMBDA_DYNAMODB_CUSTOMER_ID,
+    'total': '128.25',
+    'request_id': 'FLOCI-LAMBDA-DDB-2001',
+}
+LAMBDA_DYNAMODB_PAYLOAD_TEXT = json.dumps(LAMBDA_DYNAMODB_PAYLOAD, separators=(',', ':'))
+LAMBDA_DYNAMODB_INVOKE_CACHE_KEY = 'floci-lab:dynamodb:lambda-writes:invoke'
+LAMBDA_DYNAMODB_LOGS_CACHE_KEY = 'floci-lab:dynamodb:lambda-writes:logs'
+KMS_LAB_ALIAS_NAME = 'alias/floci-lab-data-key'
+KMS_LAB_DESCRIPTION = 'Floci dashboard local workflow lab key'
+KMS_LAB_TAGS = [
+    {'TagKey': 'Lab', 'TagValue': 'kms-crypto'},
+    {'TagKey': 'Owner', 'TagValue': 'floci-dashboard'},
+]
+KMS_LAB_PLAINTEXT = {
+    'application': 'orders',
+    'environment': 'local',
+    'secret': 'sample-local-token',
+}
+KMS_LAB_PLAINTEXT_TEXT = json.dumps(KMS_LAB_PLAINTEXT, separators=(',', ':'))
+KMS_LAB_KEY_ID_CACHE_KEY = 'floci-lab:kms:crypto:key-id'
+KMS_LAB_CIPHERTEXT_CACHE_KEY = 'floci-lab:kms:crypto:ciphertext'
+KMS_LAB_DECRYPT_CACHE_KEY = 'floci-lab:kms:crypto:decrypt'
 S3_BASICS_BUCKET_NAME = 'floci-lab-basics'
 S3_OBJECTS_BUCKET_NAME = 'floci-lab-objects'
 S3_HELLO_OBJECT_KEY = 'hello.txt'
@@ -647,6 +728,95 @@ FLOCI_EC2_TRUST_POLICY = {
         },
     ],
 }
+LAMBDA_LAB_TRUST_POLICY = {
+    'Version': '2012-10-17',
+    'Statement': [
+        {
+            'Effect': 'Allow',
+            'Principal': {'Service': 'lambda.amazonaws.com'},
+            'Action': 'sts:AssumeRole',
+        },
+    ],
+}
+LAMBDA_LAB_LOGS_POLICY = {
+    'Version': '2012-10-17',
+    'Statement': [
+        {
+            'Effect': 'Allow',
+            'Action': [
+                'logs:CreateLogGroup',
+                'logs:CreateLogStream',
+                'logs:PutLogEvents',
+            ],
+            'Resource': f'arn:aws:logs:{AWS_REGION}:{AWS_ACCOUNT_ID}:log-group:{LAMBDA_LOG_GROUP_NAME}:*',
+        },
+    ],
+}
+LAMBDA_HANDLER_SOURCE = '''import json
+
+def lambda_handler(event, context):
+    payload = event
+    if isinstance(event, dict) and "body" in event:
+        body = event.get("body") or "{}"
+        payload = json.loads(body) if isinstance(body, str) else body
+    message = payload.get("message", "hello") if isinstance(payload, dict) else "hello"
+    request_id = payload.get("request_id", "unknown") if isinstance(payload, dict) else "unknown"
+    print(f"processed {request_id}: {message}")
+    return {
+        "ok": True,
+        "echo": payload,
+        "request_id": request_id,
+    }
+'''
+LAMBDA_DYNAMODB_POLICY = {
+    'Version': '2012-10-17',
+    'Statement': [
+        {
+            'Effect': 'Allow',
+            'Action': 'dynamodb:PutItem',
+            'Resource': f'arn:aws:dynamodb:{AWS_REGION}:{AWS_ACCOUNT_ID}:table/{LAMBDA_DYNAMODB_TABLE_NAME}',
+        },
+        {
+            'Effect': 'Allow',
+            'Action': [
+                'logs:CreateLogGroup',
+                'logs:CreateLogStream',
+                'logs:PutLogEvents',
+            ],
+            'Resource': f'arn:aws:logs:{AWS_REGION}:{AWS_ACCOUNT_ID}:log-group:{LAMBDA_DYNAMODB_LOG_GROUP_NAME}:*',
+        },
+    ],
+}
+LAMBDA_DYNAMODB_HANDLER_SOURCE = '''import json
+import os
+
+import boto3
+
+dynamodb = boto3.client("dynamodb")
+TABLE_NAME = os.environ["TABLE_NAME"]
+
+def lambda_handler(event, context):
+    order_id = event["order_id"]
+    customer_id = event["customer_id"]
+    request_id = event["request_id"]
+    total = event["total"]
+    item = {
+        "OrderId": {"S": order_id},
+        "CustomerId": {"S": customer_id},
+        "Status": {"S": "RECEIVED"},
+        "Total": {"N": total},
+        "RequestId": {"S": request_id},
+        "WrittenBy": {"S": "lambda"},
+    }
+    dynamodb.put_item(TableName=TABLE_NAME, Item=item)
+    print(f"wrote {order_id} for {customer_id} with {request_id}")
+    return {
+        "ok": True,
+        "table": TABLE_NAME,
+        "order_id": order_id,
+        "request_id": request_id,
+    }
+'''
 
 IAM_CREATE_USER_LAB = {
     'service': 'iam',
@@ -659,6 +829,292 @@ IAM_CREATE_USER_LAB = {
             'title': 'Create user Alice',
             'command': 'aws iam create-user --user-name Alice',
             'explanation': 'Creates a local IAM user named Alice through the IAM CreateUser API.',
+        },
+    ],
+}
+
+LAMBDA_CREATE_INVOKE_LOGS_LAB = {
+    'service': 'lambda',
+    'key': 'create-invoke-logs',
+    'title': 'Create, invoke, and inspect a Lambda function',
+    'description': 'Create a local Lambda execution role and function, invoke it with a JSON event, then inspect the CloudWatch Logs written by the handler.',
+    'steps': [
+        {
+            'key': 'create-role',
+            'title': 'Create the execution role',
+            'command': f'aws iam create-role --role-name {LAMBDA_ROLE_NAME} --assume-role-policy-document file://lambda-trust-policy.json',
+            'explanation': 'Creates the IAM role that the Lambda service can assume when the function runs.',
+            'artifact_label': 'lambda-trust-policy.json',
+            'artifact': json.dumps(LAMBDA_LAB_TRUST_POLICY, indent=2),
+        },
+        {
+            'key': 'put-role-policy',
+            'title': 'Allow Lambda to write logs',
+            'command': f'aws iam put-role-policy --role-name {LAMBDA_ROLE_NAME} --policy-name {LAMBDA_ROLE_POLICY_NAME} --policy-document file://lambda-logs-policy.json',
+            'explanation': 'Adds the minimal CloudWatch Logs permissions the function needs for local log inspection.',
+            'artifact_label': 'lambda-logs-policy.json',
+            'artifact': json.dumps(LAMBDA_LAB_LOGS_POLICY, indent=2),
+        },
+        {
+            'key': 'create-function',
+            'title': 'Create the echo function',
+            'command': f'aws lambda create-function --function-name {LAMBDA_FUNCTION_NAME} --runtime {LAMBDA_RUNTIME} --role {LAMBDA_ROLE_ARN} --handler {LAMBDA_HANDLER} --zip-file fileb://function.zip',
+            'explanation': 'Creates a small Python function from the packaged handler artifact.',
+            'artifact_label': 'handler.py',
+            'artifact': LAMBDA_HANDLER_SOURCE,
+        },
+        {
+            'key': 'invoke-function',
+            'title': 'Invoke the function',
+            'command': f'aws lambda invoke --function-name {LAMBDA_FUNCTION_NAME} --payload file://event.json response.json',
+            'explanation': 'Sends a known JSON event and verifies the synchronous Lambda response.',
+            'artifact_label': 'event.json',
+            'artifact': json.dumps(LAMBDA_INVOKE_PAYLOAD, indent=2),
+        },
+        {
+            'key': 'inspect-logs',
+            'title': 'Inspect CloudWatch Logs',
+            'command': f'aws logs describe-log-streams --log-group-name {LAMBDA_LOG_GROUP_NAME}\naws logs get-log-events --log-group-name {LAMBDA_LOG_GROUP_NAME} --log-stream-name <log-stream-name>',
+            'explanation': 'Finds the Lambda log stream and verifies the handler wrote the expected request ID.',
+        },
+    ],
+}
+
+APIGW_LAMBDA_REQUEST_LAB = {
+    'service': 'apigateway',
+    'key': 'lambda-request',
+    'title': 'Send an API Gateway request to Lambda',
+    'description': 'Create a local HTTP API, connect a POST route to the Lambda echo function, grant invoke permission, and verify an HTTP request reaches the handler.',
+    'steps': [
+        {
+            'key': 'create-role',
+            'title': 'Create the Lambda execution role',
+            'command': f'aws iam create-role --role-name {LAMBDA_ROLE_NAME} --assume-role-policy-document file://lambda-trust-policy.json',
+            'explanation': 'Ensures the Lambda execution role exists before the API is wired to the function.',
+            'artifact_label': 'lambda-trust-policy.json',
+            'artifact': json.dumps(LAMBDA_LAB_TRUST_POLICY, indent=2),
+        },
+        {
+            'key': 'put-role-policy',
+            'title': 'Allow Lambda to write logs',
+            'command': f'aws iam put-role-policy --role-name {LAMBDA_ROLE_NAME} --policy-name {LAMBDA_ROLE_POLICY_NAME} --policy-document file://lambda-logs-policy.json',
+            'explanation': 'Keeps the function observable when the API Gateway route invokes it.',
+            'artifact_label': 'lambda-logs-policy.json',
+            'artifact': json.dumps(LAMBDA_LAB_LOGS_POLICY, indent=2),
+        },
+        {
+            'key': 'create-function',
+            'title': 'Create the API handler function',
+            'command': f'aws lambda create-function --function-name {LAMBDA_FUNCTION_NAME} --runtime {LAMBDA_RUNTIME} --role {LAMBDA_ROLE_ARN} --handler {LAMBDA_HANDLER} --zip-file fileb://function.zip',
+            'explanation': 'Creates the function that will receive the API Gateway proxy event.',
+            'artifact_label': 'handler.py',
+            'artifact': LAMBDA_HANDLER_SOURCE,
+        },
+        {
+            'key': 'create-api',
+            'title': 'Create an HTTP API',
+            'command': f'aws apigatewayv2 create-api --name {APIGW_LAMBDA_API_NAME} --protocol-type HTTP',
+            'explanation': 'Creates the API Gateway v2 HTTP API that will expose the Lambda function locally.',
+        },
+        {
+            'key': 'create-integration',
+            'title': 'Create the Lambda proxy integration',
+            'command': f'aws apigatewayv2 create-integration --api-id <api-id> --integration-type AWS_PROXY --integration-uri {LAMBDA_FUNCTION_ARN} --payload-format-version 2.0',
+            'explanation': 'Connects API Gateway to the Lambda Invoke API using the AWS_PROXY integration type.',
+        },
+        {
+            'key': 'create-route',
+            'title': 'Create the POST /echo route',
+            'command': 'aws apigatewayv2 create-route --api-id <api-id> --route-key "POST /echo" --target integrations/<integration-id>',
+            'explanation': 'Routes POST requests for /echo to the Lambda proxy integration.',
+        },
+        {
+            'key': 'create-stage',
+            'title': 'Create the default stage',
+            'command': 'aws apigatewayv2 create-stage --api-id <api-id> --stage-name $default --auto-deploy',
+            'explanation': 'Publishes route changes automatically through the default HTTP API stage.',
+        },
+        {
+            'key': 'add-lambda-permission',
+            'title': 'Allow API Gateway to invoke Lambda',
+            'command': f'aws lambda add-permission --function-name {LAMBDA_FUNCTION_NAME} --statement-id {APIGW_LAMBDA_PERMISSION_SID} --action lambda:InvokeFunction --principal apigateway.amazonaws.com --source-arn arn:aws:execute-api:{AWS_REGION}:{AWS_ACCOUNT_ID}:<api-id>/*/*/echo',
+            'explanation': 'Adds the resource policy statement API Gateway needs before it can invoke the function.',
+        },
+        {
+            'key': 'send-request',
+            'title': 'Send a local API request',
+            'command': 'curl -X POST <api-endpoint>/echo -H "Content-Type: application/json" --data @event.json',
+            'explanation': 'Sends the lab event through the local API Gateway data plane and verifies the Lambda echo response.',
+            'artifact_label': 'event.json',
+            'artifact': json.dumps(LAMBDA_INVOKE_PAYLOAD, indent=2),
+        },
+    ],
+}
+
+DYNAMODB_CRUD_QUERY_LAB = {
+    'service': 'dynamodb',
+    'key': 'crud-query',
+    'title': 'Create a DynamoDB table and query items',
+    'description': 'Create a local orders table, write an item, read it by key, update it, query by customer, delete it, and remove the table.',
+    'steps': [
+        {
+            'key': 'create-table',
+            'title': 'Create the orders table',
+            'command': f'aws dynamodb create-table --table-name {DYNAMODB_TABLE_NAME} --attribute-definitions file://attribute-definitions.json --key-schema file://key-schema.json --global-secondary-indexes file://customer-index.json --billing-mode PAY_PER_REQUEST',
+            'explanation': 'Creates a table keyed by OrderId with a customer lookup global secondary index.',
+            'artifact_label': 'attribute-definitions.json',
+            'artifact': json.dumps([
+                {'AttributeName': 'OrderId', 'AttributeType': 'S'},
+                {'AttributeName': 'CustomerId', 'AttributeType': 'S'},
+            ], indent=2),
+        },
+        {
+            'key': 'put-item',
+            'title': 'Write an order item',
+            'command': f'aws dynamodb put-item --table-name {DYNAMODB_TABLE_NAME} --item file://order-item.json',
+            'explanation': 'Stores a single order using DynamoDB attribute value JSON.',
+            'artifact_label': 'order-item.json',
+            'artifact': json.dumps(DYNAMODB_ORDER_ITEM, indent=2),
+        },
+        {
+            'key': 'get-item',
+            'title': 'Read the order by key',
+            'command': f'aws dynamodb get-item --table-name {DYNAMODB_TABLE_NAME} --key file://order-key.json',
+            'explanation': 'Reads the item by its partition key and verifies the original values.',
+            'artifact_label': 'order-key.json',
+            'artifact': json.dumps({'OrderId': {'S': DYNAMODB_ORDER_ID}}, indent=2),
+        },
+        {
+            'key': 'update-item',
+            'title': 'Update order status and total',
+            'command': f'aws dynamodb update-item --table-name {DYNAMODB_TABLE_NAME} --key file://order-key.json --update-expression "SET #status = :status, Total = :total" --expression-attribute-names file://attribute-names.json --expression-attribute-values file://updated-values.json --return-values ALL_NEW',
+            'explanation': 'Updates the mutable attributes and returns the new item image.',
+            'artifact_label': 'updated-values.json',
+            'artifact': json.dumps(DYNAMODB_UPDATED_ATTRIBUTES, indent=2),
+        },
+        {
+            'key': 'query-customer-index',
+            'title': 'Query orders by customer',
+            'command': f'aws dynamodb query --table-name {DYNAMODB_TABLE_NAME} --index-name {DYNAMODB_CUSTOMER_INDEX_NAME} --key-condition-expression "CustomerId = :customer" --expression-attribute-values file://query-values.json',
+            'explanation': 'Uses the global secondary index to find orders for one customer.',
+            'artifact_label': 'query-values.json',
+            'artifact': json.dumps({':customer': {'S': DYNAMODB_CUSTOMER_ID}}, indent=2),
+        },
+        {
+            'key': 'delete-item',
+            'title': 'Delete the order item',
+            'command': f'aws dynamodb delete-item --table-name {DYNAMODB_TABLE_NAME} --key file://order-key.json',
+            'explanation': 'Removes the order while leaving the table available for more writes.',
+        },
+        {
+            'key': 'delete-table',
+            'title': 'Delete the table',
+            'command': f'aws dynamodb delete-table --table-name {DYNAMODB_TABLE_NAME}',
+            'explanation': 'Deletes the lab-owned table after the item lifecycle is complete.',
+        },
+    ],
+}
+
+DYNAMODB_LAMBDA_WRITES_LAB = {
+    'service': 'dynamodb',
+    'key': 'lambda-writes',
+    'title': 'Write DynamoDB items from Lambda',
+    'description': 'Create a DynamoDB table, grant a Lambda function least-privilege write access, invoke it with an order event, and verify the item and logs.',
+    'steps': [
+        {
+            'key': 'create-table',
+            'title': 'Create the Lambda orders table',
+            'command': f'aws dynamodb create-table --table-name {LAMBDA_DYNAMODB_TABLE_NAME} --attribute-definitions AttributeName=OrderId,AttributeType=S --key-schema AttributeName=OrderId,KeyType=HASH --billing-mode PAY_PER_REQUEST',
+            'explanation': 'Creates the table that the Lambda function will write to.',
+        },
+        {
+            'key': 'create-role',
+            'title': 'Create the Lambda execution role',
+            'command': f'aws iam create-role --role-name {LAMBDA_DYNAMODB_ROLE_NAME} --assume-role-policy-document file://lambda-trust-policy.json',
+            'explanation': 'Creates the IAM role that the Lambda service can assume.',
+            'artifact_label': 'lambda-trust-policy.json',
+            'artifact': json.dumps(LAMBDA_LAB_TRUST_POLICY, indent=2),
+        },
+        {
+            'key': 'put-role-policy',
+            'title': 'Allow table writes and logs',
+            'command': f'aws iam put-role-policy --role-name {LAMBDA_DYNAMODB_ROLE_NAME} --policy-name {LAMBDA_DYNAMODB_POLICY_NAME} --policy-document file://lambda-dynamodb-policy.json',
+            'explanation': 'Grants only DynamoDB PutItem on the lab table plus CloudWatch Logs write permissions.',
+            'artifact_label': 'lambda-dynamodb-policy.json',
+            'artifact': json.dumps(LAMBDA_DYNAMODB_POLICY, indent=2),
+        },
+        {
+            'key': 'create-function',
+            'title': 'Create the order writer function',
+            'command': f'aws lambda create-function --function-name {LAMBDA_DYNAMODB_FUNCTION_NAME} --runtime {LAMBDA_RUNTIME} --role {LAMBDA_DYNAMODB_ROLE_ARN} --handler {LAMBDA_HANDLER} --zip-file fileb://function.zip --environment Variables={{TABLE_NAME={LAMBDA_DYNAMODB_TABLE_NAME}}}',
+            'explanation': 'Packages a small Python handler that writes the incoming order event to DynamoDB.',
+            'artifact_label': 'handler.py',
+            'artifact': LAMBDA_DYNAMODB_HANDLER_SOURCE,
+        },
+        {
+            'key': 'invoke-function',
+            'title': 'Invoke the writer',
+            'command': f'aws lambda invoke --function-name {LAMBDA_DYNAMODB_FUNCTION_NAME} --payload file://order-event.json response.json',
+            'explanation': 'Sends an order event to Lambda and verifies the synchronous response.',
+            'artifact_label': 'order-event.json',
+            'artifact': json.dumps(LAMBDA_DYNAMODB_PAYLOAD, indent=2),
+        },
+        {
+            'key': 'get-written-item',
+            'title': 'Read the written item',
+            'command': f'aws dynamodb get-item --table-name {LAMBDA_DYNAMODB_TABLE_NAME} --key file://order-key.json',
+            'explanation': 'Reads DynamoDB directly to prove the Lambda invocation wrote the order item.',
+            'artifact_label': 'order-key.json',
+            'artifact': json.dumps({'OrderId': {'S': LAMBDA_DYNAMODB_ORDER_ID}}, indent=2),
+        },
+        {
+            'key': 'inspect-logs',
+            'title': 'Inspect Lambda logs',
+            'command': f'aws logs describe-log-streams --log-group-name {LAMBDA_DYNAMODB_LOG_GROUP_NAME}\naws logs get-log-events --log-group-name {LAMBDA_DYNAMODB_LOG_GROUP_NAME} --log-stream-name <log-stream-name>',
+            'explanation': 'Verifies that the function logged the order write request ID.',
+        },
+    ],
+}
+
+KMS_CRYPTO_LAB = {
+    'service': 'kms',
+    'key': 'key-alias-encrypt-decrypt',
+    'title': 'Protect local app data with KMS',
+    'description': 'Create a symmetric KMS key, attach a stable alias, encrypt app configuration, decrypt it, and inspect the key metadata.',
+    'steps': [
+        {
+            'key': 'create-key',
+            'title': 'Create a symmetric key',
+            'command': 'aws kms create-key --description "Floci dashboard local workflow lab key" --key-usage ENCRYPT_DECRYPT --key-spec SYMMETRIC_DEFAULT --tags file://key-tags.json',
+            'explanation': 'Creates a lab-owned symmetric key that can encrypt and decrypt local application data.',
+            'artifact_label': 'key-tags.json',
+            'artifact': json.dumps(KMS_LAB_TAGS, indent=2),
+        },
+        {
+            'key': 'create-alias',
+            'title': 'Create a stable alias',
+            'command': f'aws kms create-alias --alias-name {KMS_LAB_ALIAS_NAME} --target-key-id <key-id>',
+            'explanation': 'Adds a human-readable alias so application configuration can reference the key without hard-coding the generated key ID.',
+        },
+        {
+            'key': 'describe-key',
+            'title': 'Inspect key metadata',
+            'command': f'aws kms describe-key --key-id {KMS_LAB_ALIAS_NAME}',
+            'explanation': 'Reads the key metadata through the alias and verifies the key is enabled for encrypt/decrypt use.',
+        },
+        {
+            'key': 'encrypt',
+            'title': 'Encrypt app configuration',
+            'command': f'aws kms encrypt --key-id {KMS_LAB_ALIAS_NAME} --plaintext fileb://app-config.json',
+            'explanation': 'Encrypts a small JSON configuration payload with the alias-backed KMS key.',
+            'artifact_label': 'app-config.json',
+            'artifact': json.dumps(KMS_LAB_PLAINTEXT, indent=2),
+        },
+        {
+            'key': 'decrypt',
+            'title': 'Decrypt the ciphertext',
+            'command': 'aws kms decrypt --ciphertext-blob fileb://ciphertext.bin',
+            'explanation': 'Decrypts the ciphertext produced by the previous step and verifies it matches the original JSON payload.',
         },
     ],
 }
@@ -2607,6 +3063,14 @@ def labs_for_service(service_key: str) -> list[dict[str, Any]]:
             EC2_S3_GATEWAY_ENDPOINT_LAB,
             EC2_SQS_INTERFACE_ENDPOINT_LAB,
         ]
+    if service_key == 'lambda':
+        return [LAMBDA_CREATE_INVOKE_LOGS_LAB]
+    if service_key == 'apigateway':
+        return [APIGW_LAMBDA_REQUEST_LAB]
+    if service_key == 'dynamodb':
+        return [DYNAMODB_CRUD_QUERY_LAB, DYNAMODB_LAMBDA_WRITES_LAB]
+    if service_key == 'kms':
+        return [KMS_CRYPTO_LAB]
     return []
 
 
@@ -2644,7 +3108,27 @@ LAB_BATCH_ORDER = [
     {
         'service': 'ec2',
         'title': 'EC2 networking labs',
-        'summary': 'This completes the current foundational lab sequence. The next best build area is the serverless application spine.',
+        'summary': 'Continue into the serverless application spine after VPC routing, security controls, gateway endpoints, and interface endpoints.',
+    },
+    {
+        'service': 'lambda',
+        'title': 'Lambda labs',
+        'summary': 'Continue into API Gateway after Lambda creation, invocation, and CloudWatch Logs inspection.',
+    },
+    {
+        'service': 'apigateway',
+        'title': 'API Gateway labs',
+        'summary': 'Continue into data persistence after exposing Lambda through a local HTTP API.',
+    },
+    {
+        'service': 'dynamodb',
+        'title': 'DynamoDB labs',
+        'summary': 'Continue into app configuration and encryption after table CRUD, query, and Lambda write foundations.',
+    },
+    {
+        'service': 'kms',
+        'title': 'KMS labs',
+        'summary': 'Continue into application configuration after key creation, aliases, and encrypt/decrypt round trips.',
     },
 ]
 
@@ -2671,7 +3155,7 @@ def next_lab_batch(service_key: str, lab_key: str) -> dict[str, Any] | None:
     if batch_index + 1 >= len(LAB_BATCH_ORDER):
         return {
             'title': 'Serverless application spine',
-            'summary': 'Next best builds: Lambda invocation with CloudWatch logs, API Gateway to Lambda, DynamoDB CRUD and queries, KMS, and Secrets Manager or SSM Parameter Store.',
+            'summary': 'Next best builds: Secrets Manager or SSM Parameter Store app configuration.',
             'service': None,
             'lab': None,
             'lab_title': None,
@@ -2726,6 +3210,26 @@ def _cloudformation_client():
 
 def _ec2_client():
     return FlociClientFactory().client('ec2')
+
+
+def _lambda_client():
+    return FlociClientFactory().client('lambda')
+
+
+def _logs_client():
+    return FlociClientFactory().client('logs')
+
+
+def _apigatewayv2_client():
+    return FlociClientFactory().client('apigatewayv2')
+
+
+def _dynamodb_client():
+    return FlociClientFactory().client('dynamodb')
+
+
+def _kms_client():
+    return FlociClientFactory().client('kms')
 
 
 def _json_text(value: Any) -> str:
@@ -3107,6 +3611,747 @@ def _verify_ec2_role_profile_association() -> dict[str, Any]:
     return {
         'status': 'failed',
         'message': f'Role {FLOCI_EC2_ROLE_NAME} is not in {FLOCI_EC2_INSTANCE_PROFILE_NAME}.',
+    }
+
+
+def _verify_lambda_role() -> dict[str, Any]:
+    return _verify_role(LAMBDA_ROLE_NAME, 'lambda.amazonaws.com')
+
+
+def _verify_lambda_role_policy() -> dict[str, Any]:
+    try:
+        response = _iam_client().get_role_policy(
+            RoleName=LAMBDA_ROLE_NAME,
+            PolicyName=LAMBDA_ROLE_POLICY_NAME,
+        )
+    except ClientError as exc:
+        return {'status': 'failed', 'message': str(exc)}
+
+    if response.get('PolicyName') == LAMBDA_ROLE_POLICY_NAME:
+        return {
+            'status': 'passed',
+            'message': f'Inline policy {LAMBDA_ROLE_POLICY_NAME} is embedded in {LAMBDA_ROLE_NAME}.',
+            'resource': _clean_response(response),
+        }
+
+    return {
+        'status': 'failed',
+        'message': f'Inline policy {LAMBDA_ROLE_POLICY_NAME} was not returned.',
+    }
+
+
+def _verify_lambda_function() -> dict[str, Any]:
+    try:
+        response = _lambda_client().get_function(FunctionName=LAMBDA_FUNCTION_NAME)
+    except ClientError as exc:
+        return {'status': 'failed', 'message': str(exc)}
+
+    configuration = response.get('Configuration', response)
+    if (
+        configuration.get('FunctionName') == LAMBDA_FUNCTION_NAME
+        and configuration.get('Role') == LAMBDA_ROLE_ARN
+    ):
+        return {
+            'status': 'passed',
+            'message': f'Function {LAMBDA_FUNCTION_NAME} exists with the lab execution role.',
+            'resource': _clean_response(configuration),
+        }
+
+    return {
+        'status': 'failed',
+        'message': f'Function {LAMBDA_FUNCTION_NAME} does not match the lab configuration.',
+    }
+
+
+def _verify_lambda_invocation() -> dict[str, Any]:
+    cached = cache.get(LAMBDA_INVOKE_CACHE_KEY)
+    if cached:
+        return {
+            'status': 'passed',
+            'message': f'Function {LAMBDA_FUNCTION_NAME} returned the expected echo response.',
+            'resource': cached,
+        }
+
+    return {
+        'status': 'failed',
+        'message': 'No successful Lambda invocation has been recorded for this lab run.',
+    }
+
+
+def _verify_lambda_log_group() -> dict[str, Any]:
+    try:
+        response = _logs_client().describe_log_groups(
+            logGroupNamePrefix=LAMBDA_LOG_GROUP_NAME,
+        )
+    except ClientError as exc:
+        return {'status': 'failed', 'message': str(exc)}
+
+    for group in response.get('logGroups', []):
+        if group.get('logGroupName') == LAMBDA_LOG_GROUP_NAME:
+            return {
+                'status': 'passed',
+                'message': f'Log group {LAMBDA_LOG_GROUP_NAME} exists.',
+                'resource': _clean_response(group),
+            }
+
+    return {
+        'status': 'failed',
+        'message': f'Log group {LAMBDA_LOG_GROUP_NAME} was not returned.',
+    }
+
+
+def _verify_lambda_logs() -> dict[str, Any]:
+    cached = cache.get(LAMBDA_LOGS_CACHE_KEY)
+    if cached:
+        return {
+            'status': 'passed',
+            'message': f'CloudWatch Logs includes the {LAMBDA_INVOKE_PAYLOAD["request_id"]} invocation.',
+            'resource': cached,
+        }
+
+    try:
+        logs = _logs_client()
+        streams = logs.describe_log_streams(
+            logGroupName=LAMBDA_LOG_GROUP_NAME,
+            orderBy='LastEventTime',
+            descending=True,
+            limit=10,
+        ).get('logStreams', [])
+        for stream in streams:
+            stream_name = stream.get('logStreamName')
+            if not stream_name:
+                continue
+            events = logs.get_log_events(
+                logGroupName=LAMBDA_LOG_GROUP_NAME,
+                logStreamName=stream_name,
+                startFromHead=False,
+                limit=50,
+            ).get('events', [])
+            for event in events:
+                message = event.get('message', '')
+                if LAMBDA_INVOKE_PAYLOAD['request_id'] in message:
+                    resource = {
+                        'log_group_name': LAMBDA_LOG_GROUP_NAME,
+                        'log_stream_name': stream_name,
+                        'event': _clean_response(event),
+                    }
+                    cache.set(LAMBDA_LOGS_CACHE_KEY, resource, timeout=3600)
+                    return {
+                        'status': 'passed',
+                        'message': f'CloudWatch Logs includes the {LAMBDA_INVOKE_PAYLOAD["request_id"]} invocation.',
+                        'resource': resource,
+                    }
+    except ClientError as exc:
+        return {'status': 'failed', 'message': str(exc)}
+
+    return {
+        'status': 'failed',
+        'message': f'No CloudWatch Logs event for {LAMBDA_INVOKE_PAYLOAD["request_id"]} was found.',
+    }
+
+
+def _apigw_items(operation: str, result_key: str, **kwargs) -> list[dict[str, Any]]:
+    client = _apigatewayv2_client()
+    if hasattr(client, 'get_paginator'):
+        try:
+            paginator = client.get_paginator(operation)
+            return paginator.paginate(**kwargs).build_full_result().get(result_key, [])
+        except (ClientError, KeyError, AttributeError, ValueError):
+            pass
+    return getattr(client, operation)(**kwargs).get(result_key, [])
+
+
+def _find_apigw_lambda_api() -> dict[str, Any] | None:
+    cached_api_id = cache.get(APIGW_LAMBDA_API_ID_CACHE_KEY)
+    if cached_api_id:
+        try:
+            api = _apigatewayv2_client().get_api(ApiId=cached_api_id)
+            if api.get('Name') == APIGW_LAMBDA_API_NAME:
+                return api
+        except ClientError:
+            cache.delete(APIGW_LAMBDA_API_ID_CACHE_KEY)
+
+    for api in _apigw_items('get_apis', 'Items'):
+        if api.get('Name') == APIGW_LAMBDA_API_NAME:
+            api_id = api.get('ApiId')
+            if api_id:
+                cache.set(APIGW_LAMBDA_API_ID_CACHE_KEY, api_id, timeout=86400)
+            return api
+    return None
+
+
+def _apigw_lambda_api_id() -> str:
+    api = _find_apigw_lambda_api()
+    api_id = (api or {}).get('ApiId')
+    if not api_id:
+        raise ValueError('API Gateway HTTP API has not been created yet.')
+    return api_id
+
+
+def _verify_apigw_lambda_api() -> dict[str, Any]:
+    try:
+        api = _find_apigw_lambda_api()
+    except ClientError as exc:
+        return {'status': 'failed', 'message': str(exc)}
+
+    if api and api.get('ProtocolType') == 'HTTP':
+        return {
+            'status': 'passed',
+            'message': f'HTTP API {APIGW_LAMBDA_API_NAME} exists.',
+            'resource': _clean_response(api),
+        }
+
+    return {
+        'status': 'failed',
+        'message': f'HTTP API {APIGW_LAMBDA_API_NAME} was not returned.',
+    }
+
+
+def _find_apigw_lambda_integration(api_id: str) -> dict[str, Any] | None:
+    cached_id = cache.get(APIGW_LAMBDA_INTEGRATION_ID_CACHE_KEY)
+    integrations = _apigw_items('get_integrations', 'Items', ApiId=api_id)
+    for integration in integrations:
+        if cached_id and integration.get('IntegrationId') == cached_id:
+            return integration
+        if (
+            integration.get('IntegrationType') == 'AWS_PROXY'
+            and integration.get('IntegrationUri') == LAMBDA_FUNCTION_ARN
+        ):
+            integration_id = integration.get('IntegrationId')
+            if integration_id:
+                cache.set(APIGW_LAMBDA_INTEGRATION_ID_CACHE_KEY, integration_id, timeout=86400)
+            return integration
+    return None
+
+
+def _apigw_lambda_integration_id() -> str:
+    integration = _find_apigw_lambda_integration(_apigw_lambda_api_id())
+    integration_id = (integration or {}).get('IntegrationId')
+    if not integration_id:
+        raise ValueError('API Gateway Lambda integration has not been created yet.')
+    return integration_id
+
+
+def _verify_apigw_lambda_integration() -> dict[str, Any]:
+    try:
+        api_id = _apigw_lambda_api_id()
+        integration = _find_apigw_lambda_integration(api_id)
+    except (ClientError, ValueError) as exc:
+        return {'status': 'failed', 'message': str(exc)}
+
+    if integration:
+        return {
+            'status': 'passed',
+            'message': f'API {APIGW_LAMBDA_API_NAME} has a Lambda proxy integration.',
+            'resource': _clean_response(integration),
+        }
+    return {
+        'status': 'failed',
+        'message': 'The Lambda proxy integration was not returned.',
+    }
+
+
+def _find_apigw_lambda_route(api_id: str) -> dict[str, Any] | None:
+    cached_id = cache.get(APIGW_LAMBDA_ROUTE_ID_CACHE_KEY)
+    routes = _apigw_items('get_routes', 'Items', ApiId=api_id)
+    integration_id = cache.get(APIGW_LAMBDA_INTEGRATION_ID_CACHE_KEY)
+    expected_target = f'integrations/{integration_id}' if integration_id else None
+    for route in routes:
+        if cached_id and route.get('RouteId') == cached_id:
+            return route
+        if route.get('RouteKey') == APIGW_LAMBDA_ROUTE_KEY and (
+            not expected_target or route.get('Target') == expected_target
+        ):
+            route_id = route.get('RouteId')
+            if route_id:
+                cache.set(APIGW_LAMBDA_ROUTE_ID_CACHE_KEY, route_id, timeout=86400)
+            return route
+    return None
+
+
+def _verify_apigw_lambda_route() -> dict[str, Any]:
+    try:
+        api_id = _apigw_lambda_api_id()
+        route = _find_apigw_lambda_route(api_id)
+    except (ClientError, ValueError) as exc:
+        return {'status': 'failed', 'message': str(exc)}
+    if route:
+        return {
+            'status': 'passed',
+            'message': f'Route {APIGW_LAMBDA_ROUTE_KEY} targets the Lambda integration.',
+            'resource': _clean_response(route),
+        }
+    return {
+        'status': 'failed',
+        'message': f'Route {APIGW_LAMBDA_ROUTE_KEY} was not returned.',
+    }
+
+
+def _verify_apigw_lambda_stage() -> dict[str, Any]:
+    try:
+        api_id = _apigw_lambda_api_id()
+        stages = _apigw_items('get_stages', 'Items', ApiId=api_id)
+    except (ClientError, ValueError) as exc:
+        return {'status': 'failed', 'message': str(exc)}
+    for stage in stages:
+        if stage.get('StageName') == APIGW_LAMBDA_STAGE_NAME:
+            return {
+                'status': 'passed',
+                'message': f'Stage {APIGW_LAMBDA_STAGE_NAME} is available for the HTTP API.',
+                'resource': _clean_response(stage),
+            }
+    return {
+        'status': 'failed',
+        'message': f'Stage {APIGW_LAMBDA_STAGE_NAME} was not returned.',
+    }
+
+
+def _verify_apigw_lambda_permission() -> dict[str, Any]:
+    try:
+        policy = json.loads(_lambda_client().get_policy(FunctionName=LAMBDA_FUNCTION_NAME).get('Policy', '{}'))
+    except ClientError as exc:
+        return {'status': 'failed', 'message': str(exc)}
+
+    statements = policy.get('Statement', [])
+    for statement in statements:
+        if (
+            statement.get('Sid') == APIGW_LAMBDA_PERMISSION_SID
+            and statement.get('Principal', {}).get('Service') == 'apigateway.amazonaws.com'
+            and statement.get('Action') == 'lambda:InvokeFunction'
+        ):
+            return {
+                'status': 'passed',
+                'message': 'Lambda resource policy allows API Gateway to invoke the function.',
+                'resource': _clean_response(statement),
+            }
+    return {
+        'status': 'failed',
+        'message': 'The API Gateway invoke permission was not returned in the Lambda policy.',
+    }
+
+
+def _verify_apigw_lambda_request() -> dict[str, Any]:
+    cached = cache.get(APIGW_LAMBDA_REQUEST_CACHE_KEY)
+    if cached:
+        return {
+            'status': 'passed',
+            'message': 'The local API Gateway request returned the expected Lambda response.',
+            'resource': cached,
+        }
+    return {
+        'status': 'failed',
+        'message': 'No successful API Gateway request has been recorded for this lab run.',
+    }
+
+
+def _verify_dynamodb_table_exists() -> dict[str, Any]:
+    try:
+        table = _dynamodb_client().describe_table(TableName=DYNAMODB_TABLE_NAME).get('Table', {})
+    except ClientError as exc:
+        return {'status': 'failed', 'message': str(exc)}
+
+    indexes = table.get('GlobalSecondaryIndexes') or []
+    has_index = any(index.get('IndexName') == DYNAMODB_CUSTOMER_INDEX_NAME for index in indexes)
+    if table.get('TableName') == DYNAMODB_TABLE_NAME and has_index:
+        return {
+            'status': 'passed',
+            'message': f'Table {DYNAMODB_TABLE_NAME} exists with the customer lookup index.',
+            'resource': _clean_response(table),
+        }
+    return {
+        'status': 'failed',
+        'message': f'Table {DYNAMODB_TABLE_NAME} does not match the expected schema.',
+    }
+
+
+def _dynamodb_order_key() -> dict[str, Any]:
+    return {'OrderId': {'S': DYNAMODB_ORDER_ID}}
+
+
+def _get_dynamodb_order_item() -> dict[str, Any] | None:
+    return _dynamodb_client().get_item(
+        TableName=DYNAMODB_TABLE_NAME,
+        Key=_dynamodb_order_key(),
+    ).get('Item')
+
+
+def _verify_dynamodb_order_created() -> dict[str, Any]:
+    try:
+        item = _get_dynamodb_order_item()
+    except ClientError as exc:
+        return {'status': 'failed', 'message': str(exc)}
+    if (
+        item
+        and item.get('OrderId', {}).get('S') == DYNAMODB_ORDER_ID
+        and item.get('CustomerId', {}).get('S') == DYNAMODB_CUSTOMER_ID
+        and item.get('Status', {}).get('S') == 'CREATED'
+    ):
+        return {
+            'status': 'passed',
+            'message': f'Order {DYNAMODB_ORDER_ID} exists with the initial attributes.',
+            'resource': _clean_response(item),
+        }
+    return {
+        'status': 'failed',
+        'message': f'Order {DYNAMODB_ORDER_ID} was not returned with the initial values.',
+    }
+
+
+def _verify_dynamodb_order_updated() -> dict[str, Any]:
+    try:
+        item = _get_dynamodb_order_item()
+    except ClientError as exc:
+        return {'status': 'failed', 'message': str(exc)}
+    if (
+        item
+        and item.get('Status', {}).get('S') == 'PAID'
+        and item.get('Total', {}).get('N') == DYNAMODB_UPDATED_TOTAL
+    ):
+        return {
+            'status': 'passed',
+            'message': f'Order {DYNAMODB_ORDER_ID} is updated to PAID with the new total.',
+            'resource': _clean_response(item),
+        }
+    return {
+        'status': 'failed',
+        'message': f'Order {DYNAMODB_ORDER_ID} was not returned with the updated values.',
+    }
+
+
+def _verify_dynamodb_customer_query() -> dict[str, Any]:
+    try:
+        response = _dynamodb_client().query(
+            TableName=DYNAMODB_TABLE_NAME,
+            IndexName=DYNAMODB_CUSTOMER_INDEX_NAME,
+            KeyConditionExpression='CustomerId = :customer',
+            ExpressionAttributeValues={':customer': {'S': DYNAMODB_CUSTOMER_ID}},
+        )
+    except ClientError as exc:
+        return {'status': 'failed', 'message': str(exc)}
+    for item in response.get('Items', []):
+        if (
+            item.get('OrderId', {}).get('S') == DYNAMODB_ORDER_ID
+            and item.get('Status', {}).get('S') == 'PAID'
+        ):
+            return {
+                'status': 'passed',
+                'message': f'The customer index returns order {DYNAMODB_ORDER_ID}.',
+                'resource': _clean_response(response),
+            }
+    return {
+        'status': 'failed',
+        'message': f'The customer index did not return order {DYNAMODB_ORDER_ID}.',
+    }
+
+
+def _verify_dynamodb_order_deleted() -> dict[str, Any]:
+    try:
+        item = _get_dynamodb_order_item()
+    except ClientError as exc:
+        return {'status': 'failed', 'message': str(exc)}
+    if not item:
+        return {
+            'status': 'passed',
+            'message': f'Order {DYNAMODB_ORDER_ID} is absent from {DYNAMODB_TABLE_NAME}.',
+        }
+    return {
+        'status': 'failed',
+        'message': f'Order {DYNAMODB_ORDER_ID} still exists.',
+        'resource': _clean_response(item),
+    }
+
+
+def _verify_dynamodb_table_deleted() -> dict[str, Any]:
+    try:
+        _dynamodb_client().describe_table(TableName=DYNAMODB_TABLE_NAME)
+    except ClientError as exc:
+        if _error_code(exc) == 'ResourceNotFoundException':
+            return {
+                'status': 'passed',
+                'message': f'Table {DYNAMODB_TABLE_NAME} is deleted.',
+            }
+        return {'status': 'failed', 'message': str(exc)}
+    return {
+        'status': 'failed',
+        'message': f'Table {DYNAMODB_TABLE_NAME} still exists.',
+    }
+
+
+def _verify_lambda_dynamodb_table() -> dict[str, Any]:
+    try:
+        table = _dynamodb_client().describe_table(TableName=LAMBDA_DYNAMODB_TABLE_NAME).get('Table', {})
+    except ClientError as exc:
+        return {'status': 'failed', 'message': str(exc)}
+
+    if table.get('TableName') == LAMBDA_DYNAMODB_TABLE_NAME:
+        return {
+            'status': 'passed',
+            'message': f'Table {LAMBDA_DYNAMODB_TABLE_NAME} exists for Lambda writes.',
+            'resource': _clean_response(table),
+        }
+    return {
+        'status': 'failed',
+        'message': f'Table {LAMBDA_DYNAMODB_TABLE_NAME} was not returned.',
+    }
+
+
+def _verify_lambda_dynamodb_role() -> dict[str, Any]:
+    return _verify_role(LAMBDA_DYNAMODB_ROLE_NAME, 'lambda.amazonaws.com')
+
+
+def _verify_lambda_dynamodb_policy() -> dict[str, Any]:
+    try:
+        response = _iam_client().get_role_policy(
+            RoleName=LAMBDA_DYNAMODB_ROLE_NAME,
+            PolicyName=LAMBDA_DYNAMODB_POLICY_NAME,
+        )
+    except ClientError as exc:
+        return {'status': 'failed', 'message': str(exc)}
+    if response.get('PolicyName') == LAMBDA_DYNAMODB_POLICY_NAME:
+        return {
+            'status': 'passed',
+            'message': f'Inline policy {LAMBDA_DYNAMODB_POLICY_NAME} is embedded in {LAMBDA_DYNAMODB_ROLE_NAME}.',
+            'resource': _clean_response(response),
+        }
+    return {
+        'status': 'failed',
+        'message': f'Inline policy {LAMBDA_DYNAMODB_POLICY_NAME} was not returned.',
+    }
+
+
+def _verify_lambda_dynamodb_function() -> dict[str, Any]:
+    try:
+        response = _lambda_client().get_function(FunctionName=LAMBDA_DYNAMODB_FUNCTION_NAME)
+    except ClientError as exc:
+        return {'status': 'failed', 'message': str(exc)}
+    configuration = response.get('Configuration', response)
+    environment = configuration.get('Environment', {}).get('Variables', {})
+    if (
+        configuration.get('FunctionName') == LAMBDA_DYNAMODB_FUNCTION_NAME
+        and configuration.get('Role') == LAMBDA_DYNAMODB_ROLE_ARN
+        and environment.get('TABLE_NAME') == LAMBDA_DYNAMODB_TABLE_NAME
+    ):
+        return {
+            'status': 'passed',
+            'message': f'Function {LAMBDA_DYNAMODB_FUNCTION_NAME} exists with the table environment variable.',
+            'resource': _clean_response(configuration),
+        }
+    return {
+        'status': 'failed',
+        'message': f'Function {LAMBDA_DYNAMODB_FUNCTION_NAME} does not match the lab configuration.',
+    }
+
+
+def _verify_lambda_dynamodb_invocation() -> dict[str, Any]:
+    cached = cache.get(LAMBDA_DYNAMODB_INVOKE_CACHE_KEY)
+    if cached:
+        return {
+            'status': 'passed',
+            'message': f'Function {LAMBDA_DYNAMODB_FUNCTION_NAME} returned a successful order-write response.',
+            'resource': cached,
+        }
+    return {
+        'status': 'failed',
+        'message': 'No successful Lambda-to-DynamoDB invocation has been recorded for this lab run.',
+    }
+
+
+def _lambda_dynamodb_order_key() -> dict[str, Any]:
+    return {'OrderId': {'S': LAMBDA_DYNAMODB_ORDER_ID}}
+
+
+def _verify_lambda_dynamodb_item() -> dict[str, Any]:
+    try:
+        item = _dynamodb_client().get_item(
+            TableName=LAMBDA_DYNAMODB_TABLE_NAME,
+            Key=_lambda_dynamodb_order_key(),
+        ).get('Item')
+    except ClientError as exc:
+        return {'status': 'failed', 'message': str(exc)}
+    if (
+        item
+        and item.get('OrderId', {}).get('S') == LAMBDA_DYNAMODB_ORDER_ID
+        and item.get('RequestId', {}).get('S') == LAMBDA_DYNAMODB_PAYLOAD['request_id']
+        and item.get('WrittenBy', {}).get('S') == 'lambda'
+    ):
+        return {
+            'status': 'passed',
+            'message': f'Lambda wrote order {LAMBDA_DYNAMODB_ORDER_ID} to DynamoDB.',
+            'resource': _clean_response(item),
+        }
+    return {
+        'status': 'failed',
+        'message': f'Order {LAMBDA_DYNAMODB_ORDER_ID} was not written by Lambda.',
+    }
+
+
+def _verify_lambda_dynamodb_logs() -> dict[str, Any]:
+    cached = cache.get(LAMBDA_DYNAMODB_LOGS_CACHE_KEY)
+    if cached:
+        return {
+            'status': 'passed',
+            'message': f'CloudWatch Logs includes the {LAMBDA_DYNAMODB_PAYLOAD["request_id"]} write.',
+            'resource': cached,
+        }
+    try:
+        logs = _logs_client()
+        streams = logs.describe_log_streams(
+            logGroupName=LAMBDA_DYNAMODB_LOG_GROUP_NAME,
+            orderBy='LastEventTime',
+            descending=True,
+            limit=10,
+        ).get('logStreams', [])
+        for stream in streams:
+            stream_name = stream.get('logStreamName')
+            if not stream_name:
+                continue
+            events = logs.get_log_events(
+                logGroupName=LAMBDA_DYNAMODB_LOG_GROUP_NAME,
+                logStreamName=stream_name,
+                startFromHead=False,
+                limit=50,
+            ).get('events', [])
+            for event in events:
+                if LAMBDA_DYNAMODB_PAYLOAD['request_id'] in event.get('message', ''):
+                    resource = {
+                        'log_group_name': LAMBDA_DYNAMODB_LOG_GROUP_NAME,
+                        'log_stream_name': stream_name,
+                        'event': _clean_response(event),
+                    }
+                    cache.set(LAMBDA_DYNAMODB_LOGS_CACHE_KEY, resource, timeout=3600)
+                    return {
+                        'status': 'passed',
+                        'message': f'CloudWatch Logs includes the {LAMBDA_DYNAMODB_PAYLOAD["request_id"]} write.',
+                        'resource': resource,
+                    }
+    except ClientError as exc:
+        return {'status': 'failed', 'message': str(exc)}
+    return {
+        'status': 'failed',
+        'message': f'No CloudWatch Logs event for {LAMBDA_DYNAMODB_PAYLOAD["request_id"]} was found.',
+    }
+
+
+def _kms_items(operation: str, result_key: str, **kwargs) -> list[dict[str, Any]]:
+    client = _kms_client()
+    if hasattr(client, 'get_paginator'):
+        try:
+            paginator = client.get_paginator(operation)
+            return paginator.paginate(**kwargs).build_full_result().get(result_key, [])
+        except (ClientError, KeyError, AttributeError, ValueError):
+            pass
+    return getattr(client, operation)(**kwargs).get(result_key, [])
+
+
+def _find_kms_lab_key_id() -> str | None:
+    cached = cache.get(KMS_LAB_KEY_ID_CACHE_KEY)
+    if cached:
+        try:
+            metadata = _kms_client().describe_key(KeyId=cached).get('KeyMetadata', {})
+            if metadata.get('KeyId'):
+                return metadata['KeyId']
+        except ClientError:
+            cache.delete(KMS_LAB_KEY_ID_CACHE_KEY)
+
+    for alias in _kms_items('list_aliases', 'Aliases'):
+        if alias.get('AliasName') == KMS_LAB_ALIAS_NAME and alias.get('TargetKeyId'):
+            cache.set(KMS_LAB_KEY_ID_CACHE_KEY, alias['TargetKeyId'], timeout=86400)
+            return alias['TargetKeyId']
+
+    expected_tags = {(tag['TagKey'], tag['TagValue']) for tag in KMS_LAB_TAGS}
+    for key in _kms_items('list_keys', 'Keys'):
+        key_id = key.get('KeyId')
+        if not key_id:
+            continue
+        try:
+            tags = _kms_items('list_resource_tags', 'Tags', KeyId=key_id)
+        except ClientError:
+            continue
+        actual_tags = {(tag.get('TagKey'), tag.get('TagValue')) for tag in tags}
+        if expected_tags.issubset(actual_tags):
+            cache.set(KMS_LAB_KEY_ID_CACHE_KEY, key_id, timeout=86400)
+            return key_id
+    return None
+
+
+def _kms_lab_key_id() -> str:
+    key_id = _find_kms_lab_key_id()
+    if not key_id:
+        raise ValueError('KMS lab key has not been created yet.')
+    return key_id
+
+
+def _verify_kms_lab_key() -> dict[str, Any]:
+    try:
+        key_id = _find_kms_lab_key_id()
+        if not key_id:
+            return {
+                'status': 'failed',
+                'message': 'KMS lab key was not found.',
+            }
+        metadata = _kms_client().describe_key(KeyId=key_id).get('KeyMetadata', {})
+    except ClientError as exc:
+        return {'status': 'failed', 'message': str(exc)}
+    if (
+        metadata.get('KeyUsage') == 'ENCRYPT_DECRYPT'
+        and metadata.get('KeySpec') == 'SYMMETRIC_DEFAULT'
+        and metadata.get('KeyState') in {'Enabled', 'Creating'}
+    ):
+        return {
+            'status': 'passed',
+            'message': 'KMS lab key exists and is configured for symmetric encryption.',
+            'resource': _clean_response(metadata),
+        }
+    return {
+        'status': 'failed',
+        'message': 'KMS lab key does not match the expected symmetric encrypt/decrypt configuration.',
+    }
+
+
+def _verify_kms_lab_alias() -> dict[str, Any]:
+    try:
+        key_id = _kms_lab_key_id()
+        aliases = _kms_items('list_aliases', 'Aliases', KeyId=key_id)
+    except (ClientError, ValueError) as exc:
+        return {'status': 'failed', 'message': str(exc)}
+    for alias in aliases:
+        if alias.get('AliasName') == KMS_LAB_ALIAS_NAME and alias.get('TargetKeyId') == key_id:
+            return {
+                'status': 'passed',
+                'message': f'Alias {KMS_LAB_ALIAS_NAME} targets the KMS lab key.',
+                'resource': _clean_response(alias),
+            }
+    return {
+        'status': 'failed',
+        'message': f'Alias {KMS_LAB_ALIAS_NAME} was not returned for the KMS lab key.',
+    }
+
+
+def _verify_kms_lab_ciphertext() -> dict[str, Any]:
+    cached = cache.get(KMS_LAB_CIPHERTEXT_CACHE_KEY)
+    if cached:
+        return {
+            'status': 'passed',
+            'message': 'KMS returned ciphertext for the app configuration payload.',
+            'resource': cached,
+        }
+    return {
+        'status': 'failed',
+        'message': 'No ciphertext has been recorded for this KMS lab run.',
+    }
+
+
+def _verify_kms_lab_decrypt() -> dict[str, Any]:
+    cached = cache.get(KMS_LAB_DECRYPT_CACHE_KEY)
+    if cached:
+        return {
+            'status': 'passed',
+            'message': 'KMS decrypted the ciphertext back to the original app configuration.',
+            'resource': cached,
+        }
+    return {
+        'status': 'failed',
+        'message': 'No successful KMS decrypt has been recorded for this lab run.',
     }
 
 
@@ -6123,6 +7368,69 @@ def run_lab_step(service_key: str, lab_key: str, step_key: str) -> dict[str, Any
         if step_key in runners:
             return runners[step_key]()
 
+    if service_key == 'lambda' and lab_key == 'create-invoke-logs':
+        runners = {
+            'create-role': _run_lambda_create_role,
+            'put-role-policy': _run_lambda_put_role_policy,
+            'create-function': _run_lambda_create_function,
+            'invoke-function': _run_lambda_invoke_function,
+            'inspect-logs': _run_lambda_inspect_logs,
+        }
+        if step_key in runners:
+            return runners[step_key]()
+
+    if service_key == 'apigateway' and lab_key == 'lambda-request':
+        runners = {
+            'create-role': lambda: _run_lambda_create_role('lambda-request', 'apigateway'),
+            'put-role-policy': lambda: _run_lambda_put_role_policy('lambda-request', 'apigateway'),
+            'create-function': lambda: _run_lambda_create_function('lambda-request', 'apigateway'),
+            'create-api': _run_apigw_create_api,
+            'create-integration': _run_apigw_create_integration,
+            'create-route': _run_apigw_create_route,
+            'create-stage': _run_apigw_create_stage,
+            'add-lambda-permission': _run_apigw_add_lambda_permission,
+            'send-request': _run_apigw_send_request,
+        }
+        if step_key in runners:
+            return runners[step_key]()
+
+    if service_key == 'dynamodb' and lab_key == 'crud-query':
+        runners = {
+            'create-table': _run_dynamodb_create_table,
+            'put-item': _run_dynamodb_put_item,
+            'get-item': _run_dynamodb_get_item,
+            'update-item': _run_dynamodb_update_item,
+            'query-customer-index': _run_dynamodb_query_customer_index,
+            'delete-item': _run_dynamodb_delete_item,
+            'delete-table': _run_dynamodb_delete_table,
+        }
+        if step_key in runners:
+            return runners[step_key]()
+
+    if service_key == 'dynamodb' and lab_key == 'lambda-writes':
+        runners = {
+            'create-table': _run_lambda_dynamodb_create_table,
+            'create-role': _run_lambda_dynamodb_create_role,
+            'put-role-policy': _run_lambda_dynamodb_put_policy,
+            'create-function': _run_lambda_dynamodb_create_function,
+            'invoke-function': _run_lambda_dynamodb_invoke,
+            'get-written-item': _run_lambda_dynamodb_get_item,
+            'inspect-logs': _run_lambda_dynamodb_inspect_logs,
+        }
+        if step_key in runners:
+            return runners[step_key]()
+
+    if service_key == 'kms' and lab_key == 'key-alias-encrypt-decrypt':
+        runners = {
+            'create-key': _run_kms_create_key,
+            'create-alias': _run_kms_create_alias,
+            'describe-key': _run_kms_describe_key,
+            'encrypt': _run_kms_encrypt,
+            'decrypt': _run_kms_decrypt,
+        }
+        if step_key in runners:
+            return runners[step_key]()
+
     if service_key == 's3' and lab_key == 'create-bucket':
         runners = {
             'create-bucket': _run_s3_create_bucket,
@@ -6825,6 +8133,189 @@ def lab_status(service_key: str, lab_key: str) -> dict[str, Any]:
                 'add-role-to-instance-profile': {'verified': association_verified, 'verification': association_verification if association_verified else None},
                 'get-instance-profile': {'verified': association_verified, 'verification': association_verification if association_verified else None},
                 'list-instance-profiles-for-role': {'verified': association_verified, 'verification': association_verification if association_verified else None},
+            },
+        }
+
+    if service_key == 'lambda' and lab_key == 'create-invoke-logs':
+        role_verification = _verify_lambda_role()
+        policy_verification = _verify_lambda_role_policy()
+        function_verification = _verify_lambda_function()
+        invocation_verification = _verify_lambda_invocation()
+        log_group_verification = _verify_lambda_log_group()
+        logs_verification = _verify_lambda_logs()
+        role_verified = role_verification.get('status') == 'passed'
+        policy_verified = policy_verification.get('status') == 'passed'
+        function_verified = function_verification.get('status') == 'passed'
+        invocation_verified = invocation_verification.get('status') == 'passed'
+        log_group_verified = log_group_verification.get('status') == 'passed'
+        logs_verified = logs_verification.get('status') == 'passed'
+        return {
+            'service': service_key,
+            'lab': lab_key,
+            'complete': (
+                role_verified
+                and policy_verified
+                and function_verified
+                and invocation_verified
+                and log_group_verified
+                and logs_verified
+            ),
+            'steps': {
+                'create-role': {'verified': role_verified, 'verification': role_verification if role_verified else None},
+                'put-role-policy': {'verified': policy_verified, 'verification': policy_verification if policy_verified else None},
+                'create-function': {'verified': function_verified, 'verification': function_verification if function_verified else None},
+                'invoke-function': {'verified': invocation_verified, 'verification': invocation_verification if invocation_verified else None},
+                'inspect-logs': {'verified': logs_verified, 'verification': logs_verification if logs_verified else None},
+            },
+        }
+
+    if service_key == 'apigateway' and lab_key == 'lambda-request':
+        role_verification = _verify_lambda_role()
+        policy_verification = _verify_lambda_role_policy()
+        function_verification = _verify_lambda_function()
+        api_verification = _verify_apigw_lambda_api()
+        integration_verification = _verify_apigw_lambda_integration()
+        route_verification = _verify_apigw_lambda_route()
+        stage_verification = _verify_apigw_lambda_stage()
+        permission_verification = _verify_apigw_lambda_permission()
+        request_verification = _verify_apigw_lambda_request()
+        role_verified = role_verification.get('status') == 'passed'
+        policy_verified = policy_verification.get('status') == 'passed'
+        function_verified = function_verification.get('status') == 'passed'
+        api_verified = api_verification.get('status') == 'passed'
+        integration_verified = integration_verification.get('status') == 'passed'
+        route_verified = route_verification.get('status') == 'passed'
+        stage_verified = stage_verification.get('status') == 'passed'
+        permission_verified = permission_verification.get('status') == 'passed'
+        request_verified = request_verification.get('status') == 'passed'
+        return {
+            'service': service_key,
+            'lab': lab_key,
+            'complete': (
+                role_verified
+                and policy_verified
+                and function_verified
+                and api_verified
+                and integration_verified
+                and route_verified
+                and stage_verified
+                and permission_verified
+                and request_verified
+            ),
+            'steps': {
+                'create-role': {'verified': role_verified, 'verification': role_verification if role_verified else None},
+                'put-role-policy': {'verified': policy_verified, 'verification': policy_verification if policy_verified else None},
+                'create-function': {'verified': function_verified, 'verification': function_verification if function_verified else None},
+                'create-api': {'verified': api_verified, 'verification': api_verification if api_verified else None},
+                'create-integration': {'verified': integration_verified, 'verification': integration_verification if integration_verified else None},
+                'create-route': {'verified': route_verified, 'verification': route_verification if route_verified else None},
+                'create-stage': {'verified': stage_verified, 'verification': stage_verification if stage_verified else None},
+                'add-lambda-permission': {'verified': permission_verified, 'verification': permission_verification if permission_verified else None},
+                'send-request': {'verified': request_verified, 'verification': request_verification if request_verified else None},
+            },
+        }
+
+    if service_key == 'dynamodb' and lab_key == 'crud-query':
+        table_deleted_verification = _verify_dynamodb_table_deleted()
+        table_deleted = (
+            table_deleted_verification.get('status') == 'passed'
+            and bool(cache.get(DYNAMODB_DELETE_TABLE_CACHE_KEY))
+        )
+        if table_deleted:
+            return {
+                'service': service_key,
+                'lab': lab_key,
+                'complete': True,
+                'steps': {
+                    'delete-table': {
+                        'verified': True,
+                        'verification': table_deleted_verification,
+                    },
+                },
+            }
+
+        table_verification = _verify_dynamodb_table_exists()
+        created_verification = _verify_dynamodb_order_created()
+        updated_verification = _verify_dynamodb_order_updated()
+        query_verification = _verify_dynamodb_customer_query()
+        deleted_verification = _verify_dynamodb_order_deleted()
+        table_verified = table_verification.get('status') == 'passed'
+        created_verified = created_verification.get('status') == 'passed' and bool(cache.get(DYNAMODB_PUT_CACHE_KEY))
+        updated_verified = updated_verification.get('status') == 'passed' and bool(cache.get(DYNAMODB_UPDATE_CACHE_KEY))
+        query_verified = query_verification.get('status') == 'passed' and bool(cache.get(DYNAMODB_QUERY_CACHE_KEY))
+        deleted_verified = deleted_verification.get('status') == 'passed' and bool(cache.get(DYNAMODB_DELETE_ITEM_CACHE_KEY))
+        return {
+            'service': service_key,
+            'lab': lab_key,
+            'complete': False,
+            'steps': {
+                'create-table': {'verified': table_verified, 'verification': table_verification if table_verified else None},
+                'put-item': {'verified': created_verified or updated_verified, 'verification': (updated_verification if updated_verified else created_verification) if (created_verified or updated_verified) else None},
+                'get-item': {'verified': created_verified or updated_verified, 'verification': (updated_verification if updated_verified else created_verification) if (created_verified or updated_verified) else None},
+                'update-item': {'verified': updated_verified, 'verification': updated_verification if updated_verified else None},
+                'query-customer-index': {'verified': query_verified, 'verification': query_verification if query_verified else None},
+                'delete-item': {'verified': deleted_verified, 'verification': deleted_verification if deleted_verified else None},
+                'delete-table': {'verified': False, 'verification': None},
+            },
+        }
+
+    if service_key == 'dynamodb' and lab_key == 'lambda-writes':
+        table_verification = _verify_lambda_dynamodb_table()
+        role_verification = _verify_lambda_dynamodb_role()
+        policy_verification = _verify_lambda_dynamodb_policy()
+        function_verification = _verify_lambda_dynamodb_function()
+        invocation_verification = _verify_lambda_dynamodb_invocation()
+        item_verification = _verify_lambda_dynamodb_item()
+        logs_verification = _verify_lambda_dynamodb_logs()
+        table_verified = table_verification.get('status') == 'passed'
+        role_verified = role_verification.get('status') == 'passed'
+        policy_verified = policy_verification.get('status') == 'passed'
+        function_verified = function_verification.get('status') == 'passed'
+        invocation_verified = invocation_verification.get('status') == 'passed'
+        item_verified = item_verification.get('status') == 'passed'
+        logs_verified = logs_verification.get('status') == 'passed'
+        return {
+            'service': service_key,
+            'lab': lab_key,
+            'complete': (
+                table_verified
+                and role_verified
+                and policy_verified
+                and function_verified
+                and invocation_verified
+                and item_verified
+                and logs_verified
+            ),
+            'steps': {
+                'create-table': {'verified': table_verified, 'verification': table_verification if table_verified else None},
+                'create-role': {'verified': role_verified, 'verification': role_verification if role_verified else None},
+                'put-role-policy': {'verified': policy_verified, 'verification': policy_verification if policy_verified else None},
+                'create-function': {'verified': function_verified, 'verification': function_verification if function_verified else None},
+                'invoke-function': {'verified': invocation_verified, 'verification': invocation_verification if invocation_verified else None},
+                'get-written-item': {'verified': item_verified, 'verification': item_verification if item_verified else None},
+                'inspect-logs': {'verified': logs_verified, 'verification': logs_verification if logs_verified else None},
+            },
+        }
+
+    if service_key == 'kms' and lab_key == 'key-alias-encrypt-decrypt':
+        key_verification = _verify_kms_lab_key()
+        alias_verification = _verify_kms_lab_alias()
+        ciphertext_verification = _verify_kms_lab_ciphertext()
+        decrypt_verification = _verify_kms_lab_decrypt()
+        key_verified = key_verification.get('status') == 'passed'
+        alias_verified = alias_verification.get('status') == 'passed'
+        ciphertext_verified = ciphertext_verification.get('status') == 'passed'
+        decrypt_verified = decrypt_verification.get('status') == 'passed'
+        return {
+            'service': service_key,
+            'lab': lab_key,
+            'complete': key_verified and alias_verified and ciphertext_verified and decrypt_verified,
+            'steps': {
+                'create-key': {'verified': key_verified, 'verification': key_verification if key_verified else None},
+                'create-alias': {'verified': alias_verified, 'verification': alias_verification if alias_verified else None},
+                'describe-key': {'verified': key_verified and alias_verified, 'verification': key_verification if key_verified and alias_verified else None},
+                'encrypt': {'verified': ciphertext_verified, 'verification': ciphertext_verification if ciphertext_verified else None},
+                'decrypt': {'verified': decrypt_verified, 'verification': decrypt_verification if decrypt_verified else None},
             },
         }
 
@@ -8539,6 +10030,21 @@ def reset_lab(service_key: str, lab_key: str) -> dict[str, Any]:
     if service_key == 'iam' and lab_key == 'ec2-instance-profile':
         return _reset_iam_ec2_instance_profile()
 
+    if service_key == 'lambda' and lab_key == 'create-invoke-logs':
+        return _reset_lambda_create_invoke_logs()
+
+    if service_key == 'apigateway' and lab_key == 'lambda-request':
+        return _reset_apigw_lambda_request()
+
+    if service_key == 'dynamodb' and lab_key == 'crud-query':
+        return _reset_dynamodb_crud_query()
+
+    if service_key == 'dynamodb' and lab_key == 'lambda-writes':
+        return _reset_dynamodb_lambda_writes()
+
+    if service_key == 'kms' and lab_key == 'key-alias-encrypt-decrypt':
+        return _reset_kms_crypto()
+
     if service_key == 's3' and lab_key == 'create-bucket':
         return _reset_s3_create_bucket()
 
@@ -9372,6 +10878,935 @@ def _run_iam_list_instance_profiles_for_ec2_role() -> dict[str, Any]:
         'verified': verification.get('status') == 'passed',
         'verification': verification,
     }
+
+
+def _lambda_function_zip_bytes(source: str = LAMBDA_HANDLER_SOURCE) -> bytes:
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr('handler.py', source)
+    return buffer.getvalue()
+
+
+def _lambda_payload_json(payload: Any) -> dict[str, Any]:
+    raw = payload.read() if hasattr(payload, 'read') else payload
+    if isinstance(raw, bytes):
+        text = raw.decode('utf-8')
+    else:
+        text = str(raw or '')
+    if not text:
+        return {}
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return {'raw': text}
+
+
+def _run_lambda_create_role(
+    lab_key: str = 'create-invoke-logs',
+    service_key: str = 'lambda',
+) -> dict[str, Any]:
+    return _run_iam_create_role(
+        lab_key=lab_key,
+        role_name=LAMBDA_ROLE_NAME,
+        trust_policy=LAMBDA_LAB_TRUST_POLICY,
+        artifact_name='lambda-trust-policy.json',
+        trusted_service='lambda.amazonaws.com',
+    ) | {'service': service_key}
+
+
+def _run_lambda_put_role_policy(
+    lab_key: str = 'create-invoke-logs',
+    service_key: str = 'lambda',
+) -> dict[str, Any]:
+    command = (
+        f'aws iam put-role-policy --role-name {LAMBDA_ROLE_NAME} '
+        f'--policy-name {LAMBDA_ROLE_POLICY_NAME} '
+        '--policy-document file://lambda-logs-policy.json'
+    )
+    started = time.perf_counter()
+    _iam_client().put_role_policy(
+        RoleName=LAMBDA_ROLE_NAME,
+        PolicyName=LAMBDA_ROLE_POLICY_NAME,
+        PolicyDocument=json.dumps(LAMBDA_LAB_LOGS_POLICY),
+    )
+    duration_ms = round((time.perf_counter() - started) * 1000)
+    verification = _verify_lambda_role_policy()
+
+    return {
+        'service': service_key,
+        'lab': lab_key,
+        'step': 'put-role-policy',
+        'command': command,
+        'exit_code': 0,
+        'stdout': _json_text({}),
+        'stderr': '',
+        'json': {},
+        'duration_ms': duration_ms,
+        'verified': verification.get('status') == 'passed',
+        'verification': verification,
+    }
+
+
+def _run_lambda_create_function(
+    lab_key: str = 'create-invoke-logs',
+    service_key: str = 'lambda',
+) -> dict[str, Any]:
+    command = (
+        f'aws lambda create-function --function-name {LAMBDA_FUNCTION_NAME} '
+        f'--runtime {LAMBDA_RUNTIME} --role {LAMBDA_ROLE_ARN} '
+        f'--handler {LAMBDA_HANDLER} --zip-file fileb://function.zip'
+    )
+    started = time.perf_counter()
+    try:
+        response = _lambda_client().create_function(
+            FunctionName=LAMBDA_FUNCTION_NAME,
+            Runtime=LAMBDA_RUNTIME,
+            Role=LAMBDA_ROLE_ARN,
+            Handler=LAMBDA_HANDLER,
+            Code={'ZipFile': _lambda_function_zip_bytes()},
+            Description='Floci dashboard Lambda workflow lab echo function.',
+            Timeout=10,
+            MemorySize=128,
+            Publish=True,
+        )
+    except ClientError as exc:
+        if _error_code(exc) != 'ResourceConflictException':
+            raise
+        response = _lambda_client().get_function(FunctionName=LAMBDA_FUNCTION_NAME)
+    duration_ms = round((time.perf_counter() - started) * 1000)
+    verification = _verify_lambda_function()
+
+    return {
+        'service': service_key,
+        'lab': lab_key,
+        'step': 'create-function',
+        'command': command,
+        'exit_code': 0,
+        'stdout': _json_text(response),
+        'stderr': '',
+        'json': _clean_response(response),
+        'duration_ms': duration_ms,
+        'verified': verification.get('status') == 'passed',
+        'verification': verification,
+    }
+
+
+def _run_lambda_invoke_function() -> dict[str, Any]:
+    command = f'aws lambda invoke --function-name {LAMBDA_FUNCTION_NAME} --payload file://event.json response.json'
+    started = time.perf_counter()
+    response = _lambda_client().invoke(
+        FunctionName=LAMBDA_FUNCTION_NAME,
+        InvocationType='RequestResponse',
+        Payload=LAMBDA_INVOKE_PAYLOAD_TEXT.encode('utf-8'),
+    )
+    duration_ms = round((time.perf_counter() - started) * 1000)
+    payload_json = _lambda_payload_json(response.get('Payload'))
+    normalized = {
+        'StatusCode': response.get('StatusCode'),
+        'ExecutedVersion': response.get('ExecutedVersion'),
+        'FunctionError': response.get('FunctionError'),
+        'Payload': payload_json,
+    }
+    verified = (
+        response.get('StatusCode') in {200, 202}
+        and not response.get('FunctionError')
+        and payload_json.get('ok') is True
+        and payload_json.get('request_id') == LAMBDA_INVOKE_PAYLOAD['request_id']
+    )
+    if verified:
+        cache.set(LAMBDA_INVOKE_CACHE_KEY, _clean_response(normalized), timeout=3600)
+    verification = (
+        _verify_lambda_invocation()
+        if verified
+        else {
+            'status': 'failed',
+            'message': 'Lambda did not return the expected echo response.',
+            'resource': _clean_response(normalized),
+        }
+    )
+
+    return {
+        'service': 'lambda',
+        'lab': 'create-invoke-logs',
+        'step': 'invoke-function',
+        'command': command,
+        'exit_code': 0,
+        'stdout': _json_text(normalized),
+        'stderr': '',
+        'json': _clean_response(normalized),
+        'duration_ms': duration_ms,
+        'verified': verification.get('status') == 'passed',
+        'verification': verification,
+    }
+
+
+def _run_lambda_inspect_logs() -> dict[str, Any]:
+    command = (
+        f'aws logs describe-log-streams --log-group-name {LAMBDA_LOG_GROUP_NAME}\n'
+        f'aws logs get-log-events --log-group-name {LAMBDA_LOG_GROUP_NAME} '
+        '--log-stream-name <log-stream-name>'
+    )
+    started = time.perf_counter()
+    response = _logs_client().describe_log_streams(
+        logGroupName=LAMBDA_LOG_GROUP_NAME,
+        orderBy='LastEventTime',
+        descending=True,
+        limit=10,
+    )
+    verification = _verify_lambda_logs()
+    duration_ms = round((time.perf_counter() - started) * 1000)
+
+    return {
+        'service': 'lambda',
+        'lab': 'create-invoke-logs',
+        'step': 'inspect-logs',
+        'command': command,
+        'exit_code': 0,
+        'stdout': _json_text(response),
+        'stderr': '',
+        'json': _clean_response(response),
+        'duration_ms': duration_ms,
+        'verified': verification.get('status') == 'passed',
+        'verification': verification,
+    }
+
+
+def _apigw_step_result(
+    step_key: str,
+    command: str,
+    response: dict[str, Any],
+    verification: dict[str, Any],
+    started: float,
+) -> dict[str, Any]:
+    return {
+        'service': 'apigateway',
+        'lab': 'lambda-request',
+        'step': step_key,
+        'command': command,
+        'exit_code': 0,
+        'stdout': _json_text(response),
+        'stderr': '',
+        'json': _clean_response(response),
+        'duration_ms': round((time.perf_counter() - started) * 1000),
+        'verified': verification.get('status') == 'passed',
+        'verification': verification,
+    }
+
+
+def _run_apigw_create_api() -> dict[str, Any]:
+    command = f'aws apigatewayv2 create-api --name {APIGW_LAMBDA_API_NAME} --protocol-type HTTP'
+    started = time.perf_counter()
+    existing = _find_apigw_lambda_api()
+    if existing:
+        response = existing
+    else:
+        response = _apigatewayv2_client().create_api(
+            Name=APIGW_LAMBDA_API_NAME,
+            ProtocolType='HTTP',
+            Description='Floci dashboard API Gateway to Lambda workflow lab.',
+            RouteSelectionExpression='$request.method $request.path',
+        )
+    api_id = response.get('ApiId')
+    if api_id:
+        cache.set(APIGW_LAMBDA_API_ID_CACHE_KEY, api_id, timeout=86400)
+    return _apigw_step_result(
+        'create-api',
+        command,
+        response,
+        _verify_apigw_lambda_api(),
+        started,
+    )
+
+
+def _run_apigw_create_integration() -> dict[str, Any]:
+    command = (
+        'aws apigatewayv2 create-integration --api-id <api-id> '
+        f'--integration-type AWS_PROXY --integration-uri {LAMBDA_FUNCTION_ARN} '
+        '--payload-format-version 2.0'
+    )
+    started = time.perf_counter()
+    api_id = _apigw_lambda_api_id()
+    existing = _find_apigw_lambda_integration(api_id)
+    if existing:
+        response = existing
+    else:
+        response = _apigatewayv2_client().create_integration(
+            ApiId=api_id,
+            IntegrationType='AWS_PROXY',
+            IntegrationUri=LAMBDA_FUNCTION_ARN,
+            PayloadFormatVersion='2.0',
+        )
+    integration_id = response.get('IntegrationId')
+    if integration_id:
+        cache.set(APIGW_LAMBDA_INTEGRATION_ID_CACHE_KEY, integration_id, timeout=86400)
+    return _apigw_step_result(
+        'create-integration',
+        command,
+        response,
+        _verify_apigw_lambda_integration(),
+        started,
+    )
+
+
+def _run_apigw_create_route() -> dict[str, Any]:
+    command = 'aws apigatewayv2 create-route --api-id <api-id> --route-key "POST /echo" --target integrations/<integration-id>'
+    started = time.perf_counter()
+    api_id = _apigw_lambda_api_id()
+    integration_id = _apigw_lambda_integration_id()
+    existing = _find_apigw_lambda_route(api_id)
+    if existing:
+        response = existing
+    else:
+        response = _apigatewayv2_client().create_route(
+            ApiId=api_id,
+            RouteKey=APIGW_LAMBDA_ROUTE_KEY,
+            Target=f'integrations/{integration_id}',
+        )
+    route_id = response.get('RouteId')
+    if route_id:
+        cache.set(APIGW_LAMBDA_ROUTE_ID_CACHE_KEY, route_id, timeout=86400)
+    return _apigw_step_result(
+        'create-route',
+        command,
+        response,
+        _verify_apigw_lambda_route(),
+        started,
+    )
+
+
+def _run_apigw_create_stage() -> dict[str, Any]:
+    command = 'aws apigatewayv2 create-stage --api-id <api-id> --stage-name $default --auto-deploy'
+    started = time.perf_counter()
+    api_id = _apigw_lambda_api_id()
+    stage_verification = _verify_apigw_lambda_stage()
+    if stage_verification.get('status') == 'passed':
+        response = stage_verification.get('resource', {})
+    else:
+        response = _apigatewayv2_client().create_stage(
+            ApiId=api_id,
+            StageName=APIGW_LAMBDA_STAGE_NAME,
+            AutoDeploy=True,
+        )
+    return _apigw_step_result(
+        'create-stage',
+        command,
+        response,
+        _verify_apigw_lambda_stage(),
+        started,
+    )
+
+
+def _run_apigw_add_lambda_permission() -> dict[str, Any]:
+    source_arn = f'arn:aws:execute-api:{AWS_REGION}:{AWS_ACCOUNT_ID}:{_apigw_lambda_api_id()}/*/*/echo'
+    command = (
+        f'aws lambda add-permission --function-name {LAMBDA_FUNCTION_NAME} '
+        f'--statement-id {APIGW_LAMBDA_PERMISSION_SID} '
+        '--action lambda:InvokeFunction --principal apigateway.amazonaws.com '
+        f'--source-arn {source_arn}'
+    )
+    started = time.perf_counter()
+    try:
+        response = _lambda_client().add_permission(
+            FunctionName=LAMBDA_FUNCTION_NAME,
+            StatementId=APIGW_LAMBDA_PERMISSION_SID,
+            Action='lambda:InvokeFunction',
+            Principal='apigateway.amazonaws.com',
+            SourceArn=source_arn,
+        )
+    except ClientError as exc:
+        if _error_code(exc) != 'ResourceConflictException':
+            raise
+        response = _lambda_client().get_policy(FunctionName=LAMBDA_FUNCTION_NAME)
+    return _apigw_step_result(
+        'add-lambda-permission',
+        command,
+        response,
+        _verify_apigw_lambda_permission(),
+        started,
+    )
+
+
+def _apigw_lambda_request_url() -> str:
+    api = _find_apigw_lambda_api() or {}
+    endpoint = (api.get('ApiEndpoint') or '').rstrip('/')
+    if not endpoint:
+        endpoint = f'{FlociClientFactory().endpoint_url.rstrip("/")}/{_apigw_lambda_api_id()}'
+    return f'{endpoint}{APIGW_LAMBDA_PATH}'
+
+
+def _run_apigw_send_request() -> dict[str, Any]:
+    command = 'curl -X POST <api-endpoint>/echo -H "Content-Type: application/json" --data @event.json'
+    started = time.perf_counter()
+    url = _apigw_lambda_request_url()
+    request = Request(
+        url,
+        data=LAMBDA_INVOKE_PAYLOAD_TEXT.encode('utf-8'),
+        headers={'Content-Type': 'application/json'},
+        method='POST',
+    )
+    try:
+        with urlopen(request, timeout=8) as response:
+            body = response.read().decode('utf-8', errors='replace')
+            status_code = response.getcode()
+            headers = dict(response.headers.items())
+    except (OSError, URLError) as exc:
+        raise ValueError(f'API Gateway request could not be completed: {exc}') from exc
+    try:
+        parsed = json.loads(body) if body else None
+    except json.JSONDecodeError:
+        parsed = None
+    response_payload = {
+        'url': url,
+        'status_code': status_code,
+        'headers': headers,
+        'body': body,
+        'json': parsed,
+    }
+    verified = (
+        status_code == 200
+        and isinstance(parsed, dict)
+        and parsed.get('ok') is True
+        and parsed.get('request_id') == LAMBDA_INVOKE_PAYLOAD['request_id']
+    )
+    if verified:
+        cache.set(APIGW_LAMBDA_REQUEST_CACHE_KEY, _clean_response(response_payload), timeout=3600)
+    verification = (
+        _verify_apigw_lambda_request()
+        if verified
+        else {
+            'status': 'failed',
+            'message': 'The API Gateway request did not return the expected Lambda echo response.',
+            'resource': _clean_response(response_payload),
+        }
+    )
+    return _apigw_step_result(
+        'send-request',
+        command,
+        response_payload,
+        verification,
+        started,
+    )
+
+
+def _dynamodb_step_result(
+    step_key: str,
+    command: str,
+    response: dict[str, Any],
+    verification: dict[str, Any],
+    started: float,
+) -> dict[str, Any]:
+    return {
+        'service': 'dynamodb',
+        'lab': 'crud-query',
+        'step': step_key,
+        'command': command,
+        'exit_code': 0,
+        'stdout': _json_text(response),
+        'stderr': '',
+        'json': _clean_response(response),
+        'duration_ms': round((time.perf_counter() - started) * 1000),
+        'verified': verification.get('status') == 'passed',
+        'verification': verification,
+    }
+
+
+def _run_dynamodb_create_table() -> dict[str, Any]:
+    command = (
+        f'aws dynamodb create-table --table-name {DYNAMODB_TABLE_NAME} '
+        '--attribute-definitions file://attribute-definitions.json '
+        '--key-schema file://key-schema.json '
+        '--global-secondary-indexes file://customer-index.json '
+        '--billing-mode PAY_PER_REQUEST'
+    )
+    started = time.perf_counter()
+    try:
+        response = _dynamodb_client().create_table(
+            TableName=DYNAMODB_TABLE_NAME,
+            AttributeDefinitions=[
+                {'AttributeName': 'OrderId', 'AttributeType': 'S'},
+                {'AttributeName': 'CustomerId', 'AttributeType': 'S'},
+            ],
+            KeySchema=[{'AttributeName': 'OrderId', 'KeyType': 'HASH'}],
+            GlobalSecondaryIndexes=[{
+                'IndexName': DYNAMODB_CUSTOMER_INDEX_NAME,
+                'KeySchema': [{'AttributeName': 'CustomerId', 'KeyType': 'HASH'}],
+                'Projection': {'ProjectionType': 'ALL'},
+            }],
+            BillingMode='PAY_PER_REQUEST',
+        )
+    except ClientError as exc:
+        if _error_code(exc) != 'ResourceInUseException':
+            raise
+        response = _dynamodb_client().describe_table(TableName=DYNAMODB_TABLE_NAME)
+    return _dynamodb_step_result(
+        'create-table',
+        command,
+        response,
+        _verify_dynamodb_table_exists(),
+        started,
+    )
+
+
+def _run_dynamodb_put_item() -> dict[str, Any]:
+    command = f'aws dynamodb put-item --table-name {DYNAMODB_TABLE_NAME} --item file://order-item.json'
+    started = time.perf_counter()
+    response = _dynamodb_client().put_item(
+        TableName=DYNAMODB_TABLE_NAME,
+        Item=DYNAMODB_ORDER_ITEM,
+    )
+    verification = _verify_dynamodb_order_created()
+    if verification.get('status') == 'passed':
+        cache.set(DYNAMODB_PUT_CACHE_KEY, verification.get('resource', {}), timeout=3600)
+    return _dynamodb_step_result(
+        'put-item',
+        command,
+        response,
+        verification,
+        started,
+    )
+
+
+def _run_dynamodb_get_item() -> dict[str, Any]:
+    command = f'aws dynamodb get-item --table-name {DYNAMODB_TABLE_NAME} --key file://order-key.json'
+    started = time.perf_counter()
+    response = _dynamodb_client().get_item(
+        TableName=DYNAMODB_TABLE_NAME,
+        Key=_dynamodb_order_key(),
+    )
+    return _dynamodb_step_result(
+        'get-item',
+        command,
+        response,
+        _verify_dynamodb_order_created(),
+        started,
+    )
+
+
+def _run_dynamodb_update_item() -> dict[str, Any]:
+    command = (
+        f'aws dynamodb update-item --table-name {DYNAMODB_TABLE_NAME} '
+        '--key file://order-key.json '
+        '--update-expression "SET #status = :status, Total = :total" '
+        '--expression-attribute-names file://attribute-names.json '
+        '--expression-attribute-values file://updated-values.json '
+        '--return-values ALL_NEW'
+    )
+    started = time.perf_counter()
+    response = _dynamodb_client().update_item(
+        TableName=DYNAMODB_TABLE_NAME,
+        Key=_dynamodb_order_key(),
+        UpdateExpression='SET #status = :status, Total = :total',
+        ExpressionAttributeNames={'#status': 'Status'},
+        ExpressionAttributeValues=DYNAMODB_UPDATED_ATTRIBUTES,
+        ReturnValues='ALL_NEW',
+    )
+    verification = _verify_dynamodb_order_updated()
+    if verification.get('status') == 'passed':
+        cache.set(DYNAMODB_UPDATE_CACHE_KEY, verification.get('resource', {}), timeout=3600)
+    return _dynamodb_step_result(
+        'update-item',
+        command,
+        response,
+        verification,
+        started,
+    )
+
+
+def _run_dynamodb_query_customer_index() -> dict[str, Any]:
+    command = (
+        f'aws dynamodb query --table-name {DYNAMODB_TABLE_NAME} '
+        f'--index-name {DYNAMODB_CUSTOMER_INDEX_NAME} '
+        '--key-condition-expression "CustomerId = :customer" '
+        '--expression-attribute-values file://query-values.json'
+    )
+    started = time.perf_counter()
+    response = _dynamodb_client().query(
+        TableName=DYNAMODB_TABLE_NAME,
+        IndexName=DYNAMODB_CUSTOMER_INDEX_NAME,
+        KeyConditionExpression='CustomerId = :customer',
+        ExpressionAttributeValues={':customer': {'S': DYNAMODB_CUSTOMER_ID}},
+    )
+    verification = _verify_dynamodb_customer_query()
+    if verification.get('status') == 'passed':
+        cache.set(DYNAMODB_QUERY_CACHE_KEY, verification.get('resource', {}), timeout=3600)
+    return _dynamodb_step_result(
+        'query-customer-index',
+        command,
+        response,
+        verification,
+        started,
+    )
+
+
+def _run_dynamodb_delete_item() -> dict[str, Any]:
+    command = f'aws dynamodb delete-item --table-name {DYNAMODB_TABLE_NAME} --key file://order-key.json'
+    started = time.perf_counter()
+    response = _dynamodb_client().delete_item(
+        TableName=DYNAMODB_TABLE_NAME,
+        Key=_dynamodb_order_key(),
+    )
+    verification = _verify_dynamodb_order_deleted()
+    if verification.get('status') == 'passed':
+        cache.set(DYNAMODB_DELETE_ITEM_CACHE_KEY, True, timeout=3600)
+    return _dynamodb_step_result(
+        'delete-item',
+        command,
+        response,
+        verification,
+        started,
+    )
+
+
+def _run_dynamodb_delete_table() -> dict[str, Any]:
+    command = f'aws dynamodb delete-table --table-name {DYNAMODB_TABLE_NAME}'
+    started = time.perf_counter()
+    try:
+        response = _dynamodb_client().delete_table(TableName=DYNAMODB_TABLE_NAME)
+    except ClientError as exc:
+        if _error_code(exc) != 'ResourceNotFoundException':
+            raise
+        response = {}
+    verification = _verify_dynamodb_table_deleted()
+    if verification.get('status') == 'passed':
+        cache.set(DYNAMODB_DELETE_TABLE_CACHE_KEY, True, timeout=3600)
+    return _dynamodb_step_result(
+        'delete-table',
+        command,
+        response,
+        verification,
+        started,
+    )
+
+
+def _lambda_dynamodb_step_result(
+    step_key: str,
+    command: str,
+    response: dict[str, Any],
+    verification: dict[str, Any],
+    started: float,
+) -> dict[str, Any]:
+    return {
+        'service': 'dynamodb',
+        'lab': 'lambda-writes',
+        'step': step_key,
+        'command': command,
+        'exit_code': 0,
+        'stdout': _json_text(response),
+        'stderr': '',
+        'json': _clean_response(response),
+        'duration_ms': round((time.perf_counter() - started) * 1000),
+        'verified': verification.get('status') == 'passed',
+        'verification': verification,
+    }
+
+
+def _run_lambda_dynamodb_create_table() -> dict[str, Any]:
+    command = (
+        f'aws dynamodb create-table --table-name {LAMBDA_DYNAMODB_TABLE_NAME} '
+        '--attribute-definitions AttributeName=OrderId,AttributeType=S '
+        '--key-schema AttributeName=OrderId,KeyType=HASH --billing-mode PAY_PER_REQUEST'
+    )
+    started = time.perf_counter()
+    try:
+        response = _dynamodb_client().create_table(
+            TableName=LAMBDA_DYNAMODB_TABLE_NAME,
+            AttributeDefinitions=[{'AttributeName': 'OrderId', 'AttributeType': 'S'}],
+            KeySchema=[{'AttributeName': 'OrderId', 'KeyType': 'HASH'}],
+            BillingMode='PAY_PER_REQUEST',
+        )
+    except ClientError as exc:
+        if _error_code(exc) != 'ResourceInUseException':
+            raise
+        response = _dynamodb_client().describe_table(TableName=LAMBDA_DYNAMODB_TABLE_NAME)
+    return _lambda_dynamodb_step_result(
+        'create-table',
+        command,
+        response,
+        _verify_lambda_dynamodb_table(),
+        started,
+    )
+
+
+def _run_lambda_dynamodb_create_role() -> dict[str, Any]:
+    return _run_iam_create_role(
+        lab_key='lambda-writes',
+        role_name=LAMBDA_DYNAMODB_ROLE_NAME,
+        trust_policy=LAMBDA_LAB_TRUST_POLICY,
+        artifact_name='lambda-trust-policy.json',
+        trusted_service='lambda.amazonaws.com',
+    ) | {'service': 'dynamodb'}
+
+
+def _run_lambda_dynamodb_put_policy() -> dict[str, Any]:
+    command = (
+        f'aws iam put-role-policy --role-name {LAMBDA_DYNAMODB_ROLE_NAME} '
+        f'--policy-name {LAMBDA_DYNAMODB_POLICY_NAME} '
+        '--policy-document file://lambda-dynamodb-policy.json'
+    )
+    started = time.perf_counter()
+    _iam_client().put_role_policy(
+        RoleName=LAMBDA_DYNAMODB_ROLE_NAME,
+        PolicyName=LAMBDA_DYNAMODB_POLICY_NAME,
+        PolicyDocument=json.dumps(LAMBDA_DYNAMODB_POLICY),
+    )
+    return _lambda_dynamodb_step_result(
+        'put-role-policy',
+        command,
+        {},
+        _verify_lambda_dynamodb_policy(),
+        started,
+    )
+
+
+def _run_lambda_dynamodb_create_function() -> dict[str, Any]:
+    command = (
+        f'aws lambda create-function --function-name {LAMBDA_DYNAMODB_FUNCTION_NAME} '
+        f'--runtime {LAMBDA_RUNTIME} --role {LAMBDA_DYNAMODB_ROLE_ARN} '
+        f'--handler {LAMBDA_HANDLER} --zip-file fileb://function.zip '
+        f'--environment Variables={{TABLE_NAME={LAMBDA_DYNAMODB_TABLE_NAME}}}'
+    )
+    started = time.perf_counter()
+    try:
+        response = _lambda_client().create_function(
+            FunctionName=LAMBDA_DYNAMODB_FUNCTION_NAME,
+            Runtime=LAMBDA_RUNTIME,
+            Role=LAMBDA_DYNAMODB_ROLE_ARN,
+            Handler=LAMBDA_HANDLER,
+            Code={'ZipFile': _lambda_function_zip_bytes(LAMBDA_DYNAMODB_HANDLER_SOURCE)},
+            Description='Floci dashboard Lambda to DynamoDB workflow lab.',
+            Timeout=10,
+            MemorySize=128,
+            Publish=True,
+            Environment={'Variables': {'TABLE_NAME': LAMBDA_DYNAMODB_TABLE_NAME}},
+        )
+    except ClientError as exc:
+        if _error_code(exc) != 'ResourceConflictException':
+            raise
+        response = _lambda_client().get_function(FunctionName=LAMBDA_DYNAMODB_FUNCTION_NAME)
+    return _lambda_dynamodb_step_result(
+        'create-function',
+        command,
+        response,
+        _verify_lambda_dynamodb_function(),
+        started,
+    )
+
+
+def _run_lambda_dynamodb_invoke() -> dict[str, Any]:
+    command = f'aws lambda invoke --function-name {LAMBDA_DYNAMODB_FUNCTION_NAME} --payload file://order-event.json response.json'
+    started = time.perf_counter()
+    response = _lambda_client().invoke(
+        FunctionName=LAMBDA_DYNAMODB_FUNCTION_NAME,
+        InvocationType='RequestResponse',
+        Payload=LAMBDA_DYNAMODB_PAYLOAD_TEXT.encode('utf-8'),
+    )
+    payload_json = _lambda_payload_json(response.get('Payload'))
+    normalized = {
+        'StatusCode': response.get('StatusCode'),
+        'ExecutedVersion': response.get('ExecutedVersion'),
+        'FunctionError': response.get('FunctionError'),
+        'Payload': payload_json,
+    }
+    verified = (
+        response.get('StatusCode') in {200, 202}
+        and not response.get('FunctionError')
+        and payload_json.get('ok') is True
+        and payload_json.get('order_id') == LAMBDA_DYNAMODB_ORDER_ID
+        and payload_json.get('request_id') == LAMBDA_DYNAMODB_PAYLOAD['request_id']
+    )
+    if verified:
+        cache.set(LAMBDA_DYNAMODB_INVOKE_CACHE_KEY, _clean_response(normalized), timeout=3600)
+    verification = (
+        _verify_lambda_dynamodb_invocation()
+        if verified
+        else {
+            'status': 'failed',
+            'message': 'Lambda did not return the expected DynamoDB write response.',
+            'resource': _clean_response(normalized),
+        }
+    )
+    return _lambda_dynamodb_step_result(
+        'invoke-function',
+        command,
+        normalized,
+        verification,
+        started,
+    )
+
+
+def _run_lambda_dynamodb_get_item() -> dict[str, Any]:
+    command = f'aws dynamodb get-item --table-name {LAMBDA_DYNAMODB_TABLE_NAME} --key file://order-key.json'
+    started = time.perf_counter()
+    response = _dynamodb_client().get_item(
+        TableName=LAMBDA_DYNAMODB_TABLE_NAME,
+        Key=_lambda_dynamodb_order_key(),
+    )
+    return _lambda_dynamodb_step_result(
+        'get-written-item',
+        command,
+        response,
+        _verify_lambda_dynamodb_item(),
+        started,
+    )
+
+
+def _run_lambda_dynamodb_inspect_logs() -> dict[str, Any]:
+    command = (
+        f'aws logs describe-log-streams --log-group-name {LAMBDA_DYNAMODB_LOG_GROUP_NAME}\n'
+        f'aws logs get-log-events --log-group-name {LAMBDA_DYNAMODB_LOG_GROUP_NAME} '
+        '--log-stream-name <log-stream-name>'
+    )
+    started = time.perf_counter()
+    response = _logs_client().describe_log_streams(
+        logGroupName=LAMBDA_DYNAMODB_LOG_GROUP_NAME,
+        orderBy='LastEventTime',
+        descending=True,
+        limit=10,
+    )
+    return _lambda_dynamodb_step_result(
+        'inspect-logs',
+        command,
+        response,
+        _verify_lambda_dynamodb_logs(),
+        started,
+    )
+
+
+def _kms_step_result(
+    step_key: str,
+    command: str,
+    response: dict[str, Any],
+    verification: dict[str, Any],
+    started: float,
+) -> dict[str, Any]:
+    return {
+        'service': 'kms',
+        'lab': 'key-alias-encrypt-decrypt',
+        'step': step_key,
+        'command': command,
+        'exit_code': 0,
+        'stdout': _json_text(response),
+        'stderr': '',
+        'json': _clean_response(response),
+        'duration_ms': round((time.perf_counter() - started) * 1000),
+        'verified': verification.get('status') == 'passed',
+        'verification': verification,
+    }
+
+
+def _bytes_base64(value: Any) -> str:
+    return base64.b64encode(bytes(value or b'')).decode('ascii')
+
+
+def _run_kms_create_key() -> dict[str, Any]:
+    command = 'aws kms create-key --description "Floci dashboard local workflow lab key" --key-usage ENCRYPT_DECRYPT --key-spec SYMMETRIC_DEFAULT --tags file://key-tags.json'
+    started = time.perf_counter()
+    existing_key_id = _find_kms_lab_key_id()
+    if existing_key_id:
+        response = {'KeyMetadata': _kms_client().describe_key(KeyId=existing_key_id).get('KeyMetadata', {})}
+    else:
+        response = _kms_client().create_key(
+            Description=KMS_LAB_DESCRIPTION,
+            KeyUsage='ENCRYPT_DECRYPT',
+            KeySpec='SYMMETRIC_DEFAULT',
+            Tags=KMS_LAB_TAGS,
+        )
+    key_id = response.get('KeyMetadata', {}).get('KeyId')
+    if key_id:
+        cache.set(KMS_LAB_KEY_ID_CACHE_KEY, key_id, timeout=86400)
+    return _kms_step_result(
+        'create-key',
+        command,
+        response,
+        _verify_kms_lab_key(),
+        started,
+    )
+
+
+def _run_kms_create_alias() -> dict[str, Any]:
+    command = f'aws kms create-alias --alias-name {KMS_LAB_ALIAS_NAME} --target-key-id <key-id>'
+    started = time.perf_counter()
+    key_id = _kms_lab_key_id()
+    alias_verification = _verify_kms_lab_alias()
+    if alias_verification.get('status') == 'passed':
+        response = alias_verification.get('resource', {})
+    else:
+        _kms_client().create_alias(AliasName=KMS_LAB_ALIAS_NAME, TargetKeyId=key_id)
+        response = {'AliasName': KMS_LAB_ALIAS_NAME, 'TargetKeyId': key_id}
+    return _kms_step_result(
+        'create-alias',
+        command,
+        response,
+        _verify_kms_lab_alias(),
+        started,
+    )
+
+
+def _run_kms_describe_key() -> dict[str, Any]:
+    command = f'aws kms describe-key --key-id {KMS_LAB_ALIAS_NAME}'
+    started = time.perf_counter()
+    response = _kms_client().describe_key(KeyId=KMS_LAB_ALIAS_NAME)
+    return _kms_step_result(
+        'describe-key',
+        command,
+        response,
+        _verify_kms_lab_key(),
+        started,
+    )
+
+
+def _run_kms_encrypt() -> dict[str, Any]:
+    command = f'aws kms encrypt --key-id {KMS_LAB_ALIAS_NAME} --plaintext fileb://app-config.json'
+    started = time.perf_counter()
+    response = _kms_client().encrypt(
+        KeyId=KMS_LAB_ALIAS_NAME,
+        Plaintext=KMS_LAB_PLAINTEXT_TEXT.encode('utf-8'),
+    )
+    normalized = {
+        'KeyId': response.get('KeyId'),
+        'CiphertextBlob': _bytes_base64(response.get('CiphertextBlob')),
+        'EncryptionAlgorithm': response.get('EncryptionAlgorithm'),
+    }
+    if normalized['CiphertextBlob']:
+        cache.set(KMS_LAB_CIPHERTEXT_CACHE_KEY, normalized, timeout=3600)
+    return _kms_step_result(
+        'encrypt',
+        command,
+        normalized,
+        _verify_kms_lab_ciphertext(),
+        started,
+    )
+
+
+def _run_kms_decrypt() -> dict[str, Any]:
+    command = 'aws kms decrypt --ciphertext-blob fileb://ciphertext.bin'
+    started = time.perf_counter()
+    ciphertext = cache.get(KMS_LAB_CIPHERTEXT_CACHE_KEY)
+    if not ciphertext or not ciphertext.get('CiphertextBlob'):
+        raise ValueError('Run the encrypt step before decrypting the KMS lab ciphertext.')
+    response = _kms_client().decrypt(
+        CiphertextBlob=base64.b64decode(ciphertext['CiphertextBlob']),
+    )
+    plaintext = bytes(response.get('Plaintext') or b'').decode('utf-8')
+    try:
+        plaintext_json = json.loads(plaintext)
+    except json.JSONDecodeError:
+        plaintext_json = None
+    normalized = {
+        'KeyId': response.get('KeyId'),
+        'EncryptionAlgorithm': response.get('EncryptionAlgorithm'),
+        'Plaintext': plaintext,
+        'PlaintextJson': plaintext_json,
+    }
+    if plaintext_json == KMS_LAB_PLAINTEXT:
+        cache.set(KMS_LAB_DECRYPT_CACHE_KEY, normalized, timeout=3600)
+    return _kms_step_result(
+        'decrypt',
+        command,
+        normalized,
+        _verify_kms_lab_decrypt(),
+        started,
+    )
 
 
 def _run_s3_create_bucket() -> dict[str, Any]:
@@ -14744,6 +17179,322 @@ def _reset_iam_ec2_instance_profile() -> dict[str, Any]:
         'verification': {
             'status': 'passed',
             'message': f'Instance profile {FLOCI_EC2_INSTANCE_PROFILE_NAME} and role {FLOCI_EC2_ROLE_NAME} were removed.',
+        },
+    }
+
+
+def _ignore_missing_codes(action, missing_codes: set[str]) -> bool:
+    try:
+        action()
+        return True
+    except ClientError as exc:
+        if _error_code(exc) in missing_codes:
+            return False
+        raise
+
+
+def _reset_lambda_create_invoke_logs() -> dict[str, Any]:
+    command = (
+        f'aws lambda delete-function --function-name {LAMBDA_FUNCTION_NAME}\n'
+        f'aws logs delete-log-group --log-group-name {LAMBDA_LOG_GROUP_NAME}\n'
+        f'aws iam delete-role-policy --role-name {LAMBDA_ROLE_NAME} '
+        f'--policy-name {LAMBDA_ROLE_POLICY_NAME}\n'
+        f'aws iam delete-role --role-name {LAMBDA_ROLE_NAME}'
+    )
+    started = time.perf_counter()
+    lambda_client = _lambda_client()
+    logs = _logs_client()
+    iam = _iam_client()
+    deleted_function = _ignore_missing_codes(
+        lambda: lambda_client.delete_function(FunctionName=LAMBDA_FUNCTION_NAME),
+        {'ResourceNotFoundException'},
+    )
+    deleted_log_group = _ignore_missing_codes(
+        lambda: logs.delete_log_group(logGroupName=LAMBDA_LOG_GROUP_NAME),
+        {'ResourceNotFoundException'},
+    )
+    deleted_policy = _ignore_missing(lambda: iam.delete_role_policy(
+        RoleName=LAMBDA_ROLE_NAME,
+        PolicyName=LAMBDA_ROLE_POLICY_NAME,
+    ))
+    deleted_role = _ignore_missing(lambda: iam.delete_role(RoleName=LAMBDA_ROLE_NAME))
+    cache.delete_many([LAMBDA_INVOKE_CACHE_KEY, LAMBDA_LOGS_CACHE_KEY])
+    duration_ms = round((time.perf_counter() - started) * 1000)
+    payload = {
+        'deleted_function': deleted_function,
+        'deleted_log_group': deleted_log_group,
+        'deleted_policy': deleted_policy,
+        'deleted_role': deleted_role,
+    }
+
+    return {
+        'service': 'lambda',
+        'lab': 'create-invoke-logs',
+        'command': command,
+        'exit_code': 0,
+        'stdout': _json_text(payload),
+        'stderr': '',
+        'json': payload,
+        'duration_ms': duration_ms,
+        'reset': True,
+        **payload,
+        'verification': {
+            'status': 'passed',
+            'message': f'Function {LAMBDA_FUNCTION_NAME}, its log group, role policy, role, and recorded invocation state were removed.',
+        },
+    }
+
+
+def _reset_apigw_lambda_request() -> dict[str, Any]:
+    command = (
+        'aws apigatewayv2 delete-api --api-id <api-id>\n'
+        f'aws lambda remove-permission --function-name {LAMBDA_FUNCTION_NAME} '
+        f'--statement-id {APIGW_LAMBDA_PERMISSION_SID}\n'
+        f'aws lambda delete-function --function-name {LAMBDA_FUNCTION_NAME}\n'
+        f'aws logs delete-log-group --log-group-name {LAMBDA_LOG_GROUP_NAME}\n'
+        f'aws iam delete-role-policy --role-name {LAMBDA_ROLE_NAME} '
+        f'--policy-name {LAMBDA_ROLE_POLICY_NAME}\n'
+        f'aws iam delete-role --role-name {LAMBDA_ROLE_NAME}'
+    )
+    started = time.perf_counter()
+    api = _find_apigw_lambda_api()
+    api_id = (api or {}).get('ApiId')
+    deleted_api = False
+    if api_id:
+        deleted_api = _ignore_missing_codes(
+            lambda: _apigatewayv2_client().delete_api(ApiId=api_id),
+            {'NotFoundException'},
+        )
+    removed_permission = _ignore_missing_codes(
+        lambda: _lambda_client().remove_permission(
+            FunctionName=LAMBDA_FUNCTION_NAME,
+            StatementId=APIGW_LAMBDA_PERMISSION_SID,
+        ),
+        {'ResourceNotFoundException'},
+    )
+    lambda_client = _lambda_client()
+    logs = _logs_client()
+    iam = _iam_client()
+    deleted_function = _ignore_missing_codes(
+        lambda: lambda_client.delete_function(FunctionName=LAMBDA_FUNCTION_NAME),
+        {'ResourceNotFoundException'},
+    )
+    deleted_log_group = _ignore_missing_codes(
+        lambda: logs.delete_log_group(logGroupName=LAMBDA_LOG_GROUP_NAME),
+        {'ResourceNotFoundException'},
+    )
+    deleted_policy = _ignore_missing(lambda: iam.delete_role_policy(
+        RoleName=LAMBDA_ROLE_NAME,
+        PolicyName=LAMBDA_ROLE_POLICY_NAME,
+    ))
+    deleted_role = _ignore_missing(lambda: iam.delete_role(RoleName=LAMBDA_ROLE_NAME))
+    cache.delete_many([
+        APIGW_LAMBDA_REQUEST_CACHE_KEY,
+        APIGW_LAMBDA_API_ID_CACHE_KEY,
+        APIGW_LAMBDA_INTEGRATION_ID_CACHE_KEY,
+        APIGW_LAMBDA_ROUTE_ID_CACHE_KEY,
+        LAMBDA_INVOKE_CACHE_KEY,
+        LAMBDA_LOGS_CACHE_KEY,
+    ])
+    duration_ms = round((time.perf_counter() - started) * 1000)
+    payload = {
+        'deleted_api': deleted_api,
+        'removed_permission': removed_permission,
+        'deleted_function': deleted_function,
+        'deleted_log_group': deleted_log_group,
+        'deleted_policy': deleted_policy,
+        'deleted_role': deleted_role,
+    }
+
+    return {
+        'service': 'apigateway',
+        'lab': 'lambda-request',
+        'command': command,
+        'exit_code': 0,
+        'stdout': _json_text(payload),
+        'stderr': '',
+        'json': payload,
+        'duration_ms': duration_ms,
+        'reset': True,
+        **payload,
+        'verification': {
+            'status': 'passed',
+            'message': 'The HTTP API, Lambda permission, function, log group, role policy, role, and recorded request state were removed.',
+        },
+    }
+
+
+def _reset_dynamodb_crud_query() -> dict[str, Any]:
+    command = (
+        f'aws dynamodb delete-item --table-name {DYNAMODB_TABLE_NAME} --key file://order-key.json\n'
+        f'aws dynamodb delete-table --table-name {DYNAMODB_TABLE_NAME}'
+    )
+    started = time.perf_counter()
+    dynamodb = _dynamodb_client()
+    deleted_item = False
+    deleted_table = False
+    try:
+        dynamodb.delete_item(TableName=DYNAMODB_TABLE_NAME, Key=_dynamodb_order_key())
+        deleted_item = True
+    except ClientError as exc:
+        if _error_code(exc) != 'ResourceNotFoundException':
+            raise
+    try:
+        dynamodb.delete_table(TableName=DYNAMODB_TABLE_NAME)
+        deleted_table = True
+    except ClientError as exc:
+        if _error_code(exc) != 'ResourceNotFoundException':
+            raise
+    cache.delete_many([
+        DYNAMODB_PUT_CACHE_KEY,
+        DYNAMODB_UPDATE_CACHE_KEY,
+        DYNAMODB_QUERY_CACHE_KEY,
+        DYNAMODB_DELETE_ITEM_CACHE_KEY,
+        DYNAMODB_DELETE_TABLE_CACHE_KEY,
+    ])
+    duration_ms = round((time.perf_counter() - started) * 1000)
+    payload = {'deleted_item': deleted_item, 'deleted_table': deleted_table}
+
+    return {
+        'service': 'dynamodb',
+        'lab': 'crud-query',
+        'command': command,
+        'exit_code': 0,
+        'stdout': _json_text(payload),
+        'stderr': '',
+        'json': payload,
+        'duration_ms': duration_ms,
+        'reset': True,
+        **payload,
+        'verification': {
+            'status': 'passed',
+            'message': f'Table {DYNAMODB_TABLE_NAME}, its lab item, and recorded DynamoDB lab state were removed.',
+        },
+    }
+
+
+def _reset_dynamodb_lambda_writes() -> dict[str, Any]:
+    command = (
+        f'aws lambda delete-function --function-name {LAMBDA_DYNAMODB_FUNCTION_NAME}\n'
+        f'aws logs delete-log-group --log-group-name {LAMBDA_DYNAMODB_LOG_GROUP_NAME}\n'
+        f'aws iam delete-role-policy --role-name {LAMBDA_DYNAMODB_ROLE_NAME} '
+        f'--policy-name {LAMBDA_DYNAMODB_POLICY_NAME}\n'
+        f'aws iam delete-role --role-name {LAMBDA_DYNAMODB_ROLE_NAME}\n'
+        f'aws dynamodb delete-item --table-name {LAMBDA_DYNAMODB_TABLE_NAME} --key file://order-key.json\n'
+        f'aws dynamodb delete-table --table-name {LAMBDA_DYNAMODB_TABLE_NAME}'
+    )
+    started = time.perf_counter()
+    lambda_client = _lambda_client()
+    logs = _logs_client()
+    iam = _iam_client()
+    dynamodb = _dynamodb_client()
+    deleted_function = _ignore_missing_codes(
+        lambda: lambda_client.delete_function(FunctionName=LAMBDA_DYNAMODB_FUNCTION_NAME),
+        {'ResourceNotFoundException'},
+    )
+    deleted_log_group = _ignore_missing_codes(
+        lambda: logs.delete_log_group(logGroupName=LAMBDA_DYNAMODB_LOG_GROUP_NAME),
+        {'ResourceNotFoundException'},
+    )
+    deleted_policy = _ignore_missing(lambda: iam.delete_role_policy(
+        RoleName=LAMBDA_DYNAMODB_ROLE_NAME,
+        PolicyName=LAMBDA_DYNAMODB_POLICY_NAME,
+    ))
+    deleted_role = _ignore_missing(lambda: iam.delete_role(RoleName=LAMBDA_DYNAMODB_ROLE_NAME))
+    deleted_item = False
+    deleted_table = False
+    try:
+        dynamodb.delete_item(
+            TableName=LAMBDA_DYNAMODB_TABLE_NAME,
+            Key=_lambda_dynamodb_order_key(),
+        )
+        deleted_item = True
+    except ClientError as exc:
+        if _error_code(exc) != 'ResourceNotFoundException':
+            raise
+    try:
+        dynamodb.delete_table(TableName=LAMBDA_DYNAMODB_TABLE_NAME)
+        deleted_table = True
+    except ClientError as exc:
+        if _error_code(exc) != 'ResourceNotFoundException':
+            raise
+    cache.delete_many([LAMBDA_DYNAMODB_INVOKE_CACHE_KEY, LAMBDA_DYNAMODB_LOGS_CACHE_KEY])
+    duration_ms = round((time.perf_counter() - started) * 1000)
+    payload = {
+        'deleted_function': deleted_function,
+        'deleted_log_group': deleted_log_group,
+        'deleted_policy': deleted_policy,
+        'deleted_role': deleted_role,
+        'deleted_item': deleted_item,
+        'deleted_table': deleted_table,
+    }
+
+    return {
+        'service': 'dynamodb',
+        'lab': 'lambda-writes',
+        'command': command,
+        'exit_code': 0,
+        'stdout': _json_text(payload),
+        'stderr': '',
+        'json': payload,
+        'duration_ms': duration_ms,
+        'reset': True,
+        **payload,
+        'verification': {
+            'status': 'passed',
+            'message': 'The Lambda writer, log group, IAM role, DynamoDB item, table, and recorded lab state were removed.',
+        },
+    }
+
+
+def _reset_kms_crypto() -> dict[str, Any]:
+    command = (
+        f'aws kms delete-alias --alias-name {KMS_LAB_ALIAS_NAME}\n'
+        'aws kms schedule-key-deletion --key-id <key-id> --pending-window-in-days 7'
+    )
+    started = time.perf_counter()
+    key_id = _find_kms_lab_key_id()
+    deleted_alias = False
+    scheduled_deletion = False
+    kms = _kms_client()
+    if key_id:
+        deleted_alias = _ignore_missing_codes(
+            lambda: kms.delete_alias(AliasName=KMS_LAB_ALIAS_NAME),
+            {'NotFoundException'},
+        )
+        scheduled_deletion = _ignore_missing_codes(
+            lambda: kms.schedule_key_deletion(
+                KeyId=key_id,
+                PendingWindowInDays=7,
+            ),
+            {'NotFoundException', 'KMSInvalidStateException'},
+        )
+    cache.delete_many([
+        KMS_LAB_KEY_ID_CACHE_KEY,
+        KMS_LAB_CIPHERTEXT_CACHE_KEY,
+        KMS_LAB_DECRYPT_CACHE_KEY,
+    ])
+    duration_ms = round((time.perf_counter() - started) * 1000)
+    payload = {
+        'deleted_alias': deleted_alias,
+        'scheduled_deletion': scheduled_deletion,
+        'key_id': key_id,
+    }
+
+    return {
+        'service': 'kms',
+        'lab': 'key-alias-encrypt-decrypt',
+        'command': command,
+        'exit_code': 0,
+        'stdout': _json_text(payload),
+        'stderr': '',
+        'json': payload,
+        'duration_ms': duration_ms,
+        'reset': True,
+        **payload,
+        'verification': {
+            'status': 'passed',
+            'message': 'The KMS alias was removed, the lab key was scheduled for deletion when present, and recorded ciphertext state was cleared.',
         },
     }
 

@@ -205,6 +205,11 @@ Core architecture files:
 - Added the EC2 traffic-control lab with trusted-CIDR HTTPS ingress, web-to-app security-group references, stateful egress inspection, an explicit network ACL support probe, intended stateless NACL rule artifacts, and isolated teardown.
 - Added the EC2 S3 gateway endpoint lab with an isolated VPC and private subnet, explicit route-table association, a bucket-scoped endpoint policy, managed prefix-list route inspection, a documented Floci persistence boundary, and dependency-aware teardown.
 - Added the EC2 SQS interface endpoint lab with isolated subnet placement, HTTPS-only endpoint security, private DNS, queue-scoped endpoint policy, endpoint ENI inspection, and dependency-aware teardown.
+- Started the serverless application spine with a Lambda lab that creates an execution role, attaches CloudWatch Logs permissions, packages a Python handler, creates and invokes `floci-lab-echo`, verifies the response, inspects `/aws/lambda/floci-lab-echo`, and cleans up the function, log group, role policy, role, and recorded invocation state.
+- Added the API Gateway to Lambda lab with a lab-owned HTTP API, Lambda proxy integration, `POST /echo` route, `$default` auto-deploy stage, scoped Lambda invoke permission, local request verification, and dependency-aware teardown.
+- Added the DynamoDB CRUD and query lab with an on-demand orders table, `CustomerIdIndex` GSI, low-level attribute JSON item writes, key reads, update expressions, customer-index queries, item deletion, table deletion, and live-state/milestone verification.
+- Added the Lambda-to-DynamoDB lab with a table-backed order writer function, least-privilege `dynamodb:PutItem` role policy, environment-driven table selection, synchronous invoke verification, DynamoDB item proof, CloudWatch Logs proof, and dependency-aware cleanup.
+- Added the KMS crypto lab with a tagged symmetric key, stable alias, metadata inspection, app-configuration encrypt/decrypt round trip, ciphertext/decrypt markers, alias deletion, and key deletion scheduling cleanup.
 
 ## Near-Term Priorities
 
@@ -312,7 +317,7 @@ Continue the local AWS workflow lab system beyond the completed IAM, S3, SQS, SN
 Feasible follow-ups:
 
 - Split the growing `dashboard/labs.py` module into a small typed package with shared registry and runner code.
-- Add new lab families where they prove a real local workflow rather than repeating inventory, with EventBridge/API Gateway/Lambda integration flows as likely candidates.
+- Continue the new serverless application spine with app configuration through Secrets Manager or SSM Parameter Store.
 - Continue networking labs with multi-AZ interface endpoints, endpoint policy variations, or hybrid connectivity when local support makes them useful.
 - Add “View in dashboard” links after verified steps.
 - Keep next-batch recommendations completion-driven and minimal; avoid reintroducing a separate learning-path layer unless progress tracking becomes richer.
