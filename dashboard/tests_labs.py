@@ -1,6 +1,9 @@
 import json
 import zipfile
 import base64
+import importlib
+import inspect
+import re
 from contextlib import ExitStack
 from io import BytesIO
 from unittest.mock import MagicMock, patch
@@ -11,9 +14,81 @@ from django.test import SimpleTestCase
 from django.urls import reverse
 
 from .labs import labs_for_service, reset_lab, run_lab_step
+from .labs.registry import LAB_BATCH_ORDER, all_labs
+from .labs.runner import run_lab_step as facade_run_lab_step
+from .labs.types import Lab, LabStep, ResetResult, StepResult, VerificationResult
+
+
+class LabsRegistryAuditTests(SimpleTestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.monolith = importlib.import_module('dashboard.labs.monolith')
+        cls.run_source = inspect.getsource(cls.monolith.run_lab_step)
+        cls.status_source = inspect.getsource(cls.monolith.lab_status)
+        cls.reset_source = inspect.getsource(cls.monolith.reset_lab)
+
+    def _branch_source(self, source: str, service_key: str, lab_key: str) -> str:
+        marker = f"service_key == '{service_key}' and lab_key == '{lab_key}'"
+        start = source.find(marker)
+        self.assertNotEqual(
+            start,
+            -1,
+            f'Missing implementation branch for {service_key}/{lab_key}',
+        )
+        next_branch = source.find('\n    if service_key == ', start + 1)
+        if next_branch == -1:
+            next_branch = source.find('\n    raise ValueError', start + 1)
+        if next_branch == -1:
+            next_branch = source.find('\n    return {', start + 1)
+        return source[start:next_branch if next_branch != -1 else len(source)]
+
+    def test_every_batch_service_has_labs(self):
+        for batch in LAB_BATCH_ORDER:
+            with self.subTest(service=batch['service']):
+                self.assertTrue(labs_for_service(batch['service']))
+
+    def test_every_registered_lab_has_runner_status_and_reset_branches(self):
+        for lab in all_labs():
+            with self.subTest(service=lab['service'], lab=lab['key']):
+                self._branch_source(self.run_source, lab['service'], lab['key'])
+                self._branch_source(self.status_source, lab['service'], lab['key'])
+                self._branch_source(self.reset_source, lab['service'], lab['key'])
+
+    def test_every_registered_step_has_runner_dispatch(self):
+        for lab in all_labs():
+            branch = self._branch_source(self.run_source, lab['service'], lab['key'])
+            for step in lab['steps']:
+                with self.subTest(service=lab['service'], lab=lab['key'], step=step['key']):
+                    self.assertRegex(
+                        branch,
+                        rf"(step_key == ['\"]{re.escape(step['key'])}['\"]|['\"]{re.escape(step['key'])}['\"]\s*:)",
+                        f'Missing runner dispatch for {lab["service"]}/{lab["key"]}/{step["key"]}',
+                    )
+
+    def test_every_registered_step_has_status_entry(self):
+        for lab in all_labs():
+            branch = self._branch_source(self.status_source, lab['service'], lab['key'])
+            for step in lab['steps']:
+                with self.subTest(service=lab['service'], lab=lab['key'], step=step['key']):
+                    self.assertRegex(
+                        branch,
+                        rf"['\"]{re.escape(step['key'])}['\"]\s*:",
+                        f'Missing status entry for {lab["service"]}/{lab["key"]}/{step["key"]}',
+                    )
 
 
 class LabsPageTests(SimpleTestCase):
+    def test_labs_package_facades_preserve_public_api(self):
+        self.assertIs(facade_run_lab_step, run_lab_step)
+        self.assertEqual(len(all_labs()), 47)
+        self.assertTrue(labs_for_service('iam'))
+        self.assertTrue(issubclass(Lab, dict))
+        self.assertTrue(issubclass(LabStep, dict))
+        self.assertTrue(issubclass(StepResult, dict))
+        self.assertTrue(issubclass(ResetResult, dict))
+        self.assertTrue(issubclass(VerificationResult, dict))
+
     @patch('dashboard.views.lab_status')
     def test_iam_labs_page_renders_create_user_lab(self, status_mock):
         status_mock.return_value = {'complete': False, 'steps': {}}
@@ -6898,6 +6973,321 @@ class LabsRunnerTests(SimpleTestCase):
         self.assertIsNone(cache.get('floci-lab:dynamodb:lambda-writes:logs'))
 
     @patch('dashboard.views.lab_status')
+    def test_lambda_labs_page_renders_runtime_config_lab(self, status_mock):
+        status_mock.return_value = {'complete': False, 'steps': {}}
+
+        response = self.client.get(
+            reverse('dashboard:service-labs', kwargs={'service_key': 'lambda'}),
+            {'lab': 'runtime-config'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Read app configuration and secrets from Lambda')
+        self.assertContains(response, 'aws ssm put-parameter --name /floci/lab/lambda/config')
+        self.assertContains(response, 'aws secretsmanager create-secret --name floci-lab/lambda-secret')
+        self.assertContains(response, 'aws iam create-role --role-name FlociLambdaConfigRole')
+        self.assertContains(response, 'aws iam put-role-policy --role-name FlociLambdaConfigRole')
+        self.assertContains(response, 'aws lambda create-function --function-name floci-lab-config-reader')
+        self.assertContains(response, 'PARAMETER_NAME=/floci/lab/lambda/config')
+        self.assertContains(response, 'SECRET_ID=floci-lab/lambda-secret')
+        self.assertContains(response, 'aws lambda invoke --function-name floci-lab-config-reader')
+        self.assertContains(response, 'aws logs describe-log-streams --log-group-name /aws/lambda/floci-lab-config-reader')
+        self.assertContains(response, 'lambda-config-policy.json')
+        self.assertContains(response, 'lambda-config.json')
+        self.assertContains(response, 'lambda-secret.json')
+
+    @patch('dashboard.labs._verify_lambda_config_function')
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_lambda_runtime_config_lab_create_function_packages_reader_with_env(
+        self,
+        factory_mock,
+        verify_mock,
+    ):
+        lambda_client = MagicMock()
+        lambda_client.create_function.return_value = {
+            'FunctionName': 'floci-lab-config-reader',
+            'Role': 'arn:aws:iam::000000000000:role/FlociLambdaConfigRole',
+        }
+        factory_mock.return_value.client.return_value = lambda_client
+        verify_mock.return_value = {'status': 'passed', 'message': 'verified'}
+
+        result = run_lab_step('lambda', 'runtime-config', 'create-function')
+
+        call = lambda_client.create_function.call_args.kwargs
+        self.assertEqual(call['FunctionName'], 'floci-lab-config-reader')
+        self.assertEqual(call['Environment'], {
+            'Variables': {
+                'PARAMETER_NAME': '/floci/lab/lambda/config',
+                'SECRET_ID': 'floci-lab/lambda-secret',
+            },
+        })
+        with zipfile.ZipFile(BytesIO(call['Code']['ZipFile'])) as archive:
+            source = archive.read('handler.py').decode('utf-8')
+        self.assertIn('ssm.get_parameter', source)
+        self.assertIn('secretsmanager.get_secret_value', source)
+        self.assertTrue(result['verified'])
+
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_lambda_runtime_config_lab_invoke_records_safe_response(self, factory_mock):
+        cache.clear()
+        lambda_client = MagicMock()
+        lambda_client.invoke.return_value = {
+            'StatusCode': 200,
+            'Payload': BytesIO(json.dumps({
+                'ok': True,
+                'request_id': 'FLOCI-LAMBDA-CONFIG-3001',
+                'parameter_name': '/floci/lab/lambda/config',
+                'secret_id': 'floci-lab/lambda-secret',
+                'application': 'orders',
+                'environment': 'local',
+                'secret_username': 'floci-lambda',
+                'secret_keys': ['api_key', 'username'],
+            }).encode('utf-8')),
+        }
+        factory_mock.return_value.client.return_value = lambda_client
+
+        result = run_lab_step('lambda', 'runtime-config', 'invoke-function')
+
+        call = lambda_client.invoke.call_args.kwargs
+        self.assertEqual(call['FunctionName'], 'floci-lab-config-reader')
+        self.assertIn(b'FLOCI-LAMBDA-CONFIG-3001', call['Payload'])
+        self.assertTrue(result['verified'])
+        self.assertTrue(cache.get('floci-lab:lambda:runtime-config:invoke'))
+        self.assertNotIn('local-lambda-secret', result['stdout'])
+        cache.clear()
+
+    def test_lambda_runtime_config_lab_status_requires_config_function_invoke_and_logs(self):
+        passed = {'status': 'passed', 'message': 'verified'}
+        with ExitStack() as stack:
+            for verifier in (
+                '_verify_lambda_config_parameter',
+                '_verify_lambda_config_secret',
+                '_verify_lambda_config_role',
+                '_verify_lambda_config_role_policy',
+                '_verify_lambda_config_function',
+                '_verify_lambda_config_invocation',
+                '_verify_lambda_config_logs',
+            ):
+                stack.enter_context(patch(
+                    f'dashboard.labs.{verifier}',
+                    return_value=passed,
+                ))
+            from .labs import lab_status
+
+            status = lab_status('lambda', 'runtime-config')
+
+        self.assertTrue(status['complete'])
+        self.assertTrue(status['steps']['put-parameter']['verified'])
+        self.assertTrue(status['steps']['create-secret']['verified'])
+        self.assertTrue(status['steps']['create-function']['verified'])
+        self.assertTrue(status['steps']['invoke-function']['verified'])
+        self.assertTrue(status['steps']['inspect-logs']['verified'])
+
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_lambda_runtime_config_lab_reset_deletes_owned_resources_and_cache(self, factory_mock):
+        cache.set('floci-lab:lambda:runtime-config:invoke', {'ok': True})
+        cache.set('floci-lab:lambda:runtime-config:logs', {'ok': True})
+        lambda_client = MagicMock()
+        logs = MagicMock()
+        iam = MagicMock()
+        ssm = MagicMock()
+        secrets = MagicMock()
+        factory_mock.return_value.client.side_effect = lambda service: {
+            'lambda': lambda_client,
+            'logs': logs,
+            'iam': iam,
+            'ssm': ssm,
+            'secretsmanager': secrets,
+        }[service]
+
+        result = reset_lab('lambda', 'runtime-config')
+
+        lambda_client.delete_function.assert_called_once_with(FunctionName='floci-lab-config-reader')
+        logs.delete_log_group.assert_called_once_with(logGroupName='/aws/lambda/floci-lab-config-reader')
+        iam.delete_role_policy.assert_called_once_with(
+            RoleName='FlociLambdaConfigRole',
+            PolicyName='FlociLambdaConfigRead',
+        )
+        iam.delete_role.assert_called_once_with(RoleName='FlociLambdaConfigRole')
+        ssm.delete_parameter.assert_called_once_with(Name='/floci/lab/lambda/config')
+        secrets.delete_secret.assert_called_once_with(
+            SecretId='floci-lab/lambda-secret',
+            ForceDeleteWithoutRecovery=True,
+        )
+        self.assertTrue(result['reset'])
+        self.assertIsNone(cache.get('floci-lab:lambda:runtime-config:invoke'))
+        self.assertIsNone(cache.get('floci-lab:lambda:runtime-config:logs'))
+
+    @patch('dashboard.views.lab_status')
+    def test_lambda_labs_page_renders_sqs_event_source_lab(self, status_mock):
+        status_mock.return_value = {'complete': False, 'steps': {}}
+
+        response = self.client.get(
+            reverse('dashboard:service-labs', kwargs={'service_key': 'lambda'}),
+            {'lab': 'sqs-event-source'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Process SQS messages with Lambda')
+        self.assertContains(response, 'aws sqs create-queue --queue-name floci-lab-lambda-events')
+        self.assertContains(response, 'aws iam create-role --role-name FlociLambdaSqsConsumerRole')
+        self.assertContains(response, 'aws iam put-role-policy --role-name FlociLambdaSqsConsumerRole')
+        self.assertContains(response, 'aws lambda create-function --function-name floci-lab-sqs-consumer')
+        self.assertContains(response, 'aws lambda create-event-source-mapping --function-name floci-lab-sqs-consumer')
+        self.assertContains(response, 'aws sqs send-message --queue-url &lt;queue-url&gt;')
+        self.assertContains(response, 'aws logs describe-log-streams --log-group-name /aws/lambda/floci-lab-sqs-consumer')
+        self.assertContains(response, 'lambda-sqs-policy.json')
+        self.assertContains(response, 'order-event.json')
+        self.assertContains(response, 'FLOCI-LAMBDA-SQS-4001')
+
+    @patch('dashboard.labs._verify_lambda_sqs_function')
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_lambda_sqs_lab_create_function_packages_sqs_handler(
+        self,
+        factory_mock,
+        verify_mock,
+    ):
+        lambda_client = MagicMock()
+        lambda_client.create_function.return_value = {
+            'FunctionName': 'floci-lab-sqs-consumer',
+            'Role': 'arn:aws:iam::000000000000:role/FlociLambdaSqsConsumerRole',
+        }
+        factory_mock.return_value.client.return_value = lambda_client
+        verify_mock.return_value = {'status': 'passed', 'message': 'verified'}
+
+        result = run_lab_step('lambda', 'sqs-event-source', 'create-function')
+
+        call = lambda_client.create_function.call_args.kwargs
+        self.assertEqual(call['FunctionName'], 'floci-lab-sqs-consumer')
+        self.assertEqual(call['Role'], 'arn:aws:iam::000000000000:role/FlociLambdaSqsConsumerRole')
+        with zipfile.ZipFile(BytesIO(call['Code']['ZipFile'])) as archive:
+            source = archive.read('handler.py').decode('utf-8')
+        self.assertIn('event.get("Records", [])', source)
+        self.assertIn('processed sqs event', source)
+        self.assertTrue(result['verified'])
+
+    @patch('dashboard.labs._verify_lambda_sqs_event_source_mapping')
+    @patch('dashboard.labs._find_lambda_sqs_event_source_mapping')
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_lambda_sqs_lab_creates_event_source_mapping(
+        self,
+        factory_mock,
+        find_mapping_mock,
+        verify_mock,
+    ):
+        cache.clear()
+        find_mapping_mock.return_value = None
+        verify_mock.return_value = {'status': 'passed', 'message': 'verified'}
+        lambda_client = MagicMock()
+        lambda_client.create_event_source_mapping.return_value = {
+            'UUID': 'mapping-123',
+            'FunctionArn': 'arn:aws:lambda:us-east-1:000000000000:function:floci-lab-sqs-consumer',
+            'EventSourceArn': 'arn:aws:sqs:us-east-1:000000000000:floci-lab-lambda-events',
+        }
+        factory_mock.return_value.client.return_value = lambda_client
+
+        result = run_lab_step('lambda', 'sqs-event-source', 'create-event-source-mapping')
+
+        lambda_client.create_event_source_mapping.assert_called_once_with(
+            FunctionName='floci-lab-sqs-consumer',
+            EventSourceArn='arn:aws:sqs:us-east-1:000000000000:floci-lab-lambda-events',
+            BatchSize=5,
+            Enabled=True,
+        )
+        self.assertTrue(result['verified'])
+        self.assertEqual(cache.get('floci-lab:lambda:sqs-event-source:mapping'), 'mapping-123')
+        cache.clear()
+
+    @patch('dashboard.labs._verify_lambda_sqs_message_sent')
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_lambda_sqs_lab_send_message_records_marker(
+        self,
+        factory_mock,
+        verify_mock,
+    ):
+        cache.clear()
+        sqs = MagicMock()
+        sqs.get_queue_url.return_value = {'QueueUrl': 'http://localhost/queue/floci-lab-lambda-events'}
+        sqs.send_message.return_value = {'MessageId': 'msg-123', 'MD5OfMessageBody': 'abc'}
+        factory_mock.return_value.client.return_value = sqs
+        verify_mock.return_value = {'status': 'passed', 'message': 'verified'}
+
+        result = run_lab_step('lambda', 'sqs-event-source', 'send-message')
+
+        call = sqs.send_message.call_args.kwargs
+        self.assertEqual(call['QueueUrl'], 'http://localhost/queue/floci-lab-lambda-events')
+        self.assertIn('FLOCI-LAMBDA-SQS-4001', call['MessageBody'])
+        self.assertEqual(call['MessageAttributes']['event_type']['StringValue'], 'order.created')
+        self.assertTrue(result['verified'])
+        self.assertTrue(cache.get('floci-lab:lambda:sqs-event-source:send-message'))
+        cache.clear()
+
+    def test_lambda_sqs_lab_status_requires_queue_mapping_message_and_logs(self):
+        passed = {'status': 'passed', 'message': 'verified'}
+        with ExitStack() as stack:
+            for verifier in (
+                '_verify_lambda_sqs_queue',
+                '_verify_lambda_sqs_role',
+                '_verify_lambda_sqs_role_policy',
+                '_verify_lambda_sqs_function',
+                '_verify_lambda_sqs_event_source_mapping',
+                '_verify_lambda_sqs_message_sent',
+                '_verify_lambda_sqs_logs',
+            ):
+                stack.enter_context(patch(
+                    f'dashboard.labs.{verifier}',
+                    return_value=passed,
+                ))
+            from .labs import lab_status
+
+            status = lab_status('lambda', 'sqs-event-source')
+
+        self.assertTrue(status['complete'])
+        self.assertTrue(status['steps']['create-queue']['verified'])
+        self.assertTrue(status['steps']['create-event-source-mapping']['verified'])
+        self.assertTrue(status['steps']['send-message']['verified'])
+        self.assertTrue(status['steps']['inspect-logs']['verified'])
+
+    @patch('dashboard.labs._find_lambda_sqs_event_source_mapping')
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_lambda_sqs_lab_reset_deletes_mapping_function_queue_and_cache(
+        self,
+        factory_mock,
+        find_mapping_mock,
+    ):
+        cache.set('floci-lab:lambda:sqs-event-source:mapping', 'mapping-123')
+        cache.set('floci-lab:lambda:sqs-event-source:send-message', {'ok': True})
+        cache.set('floci-lab:lambda:sqs-event-source:logs', {'ok': True})
+        find_mapping_mock.return_value = {'UUID': 'mapping-123'}
+        lambda_client = MagicMock()
+        logs = MagicMock()
+        iam = MagicMock()
+        sqs = MagicMock()
+        sqs.get_queue_url.return_value = {'QueueUrl': 'http://localhost/queue/floci-lab-lambda-events'}
+        factory_mock.return_value.client.side_effect = lambda service: {
+            'lambda': lambda_client,
+            'logs': logs,
+            'iam': iam,
+            'sqs': sqs,
+        }[service]
+
+        result = reset_lab('lambda', 'sqs-event-source')
+
+        lambda_client.delete_event_source_mapping.assert_called_once_with(UUID='mapping-123')
+        lambda_client.delete_function.assert_called_once_with(FunctionName='floci-lab-sqs-consumer')
+        logs.delete_log_group.assert_called_once_with(logGroupName='/aws/lambda/floci-lab-sqs-consumer')
+        iam.delete_role_policy.assert_called_once_with(
+            RoleName='FlociLambdaSqsConsumerRole',
+            PolicyName='FlociLambdaSqsConsumerPolicy',
+        )
+        iam.delete_role.assert_called_once_with(RoleName='FlociLambdaSqsConsumerRole')
+        sqs.delete_queue.assert_called_once_with(QueueUrl='http://localhost/queue/floci-lab-lambda-events')
+        self.assertTrue(result['reset'])
+        self.assertIsNone(cache.get('floci-lab:lambda:sqs-event-source:mapping'))
+        self.assertIsNone(cache.get('floci-lab:lambda:sqs-event-source:send-message'))
+        self.assertIsNone(cache.get('floci-lab:lambda:sqs-event-source:logs'))
+
+    @patch('dashboard.views.lab_status')
     def test_kms_labs_page_renders_crypto_lab(self, status_mock):
         status_mock.return_value = {'complete': False, 'steps': {}}
 
@@ -7046,6 +7436,192 @@ class LabsRunnerTests(SimpleTestCase):
         self.assertIsNone(cache.get('floci-lab:kms:crypto:key-id'))
         self.assertIsNone(cache.get('floci-lab:kms:crypto:ciphertext'))
         self.assertIsNone(cache.get('floci-lab:kms:crypto:decrypt'))
+
+    @patch('dashboard.views.lab_status')
+    def test_ssm_labs_page_renders_parameter_store_lab(self, status_mock):
+        status_mock.return_value = {'complete': False, 'steps': {}}
+
+        response = self.client.get(
+            reverse('dashboard:service-labs', kwargs={'service_key': 'ssm'}),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '<title>SSM Labs - Floci Dashboard</title>', html=True)
+        self.assertContains(response, 'Read app configuration from SSM Parameter Store')
+        self.assertContains(response, 'aws ssm put-parameter --name /floci/lab/app/config')
+        self.assertContains(response, 'aws ssm get-parameter --name /floci/lab/app/config --with-decryption')
+        self.assertContains(response, 'aws ssm get-parameters-by-path --path /floci/lab/app/')
+        self.assertContains(response, 'app-config.json')
+        self.assertContains(response, 'auditMode')
+
+    @patch('dashboard.labs._verify_ssm_parameter')
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_ssm_lab_put_parameter_writes_json_config(self, factory_mock, verify_mock):
+        ssm = MagicMock()
+        ssm.put_parameter.return_value = {'Version': 1, 'Tier': 'Standard'}
+        factory_mock.return_value.client.return_value = ssm
+        verify_mock.return_value = {'status': 'passed', 'message': 'verified'}
+
+        result = run_lab_step('ssm', 'parameter-store-config', 'put-parameter')
+
+        call = ssm.put_parameter.call_args.kwargs
+        self.assertEqual(call['Name'], '/floci/lab/app/config')
+        self.assertEqual(call['Type'], 'String')
+        self.assertTrue(call['Overwrite'])
+        self.assertIn('"checkout":true', call['Value'])
+        self.assertTrue(result['verified'])
+
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_ssm_lab_status_requires_parameter_and_path(self, factory_mock):
+        ssm = MagicMock()
+        parameter = {
+            'Name': '/floci/lab/app/config',
+            'Type': 'String',
+            'Value': '{"application":"orders","environment":"local","featureFlags":{"checkout":true,"auditMode":"verbose"}}',
+        }
+        ssm.get_parameter.return_value = {'Parameter': parameter}
+        ssm.get_parameters_by_path.return_value = {'Parameters': [parameter]}
+        factory_mock.return_value.client.return_value = ssm
+        from .labs import lab_status
+
+        status = lab_status('ssm', 'parameter-store-config')
+
+        self.assertTrue(status['complete'])
+        self.assertTrue(status['steps']['put-parameter']['verified'])
+        self.assertTrue(status['steps']['get-parameters-by-path']['verified'])
+
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_ssm_lab_reset_deletes_parameter(self, factory_mock):
+        ssm = MagicMock()
+        ssm.get_parameter.side_effect = ClientError(
+            {'Error': {'Code': 'ParameterNotFound', 'Message': 'missing'}},
+            'GetParameter',
+        )
+        factory_mock.return_value.client.return_value = ssm
+
+        result = reset_lab('ssm', 'parameter-store-config')
+
+        ssm.delete_parameter.assert_called_once_with(Name='/floci/lab/app/config')
+        self.assertTrue(result['reset'])
+        self.assertTrue(result['deleted'])
+
+    @patch('dashboard.views.lab_status')
+    def test_secretsmanager_labs_page_renders_secret_lifecycle_lab(self, status_mock):
+        status_mock.return_value = {'complete': False, 'steps': {}}
+
+        response = self.client.get(
+            reverse('dashboard:service-labs', kwargs={'service_key': 'secretsmanager'}),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '<title>Secrets Manager Labs - Floci Dashboard</title>', html=True)
+        self.assertContains(response, 'Create and update a Secrets Manager secret')
+        self.assertContains(response, 'aws secretsmanager create-secret --name floci-lab/app-credentials')
+        self.assertContains(response, 'aws secretsmanager get-secret-value --secret-id floci-lab/app-credentials')
+        self.assertContains(response, 'aws secretsmanager put-secret-value --secret-id floci-lab/app-credentials')
+        self.assertContains(response, 'aws secretsmanager describe-secret --secret-id floci-lab/app-credentials')
+        self.assertContains(response, 'initial-secret.json')
+        self.assertContains(response, 'rotated-secret.json')
+
+    @patch('dashboard.labs._verify_secretsmanager_secret_exists')
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_secretsmanager_lab_create_secret_writes_initial_json(self, factory_mock, verify_mock):
+        secrets = MagicMock()
+        secrets.create_secret.return_value = {
+            'Name': 'floci-lab/app-credentials',
+            'ARN': 'arn:aws:secretsmanager:us-east-1:000000000000:secret:floci-lab/app-credentials',
+            'VersionId': 'version-1',
+        }
+        factory_mock.return_value.client.return_value = secrets
+        verify_mock.return_value = {'status': 'passed', 'message': 'verified'}
+
+        result = run_lab_step('secretsmanager', 'secret-lifecycle', 'create-secret')
+
+        call = secrets.create_secret.call_args.kwargs
+        self.assertEqual(call['Name'], 'floci-lab/app-credentials')
+        self.assertIn('initial-local-password', call['SecretString'])
+        self.assertTrue(result['verified'])
+
+    @patch('dashboard.labs._verify_secretsmanager_initial_read')
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_secretsmanager_lab_initial_read_records_marker(self, factory_mock, verify_mock):
+        cache.clear()
+        secrets = MagicMock()
+        secrets.get_secret_value.return_value = {
+            'Name': 'floci-lab/app-credentials',
+            'SecretString': '{"username":"floci-lab-app","password":"initial-local-password"}',
+        }
+        factory_mock.return_value.client.return_value = secrets
+        verify_mock.return_value = {'status': 'passed', 'message': 'verified'}
+
+        result = run_lab_step('secretsmanager', 'secret-lifecycle', 'get-initial-secret')
+
+        self.assertTrue(cache.get('floci-lab:secretsmanager:secret-lifecycle:initial-read'))
+        self.assertTrue(result['verified'])
+        cache.clear()
+
+    @patch('dashboard.labs._verify_secretsmanager_updated_secret')
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_secretsmanager_lab_put_secret_value_writes_rotated_json(self, factory_mock, verify_mock):
+        secrets = MagicMock()
+        secrets.put_secret_value.return_value = {
+            'Name': 'floci-lab/app-credentials',
+            'VersionId': 'version-2',
+            'VersionStages': ['AWSCURRENT'],
+        }
+        factory_mock.return_value.client.return_value = secrets
+        verify_mock.return_value = {'status': 'passed', 'message': 'verified'}
+
+        result = run_lab_step('secretsmanager', 'secret-lifecycle', 'put-secret-value')
+
+        call = secrets.put_secret_value.call_args.kwargs
+        self.assertEqual(call['SecretId'], 'floci-lab/app-credentials')
+        self.assertIn('rotated-local-password', call['SecretString'])
+        self.assertTrue(result['verified'])
+
+    def test_secretsmanager_lab_status_requires_initial_and_updated_secret(self):
+        passed = {'status': 'passed', 'message': 'verified'}
+        with ExitStack() as stack:
+            for verifier in (
+                '_verify_secretsmanager_secret_exists',
+                '_verify_secretsmanager_initial_read',
+                '_verify_secretsmanager_updated_secret',
+            ):
+                stack.enter_context(patch(
+                    f'dashboard.labs.{verifier}',
+                    return_value=passed,
+                ))
+            from .labs import lab_status
+
+            status = lab_status('secretsmanager', 'secret-lifecycle')
+
+        self.assertTrue(status['complete'])
+        self.assertTrue(status['steps']['create-secret']['verified'])
+        self.assertTrue(status['steps']['get-initial-secret']['verified'])
+        self.assertTrue(status['steps']['put-secret-value']['verified'])
+        self.assertTrue(status['steps']['describe-secret']['verified'])
+
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_secretsmanager_lab_reset_deletes_secret_and_clears_markers(self, factory_mock):
+        cache.set('floci-lab:secretsmanager:secret-lifecycle:initial-read', {'ok': True})
+        cache.set('floci-lab:secretsmanager:secret-lifecycle:updated-read', {'ok': True})
+        secrets = MagicMock()
+        secrets.describe_secret.side_effect = ClientError(
+            {'Error': {'Code': 'ResourceNotFoundException', 'Message': 'missing'}},
+            'DescribeSecret',
+        )
+        factory_mock.return_value.client.return_value = secrets
+
+        result = reset_lab('secretsmanager', 'secret-lifecycle')
+
+        secrets.delete_secret.assert_called_once_with(
+            SecretId='floci-lab/app-credentials',
+            ForceDeleteWithoutRecovery=True,
+        )
+        self.assertTrue(result['reset'])
+        self.assertTrue(result['deleted'])
+        self.assertIsNone(cache.get('floci-lab:secretsmanager:secret-lifecycle:initial-read'))
+        self.assertIsNone(cache.get('floci-lab:secretsmanager:secret-lifecycle:updated-read'))
 
     @patch('dashboard.labs.FlociClientFactory')
     def test_run_iam_create_user_step_creates_and_verifies_alice(self, factory_mock):

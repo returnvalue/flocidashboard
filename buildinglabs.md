@@ -2,7 +2,7 @@
 
 ## Current Curriculum Status
 
-The current curriculum is complete through the first messaging, infrastructure, networking, and serverless compute sequences as of July 5, 2026:
+The current curriculum is complete through the first messaging, infrastructure, networking, serverless compute, data, encryption, and application configuration sequences:
 
 - nine IAM labs,
 - twelve S3 labs,
@@ -11,10 +11,12 @@ The current curriculum is complete through the first messaging, infrastructure, 
 - one EventBridge Scheduler lab,
 - one CloudFormation lab,
 - four EC2 networking labs,
-- one Lambda lab,
+- three Lambda labs,
 - one API Gateway lab,
 - two DynamoDB labs,
 - one KMS lab,
+- one SSM Parameter Store lab,
+- one Secrets Manager lab,
 - shared breadcrumb navigation from labs to the service page or dashboard homepage,
 - live-state completion for reload-safe progress,
 - lab-owned cleanup and reset behavior,
@@ -22,7 +24,7 @@ The current curriculum is complete through the first messaging, infrastructure, 
 - end-to-end verification against local Floci.
 
 Continue with deeper endpoint and hybrid-connectivity scenarios when local support makes them useful.
-Continue the serverless application spine with app configuration through Secrets Manager or SSM Parameter Store.
+Continue the serverless application spine with deeper runtime scenarios, such as parameter history, secret restore flows, or configuration-driven API behavior when local support makes them useful.
 
 The dashboard also exposes `/labs/`, a registry-driven directory of every service with active labs. The homepage links to it between Environment and Service Matrix. Keep this page as a catalog; guidance belongs on the service lab page only when a user completes the last lab in a batch.
 
@@ -382,22 +384,34 @@ Reset responses should be similarly consistent:
 
 ## Recommended Code Structure
 
-The current `dashboard/labs.py` is fine for the first proof, but it will get messy as labs grow. Before adding many labs, move toward a small framework.
+The lab implementation has moved from the original single `dashboard/labs.py` module into a `dashboard/labs/` package. The package keeps the public `dashboard.labs` import path stable while service code is extracted incrementally.
 
 Current state:
 
 ```text
-dashboard/labs.py
-  definitions for the current IAM lab collection
-  run_lab_step(...)
-  lab_status(...)
-  reset_lab(...)
-  IAM-specific verification helpers
+dashboard/labs/
+  __init__.py
+    compatibility export for the historical dashboard.labs API
+  monolith.py
+    temporary home for existing service definitions, runners, verification, and reset helpers
+  registry.py
+    labs_for_service(...)
+    get_lab(...)
+    next_lab_batch(...)
+    all_labs(...)
+  runner.py
+    run_lab_step(...)
+    lab_status(...)
+    reset_lab(...)
+  types.py
+    typed dictionaries for Lab, LabStep, StepResult, ResetResult, and verification payloads
+  iam.py, s3.py, sqs.py, lambda_labs.py
+    first service definition facades
 ```
 
-This was the right shape for proving the idea quickly. It should not become a giant file for every service.
+The remaining cleanup is to move service-specific implementation out of `monolith.py` into focused modules. Keep those migrations mechanical and covered by the existing tests.
 
-Recommended structure:
+Target structure:
 
 ```text
 dashboard/
@@ -409,6 +423,8 @@ dashboard/
     iam.py
     s3.py
     sqs.py
+    lambda_labs.py
+    ...
 ```
 
 Suggested responsibilities:
@@ -1934,6 +1950,64 @@ The invocation uses a fixed `event.json` containing `FLOCI-LAMBDA-1001`. The han
 Recommended next serverless lab:
 
 ```text
+Read app configuration and secrets from Lambda
+```
+
+Implemented second Lambda lab:
+
+```text
+Read app configuration and secrets from Lambda
+```
+
+Steps:
+
+```bash
+aws ssm put-parameter --name /floci/lab/lambda/config --type String --value file://lambda-config.json --description "Floci Lambda runtime configuration" --overwrite
+aws secretsmanager create-secret --name floci-lab/lambda-secret --description "Floci Lambda runtime secret" --secret-string file://lambda-secret.json
+aws iam create-role --role-name FlociLambdaConfigRole --assume-role-policy-document file://lambda-trust-policy.json
+aws iam put-role-policy --role-name FlociLambdaConfigRole --policy-name FlociLambdaConfigRead --policy-document file://lambda-config-policy.json
+aws lambda create-function --function-name floci-lab-config-reader --runtime python3.11 --role arn:aws:iam::000000000000:role/FlociLambdaConfigRole --handler handler.lambda_handler --zip-file fileb://function.zip --environment Variables={PARAMETER_NAME=/floci/lab/lambda/config,SECRET_ID=floci-lab/lambda-secret}
+aws lambda invoke --function-name floci-lab-config-reader --payload file://event.json response.json
+aws logs describe-log-streams --log-group-name /aws/lambda/floci-lab-config-reader
+aws logs get-log-events --log-group-name /aws/lambda/floci-lab-config-reader --log-stream-name <log-stream-name>
+```
+
+The lab creates its own SSM parameter and Secrets Manager secret so it can be run from a clean local environment. The Lambda execution role trusts `lambda.amazonaws.com` and grants only `ssm:GetParameter` on `/floci/lab/lambda/config`, `secretsmanager:GetSecretValue` on `floci-lab/lambda-secret`, and CloudWatch Logs writes for `/aws/lambda/floci-lab-config-reader`.
+
+The function stores resource identifiers in environment variables, reads both services at invocation time, returns safe proof fields such as application name, environment, secret username, and secret key names, and does not return the secret API key value. Live completion verifies the parameter, secret, role, inline policy, function environment, successful invocation marker, and matching log event. Reset deletes the function, log group, role policy, role, SSM parameter, secret, and recorded invocation/log markers.
+
+Recommended next serverless lab:
+
+```text
+Process SQS messages with Lambda
+```
+
+Implemented third Lambda lab:
+
+```text
+Process SQS messages with Lambda
+```
+
+Steps:
+
+```bash
+aws sqs create-queue --queue-name floci-lab-lambda-events
+aws iam create-role --role-name FlociLambdaSqsConsumerRole --assume-role-policy-document file://lambda-trust-policy.json
+aws iam put-role-policy --role-name FlociLambdaSqsConsumerRole --policy-name FlociLambdaSqsConsumerPolicy --policy-document file://lambda-sqs-policy.json
+aws lambda create-function --function-name floci-lab-sqs-consumer --runtime python3.11 --role arn:aws:iam::000000000000:role/FlociLambdaSqsConsumerRole --handler handler.lambda_handler --zip-file fileb://function.zip
+aws lambda create-event-source-mapping --function-name floci-lab-sqs-consumer --event-source-arn arn:aws:sqs:us-east-1:000000000000:floci-lab-lambda-events --batch-size 5 --enabled
+aws sqs send-message --queue-url <queue-url> --message-body file://order-event.json --message-attributes file://message-attributes.json
+aws logs describe-log-streams --log-group-name /aws/lambda/floci-lab-sqs-consumer
+aws logs get-log-events --log-group-name /aws/lambda/floci-lab-sqs-consumer --log-stream-name <log-stream-name>
+```
+
+The lab creates a dedicated SQS queue and Lambda function so it can teach event source mappings without reusing the synchronous echo function. The execution role trusts `lambda.amazonaws.com` and grants only `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:GetQueueAttributes` on `floci-lab-lambda-events`, plus CloudWatch Logs writes for `/aws/lambda/floci-lab-sqs-consumer`.
+
+The handler reads SQS `Records`, parses the order-event body, logs `FLOCI-LAMBDA-SQS-4001`, and returns a processed-record summary. Live completion verifies the queue ARN, role, inline policy, function, event source mapping, recorded SQS send, and matching log event. Reset deletes the event source mapping before deleting the function, then removes the log group, role policy, role, queue, and recorded mapping/message/log markers.
+
+Recommended next serverless lab:
+
+```text
 Send an API Gateway request to Lambda
 ```
 
@@ -2052,10 +2126,78 @@ The lab creates a symmetric `ENCRYPT_DECRYPT` key tagged for recovery, then atta
 
 The encrypt step protects a small JSON app configuration payload. KMS does not retain ciphertext as discoverable service state, so the lab records the ciphertext returned by the approved encrypt step and uses that exact blob for decrypt verification. Live completion verifies the key, alias, recorded ciphertext, and decrypted plaintext match. Reset deletes the alias, schedules the lab key for deletion with a seven-day pending window, and clears recorded ciphertext/decrypt state.
 
+Implemented next serverless lab:
+
+```text
+Read app configuration from SSM Parameter Store
+```
+
+## SSM Parameter Store Lab Progression
+
+Implemented first SSM lab:
+
+```text
+Read app configuration from SSM Parameter Store
+```
+
+Steps:
+
+```bash
+aws ssm put-parameter --name /floci/lab/app/config --type String --value file://app-config.json --description "Floci lab application configuration" --overwrite
+aws ssm get-parameter --name /floci/lab/app/config --with-decryption
+aws ssm get-parameters-by-path --path /floci/lab/app/ --recursive --with-decryption
+```
+
+The lab stores a JSON application configuration parameter under a hierarchical path. The direct read verifies the exact JSON payload, while the path read demonstrates how local applications can discover a configuration namespace such as `/floci/lab/app/`.
+
+Live completion requires:
+
+- the parameter name to exist,
+- the type to remain `String`,
+- the decoded JSON to match the expected application configuration,
+- the recursive path query to return the same parameter.
+
+Reset deletes only `/floci/lab/app/config`.
+
 Recommended next serverless lab:
 
 ```text
-Read app configuration from Secrets Manager or SSM Parameter Store
+Create and update a Secrets Manager secret
+```
+
+## Secrets Manager Lab Progression
+
+Implemented first Secrets Manager lab:
+
+```text
+Create and update a Secrets Manager secret
+```
+
+Steps:
+
+```bash
+aws secretsmanager create-secret --name floci-lab/app-credentials --description "Floci lab application credentials" --secret-string file://initial-secret.json
+aws secretsmanager get-secret-value --secret-id floci-lab/app-credentials
+aws secretsmanager put-secret-value --secret-id floci-lab/app-credentials --secret-string file://rotated-secret.json
+aws secretsmanager get-secret-value --secret-id floci-lab/app-credentials
+aws secretsmanager describe-secret --secret-id floci-lab/app-credentials
+```
+
+The lab creates a JSON application credential, reads the initial value, writes a rotated value, reads the current value, and inspects metadata separately from secret material.
+
+Live completion requires:
+
+- the secret to exist and not be scheduled for deletion,
+- a recorded successful read of the initial credential JSON,
+- the current secret value to match the rotated credential JSON,
+- metadata inspection through `DescribeSecret`.
+
+The initial-read milestone uses a short-lived server-side marker because once the secret is rotated, live Secrets Manager state can no longer prove that the old value was read successfully. Reset force-deletes only `floci-lab/app-credentials` and clears the lab markers.
+
+Implemented follow-up Lambda lab:
+
+```text
+Read app configuration and secrets from Lambda
 ```
 
 ## Future Services
@@ -2064,13 +2206,16 @@ Good next services:
 
 - SQS: foundational sequence complete; continue through multi-service messaging labs.
 - SNS: fan-out and message-attribute filtering foundations complete.
-- Lambda: create, invoke, and CloudWatch Logs inspection foundation complete.
+- Lambda: create, invoke, runtime configuration reads, SQS event source mapping, and CloudWatch Logs inspection foundations complete.
 - API Gateway: HTTP API to Lambda request foundation complete.
 - DynamoDB: table CRUD, customer-index query, and Lambda write foundations complete.
 - KMS: key, alias, encrypt, and decrypt foundation complete.
+- SSM Parameter Store: hierarchical JSON configuration foundation complete.
+- Secrets Manager: JSON secret creation, initial read, value update, and metadata inspection foundation complete.
 - CloudFormation: create/delete foundation complete; add updates and rollback labs when local support is reliable.
 - EC2 networking: routing, security-group, S3 gateway endpoint, and SQS interface endpoint foundations complete.
 - EventBridge Scheduler: one-time SQS delivery foundation complete.
+- Event-driven Lambda: SQS event source mapping is complete; next practical gaps are S3 object-created notifications to Lambda, EventBridge rules to Lambda or SQS, and EventBridge Pipes source-to-target flows when local support is reliable.
 - RDS: create local DB instance, inspect endpoint, connect instructions, cleanup.
 - DocumentDB: create cluster/instance, inspect endpoint, cleanup.
 
@@ -2114,11 +2259,11 @@ Phase 1: First IAM proof
 
 Phase 2: Lab framework
 
-- Split `dashboard/labs.py` into a small package.
-- Introduce typed lab definitions.
-- Centralize step result formatting.
-- Centralize status/reset routing.
-- Keep the existing route/template API stable while moving internals.
+- Split `dashboard/labs.py` into a small package. Complete.
+- Introduce typed lab definitions. Complete for shared payload shapes.
+- Centralize registry and runner facades. Complete.
+- Keep the existing route/template API stable while moving internals. Complete.
+- Move service-specific definitions, runners, status, and reset helpers out of `monolith.py` incrementally.
 
 Phase 3: Multi-step IAM labs
 

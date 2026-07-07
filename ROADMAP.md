@@ -210,6 +210,9 @@ Core architecture files:
 - Added the DynamoDB CRUD and query lab with an on-demand orders table, `CustomerIdIndex` GSI, low-level attribute JSON item writes, key reads, update expressions, customer-index queries, item deletion, table deletion, and live-state/milestone verification.
 - Added the Lambda-to-DynamoDB lab with a table-backed order writer function, least-privilege `dynamodb:PutItem` role policy, environment-driven table selection, synchronous invoke verification, DynamoDB item proof, CloudWatch Logs proof, and dependency-aware cleanup.
 - Added the KMS crypto lab with a tagged symmetric key, stable alias, metadata inspection, app-configuration encrypt/decrypt round trip, ciphertext/decrypt markers, alias deletion, and key deletion scheduling cleanup.
+- Added SSM Parameter Store and Secrets Manager labs for local application configuration: hierarchical JSON parameter storage, direct and path-based reads, JSON secret creation, initial read verification, rotated value updates, metadata inspection, and lab-owned cleanup.
+- Added the Lambda runtime configuration lab with lab-owned SSM and Secrets Manager inputs, least-privilege read policy, environment-driven resource IDs, safe response verification, CloudWatch Logs proof, and dependency-aware cleanup.
+- Added the Lambda SQS event source lab with a lab-owned queue, least-privilege polling policy, packaged consumer handler, Lambda event source mapping, SQS message proof, CloudWatch Logs proof, and dependency-aware cleanup.
 
 ## Near-Term Priorities
 
@@ -312,12 +315,12 @@ Why it matters:
 
 ### 6. Workflow Lab Framework
 
-Continue the local AWS workflow lab system beyond the completed IAM, S3, SQS, SNS, Scheduler, CloudFormation, and EC2 foundations.
+Continue the local AWS workflow lab system beyond the completed IAM, S3, SQS, SNS, Scheduler, CloudFormation, EC2, Lambda, API Gateway, DynamoDB, KMS, SSM, and Secrets Manager foundations.
 
 Feasible follow-ups:
 
-- Split the growing `dashboard/labs.py` module into a small typed package with shared registry and runner code.
-- Continue the new serverless application spine with app configuration through Secrets Manager or SSM Parameter Store.
+- Continue extracting service-specific lab code out of `dashboard/labs/monolith.py`; the package shell, typed definitions, registry facade, runner facade, and first service definition facades are in place.
+- Continue the new serverless application spine with S3 object-created notifications to Lambda, EventBridge rules to Lambda or SQS, and EventBridge Pipes source-to-target flows where local support is reliable.
 - Continue networking labs with multi-AZ interface endpoints, endpoint policy variations, or hybrid connectivity when local support makes them useful.
 - Add “View in dashboard” links after verified steps.
 - Keep next-batch recommendations completion-driven and minimal; avoid reintroducing a separate learning-path layer unless progress tracking becomes richer.

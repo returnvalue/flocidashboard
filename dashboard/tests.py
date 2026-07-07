@@ -155,7 +155,7 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<title>Labs - Floci Dashboard</title>', html=True)
         self.assertContains(response, '<h1>Labs</h1>', html=True)
-        self.assertContains(response, '11 services with labs')
+        self.assertContains(response, '13 services with labs')
         self.assertNotContains(response, 'Learning paths')
         self.assertNotContains(response, 'Recommended starting point')
         self.assertContains(response, 'Create an IAM user')
@@ -189,6 +189,14 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertContains(
             response,
             'Protect local app data with KMS',
+        )
+        self.assertContains(
+            response,
+            'Read app configuration from SSM Parameter Store',
+        )
+        self.assertContains(
+            response,
+            'Create and update a Secrets Manager secret',
         )
         self.assertContains(
             response,
@@ -239,6 +247,14 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertContains(
             response,
             reverse('dashboard:service-labs', kwargs={'service_key': 'kms'}),
+        )
+        self.assertContains(
+            response,
+            reverse('dashboard:service-labs', kwargs={'service_key': 'ssm'}),
+        )
+        self.assertContains(
+            response,
+            reverse('dashboard:service-labs', kwargs={'service_key': 'secretsmanager'}),
         )
         content = response.content.decode()
         self.assertLess(content.index('href="/service/iam/"'), content.index('href="/service/s3/"'))
