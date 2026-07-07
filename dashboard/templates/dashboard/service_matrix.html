@@ -7,7 +7,13 @@
     <div>
       <a class="back-link" href="/">Services</a>
       <p class="eyebrow">Coverage matrix</p>
-      <h1>Service Matrix</h1>
+      <h1 class="console-title">Service Matrix</h1>
+    </div>
+    <div class="topbar-actions">
+      <a class="secondary-action" href="{% url 'dashboard:environment' %}">Environment</a>
+      <a class="secondary-action" href="{% url 'dashboard:labs-directory' %}">Labs</a>
+      <a class="secondary-action topbar-action-active" href="{% url 'dashboard:service-matrix' %}" aria-current="page">Service Matrix</a>
+      <button data-refresh-page type="button" aria-label="Refresh service matrix">Refresh</button>
     </div>
   </header>
 

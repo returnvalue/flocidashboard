@@ -1,16 +1,17 @@
 # Floci Dashboard
 
-A small Django UI for inspecting, testing, and learning against a local [Floci](https://floci.io/) AWS-compatible environment. The dashboard shows Floci health, endpoint/profile/identity details, selectable service cards, resource counts, service-specific inventory pages, interactive workbenches, and one-click local AWS workflow labs.
+A small Django UI for inspecting, testing, and learning against a local [Floci](https://floci.io/) AWS-compatible environment. The dashboard uses an AWS-adjacent console style and shows Floci health, endpoint/profile/identity details, selectable service cards, resource counts, service-specific inventory pages, interactive workbenches, and one-click local AWS workflow labs.
 
-![Floci Dashboard UI](./djangofloci.png)
+![Floci Dashboard UI](./flocidashboard.png)
 
 ## What It Shows
 
 - Local Floci health and version
 - Environment diagnostics for AWS endpoint, region, profile, credential source, caller identity, and local-endpoint warnings
-- Clickable service cards for supported local services, with persisted home-page service filtering and a Tracked Resources view that shows only services with discovered resources
+- Clickable service cards for supported local services, with a top-24 default home view, persisted home-page service filtering, and a Tracked Resources view that shows only services with discovered resources
 - Service Matrix coverage page showing registry maturity, API paths, shared console status, action counts, tags, and linked service pages
 - Labs directory at `/labs/` showing every service with active workflow labs, current lab counts, runnable step counts, and direct links
+- AWS-adjacent console shell with shared Environment, Labs, Service Matrix, and Refresh navigation across primary pages
 - Local AWS workflow labs for IAM, S3, SQS, SNS, EventBridge Scheduler, CloudFormation, EC2 networking, Lambda, API Gateway, DynamoDB, KMS, SSM Parameter Store, and Secrets Manager, with exact AWS CLI commands, approved one-click execution, live-state verification, reset actions, next-batch recommendations after a service batch is complete, and breadcrumb navigation back to the service or homepage
 - Interactive workbenches for S3, IAM, EC2, SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, EventBridge, EventBridge Pipes, EventBridge Scheduler, API Gateway, AppSync, Kinesis, KMS, Secrets Manager, SSM Parameter Store, CloudFormation, Cognito, AWS Config, RDS, Auto Scaling, ELB v2, CloudFront, AWS Cloud Map, Route 53, ACM, ECS, ECR, EKS, ElastiCache, OpenSearch, Athena, Backup, Firehose, Glue, Kafka, Neptune, SES, Transfer Family, Textract, Transcribe, CodeDeploy, CodeBuild, Bedrock Runtime, AppConfig, and Resource Groups Tagging
 - Inventory pages for newer Floci services including Amazon MQ, EMR, WAF v2, AWS Batch, RDS Data API, Amazon DocumentDB, MemoryDB, CodePipeline, S3 Vectors, IoT Core, and Elastic Beanstalk
@@ -264,6 +265,7 @@ Core files:
 - `dashboard/templates/dashboard/labs.html` and `dashboard/static/dashboard/labs.js`: shared workflow-lab UI and browser behavior.
 - `dashboard/static/dashboard/service-console.js`: shared browser-side helpers for API calls, summary cards, read-only cards, toolbars, modals, formatting, and lower-right toasts.
 - `dashboard/static/dashboard/dashboard.js`: generic read-only inventory rendering for service pages.
+- `dashboard/static/dashboard/console-theme.css`: shared AWS-adjacent compatibility layer that keeps service-specific console pages visually aligned while service CSS is cleaned up incrementally.
 - Service-specific files such as `s3_api.py`, `s3_views.py`, `s3-console.js`, and `s3-console.css`, `iam_api.py`, `iam_views.py`, `iam-console.js`, and `iam-console.css`, `ec2_api.py`, `ec2_views.py`, `ec2-console.js`, and `ec2-console.css`, `cloudformation_api.py`, `cloudformation_views.py`, `cloudformation-console.js`, and `cloudformation-console.css`, `cognito_api.py`, `cognito_views.py`, `cognito-console.js`, and `cognito-console.css`, `rds_api.py`, `rds_views.py`, `rds-console.js`, and `rds-console.css`, `autoscaling_api.py`, `autoscaling_views.py`, `autoscaling-console.js`, and `autoscaling-console.css`, `elasticloadbalancing_api.py`, `elasticloadbalancing_views.py`, `elasticloadbalancing-console.js`, and `elasticloadbalancing-console.css`, `cloudfront_api.py`, `cloudfront_views.py`, `cloudfront-console.js`, and `cloudfront-console.css`, `cloudmap_api.py`, `cloudmap_views.py`, `cloudmap-console.js`, and `cloudmap-console.css`, `route53_api.py`, `route53_views.py`, `route53-console.js`, and `route53-console.css`, `acm_api.py`, `acm_views.py`, `acm-console.js`, and `acm-console.css`, `ecs_api.py`, `ecs_views.py`, `ecs-console.js`, and `ecs-console.css`, `ecr_api.py`, `ecr_views.py`, `ecr-console.js`, and `ecr-console.css`, `eks_api.py`, `eks_views.py`, `eks-console.js`, and `eks-console.css`, `elasticache_api.py`, `elasticache_views.py`, `elasticache-console.js`, and `elasticache-console.css`, `opensearch_api.py`, `opensearch_views.py`, `opensearch-console.js`, and `opensearch-console.css`, `athena_api.py`, `athena_views.py`, `athena-console.js`, and `athena-console.css`, or the equivalent files for SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, EventBridge, API Gateway, AppSync, Kinesis, Secrets Manager, SSM Parameter Store, Backup, Firehose, Glue, Kafka, Neptune, SES, Transfer Family, Textract, Transcribe, CodeDeploy, CodeBuild, Bedrock Runtime, AppConfig, and Resource Groups Tagging: focused behavior for one service only.
 
 Important conventions:

@@ -7,9 +7,11 @@
     <div>
       <a class="back-link" href="/">Services</a>
       <p class="eyebrow">Local runtime diagnostics</p>
-      <h1>Environment</h1>
+      <h1 class="console-title">Environment</h1>
     </div>
     <div class="topbar-actions">
+      <a class="secondary-action topbar-action-active" href="{% url 'dashboard:environment' %}" aria-current="page">Environment</a>
+      <a class="secondary-action" href="{% url 'dashboard:labs-directory' %}">Labs</a>
       <a class="secondary-action" href="{% url 'dashboard:service-matrix' %}">Service Matrix</a>
       <button id="environment-refresh" type="button" aria-label="Refresh environment">Refresh</button>
     </div>

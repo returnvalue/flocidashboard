@@ -1,0 +1,272 @@
+:is(
+  [class$="-console-root"],
+  [class*="-console-root "]
+) {
+  color: var(--text-primary);
+}
+
+:is(
+  [class$="-toolbar"],
+  [class*="-toolbar "],
+  [class$="-about-floci"],
+  [class*="-about-floci "],
+  [class$="-panel"],
+  [class*="-panel "],
+  [class$="-empty-panel"],
+  [class*="-empty-panel "]
+) {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-panel);
+  background: var(--surface-panel);
+  box-shadow: var(--shadow-panel);
+}
+
+:is(
+  [class$="-toolbar"],
+  [class*="-toolbar "]
+) {
+  padding: 12px 14px;
+}
+
+:is(
+  [class$="-toolbar-left"],
+  [class*="-toolbar-left "],
+  [class$="-toolbar-right"],
+  [class*="-toolbar-right "],
+  [class$="-action-row"],
+  [class*="-action-row "],
+  [class$="-inline-actions"],
+  [class*="-inline-actions "],
+  [class$="-modal-actions"],
+  [class*="-modal-actions "]
+) {
+  gap: 8px;
+}
+
+:is(
+  [class$="-panel-heading"],
+  [class*="-panel-heading "]
+) {
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-panel-alt);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+:is(
+  [class$="-row"],
+  [class*="-row "],
+  [class$="-item"],
+  [class*="-item "]
+) {
+  border-color: var(--border-subtle);
+}
+
+:is(
+  [class$="-row"]:hover,
+  [class*="-row "]:hover,
+  [class$="-row-active"],
+  [class*="-row-active "]
+) {
+  border-color: var(--border-selected);
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+:is(
+  [class$="-card"],
+  [class*="-card "],
+  [class$="-subcard"],
+  [class*="-subcard "],
+  [class$="-user-card"],
+  [class*="-user-card "]
+) {
+  border-color: var(--border-subtle);
+  border-radius: var(--radius-panel);
+  background: var(--surface-panel);
+  box-shadow: var(--shadow-panel);
+}
+
+:is(
+  [class$="-btn-secondary"],
+  [class*="-btn-secondary "]
+) {
+  border-color: var(--border-control);
+  background: var(--action-secondary-bg);
+  color: var(--text-link);
+}
+
+:is(
+  [class$="-btn-secondary"]:hover,
+  [class*="-btn-secondary "]:hover
+) {
+  border-color: var(--border-control-hover);
+  background: var(--action-secondary-hover);
+  color: var(--text-link-hover);
+}
+
+:is(
+  [class$="-btn-danger"],
+  [class*="-btn-danger "]
+) {
+  border-color: var(--action-danger);
+  background: var(--action-danger);
+  color: var(--text-on-action);
+}
+
+:is(
+  [class$="-btn-danger"]:hover,
+  [class*="-btn-danger "]:hover
+) {
+  border-color: var(--action-danger-hover);
+  background: var(--action-danger-hover);
+  color: var(--text-on-action);
+}
+
+:is(
+  [class$="-modal-overlay"],
+  [class*="-modal-overlay "]
+) {
+  background: rgba(22, 25, 31, 0.58);
+}
+
+:is(
+  [class$="-modal"],
+  [class*="-modal "]
+) {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-panel);
+  background: var(--surface-panel);
+  box-shadow: var(--shadow-popover);
+}
+
+:is(
+  [class$="-modal"] h3,
+  [class*="-modal "] h3
+) {
+  color: var(--text-primary);
+  line-height: var(--line-height-heading);
+}
+
+:is(
+  [class$="-modal"] label,
+  [class*="-modal "] label
+) {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+:is(
+  [class$="-modal"] input,
+  [class*="-modal "] input,
+  [class$="-modal"] select,
+  [class*="-modal "] select,
+  [class$="-modal"] textarea,
+  [class*="-modal "] textarea
+) {
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-control);
+  background: var(--surface-panel);
+  color: var(--text-primary);
+}
+
+:is(
+  [class$="-modal"] input:focus,
+  [class*="-modal "] input:focus,
+  [class$="-modal"] select:focus,
+  [class*="-modal "] select:focus,
+  [class$="-modal"] textarea:focus,
+  [class*="-modal "] textarea:focus
+) {
+  border-color: var(--border-selected);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+:is(
+  [class$="-result"],
+  [class*="-result "],
+  [class$="-code-block"],
+  [class*="-code-block "],
+  [class$="-policy-json"],
+  [class*="-policy-json "]
+) {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  background: var(--surface-code);
+  color: var(--text-code);
+}
+
+:is(
+  [class$="-modal"] dl,
+  [class*="-modal "] dl,
+  [class$="-card"] dl,
+  [class*="-card "] dl,
+  [class$="-subcard"] dl,
+  [class*="-subcard "] dl
+) {
+  border-color: var(--border-subtle);
+  border-radius: var(--radius-control);
+}
+
+:is(
+  [class$="-breadcrumbs"],
+  [class*="-breadcrumbs "]
+) {
+  color: var(--text-muted);
+}
+
+:is(
+  [class$="-breadcrumbs"] button,
+  [class*="-breadcrumbs "] button
+) {
+  color: var(--text-link);
+}
+
+:is(
+  [class$="-breadcrumbs"] button:hover,
+  [class*="-breadcrumbs "] button:hover
+) {
+  color: var(--text-link-hover);
+}
+
+:is(
+  [class$="-toast"],
+  [class*="-toast "]
+) {
+  border: 1px solid color-mix(in srgb, var(--status-success) 25%, var(--border-subtle));
+  border-radius: var(--radius-panel);
+  background: var(--status-success);
+  color: var(--text-on-action);
+  box-shadow: var(--shadow-popover);
+}
+
+:is(
+  [class$="-toast-error"],
+  [class*="-toast-error "]
+) {
+  border-color: color-mix(in srgb, var(--status-error) 35%, var(--border-subtle));
+  background: var(--status-error);
+}
+
+:is(
+  [class$="-empty"],
+  [class*="-empty "]
+) {
+  border-radius: var(--radius-control);
+  padding: 14px;
+  background: var(--surface-panel-alt);
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+:is(
+  [class$="-meta"],
+  [class*="-meta "],
+  [class$="-toolbar-note"],
+  [class*="-toolbar-note "]
+) {
+  color: var(--text-muted);
+}

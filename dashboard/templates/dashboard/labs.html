@@ -14,7 +14,13 @@
         <span aria-current="page">Labs</span>
       </nav>
       <p class="eyebrow">{{ service.eyebrow }}</p>
-      <h1>{{ service.title }} Labs</h1>
+      <h1 class="console-title">{{ service.title }} Labs</h1>
+    </div>
+    <div class="topbar-actions">
+      <a class="secondary-action" href="{% url 'dashboard:environment' %}">Environment</a>
+      <a class="secondary-action topbar-action-active" href="{% url 'dashboard:labs-directory' %}" aria-current="page">Labs</a>
+      <a class="secondary-action" href="{% url 'dashboard:service-matrix' %}">Service Matrix</a>
+      <button data-refresh-page type="button" aria-label="Refresh {{ service.title }} labs">Refresh</button>
     </div>
   </header>
 

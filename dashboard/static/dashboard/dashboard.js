@@ -1,5 +1,6 @@
 const refreshButton = document.querySelector('#refresh');
 const environmentRefreshButton = document.querySelector('#environment-refresh');
+const pageRefreshButtons = document.querySelectorAll('[data-refresh-page]');
 const loadedAt = document.querySelector('#loaded-at');
 const environmentLoadedAt = document.querySelector('#environment-loaded-at');
 const environmentState = document.querySelector('#environment-state');
@@ -517,7 +518,7 @@ const servicePriorityOrder = [
 const servicePriorityRank = new Map(
   servicePriorityOrder.map((service, index) => [canonicalServiceKey(service), index])
 );
-const defaultHomeServiceCount = 12;
+const defaultHomeServiceCount = 24;
 const serviceFilterStorageKey = 'floci.dashboard.home.selectedServices';
 const homeServiceFilterModes = {
   selected: 'selected',
@@ -660,12 +661,12 @@ function renderSummary(summary, container, targets = {}) {
 
 function renderDetailList(title, items, fields = []) {
   const section = document.createElement('section');
-  section.className = 'iam-panel';
+  section.className = 'iam-panel collection-panel';
   section.id = sectionIdForLabel(title);
   items = Array.isArray(items) ? items : (items ? [{ name: 'Response', details: items }] : []);
 
   const heading = document.createElement('div');
-  heading.className = 'card-heading';
+  heading.className = 'card-heading collection-heading';
 
   const h3 = document.createElement('h3');
   const count = document.createElement('span');
@@ -685,7 +686,7 @@ function renderDetailList(title, items, fields = []) {
 
   items.forEach((item) => {
     const card = document.createElement('article');
-    card.className = 'iam-item';
+    card.className = 'iam-item collection-item';
 
     const name = document.createElement('h4');
     name.textContent = item.name || item.arn || item.id || 'Unnamed';
@@ -6462,6 +6463,13 @@ if (environmentRefreshButton) {
     }
   });
 }
+pageRefreshButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    button.disabled = true;
+    button.textContent = 'Refreshing';
+    window.location.reload();
+  });
+});
 if (s3ConsoleRoot) {
   loadStatusTiles().catch((error) => {
     if (health) {

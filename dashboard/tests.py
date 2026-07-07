@@ -99,6 +99,19 @@ class ActionRegistryAuditTests(SimpleTestCase):
 
 
 class DashboardTemplateTests(SimpleTestCase):
+    def assertTopbarActions(self, response):
+        self.assertContains(response, f'href="{reverse("dashboard:environment")}"')
+        self.assertContains(response, f'href="{reverse("dashboard:labs-directory")}"')
+        self.assertContains(response, f'href="{reverse("dashboard:service-matrix")}"')
+        self.assertContains(response, '>Refresh</button>')
+
+    def assertTopbarActiveAction(self, response, label):
+        self.assertContains(
+            response,
+            f'class="secondary-action topbar-action-active"',
+        )
+        self.assertContains(response, f'aria-current="page">{label}</a>')
+
     def test_home_page_renders_dashboard_shell(self):
         response = self.client.get(reverse('dashboard:index'))
 
@@ -109,6 +122,7 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertContains(response, reverse('dashboard:labs-directory'))
         self.assertContains(response, reverse('dashboard:service-matrix'))
         self.assertContains(response, 'dashboard/styles.css')
+        self.assertContains(response, 'dashboard/console-theme.css')
         self.assertContains(response, 'dashboard/dashboard.js')
         content = response.content.decode()
         self.assertLess(
@@ -120,17 +134,36 @@ class DashboardTemplateTests(SimpleTestCase):
             content.index(reverse('dashboard:service-matrix')),
         )
 
+    @patch('dashboard.views.lab_status')
+    def test_topbar_actions_are_consistent_across_primary_pages(self, status_mock):
+        status_mock.return_value = {'complete': False, 'steps': {}}
+        urls = [
+            reverse('dashboard:index'),
+            reverse('dashboard:environment'),
+            reverse('dashboard:labs-directory'),
+            reverse('dashboard:service-matrix'),
+            reverse('dashboard:service-page', kwargs={'service_key': 's3'}),
+            reverse('dashboard:service-labs', kwargs={'service_key': 'lambda'}),
+        ]
+
+        for url in urls:
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 200)
+                self.assertTopbarActions(response)
+
     def test_environment_page_renders_diagnostics_shell(self):
         response = self.client.get(reverse('dashboard:environment'))
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<title>Environment - Floci Dashboard</title>', html=True)
-        self.assertContains(response, '<h1>Environment</h1>', html=True)
+        self.assertContains(response, '<h1 class="console-title">Environment</h1>', html=True)
         self.assertContains(response, 'id="environment-refresh"')
         self.assertContains(response, 'id="environment-state"')
         self.assertContains(response, 'id="environment-endpoint"')
         self.assertContains(response, 'id="environment-identity-arn"')
         self.assertContains(response, reverse('dashboard:service-matrix'))
+        self.assertTopbarActiveAction(response, 'Environment')
         self.assertContains(response, 'dashboard/dashboard.js')
 
     def test_service_matrix_renders_registry_coverage(self):
@@ -145,6 +178,7 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertContains(response, 'href="/service/s3/"')
         self.assertContains(response, 'Interactive Workbench')
         self.assertContains(response, 'dashboard/s3-console.js', count=0)
+        self.assertTopbarActiveAction(response, 'Service Matrix')
         self.assertNotContains(response, '<th scope="col">Page</th>', html=True)
         content = response.content.decode()
         self.assertLess(content.index('href="/service/iam/"'), content.index('href="/service/s3/"'))
@@ -154,7 +188,8 @@ class DashboardTemplateTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<title>Labs - Floci Dashboard</title>', html=True)
-        self.assertContains(response, '<h1>Labs</h1>', html=True)
+        self.assertContains(response, '<h1 class="console-title">Labs</h1>', html=True)
+        self.assertTopbarActiveAction(response, 'Labs')
         self.assertContains(response, '13 services with labs')
         self.assertNotContains(response, 'Learning paths')
         self.assertNotContains(response, 'Recommended starting point')
@@ -268,7 +303,7 @@ class DashboardTemplateTests(SimpleTestCase):
 
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, f'<title>{service["title"]} - Floci Dashboard</title>', html=True)
-                self.assertContains(response, f'<h1>{service["title"]}</h1>', html=True)
+                self.assertContains(response, f'<h1 class="console-title">{service["title"]}</h1>', html=True)
                 self.assertContains(response, service['eyebrow'])
                 self.assertContains(response, 'dashboard/styles.css')
                 self.assertContains(response, 'dashboard/dashboard.js')

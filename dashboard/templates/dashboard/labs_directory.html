@@ -7,7 +7,13 @@
     <div>
       <a class="back-link" href="{% url 'dashboard:index' %}">Services</a>
       <p class="eyebrow">Local AWS workflow labs</p>
-      <h1>Labs</h1>
+      <h1 class="console-title">Labs</h1>
+    </div>
+    <div class="topbar-actions">
+      <a class="secondary-action" href="{% url 'dashboard:environment' %}">Environment</a>
+      <a class="secondary-action topbar-action-active" href="{% url 'dashboard:labs-directory' %}" aria-current="page">Labs</a>
+      <a class="secondary-action" href="{% url 'dashboard:service-matrix' %}">Service Matrix</a>
+      <button data-refresh-page type="button" aria-label="Refresh labs directory">Refresh</button>
     </div>
   </header>
 

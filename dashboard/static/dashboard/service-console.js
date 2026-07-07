@@ -195,11 +195,11 @@ const ServiceConsole = (() => {
 
   function renderDetailList(serviceKey, title, items, fields = []) {
     const section = document.createElement('section');
-    section.className = 'iam-panel';
+    section.className = 'iam-panel collection-panel';
     section.id = sectionIdForLabel(serviceKey, title);
     const normalizedItems = Array.isArray(items) ? items : (items ? [{ name: 'Response', details: items }] : []);
 
-    const heading = el('div', 'card-heading');
+    const heading = el('div', 'card-heading collection-heading');
     const titleEl = document.createElement('h3');
     const count = el('span', 'count', normalizedItems.length);
     titleEl.textContent = title;
@@ -213,7 +213,7 @@ const ServiceConsole = (() => {
 
     normalizedItems.forEach((item) => {
       const card = document.createElement('article');
-      card.className = 'iam-item';
+      card.className = 'iam-item collection-item';
 
       const name = document.createElement('h4');
       name.textContent = item.name || item.arn || item.id || 'Unnamed';

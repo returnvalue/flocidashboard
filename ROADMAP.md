@@ -31,6 +31,7 @@ Core architecture files:
 - `dashboard/actions.py`: shared action metadata, JSON parsing, and normalized action errors.
 - `dashboard/templates/dashboard/service.html`: common service page shell.
 - `dashboard/static/dashboard/service-console.js`: shared frontend helpers for API calls, summary cards, read-only cards, toolbars, modals, formatting, and lower-right toasts.
+- `dashboard/static/dashboard/console-theme.css`: AWS-adjacent compatibility layer that keeps existing per-service consoles aligned with the shared theme while deeper CSS cleanup happens incrementally.
 - Service-specific modules such as `s3_api.py`, `s3_views.py`, `s3-console.js`, and `s3-console.css`, `iam_api.py`, `iam_views.py`, `iam-console.js`, and `iam-console.css`, `ec2_api.py`, `ec2_views.py`, `ec2-console.js`, and `ec2-console.css`, `stepfunctions_api.py`, `stepfunctions_views.py`, `stepfunctions-console.js`, and `stepfunctions-console.css`, `eventbridge_api.py`, `eventbridge_views.py`, `eventbridge-console.js`, and `eventbridge-console.css`, or the equivalent files for SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, API Gateway, AppSync, Kinesis, Secrets Manager, SSM Parameter Store, CloudFormation, Cognito, RDS, Auto Scaling, ELB v2, CloudFront, Cloud Map, CloudTrail, Route 53, ACM, ECS, ECR, EKS, ElastiCache, OpenSearch, Athena, Backup, Firehose, Glue, Kafka, Neptune, SES, Transfer Family, Textract, Transcribe, CodeDeploy, CodeBuild, Bedrock Runtime, AppConfig, Resource Groups Tagging, and newer read-only service pages such as Amazon MQ.
 
 ## Guiding Principles
@@ -144,7 +145,7 @@ Core architecture files:
 - Registered AppConfig as an interactive configuration workbench.
 - Built the Resource Groups Tagging explorer with bulk tag and untag actions, filtered resource discovery, and tag-value lookup.
 - Registered Resource Groups Tagging as an interactive tag explorer.
-- Added a home-page service selector that defaults to the top 12 common AWS services, persists user selections, labels cards as Interactive or Read Only, and limits `/api/resources/` calls to selected services for faster loads.
+- Added a home-page service selector that defaults to the top 24 common AWS services, persists user selections, labels cards as Interactive or Read Only, and limits `/api/resources/` calls to selected services for faster loads.
 - Replaced the dashboard README screenshot image.
 - Added tutorial-style "About Floci" notes across interactive service pages, including Textract, Transcribe, CodeDeploy, CodeBuild, Bedrock Runtime, AppConfig, and Resource Groups Tagging.
 - Added contributor architecture notes and an AI-assisted contributor prompt to `README.md`.
@@ -213,6 +214,7 @@ Core architecture files:
 - Added SSM Parameter Store and Secrets Manager labs for local application configuration: hierarchical JSON parameter storage, direct and path-based reads, JSON secret creation, initial read verification, rotated value updates, metadata inspection, and lab-owned cleanup.
 - Added the Lambda runtime configuration lab with lab-owned SSM and Secrets Manager inputs, least-privilege read policy, environment-driven resource IDs, safe response verification, CloudWatch Logs proof, and dependency-aware cleanup.
 - Added the Lambda SQS event source lab with a lab-owned queue, least-privilege polling policy, packaged consumer handler, Lambda event source mapping, SQS message proof, CloudWatch Logs proof, and dependency-aware cleanup.
+- Migrated the default visual system to an AWS-adjacent console theme with semantic CSS tokens, consistent top navigation across primary pages, tightened console page headers, shared empty-state polish, and the new README screenshot.
 
 ## Near-Term Priorities
 
