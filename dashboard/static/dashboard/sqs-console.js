@@ -84,6 +84,10 @@ const SQSConsole = (() => {
     });
   }
 
+  function queueActivitySummary(queue) {
+    return queue?.name || queueNameFromUrl(queue?.url) || 'Queue';
+  }
+
   function showCreateQueueModal() {
     const form = el('div');
     const nameInput = document.createElement('input');
@@ -119,20 +123,57 @@ const SQSConsole = (() => {
     });
   }
 
-  function showSendMessageModal(queue) {
+  async function sendMessage(queue, payload) {
+    const data = await apiJson(`/api/sqs/queues/${encodeURIComponent(queue.name)}/messages/send/`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    consoleUi.recordActivity({
+      service: 'sqs',
+      action: 'send_message',
+      title: `Send to ${queue.name}`,
+      summary: queueActivitySummary(queue),
+      detail: payload.delay_seconds ? `Delay ${payload.delay_seconds}s` : 'Immediate',
+      replayLabel: 'Prefill',
+      payload: {
+        queue_name: queue.name,
+        fifo: !!queue.fifo,
+        ...payload,
+      },
+    });
+    return data;
+  }
+
+  function replaySendMessage(item) {
+    const payload = item.payload || {};
+    const queue = queues().find((candidate) => candidate.name === payload.queue_name) || selectedQueue();
+    if (payload.queue_name) {
+      state.selectedQueue = payload.queue_name;
+    }
+    render();
+    if (queue) {
+      showSendMessageModal(queue, payload);
+    }
+  }
+
+  function showSendMessageModal(queue, replay = null) {
     const form = el('div');
     const bodyInput = document.createElement('textarea');
     bodyInput.required = true;
     bodyInput.placeholder = '{"event":"created"}';
+    bodyInput.value = replay?.body || '';
     const delayInput = document.createElement('input');
     delayInput.type = 'number';
     delayInput.min = '0';
     delayInput.max = '900';
     delayInput.placeholder = '0';
+    delayInput.value = replay?.delay_seconds ?? '';
     const groupInput = document.createElement('input');
     groupInput.placeholder = 'default';
+    groupInput.value = replay?.message_group_id || '';
     const dedupeInput = document.createElement('input');
     dedupeInput.placeholder = 'optional';
+    dedupeInput.value = replay?.message_deduplication_id || '';
     form.append(el('label', null, 'Message body'), bodyInput, el('label', null, 'Delay seconds'), delayInput);
     if (queue.fifo) {
       form.append(
@@ -151,32 +192,63 @@ const SQSConsole = (() => {
         payload.message_group_id = groupInput.value.trim();
         payload.message_deduplication_id = dedupeInput.value.trim();
       }
-      await apiJson(`/api/sqs/queues/${encodeURIComponent(queue.name)}/messages/send/`, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
+      await sendMessage(queue, payload);
       close();
       toast('Message sent');
       await refresh();
     });
   }
 
-  function showReceiveMessagesModal(queue) {
+  async function receiveMessages(queue, payload) {
+    const data = await apiJson(`/api/sqs/queues/${encodeURIComponent(queue.name)}/messages/`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    state.messages = data.messages || [];
+    consoleUi.recordActivity({
+      service: 'sqs',
+      action: 'receive_messages',
+      title: `Poll ${queue.name}`,
+      summary: queueActivitySummary(queue),
+      detail: `${state.messages.length} received`,
+      replayLabel: 'Prefill',
+      payload: {
+        queue_name: queue.name,
+        ...payload,
+      },
+    });
+    return data;
+  }
+
+  function replayReceiveMessages(item) {
+    const payload = item.payload || {};
+    const queue = queues().find((candidate) => candidate.name === payload.queue_name) || selectedQueue();
+    if (payload.queue_name) {
+      state.selectedQueue = payload.queue_name;
+    }
+    render();
+    if (queue) {
+      showReceiveMessagesModal(queue, payload);
+    }
+  }
+
+  function showReceiveMessagesModal(queue, replay = null) {
     const form = el('div');
     const maxInput = document.createElement('input');
     maxInput.type = 'number';
     maxInput.min = '1';
     maxInput.max = '10';
-    maxInput.value = '5';
+    maxInput.value = replay?.max_number || '5';
     const visibilityInput = document.createElement('input');
     visibilityInput.type = 'number';
     visibilityInput.min = '0';
     visibilityInput.placeholder = '30';
+    visibilityInput.value = replay?.visibility_timeout ?? '';
     const waitInput = document.createElement('input');
     waitInput.type = 'number';
     waitInput.min = '0';
     waitInput.max = '20';
-    waitInput.value = '0';
+    waitInput.value = replay?.wait_time_seconds ?? '0';
     form.append(
       el('label', null, 'Max messages'),
       maxInput,
@@ -193,11 +265,7 @@ const SQSConsole = (() => {
       if (visibilityInput.value) {
         payload.visibility_timeout = Number(visibilityInput.value);
       }
-      const data = await apiJson(`/api/sqs/queues/${encodeURIComponent(queue.name)}/messages/`, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      state.messages = data.messages || [];
+      await receiveMessages(queue, payload);
       close();
       toast(state.messages.length ? `Received ${state.messages.length} message(s)` : 'No messages available');
       render();
@@ -297,6 +365,21 @@ const SQSConsole = (() => {
       } else {
         state.messages.forEach((message, index) => list.append(renderMessage(queue, message, index)));
       }
+      list.append(consoleUi.renderActivityPanel({
+        service: 'sqs',
+        classPrefix: 'sqs',
+        title: 'Recent sends and polls',
+        actions: ['send_message', 'receive_messages'],
+        emptyText: 'Send or poll messages to build a local replay history.',
+        onReplay: (item) => {
+          if (item.action === 'send_message') {
+            replaySendMessage(item);
+          } else {
+            replayReceiveMessages(item);
+          }
+        },
+        onClear: render,
+      }));
     }
     panel.append(list);
     return panel;

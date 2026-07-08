@@ -52,6 +52,42 @@ class ApiGatewayRequestsApiTests(SimpleTestCase):
         self.assertEqual(request.get_method(), 'POST')
         self.assertIn('/restapis/abc123/dev/_user_request_/orders?debug=True', request.full_url)
 
+    @patch('dashboard.apigateway_api.FlociClientFactory')
+    @patch('dashboard.apigateway_api.urlopen')
+    def test_test_request_http_api_uses_local_execute_plane_for_execute_api_endpoint(
+        self,
+        urlopen_mock,
+        factory_mock,
+    ):
+        factory_mock.return_value.endpoint_url = 'http://localhost:4566'
+        response_mock = MagicMock()
+        response_mock.__enter__.return_value = response_mock
+        response_mock.read.return_value = b'{"ok": true}'
+        response_mock.getcode.return_value = 200
+        response_mock.headers.items.return_value = [('Content-Type', 'application/json')]
+        urlopen_mock.return_value = response_mock
+
+        response = self.client.post(
+            reverse('dashboard:apigateway-requests-test'),
+            data=json.dumps({
+                'api_type': 'http',
+                'api_id': 'abc123',
+                'endpoint': 'https://abc123.execute-api.us-east-1.amazonaws.com',
+                'stage': '$default',
+                'method': 'POST',
+                'path': '/echo',
+                'body': '{"hello":"world"}',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        request = urlopen_mock.call_args.args[0]
+        self.assertEqual(
+            request.full_url,
+            'http://localhost:4566/restapis/abc123/$default/_user_request_/echo',
+        )
+
     def test_test_request_rejects_external_http_api_endpoint(self):
         response = self.client.post(
             reverse('dashboard:apigateway-requests-test'),

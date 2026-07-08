@@ -736,7 +736,7 @@ function renderInventoryCollectionCard(item, fields = []) {
   card.className = 'iam-item collection-item';
 
   const name = document.createElement('h4');
-  name.textContent = item.name || item.arn || item.id || item.table_name || item.url || item.InstanceId || item.VpcId || item.SubnetId || item.GroupId || item.UserPoolId || item.apiId || item.functionId || item.dataSourceName || item.CacheClusterId || item.ReplicationGroupId || item.UserId || item.UserGroupId || item.SessionId || item.CommandId || item.AutomationExecutionId || item.StackName || item.StackId || item.RepositoryName || item.repository_name || item.DBInstanceIdentifier || item.DBClusterIdentifier || item.db_name || item.database_name || item.BackupVaultName || item.BackupVaultArn || item.BackupPlanName || item.BackupJobId || item.RestoreJobId || item.ResourceArn || item.ResourceType || item.StreamName || item.stream_name || item.cluster_name || item.node_arn || item.operation_arn || item.clean_id || item.WorkflowId || item.ServerId || item.WebAppId || item.ConnectorId || item.ProfileId || item.CertificateId || item.project_name || item.application_name || item.deployment_group_name || item.deployment_id || item.pipeline_type || item.execution_id || 'Unnamed';
+  name.textContent = item.name || item.arn || item.id || item.table_name || item.url || item.InstanceId || item.VpcId || item.SubnetId || item.GroupId || item.UserPoolId || item.apiId || item.functionId || item.dataSourceName || item.CacheClusterId || item.ReplicationGroupId || item.UserId || item.UserGroupId || item.SessionId || item.CommandId || item.AutomationExecutionId || item.StackName || item.StackId || item.RepositoryName || item.repository_name || item.DBInstanceIdentifier || item.DBClusterIdentifier || item.db_name || item.database_name || item.BackupVaultName || item.BackupVaultArn || item.BackupPlanName || item.BackupJobId || item.RestoreJobId || item.ResourceArn || item.ResourceType || item.StreamName || item.stream_name || item.cluster_name || item.node_arn || item.operation_arn || item.clean_id || item.WorkflowId || item.ServerId || item.WebAppId || item.ConnectorId || item.ProfileId || item.CertificateId || item.project_name || item.application_name || item.deployment_group_name || item.deployment_id || item.pipeline_type || item.execution_id || item.Id || item.ARN || item.Name || item.DomainName || item.TopicArn || item.SubscriptionArn || item.IdentityName || item.TemplateName || item.ConfigurationSetName || item.query || item.database || item.catalog || item.class_name || item.InternetGatewayId || item.RouteTableId || item.NetworkAclId || item.VpcEndpointId || item.AllocationId || item.PublicIp || item.KeyName || item.KeyPairId || item.ImageId || item.SnapshotId || item.VolumeId || item.family || item.capacityProviderArn || item.principalArn || item.nodegroup_name || item.fargate_profile_name || item.addon_name || item.principal_arn || item.load_balancer_name || item.listener_arn || item.target_group_arn || item.delivery_stream_name || item.destination_id || 'Unnamed';
   card.append(name);
 
   const list = document.createElement('dl');
@@ -800,6 +800,42 @@ function inventorySearchText(item, fields = []) {
     item.deployment_id,
     item.pipeline_type,
     item.execution_id,
+    item.Id,
+    item.ARN,
+    item.Name,
+    item.DomainName,
+    item.TopicArn,
+    item.SubscriptionArn,
+    item.IdentityName,
+    item.TemplateName,
+    item.ConfigurationSetName,
+    item.query,
+    item.database,
+    item.catalog,
+    item.class_name,
+    item.InternetGatewayId,
+    item.RouteTableId,
+    item.NetworkAclId,
+    item.VpcEndpointId,
+    item.AllocationId,
+    item.PublicIp,
+    item.KeyName,
+    item.KeyPairId,
+    item.ImageId,
+    item.SnapshotId,
+    item.VolumeId,
+    item.family,
+    item.capacityProviderArn,
+    item.principalArn,
+    item.nodegroup_name,
+    item.fargate_profile_name,
+    item.addon_name,
+    item.principal_arn,
+    item.load_balancer_name,
+    item.listener_arn,
+    item.target_group_arn,
+    item.delivery_stream_name,
+    item.destination_id,
     ...fields.map(([, key]) => item[key]),
   ].map((value) => typeof value === 'string' ? value : JSON.stringify(value || '')).join(' ');
 }
@@ -853,7 +889,7 @@ function renderIam(data) {
   renderSummary(data.summary, iamSummary);
 
   const panels = [
-    renderDetailList('Users', data.users || [], [
+    renderFilterableDetailList('Users', data.users || [], [
       ['ARN', 'arn'],
       ['Groups', 'groups'],
       ['Attached policies', 'attached_policies'],
@@ -861,14 +897,24 @@ function renderIam(data) {
       ['Permission boundary', 'permissions_boundary'],
       ['Access keys', 'access_keys'],
       ['Tags', 'tags'],
-    ]),
-    renderDetailList('Groups', data.groups || [], [
+    ], {
+      key: 'iam-users',
+      filterPlaceholder: 'Find users',
+      countLabel: 'users',
+      onFilterTextChange: () => renderIam(data),
+    }),
+    renderFilterableDetailList('Groups', data.groups || [], [
       ['ARN', 'arn'],
       ['Users', 'users'],
       ['Attached policies', 'attached_policies'],
       ['Inline policies', 'inline_policies'],
-    ]),
-    renderDetailList('Roles', data.roles || [], [
+    ], {
+      key: 'iam-groups',
+      filterPlaceholder: 'Find groups',
+      countLabel: 'groups',
+      onFilterTextChange: () => renderIam(data),
+    }),
+    renderFilterableDetailList('Roles', data.roles || [], [
       ['ARN', 'arn'],
       ['Trust policy', 'trust_policy'],
       ['Attached policies', 'attached_policies'],
@@ -876,19 +922,34 @@ function renderIam(data) {
       ['Permission boundary', 'permissions_boundary'],
       ['Instance profiles', 'instance_profiles'],
       ['Tags', 'tags'],
-    ]),
-    renderDetailList('Customer policies', data.policies || [], [
+    ], {
+      key: 'iam-roles',
+      filterPlaceholder: 'Find roles',
+      countLabel: 'roles',
+      onFilterTextChange: () => renderIam(data),
+    }),
+    renderFilterableDetailList('Customer policies', data.policies || [], [
       ['ARN', 'arn'],
       ['Default version', 'default_version'],
       ['Attachment count', 'attachment_count'],
       ['Boundary usage count', 'permissions_boundary_usage_count'],
       ['Versions', 'versions'],
       ['Tags', 'tags'],
-    ]),
-    renderDetailList('Instance profiles', data.instance_profiles || [], [
+    ], {
+      key: 'iam-customer-policies',
+      filterPlaceholder: 'Find customer policies',
+      countLabel: 'customer policies',
+      onFilterTextChange: () => renderIam(data),
+    }),
+    renderFilterableDetailList('Instance profiles', data.instance_profiles || [], [
       ['ARN', 'arn'],
       ['Roles', 'roles'],
-    ]),
+    ], {
+      key: 'iam-instance-profiles',
+      filterPlaceholder: 'Find instance profiles',
+      countLabel: 'instance profiles',
+      onFilterTextChange: () => renderIam(data),
+    }),
   ];
 
   iamGrid.append(...panels);
@@ -1122,7 +1183,7 @@ function renderEC2(data) {
       countLabel: 'security groups',
       onFilterTextChange: () => renderEC2(data),
     }),
-    renderDetailList('Security group rules', data.security_group_rules || [], [
+    renderFilterableDetailList('Security group rules', data.security_group_rules || [], [
       ['Rule ID', 'SecurityGroupRuleId'],
       ['Group ID', 'GroupId'],
       ['Direction', 'IsEgress'],
@@ -1131,28 +1192,48 @@ function renderEC2(data) {
       ['To port', 'ToPort'],
       ['CIDR IPv4', 'CidrIpv4'],
       ['Description', 'Description'],
-    ]),
-    renderDetailList('Internet gateways', data.internet_gateways || [], [
+    ], {
+      key: 'ec2-security-group-rules',
+      filterPlaceholder: 'Find security group rules',
+      countLabel: 'security group rules',
+      onFilterTextChange: () => renderEC2(data),
+    }),
+    renderFilterableDetailList('Internet gateways', data.internet_gateways || [], [
       ['Gateway ID', 'InternetGatewayId'],
       ['Attachments', 'Attachments'],
       ['Tags', 'Tags'],
-    ]),
-    renderDetailList('Route tables', data.route_tables || [], [
+    ], {
+      key: 'ec2-internet-gateways',
+      filterPlaceholder: 'Find internet gateways',
+      countLabel: 'internet gateways',
+      onFilterTextChange: () => renderEC2(data),
+    }),
+    renderFilterableDetailList('Route tables', data.route_tables || [], [
       ['Route table ID', 'RouteTableId'],
       ['VPC ID', 'VpcId'],
       ['Associations', 'Associations'],
       ['Routes', 'Routes'],
       ['Tags', 'Tags'],
-    ]),
-    renderDetailList('Network ACLs', data.network_acls || [], [
+    ], {
+      key: 'ec2-route-tables',
+      filterPlaceholder: 'Find route tables',
+      countLabel: 'route tables',
+      onFilterTextChange: () => renderEC2(data),
+    }),
+    renderFilterableDetailList('Network ACLs', data.network_acls || [], [
       ['Network ACL ID', 'NetworkAclId'],
       ['VPC ID', 'VpcId'],
       ['Default', 'IsDefault'],
       ['Associations', 'Associations'],
       ['Entries', 'Entries'],
       ['Tags', 'Tags'],
-    ]),
-    renderDetailList('VPC endpoints', data.vpc_endpoints || [], [
+    ], {
+      key: 'ec2-network-acls',
+      filterPlaceholder: 'Find network ACLs',
+      countLabel: 'network ACLs',
+      onFilterTextChange: () => renderEC2(data),
+    }),
+    renderFilterableDetailList('VPC endpoints', data.vpc_endpoints || [], [
       ['VPC endpoint ID', 'VpcEndpointId'],
       ['Type', 'VpcEndpointType'],
       ['Service name', 'ServiceName'],
@@ -1166,8 +1247,13 @@ function renderEC2(data) {
       ['DNS entries', 'DnsEntries'],
       ['Policy document', 'PolicyDocument'],
       ['Tags', 'Tags'],
-    ]),
-    renderDetailList('Elastic IPs', data.addresses || [], [
+    ], {
+      key: 'ec2-vpc-endpoints',
+      filterPlaceholder: 'Find VPC endpoints',
+      countLabel: 'VPC endpoints',
+      onFilterTextChange: () => renderEC2(data),
+    }),
+    renderFilterableDetailList('Elastic IPs', data.addresses || [], [
       ['Allocation ID', 'AllocationId'],
       ['Association ID', 'AssociationId'],
       ['Public IP', 'PublicIp'],
@@ -1175,7 +1261,12 @@ function renderEC2(data) {
       ['Instance ID', 'InstanceId'],
       ['Network interface', 'NetworkInterfaceId'],
       ['Domain', 'Domain'],
-    ]),
+    ], {
+      key: 'ec2-elastic-ips',
+      filterPlaceholder: 'Find Elastic IPs',
+      countLabel: 'Elastic IPs',
+      onFilterTextChange: () => renderEC2(data),
+    }),
     renderDetailList('IAM instance profile associations', data.iam_instance_profile_associations || [], [
       ['Association ID', 'AssociationId'],
       ['Instance ID', 'InstanceId'],
@@ -1183,13 +1274,18 @@ function renderEC2(data) {
       ['Timestamp', 'Timestamp'],
       ['IAM instance profile', 'IamInstanceProfile'],
     ]),
-    renderDetailList('Key pairs', data.key_pairs || [], [
+    renderFilterableDetailList('Key pairs', data.key_pairs || [], [
       ['Key name', 'KeyName'],
       ['Key pair ID', 'KeyPairId'],
       ['Fingerprint', 'KeyFingerprint'],
       ['Tags', 'Tags'],
-    ]),
-    renderDetailList('AMIs', data.images || [], [
+    ], {
+      key: 'ec2-key-pairs',
+      filterPlaceholder: 'Find key pairs',
+      countLabel: 'key pairs',
+      onFilterTextChange: () => renderEC2(data),
+    }),
+    renderFilterableDetailList('AMIs', data.images || [], [
       ['Image ID', 'ImageId'],
       ['Name', 'Name'],
       ['Description', 'Description'],
@@ -1197,8 +1293,13 @@ function renderEC2(data) {
       ['Platform', 'Platform'],
       ['Root device type', 'RootDeviceType'],
       ['State', 'State'],
-    ]),
-    renderDetailList('Snapshots', data.snapshots || [], [
+    ], {
+      key: 'ec2-amis',
+      filterPlaceholder: 'Find AMIs',
+      countLabel: 'AMIs',
+      onFilterTextChange: () => renderEC2(data),
+    }),
+    renderFilterableDetailList('Snapshots', data.snapshots || [], [
       ['Snapshot ID', 'SnapshotId'],
       ['Volume ID', 'VolumeId'],
       ['State', 'State'],
@@ -1208,7 +1309,12 @@ function renderEC2(data) {
       ['Owner ID', 'OwnerId'],
       ['Volume size', 'VolumeSize'],
       ['Tags', 'Tags'],
-    ]),
+    ], {
+      key: 'ec2-snapshots',
+      filterPlaceholder: 'Find snapshots',
+      countLabel: 'snapshots',
+      onFilterTextChange: () => renderEC2(data),
+    }),
     renderDetailList('Availability zones', data.availability_zones || [], [
       ['Zone name', 'ZoneName'],
       ['Zone ID', 'ZoneId'],
@@ -2383,7 +2489,7 @@ function renderECS(data) {
   }));
 
   const panels = [
-    renderDetailList('Clusters', data.clusters || [], [
+    renderFilterableDetailList('Clusters', data.clusters || [], [
       ['ARN', 'arn'],
       ['Status', 'status'],
       ['Running tasks', 'running_tasks'],
@@ -2408,8 +2514,13 @@ function renderECS(data) {
       ['Container instances', 'container_instances'],
       ['Service deployments', 'service_deployments'],
       ['Service revisions', 'service_revisions'],
-    ]),
-    renderDetailList('Task definitions', data.task_definitions || [], [
+    ], {
+      key: 'ecs-clusters',
+      filterPlaceholder: 'Find ECS clusters',
+      countLabel: 'clusters',
+      onFilterTextChange: () => renderECS(data),
+    }),
+    renderFilterableDetailList('Task definitions', data.task_definitions || [], [
       ['ARN', 'arn'],
       ['Family', 'family'],
       ['Revision', 'revision'],
@@ -2427,21 +2538,31 @@ function renderECS(data) {
       ['Placement constraints', 'placement_constraints'],
       ['Tags', 'tags'],
       ['Details', 'details'],
-    ]),
+    ], {
+      key: 'ecs-task-definitions',
+      filterPlaceholder: 'Find task definitions',
+      countLabel: 'task definitions',
+      onFilterTextChange: () => renderECS(data),
+    }),
     renderDetailList('Task definition families', (data.task_definition_families || []).map((family) => ({
       name: family,
       family,
     })), [
       ['Family', 'family'],
     ]),
-    renderDetailList('Capacity providers', data.capacity_providers || [], [
+    renderFilterableDetailList('Capacity providers', data.capacity_providers || [], [
       ['ARN', 'capacityProviderArn'],
       ['Status', 'status'],
       ['Auto scaling group provider', 'autoScalingGroupProvider'],
       ['Managed scaling', 'managedScaling'],
       ['Managed termination protection', 'managedTerminationProtection'],
       ['Tags', 'tags'],
-    ]),
+    ], {
+      key: 'ecs-capacity-providers',
+      filterPlaceholder: 'Find capacity providers',
+      countLabel: 'capacity providers',
+      onFilterTextChange: () => renderECS(data),
+    }),
     renderDetailList('Account settings', data.account_settings || [], [
       ['Name', 'name'],
       ['Value', 'value'],
@@ -2497,7 +2618,7 @@ function renderEKS(data) {
   renderSummary(data.summary, eksSummary);
 
   const panels = [
-    renderDetailList('Clusters', data.clusters || [], [
+    renderFilterableDetailList('Clusters', data.clusters || [], [
       ['ARN', 'arn'],
       ['Created at', 'created_at'],
       ['Version', 'version'],
@@ -2526,8 +2647,13 @@ function renderEKS(data) {
       ['Identity provider configs', 'identity_provider_configs'],
       ['Access entries', 'access_entries'],
       ['Details', 'details'],
-    ]),
-    renderDetailList('Node groups', data.nodegroups || [], [
+    ], {
+      key: 'eks-clusters',
+      filterPlaceholder: 'Find EKS clusters',
+      countLabel: 'clusters',
+      onFilterTextChange: () => renderEKS(data),
+    }),
+    renderFilterableDetailList('Node groups', data.nodegroups || [], [
       ['Cluster name', 'cluster_name'],
       ['ARN', 'arn'],
       ['Created at', 'created_at'],
@@ -2551,8 +2677,13 @@ function renderEKS(data) {
       ['Release version', 'release_version'],
       ['Tags', 'tags'],
       ['Details', 'details'],
-    ]),
-    renderDetailList('Fargate profiles', data.fargate_profiles || [], [
+    ], {
+      key: 'eks-node-groups',
+      filterPlaceholder: 'Find node groups',
+      countLabel: 'node groups',
+      onFilterTextChange: () => renderEKS(data),
+    }),
+    renderFilterableDetailList('Fargate profiles', data.fargate_profiles || [], [
       ['Cluster name', 'cluster_name'],
       ['ARN', 'arn'],
       ['Created at', 'created_at'],
@@ -2563,8 +2694,13 @@ function renderEKS(data) {
       ['Tags', 'tags'],
       ['Health', 'health'],
       ['Details', 'details'],
-    ]),
-    renderDetailList('Add-ons', data.addons || [], [
+    ], {
+      key: 'eks-fargate-profiles',
+      filterPlaceholder: 'Find Fargate profiles',
+      countLabel: 'Fargate profiles',
+      onFilterTextChange: () => renderEKS(data),
+    }),
+    renderFilterableDetailList('Add-ons', data.addons || [], [
       ['Cluster name', 'cluster_name'],
       ['ARN', 'arn'],
       ['Version', 'version'],
@@ -2580,7 +2716,12 @@ function renderEKS(data) {
       ['Marketplace information', 'marketplace_information'],
       ['Pod identity associations', 'pod_identity_associations'],
       ['Details', 'details'],
-    ]),
+    ], {
+      key: 'eks-add-ons',
+      filterPlaceholder: 'Find add-ons',
+      countLabel: 'add-ons',
+      onFilterTextChange: () => renderEKS(data),
+    }),
     renderDetailList('Identity provider configs', data.identity_provider_configs || [], [
       ['Cluster name', 'cluster_name'],
       ['Type', 'type'],
@@ -2595,7 +2736,7 @@ function renderEKS(data) {
       ['Tags', 'tags'],
       ['Details', 'details'],
     ]),
-    renderDetailList('Access entries', data.access_entries || [], [
+    renderFilterableDetailList('Access entries', data.access_entries || [], [
       ['Cluster name', 'cluster_name'],
       ['Principal ARN', 'principal_arn'],
       ['Kubernetes groups', 'kubernetes_groups'],
@@ -2607,7 +2748,12 @@ function renderEKS(data) {
       ['Type', 'type'],
       ['Associated policies', 'associated_policies'],
       ['Details', 'details'],
-    ]),
+    ], {
+      key: 'eks-access-entries',
+      filterPlaceholder: 'Find access entries',
+      countLabel: 'access entries',
+      onFilterTextChange: () => renderEKS(data),
+    }),
     renderDetailList('Supported from SDK', (data.supported_from_sdk || []).map((operation) => ({
       name: operation,
       operation,
@@ -2813,7 +2959,7 @@ function renderElasticLoadBalancing(data) {
   renderSummary(data.summary, elasticloadbalancingSummary);
 
   const panels = [
-    renderDetailList('V2 load balancers', data.v2_load_balancers || [], [
+    renderFilterableDetailList('V2 load balancers', data.v2_load_balancers || [], [
       ['ARN', 'arn'],
       ['DNS name', 'dns_name'],
       ['Canonical hosted zone ID', 'canonical_hosted_zone_id'],
@@ -2829,8 +2975,13 @@ function renderElasticLoadBalancing(data) {
       ['PrivateLink inbound rule enforcement', 'enforce_security_group_inbound_rules_on_private_link_traffic'],
       ['Attributes', 'attributes'],
       ['Tags', 'tags'],
-    ]),
-    renderDetailList('Listeners', data.listeners || [], [
+    ], {
+      key: 'elb-v2-load-balancers',
+      filterPlaceholder: 'Find load balancers',
+      countLabel: 'load balancers',
+      onFilterTextChange: () => renderElasticLoadBalancing(data),
+    }),
+    renderFilterableDetailList('Listeners', data.listeners || [], [
       ['Load balancer', 'load_balancer_name'],
       ['ARN', 'arn'],
       ['Port', 'port'],
@@ -2840,8 +2991,13 @@ function renderElasticLoadBalancing(data) {
       ['Default actions', 'default_actions'],
       ['ALPN policy', 'alpn_policy'],
       ['Mutual authentication', 'mutual_authentication'],
-    ]),
-    renderDetailList('Rules', data.rules || [], [
+    ], {
+      key: 'elb-listeners',
+      filterPlaceholder: 'Find listeners',
+      countLabel: 'listeners',
+      onFilterTextChange: () => renderElasticLoadBalancing(data),
+    }),
+    renderFilterableDetailList('Rules', data.rules || [], [
       ['Load balancer', 'load_balancer_name'],
       ['Listener ARN', 'listener_arn'],
       ['ARN', 'arn'],
@@ -2849,8 +3005,13 @@ function renderElasticLoadBalancing(data) {
       ['Conditions', 'conditions'],
       ['Actions', 'actions'],
       ['Default', 'is_default'],
-    ]),
-    renderDetailList('Target groups', data.target_groups || [], [
+    ], {
+      key: 'elb-rules',
+      filterPlaceholder: 'Find listener rules',
+      countLabel: 'rules',
+      onFilterTextChange: () => renderElasticLoadBalancing(data),
+    }),
+    renderFilterableDetailList('Target groups', data.target_groups || [], [
       ['ARN', 'arn'],
       ['Protocol', 'protocol'],
       ['Port', 'port'],
@@ -2869,12 +3030,17 @@ function renderElasticLoadBalancing(data) {
       ['Protocol version', 'protocol_version'],
       ['IP address type', 'ip_address_type'],
       ['Tags', 'tags'],
-    ]),
+    ], {
+      key: 'elb-target-groups',
+      filterPlaceholder: 'Find target groups',
+      countLabel: 'target groups',
+      onFilterTextChange: () => renderElasticLoadBalancing(data),
+    }),
     renderDetailList('Target health', data.target_health || [], [
       ['Target group ARN', 'target_group_arn'],
       ['Target health descriptions', 'target_health_descriptions'],
     ]),
-    renderDetailList('Classic load balancers', data.classic_load_balancers || [], [
+    renderFilterableDetailList('Classic load balancers', data.classic_load_balancers || [], [
       ['DNS name', 'dns_name'],
       ['Canonical hosted zone name', 'canonical_hosted_zone_name'],
       ['Canonical hosted zone name ID', 'canonical_hosted_zone_name_id'],
@@ -2892,7 +3058,12 @@ function renderElasticLoadBalancing(data) {
       ['Scheme', 'scheme'],
       ['Attributes', 'attributes'],
       ['Tags', 'tags'],
-    ]),
+    ], {
+      key: 'elb-classic-load-balancers',
+      filterPlaceholder: 'Find classic load balancers',
+      countLabel: 'classic load balancers',
+      onFilterTextChange: () => renderElasticLoadBalancing(data),
+    }),
     renderDetailList('Classic instance health', data.classic_instance_health || [], [
       ['Instance states', 'instance_states'],
     ]),
@@ -2926,7 +3097,7 @@ function renderFirehose(data) {
   renderSummary(data.summary, firehoseSummary);
 
   const panels = [
-    renderDetailList('Delivery streams', data.delivery_streams || [], [
+    renderFilterableDetailList('Delivery streams', data.delivery_streams || [], [
       ['ARN', 'arn'],
       ['Status', 'status'],
       ['Type', 'type'],
@@ -2940,8 +3111,13 @@ function renderFirehose(data) {
       ['Destination count', 'destination_count'],
       ['Destinations', 'destinations'],
       ['Tags', 'tags'],
-    ]),
-    renderDetailList('Destinations', data.destinations || [], [
+    ], {
+      key: 'firehose-delivery-streams',
+      filterPlaceholder: 'Find delivery streams',
+      countLabel: 'delivery streams',
+      onFilterTextChange: () => renderFirehose(data),
+    }),
+    renderFilterableDetailList('Destinations', data.destinations || [], [
       ['Delivery stream', 'delivery_stream_name'],
       ['Destination ID', 'destination_id'],
       ['S3 destination', 's3_destination_description'],
@@ -2953,7 +3129,12 @@ function renderFirehose(data) {
       ['HTTP endpoint destination', 'http_endpoint_destination_description'],
       ['Snowflake destination', 'snowflake_destination_description'],
       ['Iceberg destination', 'iceberg_destination_description'],
-    ]),
+    ], {
+      key: 'firehose-destinations',
+      filterPlaceholder: 'Find destinations',
+      countLabel: 'destinations',
+      onFilterTextChange: () => renderFirehose(data),
+    }),
     renderDetailList('Supported from SDK', (data.supported_from_sdk || []).map((operation) => ({
       name: operation,
       operation,
@@ -3910,14 +4091,19 @@ function renderAthena(data) {
   }));
 
   const panels = [
-    renderDetailList('Workgroups', data.workgroups || [], [
+    renderFilterableDetailList('Workgroups', data.workgroups || [], [
       ['State', 'state'],
       ['Description', 'description'],
       ['Created', 'creation_time'],
       ['Configuration', 'configuration'],
       ['Details', 'details'],
-    ]),
-    renderDetailList('Query executions', data.query_executions || [], [
+    ], {
+      key: 'athena-workgroups',
+      filterPlaceholder: 'Find workgroups',
+      countLabel: 'workgroups',
+      onFilterTextChange: () => renderAthena(data),
+    }),
+    renderFilterableDetailList('Query executions', data.query_executions || [], [
       ['Query execution ID', 'id'],
       ['State', 'state'],
       ['State change reason', 'state_change_reason'],
@@ -3934,7 +4120,12 @@ function renderAthena(data) {
       ['Statistics', 'statistics'],
       ['Result preview', 'result_preview'],
       ['Details', 'details'],
-    ]),
+    ], {
+      key: 'athena-query-executions',
+      filterPlaceholder: 'Find query executions',
+      countLabel: 'query executions',
+      onFilterTextChange: () => renderAthena(data),
+    }),
     renderDetailList('Supported actions', (data.supported || []).map((action) => ({
       name: action,
       action,
@@ -4145,21 +4336,31 @@ function renderSNS(data) {
   renderSummary(data.summary, snsSummary);
 
   const panels = [
-    renderDetailList('Topics', data.topics || [], [
+    renderFilterableDetailList('Topics', data.topics || [], [
       ['ARN', 'arn'],
       ['Attributes', 'attributes'],
       ['Tags', 'tags'],
       ['Subscription count', 'subscription_count'],
       ['Subscriptions', 'subscriptions'],
-    ]),
-    renderDetailList('Subscriptions', data.subscriptions || [], [
+    ], {
+      key: 'sns-topics',
+      filterPlaceholder: 'Find topics',
+      countLabel: 'topics',
+      onFilterTextChange: () => renderSNS(data),
+    }),
+    renderFilterableDetailList('Subscriptions', data.subscriptions || [], [
       ['ARN', 'arn'],
       ['Topic ARN', 'topic_arn'],
       ['Protocol', 'protocol'],
       ['Endpoint', 'endpoint'],
       ['Owner', 'owner'],
       ['Attributes', 'attributes'],
-    ]),
+    ], {
+      key: 'sns-subscriptions',
+      filterPlaceholder: 'Find subscriptions',
+      countLabel: 'subscriptions',
+      onFilterTextChange: () => renderSNS(data),
+    }),
     renderDetailList('Supported actions', (data.supported || []).map((action) => ({
       name: action,
       action,
@@ -4189,19 +4390,34 @@ function renderSES(data) {
   renderSummary(data.summary, sesSummary);
 
   const panels = [
-    renderDetailList('Identities', data.identities || [], [
+    renderFilterableDetailList('Identities', data.identities || [], [
       ['Type', 'type'],
       ['Verification', 'verification'],
       ['Notifications', 'notifications'],
       ['DKIM', 'dkim'],
-    ]),
-    renderDetailList('Verified email addresses', data.verified_email_addresses || [], [
+    ], {
+      key: 'ses-identities',
+      filterPlaceholder: 'Find identities',
+      countLabel: 'identities',
+      onFilterTextChange: () => renderSES(data),
+    }),
+    renderFilterableDetailList('Verified email addresses', data.verified_email_addresses || [], [
       ['Email', 'email'],
-    ]),
-    renderDetailList('Templates', data.templates || [], [
+    ], {
+      key: 'ses-verified-email-addresses',
+      filterPlaceholder: 'Find email addresses',
+      countLabel: 'email addresses',
+      onFilterTextChange: () => renderSES(data),
+    }),
+    renderFilterableDetailList('Templates', data.templates || [], [
       ['Created', 'created'],
       ['Details', 'details'],
-    ]),
+    ], {
+      key: 'ses-templates',
+      filterPlaceholder: 'Find templates',
+      countLabel: 'templates',
+      onFilterTextChange: () => renderSES(data),
+    }),
     renderDetailList('Captured mailbox', data.mailbox?.messages || [], [
       ['Message ID', 'id'],
       ['From', 'from'],
@@ -4210,19 +4426,34 @@ function renderSES(data) {
       ['Timestamp', 'timestamp'],
       ['Body preview', 'body_preview'],
     ]),
-    renderDetailList('SES v2 identities', data.v2_identities || [], [
+    renderFilterableDetailList('SES v2 identities', data.v2_identities || [], [
       ['Identity type', 'IdentityType'],
       ['Sending enabled', 'SendingEnabled'],
       ['Verification status', 'VerificationStatus'],
-    ]),
-    renderDetailList('SES v2 templates', data.v2_templates || [], [
+    ], {
+      key: 'ses-v2-identities',
+      filterPlaceholder: 'Find SES v2 identities',
+      countLabel: 'SES v2 identities',
+      onFilterTextChange: () => renderSES(data),
+    }),
+    renderFilterableDetailList('SES v2 templates', data.v2_templates || [], [
       ['Created', 'CreatedTimestamp'],
-    ]),
-    renderDetailList('SES v2 configuration sets', data.v2_configuration_sets || [], [
+    ], {
+      key: 'ses-v2-templates',
+      filterPlaceholder: 'Find SES v2 templates',
+      countLabel: 'SES v2 templates',
+      onFilterTextChange: () => renderSES(data),
+    }),
+    renderFilterableDetailList('SES v2 configuration sets', data.v2_configuration_sets || [], [
       ['Details', 'details'],
       ['Event destination count', 'event_destination_count'],
       ['Event destinations', 'event_destinations'],
-    ]),
+    ], {
+      key: 'ses-v2-configuration-sets',
+      filterPlaceholder: 'Find configuration sets',
+      countLabel: 'configuration sets',
+      onFilterTextChange: () => renderSES(data),
+    }),
     renderDetailList('Send quota', data.send_quota ? [{
       name: 'Quota',
       ...data.send_quota,
@@ -4293,7 +4524,7 @@ function renderCloudFront(data) {
   renderSummary(data.summary, cloudfrontSummary);
 
   const panels = [
-    renderDetailList('Distributions', data.distributions || [], [
+    renderFilterableDetailList('Distributions', data.distributions || [], [
       ['ID', 'Id'],
       ['ARN', 'ARN'],
       ['Status', 'Status'],
@@ -4306,8 +4537,13 @@ function renderCloudFront(data) {
       ['Aliases', 'Aliases'],
       ['Viewer certificate', 'ViewerCertificate'],
       ['Last modified', 'LastModifiedTime'],
-    ]),
-    renderDetailList('Streaming distributions', data.streaming_distributions || [], [
+    ], {
+      key: 'cloudfront-distributions',
+      filterPlaceholder: 'Find distributions',
+      countLabel: 'distributions',
+      onFilterTextChange: () => renderCloudFront(data),
+    }),
+    renderFilterableDetailList('Streaming distributions', data.streaming_distributions || [], [
       ['ID', 'Id'],
       ['ARN', 'ARN'],
       ['Status', 'Status'],
@@ -4315,30 +4551,60 @@ function renderCloudFront(data) {
       ['Enabled', 'Enabled'],
       ['Comment', 'Comment'],
       ['Last modified', 'LastModifiedTime'],
-    ]),
-    renderDetailList('Origin access identities', data.origin_access_identities || [], [
+    ], {
+      key: 'cloudfront-streaming-distributions',
+      filterPlaceholder: 'Find streaming distributions',
+      countLabel: 'streaming distributions',
+      onFilterTextChange: () => renderCloudFront(data),
+    }),
+    renderFilterableDetailList('Origin access identities', data.origin_access_identities || [], [
       ['ID', 'Id'],
       ['S3 canonical user ID', 'S3CanonicalUserId'],
       ['Comment', 'Comment'],
-    ]),
-    renderDetailList('Cache policies', data.cache_policies || [], [
+    ], {
+      key: 'cloudfront-origin-access-identities',
+      filterPlaceholder: 'Find origin access identities',
+      countLabel: 'origin access identities',
+      onFilterTextChange: () => renderCloudFront(data),
+    }),
+    renderFilterableDetailList('Cache policies', data.cache_policies || [], [
       ['Type', 'Type'],
       ['Policy', 'CachePolicy'],
-    ]),
-    renderDetailList('Origin request policies', data.origin_request_policies || [], [
+    ], {
+      key: 'cloudfront-cache-policies',
+      filterPlaceholder: 'Find cache policies',
+      countLabel: 'cache policies',
+      onFilterTextChange: () => renderCloudFront(data),
+    }),
+    renderFilterableDetailList('Origin request policies', data.origin_request_policies || [], [
       ['Type', 'Type'],
       ['Policy', 'OriginRequestPolicy'],
-    ]),
-    renderDetailList('Response headers policies', data.response_headers_policies || [], [
+    ], {
+      key: 'cloudfront-origin-request-policies',
+      filterPlaceholder: 'Find origin request policies',
+      countLabel: 'origin request policies',
+      onFilterTextChange: () => renderCloudFront(data),
+    }),
+    renderFilterableDetailList('Response headers policies', data.response_headers_policies || [], [
       ['Type', 'Type'],
       ['Policy', 'ResponseHeadersPolicy'],
-    ]),
-    renderDetailList('Functions', data.functions || [], [
+    ], {
+      key: 'cloudfront-response-headers-policies',
+      filterPlaceholder: 'Find response headers policies',
+      countLabel: 'response headers policies',
+      onFilterTextChange: () => renderCloudFront(data),
+    }),
+    renderFilterableDetailList('Functions', data.functions || [], [
       ['Name', 'Name'],
       ['Status', 'Status'],
       ['Function config', 'FunctionConfig'],
       ['Function metadata', 'FunctionMetadata'],
-    ]),
+    ], {
+      key: 'cloudfront-functions',
+      filterPlaceholder: 'Find CloudFront functions',
+      countLabel: 'functions',
+      onFilterTextChange: () => renderCloudFront(data),
+    }),
     renderDetailList('Key groups', data.key_groups || [], [
       ['Key group', 'KeyGroup'],
     ]),
@@ -5420,7 +5686,7 @@ function renderGlue(data) {
   }));
 
   const panels = [
-    renderDetailList('Databases', data.databases || [], [
+    renderFilterableDetailList('Databases', data.databases || [], [
       ['Description', 'description'],
       ['Location URI', 'location_uri'],
       ['Parameters', 'parameters'],
@@ -5433,16 +5699,26 @@ function renderGlue(data) {
       ['Functions', 'function_count'],
       ['User-defined functions', 'functions'],
       ['Details', 'details'],
-    ]),
-    renderDetailList('User-defined functions', data.functions || [], [
+    ], {
+      key: 'glue-databases',
+      filterPlaceholder: 'Find databases',
+      countLabel: 'databases',
+      onFilterTextChange: () => renderGlue(data),
+    }),
+    renderFilterableDetailList('User-defined functions', data.functions || [], [
       ['Database', 'database'],
       ['Class name', 'class_name'],
       ['Owner', 'owner_name'],
       ['Owner type', 'owner_type'],
       ['Created', 'created'],
       ['Resource URIs', 'resource_uris'],
-    ]),
-    renderDetailList('Registries', data.registries || [], [
+    ], {
+      key: 'glue-user-defined-functions',
+      filterPlaceholder: 'Find user-defined functions',
+      countLabel: 'user-defined functions',
+      onFilterTextChange: () => renderGlue(data),
+    }),
+    renderFilterableDetailList('Registries', data.registries || [], [
       ['ARN', 'arn'],
       ['Description', 'description'],
       ['Status', 'status'],
@@ -5452,7 +5728,12 @@ function renderGlue(data) {
       ['Version count', 'version_count'],
       ['Schemas', 'schemas'],
       ['Details', 'details'],
-    ]),
+    ], {
+      key: 'glue-registries',
+      filterPlaceholder: 'Find registries',
+      countLabel: 'registries',
+      onFilterTextChange: () => renderGlue(data),
+    }),
     renderDetailList('Supported actions', supported, [
       ['Actions', 'actions'],
     ]),
@@ -6649,8 +6930,17 @@ function renderGlobalNavigation(serviceMetadata = []) {
   search.id = 'global-search-trigger';
   search.className = 'global-search-trigger';
   search.type = 'button';
-  search.textContent = navigator.platform.startsWith('Mac') ? 'Search services ⌘K' : 'Search services Ctrl+K';
+  search.textContent = 'Search';
+  search.title = navigator.platform.startsWith('Mac') ? 'Search services (⌘K)' : 'Search services (Ctrl+K)';
   search.addEventListener('click', openGlobalSearch);
+  const activity = document.createElement('a');
+  activity.id = 'global-activity-link';
+  activity.className = 'global-nav-quick-link global-activity-link';
+  activity.href = '/activity/';
+  activity.textContent = 'Activity';
+  const navActions = document.createElement('div');
+  navActions.className = 'global-nav-actions';
+  navActions.append(search, activity);
   const links = document.createElement('div');
   links.className = 'global-nav-links';
   [
@@ -6667,7 +6957,7 @@ function renderGlobalNavigation(serviceMetadata = []) {
     link.textContent = label;
     links.append(link);
   });
-  header.append(title, search, links);
+  header.append(title, navActions, links);
   globalServiceNav.append(header);
   setGlobalNavCollapsed(isGlobalNavCollapsed());
 

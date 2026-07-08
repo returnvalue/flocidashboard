@@ -11,6 +11,7 @@ const ApiGatewayConsole = (() => {
     inventory: null,
     selectedKey: '',
     lastResponse: null,
+    replayRequest: null,
   };
 
   const el = consoleUi.el;
@@ -89,6 +90,34 @@ const ApiGatewayConsole = (() => {
       throw new Error(`${label} must be a JSON object`);
     }
     return parsed;
+  }
+
+  function requestLabel(payload) {
+    return `${payload.method || 'GET'} ${payload.path || '/'}`;
+  }
+
+  async function sendRequest(payload) {
+    state.lastResponse = await apiJson('/api/apigateway/requests/test/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    consoleUi.recordActivity({
+      service: 'apigateway',
+      action: 'request',
+      title: requestLabel(payload),
+      summary: payload.api_type === 'rest' ? `REST API ${payload.api_id}` : `HTTP API ${payload.api_id}`,
+      detail: `Status ${state.lastResponse.status_code}`,
+      replayLabel: 'Prefill',
+      payload,
+    });
+    return state.lastResponse;
+  }
+
+  function replayRequest(item) {
+    const payload = item.payload || {};
+    state.selectedKey = `${payload.api_type || 'rest'}:${payload.api_id || ''}`;
+    state.replayRequest = payload;
+    render();
   }
 
   function firstStage(api) {
@@ -222,17 +251,27 @@ const ApiGatewayConsole = (() => {
     const methodInput = renderMethodSelect(item);
     const stageInput = renderStageSelect(item);
     const pathInput = document.createElement('input');
-    pathInput.value = firstPath(item);
+    const replay = state.replayRequest?.api_id === item.api.id ? state.replayRequest : null;
+    pathInput.value = replay?.path || firstPath(item);
     pathInput.placeholder = '/orders';
     const queryInput = document.createElement('textarea');
     queryInput.className = 'apigateway-small-textarea';
     queryInput.placeholder = '{"debug":"true"}';
+    queryInput.value = replay?.query ? JSON.stringify(replay.query, null, 2) : '';
     const headersInput = document.createElement('textarea');
     headersInput.className = 'apigateway-small-textarea';
     headersInput.placeholder = '{"Content-Type":"application/json"}';
+    headersInput.value = replay?.headers ? JSON.stringify(replay.headers, null, 2) : '';
     const bodyInput = document.createElement('textarea');
     bodyInput.className = 'apigateway-body-input';
     bodyInput.placeholder = '{"hello":"world"}';
+    bodyInput.value = replay?.body || '';
+    if (replay?.method) {
+      methodInput.value = replay.method;
+    }
+    if (replay?.stage) {
+      stageInput.value = replay.stage;
+    }
 
     const form = el('div', 'apigateway-form-grid');
     form.append(
@@ -264,10 +303,8 @@ const ApiGatewayConsole = (() => {
           headers: parseJsonObject(headersInput.value, 'Headers'),
           body: bodyInput.value,
         };
-        state.lastResponse = await apiJson('/api/apigateway/requests/test/', {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        });
+        state.replayRequest = null;
+        await sendRequest(payload);
         toast(`Request returned ${state.lastResponse.status_code}`);
         render();
       } catch (error) {
@@ -277,7 +314,20 @@ const ApiGatewayConsole = (() => {
       }
     });
 
-    body.append(form, send, renderResponse());
+    body.append(
+      form,
+      send,
+      renderResponse(),
+      consoleUi.renderActivityPanel({
+        service: 'apigateway',
+        classPrefix: 'apigateway',
+        title: 'Recent requests',
+        actions: ['request'],
+        emptyText: 'Send a request to build a local replay history.',
+        onReplay: replayRequest,
+        onClear: render,
+      }),
+    );
     panel.append(body);
     return panel;
   }

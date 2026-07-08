@@ -88,17 +88,48 @@ const EventBridgeConsole = (() => {
     return parsed;
   }
 
-  function showPutEventModal(bus) {
+  function eventTitle(payload) {
+    return `${payload.source || 'event'} / ${payload.detail_type || 'Detail'}`;
+  }
+
+  async function putEvent(payload) {
+    const data = await apiJson('/api/eventbridge/events/put/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    state.lastPut = data;
+    consoleUi.recordActivity({
+      service: 'eventbridge',
+      action: 'put_event',
+      title: eventTitle(payload),
+      summary: payload.event_bus_name || 'default',
+      detail: data.event_id ? `Event ${data.event_id}` : `${data.failed_entry_count || 0} failed`,
+      replayLabel: 'Replay',
+      payload,
+    });
+    return data;
+  }
+
+  function replayPutEvent(item) {
+    const payload = item.payload || {};
+    state.selectedBusName = payload.event_bus_name || 'default';
+    render();
+    showPutEventModal(selectedBus(), payload);
+  }
+
+  function showPutEventModal(bus, replay = null) {
     const form = el('div');
     const sourceInput = document.createElement('input');
     sourceInput.required = true;
     sourceInput.placeholder = 'com.example.orders';
+    sourceInput.value = replay?.source || '';
     const detailTypeInput = document.createElement('input');
     detailTypeInput.required = true;
     detailTypeInput.placeholder = 'OrderCreated';
+    detailTypeInput.value = replay?.detail_type || '';
     const detailInput = document.createElement('textarea');
     detailInput.className = 'eventbridge-detail-input';
-    detailInput.value = JSON.stringify({ order_id: 'local-123', status: 'created' }, null, 2);
+    detailInput.value = JSON.stringify(replay?.detail || { order_id: 'local-123', status: 'created' }, null, 2);
 
     form.append(
       el('label', null, 'Event bus'),
@@ -118,11 +149,7 @@ const EventBridgeConsole = (() => {
         detail_type: detailTypeInput.value.trim(),
         detail: parseDetail(detailInput.value),
       };
-      const data = await apiJson('/api/eventbridge/events/put/', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      state.lastPut = data;
+      const data = await putEvent(payload);
       close();
       if (data.failed_entry_count) {
         toast(data.error_message || 'Event was not accepted', true);
@@ -242,6 +269,16 @@ const EventBridgeConsole = (() => {
         result.append(resultDetails);
         content.append(result);
       }
+
+      content.append(consoleUi.renderActivityPanel({
+        service: 'eventbridge',
+        classPrefix: 'eventbridge',
+        title: 'Recent events',
+        actions: ['put_event'],
+        emptyText: 'Send an event to build a local replay history.',
+        onReplay: replayPutEvent,
+        onClear: render,
+      }));
     }
     panel.append(content);
     return panel;

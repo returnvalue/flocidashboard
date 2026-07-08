@@ -28,6 +28,8 @@ Continue the serverless application spine with deeper runtime scenarios, such as
 
 The dashboard also exposes `/labs/`, a registry-driven directory of every service with active labs. The homepage links to it between Environment and Service Matrix. Keep this page as a catalog; guidance belongs on the service lab page only when a user completes the last lab in a batch.
 
+The dashboard also exposes `/activity/`, a browser-local recent activity page for replayable or prefillable developer actions from API Gateway, EventBridge, Lambda, and SQS workbenches. Labs should continue deriving progress from live Floci state; use Activity as a companion surface for manual follow-up testing after a lab creates useful resources, not as the source of lab completion.
+
 ## Direction
 
 Labs are one-click, local AWS workflow lessons.
@@ -282,6 +284,8 @@ Example:
 - If `FlociStsSessionRole` exists with the local account-root trust policy, `FlociStsListBuckets` is attached, and the lab has recorded a successful `AssumeRole` response with temporary credentials, the STS session policy lab is complete.
 
 This matters because users will move between the lab page and the normal service dashboard. If they create a resource in a lab and then inspect it elsewhere, returning to the lab should reflect reality.
+
+When a lab naturally leads into manual testing, link or describe the matching service workbench instead of trying to write browser-local Activity entries from the server-side lab runner. For example, the API Gateway to Lambda lab can send its own verification request, while later manual request tests from the API Gateway workbench populate `/activity/` for replay/prefill.
 
 Prefer this order:
 

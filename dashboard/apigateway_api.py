@@ -66,6 +66,20 @@ def _is_allowed_local_url(url: str) -> bool:
     )
 
 
+def _is_execute_api_url(url: str) -> bool:
+    parsed = urlparse(url)
+    hostname = (parsed.hostname or '').rstrip('.').lower()
+    return '.execute-api.' in hostname or hostname.endswith('.execute-api')
+
+
+def _local_execute_url(factory: FlociClientFactory, api_id: str, stage: str, path: str) -> str:
+    clean_stage = (stage or '$default').strip() or '$default'
+    return (
+        f'{factory.endpoint_url.rstrip("/")}/restapis/{api_id}/{clean_stage}'
+        f'/_user_request_{path}'
+    )
+
+
 def build_request_url(
     api_type: str,
     api_id: str,
@@ -81,15 +95,17 @@ def build_request_url(
 
     if clean_type == 'rest':
         clean_stage = _clean_required(stage, 'Stage')
-        return (
-            f'{factory.endpoint_url.rstrip("/")}/restapis/{clean_id}/{clean_stage}'
-            f'/_user_request_{clean_path}'
-        )
+        return _local_execute_url(factory, clean_id, clean_stage, clean_path)
 
     if clean_type == 'http':
-        base = (endpoint or f'{factory.endpoint_url.rstrip("/")}/{clean_id}').rstrip('/')
+        if not endpoint:
+            return _local_execute_url(factory, clean_id, stage, clean_path)
+
+        base = endpoint.rstrip('/')
         url = f'{base}{clean_path}'
         if not _is_allowed_local_url(url):
+            if _is_execute_api_url(url):
+                return _local_execute_url(factory, clean_id, stage, clean_path)
             raise ValueError('HTTP API endpoint must be a local Floci URL')
         return url
 

@@ -11,6 +11,7 @@ A small Django UI for inspecting, testing, and learning against a local [Floci](
 - Clickable service cards for supported local services, with a top-24 default home view, persisted home-page service filtering, and a Tracked Resources view that shows only services with discovered resources
 - Service Matrix coverage page showing registry maturity, API paths, shared console status, action counts, tags, and linked service pages
 - Labs directory at `/labs/` showing every service with active workflow labs, current lab counts, runnable step counts, and direct links
+- Activity page at `/activity/` with browser-local recent API Gateway requests, EventBridge events, Lambda invokes, and SQS sends/receives, plus links back to activity-enabled workbenches for safe replay or prefill
 - AWS-adjacent console shell with shared Environment, Labs, Service Matrix, and Refresh navigation across primary pages
 - Global service navigation with `Cmd/Ctrl+K` search, local favorites, recently visited services, and filtered service collections
 - Local AWS workflow labs for IAM, S3, SQS, SNS, EventBridge Scheduler, CloudFormation, EC2 networking, Lambda, API Gateway, DynamoDB, KMS, SSM Parameter Store, and Secrets Manager, with exact AWS CLI commands, approved one-click execution, live-state verification, reset actions, next-batch recommendations after a service batch is complete, and breadcrumb navigation back to the service or homepage
@@ -255,17 +256,25 @@ Then refresh the browser. Service cards should appear once Floci responds.
 
 ## Contributor Architecture Notes
 
-The dashboard is moving toward a shared service workbench architecture. New service features should build on the shared pieces instead of replacing existing inventory pages.
+The dashboard uses a shared service workbench architecture. New service features should build on the shared shell, registry, action, lab, and inspector pieces instead of replacing existing inventory pages.
 
 Core files:
 
 - `dashboard/services.py`: canonical service registry. Add service metadata, maturity, optional CSS/JS assets, and action metadata here.
 - `dashboard/actions.py`: shared action metadata plus JSON parsing and error normalization helpers for interactive service endpoints.
+- `dashboard/aws.py`: read-only inventory loaders and release-aware service summaries. Keep fresh local Floci instances graceful with empty/error shapes.
 - `dashboard/labs/`: curated workflow lab package. `registry.py`, `runner.py`, and `types.py` expose the shared lab API, while `monolith.py` temporarily holds the existing service definitions, approved runners, live-state verification, and reset behavior during incremental service-module extraction.
+- `dashboard/views.py`: shared page/API views for home, environment, settings shell, service pages, lab pages, lab progress, lab reset, and inventory endpoints that do not need a focused service view module.
+- `dashboard/settings_views.py`: Settings API for endpoint/profile details, endpoint overrides, reset behavior, and connection testing.
+- `dashboard/inspector_api.py` and `dashboard/inspector_views.py`: shared local payload inspector for SQS messages, SES mailbox messages, and Lambda logs.
+- `dashboard/templates/dashboard/base.html`: global shell with shared CSS/JS, CSRF metadata, and the collapsible global service navigation mount.
 - `dashboard/templates/dashboard/service.html`: common service page shell. Interactive workbenches should be layered into this page while keeping the original read-only inventory visible.
+- `dashboard/templates/dashboard/activity.html` and `dashboard/static/dashboard/activity.js`: browser-local recent activity view for replayable developer actions from activity-enabled service workbenches.
+- `dashboard/templates/dashboard/labs_directory.html` and `dashboard/static/dashboard/labs-directory.js`: labs directory, async lab completion summary, and global completed-lab reset behavior.
 - `dashboard/templates/dashboard/labs.html` and `dashboard/static/dashboard/labs.js`: shared workflow-lab UI and browser behavior.
-- `dashboard/static/dashboard/service-console.js`: shared browser-side helpers for API calls, summary cards, read-only cards, toolbars, modals, formatting, and lower-right toasts.
-- `dashboard/static/dashboard/dashboard.js`: generic read-only inventory rendering for service pages.
+- `dashboard/static/dashboard/service-console.js`: shared browser-side helpers for API calls, summary cards, read-only cards, toolbars, modals, formatting, recent activity storage, and lower-right toasts.
+- `dashboard/static/dashboard/dashboard.js`: generic read-only inventory rendering, global service navigation, status popover, service search, Activity link, favorites, recently visited services, and shared page refresh behavior.
+- `dashboard/static/dashboard/styles.css`: primary shared visual system for global navigation, page shells, service pages, labs, settings, inspector, and responsive behavior.
 - `dashboard/static/dashboard/console-theme.css`: shared AWS-adjacent compatibility layer that keeps service-specific console pages visually aligned while service CSS is cleaned up incrementally.
 - Service-specific files such as `s3_api.py`, `s3_views.py`, `s3-console.js`, and `s3-console.css`, `iam_api.py`, `iam_views.py`, `iam-console.js`, and `iam-console.css`, `ec2_api.py`, `ec2_views.py`, `ec2-console.js`, and `ec2-console.css`, `cloudformation_api.py`, `cloudformation_views.py`, `cloudformation-console.js`, and `cloudformation-console.css`, `cognito_api.py`, `cognito_views.py`, `cognito-console.js`, and `cognito-console.css`, `rds_api.py`, `rds_views.py`, `rds-console.js`, and `rds-console.css`, `autoscaling_api.py`, `autoscaling_views.py`, `autoscaling-console.js`, and `autoscaling-console.css`, `elasticloadbalancing_api.py`, `elasticloadbalancing_views.py`, `elasticloadbalancing-console.js`, and `elasticloadbalancing-console.css`, `cloudfront_api.py`, `cloudfront_views.py`, `cloudfront-console.js`, and `cloudfront-console.css`, `cloudmap_api.py`, `cloudmap_views.py`, `cloudmap-console.js`, and `cloudmap-console.css`, `route53_api.py`, `route53_views.py`, `route53-console.js`, and `route53-console.css`, `acm_api.py`, `acm_views.py`, `acm-console.js`, and `acm-console.css`, `ecs_api.py`, `ecs_views.py`, `ecs-console.js`, and `ecs-console.css`, `ecr_api.py`, `ecr_views.py`, `ecr-console.js`, and `ecr-console.css`, `eks_api.py`, `eks_views.py`, `eks-console.js`, and `eks-console.css`, `elasticache_api.py`, `elasticache_views.py`, `elasticache-console.js`, and `elasticache-console.css`, `opensearch_api.py`, `opensearch_views.py`, `opensearch-console.js`, and `opensearch-console.css`, `athena_api.py`, `athena_views.py`, `athena-console.js`, and `athena-console.css`, or the equivalent files for SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, EventBridge, API Gateway, AppSync, Kinesis, Secrets Manager, SSM Parameter Store, Backup, Firehose, Glue, Kafka, Neptune, SES, Transfer Family, Textract, Transcribe, CodeDeploy, CodeBuild, Bedrock Runtime, AppConfig, and Resource Groups Tagging: focused behavior for one service only.
 
@@ -273,12 +282,15 @@ Important conventions:
 
 - Treat interactive workbenches as additive. Do not remove summary cards, anchor-link behavior, read-only inventory cards, supported-operation panels, or service notes.
 - Treat labs as curated workflows rather than a browser terminal. The browser sends registered service/lab/step identifiers and never arbitrary shell commands.
-- Derive lab completion from live Floci state whenever possible, and keep reset ownership explicit.
+- Derive lab completion from live Floci state whenever possible, keep reset ownership explicit, and keep expensive all-lab progress checks asynchronous from `/labs/`.
+- Preserve the global shell. Shared navigation, search, favorites, recently visited services, Settings, Inspector, and collapsible sidebars should continue to work across page types.
 - Register service capabilities in `dashboard/services.py` before wiring service-specific UI.
 - Use `dashboard/actions.py` helpers for JSON request parsing and normalized action errors.
 - Use `ServiceConsole.toast()` for action feedback. Interactive success and failure messages should appear as lower-right toasts.
+- Use `ServiceConsole.recordActivity()` only for developer-initiated actions that are useful to revisit, such as API Gateway request tests, EventBridge PutEvents calls, Lambda invokes, and SQS sends/receives. Do not record passive inventory refreshes or background polling.
 - Keep service-specific JavaScript focused on that service's workflow. Prefer shared helpers from `service-console.js` for common UI behavior.
 - Keep destructive actions explicit. Add destructive action metadata with confirmation text.
+- Use focused modules for specialized APIs. Service action endpoints belong in `<service>_views.py` when they need more than the generic inventory view; cross-service inspection belongs in `inspector_api.py` and `inspector_views.py`; runtime configuration belongs in `settings_views.py`.
 - Add focused tests for registry metadata, page rendering, and each new action endpoint.
 
 New service checklist:
@@ -289,6 +301,8 @@ New service checklist:
 - Confirm the generic service page renders via `dashboard/templates/dashboard/service.html`; add service-specific JS/CSS only when the workflow needs it.
 - Register homepage resource loading in the resource loader map when the service should appear on the home dashboard.
 - Add focused tests for registry metadata, service page rendering, inventory/API behavior, and each action endpoint.
+- Add or update Settings, Inspector, Labs, and global navigation tests when a change touches those shared surfaces.
+- Add or update Activity page tests when a service starts writing browser-local replay/prefill entries.
 - Keep action metadata paths, route coverage, and action endpoint tests in sync; `ActionRegistryAuditTests` flags stale registry paths and missing action test coverage.
 - Run JS syntax checks for any changed console assets; `dashboard.tests.StaticJavaScriptTests` also checks dashboard JS during the test suite.
 - Update `ROADMAP.md` with the coverage note, maturity change, or follow-up gaps so contributors can see what changed and what remains.
@@ -377,7 +391,9 @@ http://127.0.0.1:8000/service/secretsmanager/labs/
 If you are using Codex, Claude, or another local coding assistant to add a dashboard feature, start with a prompt like this:
 
 ```text
-You are contributing to the Floci Dashboard Django app. Before editing, read README.md, ROADMAP.md, dashboard/services.py, dashboard/actions.py, dashboard/templates/dashboard/service.html, dashboard/static/dashboard/service-console.js, and the closest existing workbench implementation. Good references are S3 for object browsing, IAM for identity and policy workflows, EC2 for local compute lifecycle workflows, SQS/SNS for messaging, Lambda for invoke/test workflows, DynamoDB for read-only data exploration, CloudWatch Logs for recent event viewing, Cloud Control for unified resource discovery, Step Functions for execution workflows, EventBridge for event routing tests, EventBridge Pipes and Scheduler for event routing lifecycle workflows, API Gateway for request testing, AppSync for GraphQL management workflows, Kinesis for stream records, KMS for key workflows, Secrets Manager for secret value workflows, SSM for Parameter Store workflows, CloudFormation for stack workflows, Cognito for local auth workflows, AWS Config for compliance setup workflows, RDS for database lifecycle workflows, Auto Scaling for capacity workflows, ELB v2 for load-balancing topology workflows, CloudFront for CDN management workflows, AWS Cloud Map for service discovery workflows, Route 53 for DNS management workflows, ACM for certificate workflows, ECS for container orchestration workflows, ECR for image registry workflows, EKS for Kubernetes cluster and node group workflows, ElastiCache for cache/user/IAM auth workflows, OpenSearch for search domain workflows, Athena for SQL query workflows, Backup for plan/job workflows, Firehose for stream delivery, Glue for database/table catalog and schema registry workflows, Kafka for cluster bootstrap and broker endpoints, Neptune for graph cluster and instance lifecycle, SES for email identities and templates, Transfer Family for SFTP server and user management workflows, Textract and Transcribe for stub AI workflows, CodeDeploy and CodeBuild for local delivery workflows, Bedrock Runtime for stub model requests, AppConfig for configuration deployment and retrieval, Resource Groups Tagging for centralized tag discovery, and CloudTrail for read-only audit trail inventory.
+You are contributing to the Floci Dashboard Django app. Before editing, read README.md, ROADMAP.md, dashboard/services.py, dashboard/actions.py, dashboard/aws.py, dashboard/views.py, dashboard/templates/dashboard/base.html, dashboard/templates/dashboard/service.html, dashboard/static/dashboard/dashboard.js, dashboard/static/dashboard/service-console.js, dashboard/static/dashboard/styles.css, and the closest existing workbench implementation. If your change touches labs, also read dashboard/labs/registry.py, dashboard/labs/runner.py, dashboard/labs/types.py, dashboard/labs/monolith.py, dashboard/templates/dashboard/labs.html, dashboard/templates/dashboard/labs_directory.html, dashboard/static/dashboard/labs.js, and dashboard/static/dashboard/labs-directory.js. If your change touches runtime configuration or inspection tools, also read dashboard/settings_views.py, dashboard/static/dashboard/settings.js, dashboard/inspector_api.py, dashboard/inspector_views.py, dashboard/templates/dashboard/inspector.html, and dashboard/static/dashboard/inspector.js.
+
+Good service references are S3 for object browsing, IAM for identity and policy workflows, EC2 for local compute and networking workflows, SQS/SNS for messaging, Lambda for invoke/test workflows, DynamoDB for table and item workflows, CloudWatch Logs for recent event viewing and Logs Insights, Cloud Control for unified resource discovery, Step Functions for execution workflows, EventBridge for event routing tests, EventBridge Pipes and Scheduler for event routing lifecycle workflows, API Gateway for request testing, AppSync for GraphQL management workflows, Kinesis for stream records, KMS for key workflows, Secrets Manager for secret value workflows, SSM for Parameter Store workflows, CloudFormation for stack workflows, Cognito for local auth workflows, AWS Config for compliance setup workflows, RDS for database lifecycle workflows, Auto Scaling for capacity workflows, ELB v2 for load-balancing topology workflows, CloudFront for CDN management workflows, AWS Cloud Map for service discovery workflows, Route 53 for DNS management workflows, ACM for certificate workflows, ECS for container orchestration workflows, ECR for image registry workflows, EKS for Kubernetes cluster and node group workflows, ElastiCache for cache/user/IAM auth workflows, OpenSearch for search domain workflows, Athena for SQL query workflows, Backup for plan/job workflows, Firehose for stream delivery, Glue for database/table catalog and schema registry workflows, Kafka for cluster bootstrap and broker endpoints, Neptune for graph cluster and instance lifecycle, SES for email identities and templates, Transfer Family for SFTP server and user management workflows, Textract and Transcribe for stub AI workflows, CodeDeploy and CodeBuild for local delivery workflows, Bedrock Runtime for stub model requests, AppConfig for configuration deployment and retrieval, Resource Groups Tagging for centralized tag discovery, CloudTrail for read-only audit trail inventory, and the Inspector page for cross-service local payload inspection.
 
 Goal: add or improve the <SERVICE> dashboard feature.
 
@@ -388,15 +404,19 @@ Architecture rules:
 - Use the shared ServiceConsole helpers for API calls, summary rendering, modals, toolbars, formatting, and lower-right toasts.
 - Keep service-specific JS/CSS focused on the service workflow only.
 - Use destructive action confirmations for delete, purge, reset, empty, or cleanup actions.
+- Preserve the global shell in dashboard/templates/dashboard/base.html and dashboard/static/dashboard/dashboard.js, including the collapsible global service navigation, search, favorites, recently visited services, status popover, Settings link, Inspector link, and refresh behavior.
+- Treat labs as registered workflows, not browser shell access. The browser sends service/lab/step identifiers only; runners stay allowlisted; verification reads live Floci state; reset ownership stays explicit; expensive all-lab progress checks stay async from /labs/.
+- Keep runtime configuration changes inside Settings surfaces and APIs. Endpoint/profile overrides, reset, and connection tests belong in dashboard/settings_views.py and dashboard/static/dashboard/settings.js.
+- Keep cross-service payload browsing inside Inspector surfaces and APIs. SQS messages, SES mailbox messages, and Lambda logs belong in dashboard/inspector_api.py, dashboard/inspector_views.py, and dashboard/static/dashboard/inspector.js unless a service-specific workflow truly needs local behavior.
 - Preserve fresh local startup behavior. The dashboard must work with AWS_ENDPOINT_URL, AWS_DEFAULT_REGION, AWS_ACCESS_KEY_ID=test, and AWS_SECRET_ACCESS_KEY=test, and must not assume a floci-admin profile exists.
 - If changing auth, identity, health, or homepage loading behavior, keep missing Floci and missing/partial AWS credentials graceful: show helpful status messages and display any inventory that can still be loaded.
-- Add focused tests for registry metadata, service page rendering, and action endpoints.
+- Add focused tests for registry metadata, service page rendering, action endpoints, and any touched shared surfaces such as Labs, Settings, Inspector, global navigation, or static JavaScript.
 
 Implementation request:
 1. Inspect the existing inventory shape for <SERVICE>.
 2. Propose the smallest useful interactive workbench for common local development workflows.
 3. Implement it in the shared architecture.
 4. Keep the original read-only cards visible under the new workbench.
-5. Run python3 manage.py test dashboard, python3 manage.py check, and node --check for any changed console JS or dashboard JS.
+5. Run python3 manage.py test dashboard, python3 manage.py check, and node --check for any changed console, dashboard, labs, settings, or inspector JavaScript.
 6. Summarize changed files, behavior, tests run, and any known follow-ups.
 ```

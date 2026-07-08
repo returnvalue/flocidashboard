@@ -54,6 +54,15 @@ class StaticJavaScriptTests(SimpleTestCase):
         self.assertIn("button.id = 'global-status-trigger'", source)
         self.assertIn('lastHealthCheckedAt = new Date()', source)
 
+    def test_global_nav_exposes_search_and_activity_actions(self):
+        script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'dashboard.js'
+        source = script.read_text()
+
+        self.assertIn("search.textContent = 'Search'", source)
+        self.assertIn("activity.href = '/activity/'", source)
+        self.assertIn("activity.textContent = 'Activity'", source)
+        self.assertIn("navActions.className = 'global-nav-actions'", source)
+
     def test_s3_console_bootstraps_global_navigation(self):
         script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'dashboard.js'
         source = script.read_text()
@@ -139,6 +148,31 @@ class StaticJavaScriptTests(SimpleTestCase):
         self.assertIn("filterPlaceholder: 'Find deployments'", source)
         self.assertIn("filterPlaceholder: 'Find pipelines'", source)
         self.assertIn("filterPlaceholder: 'Find webhooks'", source)
+        self.assertIn("filterPlaceholder: 'Find users'", source)
+        self.assertIn("filterPlaceholder: 'Find roles'", source)
+        self.assertIn("filterPlaceholder: 'Find customer policies'", source)
+        self.assertIn("filterPlaceholder: 'Find topics'", source)
+        self.assertIn("filterPlaceholder: 'Find subscriptions'", source)
+        self.assertIn("filterPlaceholder: 'Find identities'", source)
+        self.assertIn("filterPlaceholder: 'Find email addresses'", source)
+        self.assertIn("filterPlaceholder: 'Find distributions'", source)
+        self.assertIn("filterPlaceholder: 'Find cache policies'", source)
+        self.assertIn("filterPlaceholder: 'Find workgroups'", source)
+        self.assertIn("filterPlaceholder: 'Find query executions'", source)
+        self.assertIn("filterPlaceholder: 'Find databases'", source)
+        self.assertIn("filterPlaceholder: 'Find user-defined functions'", source)
+        self.assertIn("filterPlaceholder: 'Find registries'", source)
+        self.assertIn("filterPlaceholder: 'Find security group rules'", source)
+        self.assertIn("filterPlaceholder: 'Find route tables'", source)
+        self.assertIn("filterPlaceholder: 'Find VPC endpoints'", source)
+        self.assertIn("filterPlaceholder: 'Find AMIs'", source)
+        self.assertIn("filterPlaceholder: 'Find ECS clusters'", source)
+        self.assertIn("filterPlaceholder: 'Find task definitions'", source)
+        self.assertIn("filterPlaceholder: 'Find EKS clusters'", source)
+        self.assertIn("filterPlaceholder: 'Find node groups'", source)
+        self.assertIn("filterPlaceholder: 'Find load balancers'", source)
+        self.assertIn("filterPlaceholder: 'Find target groups'", source)
+        self.assertIn("filterPlaceholder: 'Find delivery streams'", source)
 
     def test_dashboard_javascript_files_are_valid(self):
         node = shutil.which('node')
@@ -288,6 +322,24 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertContains(response, 'id="settings-save"')
         self.assertContains(response, 'id="settings-test"')
         self.assertContains(response, 'dashboard/settings.js')
+        self.assertSharedShell(response)
+
+    def test_activity_page_renders_recent_activity_shell(self):
+        response = self.client.get(reverse('dashboard:activity'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '<title>Activity - Floci Dashboard</title>', html=True)
+        self.assertContains(response, '<h1 class="console-title">Activity</h1>', html=True)
+        self.assertContains(response, 'aria-label="Activity-enabled service workbenches"')
+        self.assertContains(response, 'href="/service/apigateway/"')
+        self.assertContains(response, 'href="/service/eventbridge/"')
+        self.assertContains(response, 'href="/service/lambda/"')
+        self.assertContains(response, 'href="/service/sqs/"')
+        self.assertContains(response, 'id="activity-filter"')
+        self.assertContains(response, 'id="activity-list"')
+        self.assertContains(response, 'id="activity-clear"')
+        self.assertContains(response, 'dashboard/service-console.js')
+        self.assertContains(response, 'dashboard/activity.js')
         self.assertSharedShell(response)
 
     def test_service_matrix_renders_registry_coverage(self):

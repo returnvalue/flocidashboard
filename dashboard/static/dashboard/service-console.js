@@ -1,4 +1,7 @@
 const ServiceConsole = (() => {
+  const ACTIVITY_STORAGE_KEY = 'floci-dashboard:recent-activity:v1';
+  const ACTIVITY_LIMIT = 40;
+
   function el(tag, className, text) {
     const node = document.createElement(tag);
     if (className) {
@@ -75,6 +78,121 @@ const ServiceConsole = (() => {
       return `${(n / (1024 * 1024)).toFixed(1)} MB`;
     }
     return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  }
+
+  function nowLabel(timestamp) {
+    const date = new Date(timestamp);
+    const diff = Date.now() - date.getTime();
+    if (Number.isNaN(date.getTime())) {
+      return '';
+    }
+    if (diff < 60000) {
+      return 'Just now';
+    }
+    if (diff < 3600000) {
+      return `${Math.floor(diff / 60000)}m ago`;
+    }
+    if (diff < 86400000) {
+      return `${Math.floor(diff / 3600000)}h ago`;
+    }
+    return date.toLocaleString();
+  }
+
+  function loadActivity() {
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem(ACTIVITY_STORAGE_KEY) || '[]');
+      return Array.isArray(parsed) ? parsed.filter((item) => item && typeof item === 'object') : [];
+    } catch (_error) {
+      return [];
+    }
+  }
+
+  function saveActivity(items) {
+    try {
+      window.localStorage.setItem(ACTIVITY_STORAGE_KEY, JSON.stringify(items.slice(0, ACTIVITY_LIMIT)));
+    } catch (_error) {
+      // Ignore storage failures; activity history is a convenience layer.
+    }
+  }
+
+  function recordActivity(entry) {
+    if (!entry || !entry.service || !entry.action) {
+      return null;
+    }
+    const item = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      timestamp: Date.now(),
+      replayable: true,
+      ...entry,
+    };
+    const items = loadActivity();
+    saveActivity([item, ...items]);
+    return item;
+  }
+
+  function clearActivity(filter = {}) {
+    const items = loadActivity();
+    const filtered = items.filter((item) => {
+      if (filter.service && item.service !== filter.service) {
+        return true;
+      }
+      if (filter.action && item.action !== filter.action) {
+        return true;
+      }
+      return false;
+    });
+    saveActivity(filtered);
+  }
+
+  function activityTitle(item) {
+    return item.title || item.summary || item.action || 'Activity';
+  }
+
+  function activitySummary(item) {
+    const parts = [item.summary, item.detail].filter(Boolean);
+    return parts.join(' / ');
+  }
+
+  function renderActivityPanel(options = {}) {
+    const service = options.service || '';
+    const classPrefix = options.classPrefix || service || 'service';
+    const title = options.title || 'Recent activity';
+    const limit = options.limit || 5;
+    const actions = new Set(options.actions || []);
+    const replay = options.onReplay || (() => {});
+    const onClear = options.onClear || (() => {});
+    const panel = el('section', `${classPrefix}-panel service-activity-panel`);
+    const heading = el('div', `${classPrefix}-panel-heading service-activity-heading`);
+    const clear = button('Clear', `${classPrefix}-btn-secondary service-activity-clear`, () => {
+      clearActivity({ service });
+      onClear();
+    });
+    heading.append(el('span', null, title), clear);
+    panel.append(heading);
+
+    const items = loadActivity()
+      .filter((item) => (!service || item.service === service) && (!actions.size || actions.has(item.action)))
+      .slice(0, limit);
+    if (!items.length) {
+      panel.append(el('div', `${classPrefix}-empty ${classPrefix}-empty-compact service-activity-empty`, options.emptyText || 'No recent activity yet.'));
+      return panel;
+    }
+
+    const list = el('div', 'service-activity-list');
+    items.forEach((item) => {
+      const row = el('article', 'service-activity-item');
+      const main = el('div', 'service-activity-main');
+      main.append(
+        el('strong', null, activityTitle(item)),
+        el('span', 'service-activity-meta', [activitySummary(item), nowLabel(item.timestamp)].filter(Boolean).join(' / ')),
+      );
+      const replayButton = button(item.replayLabel || 'Replay', `${classPrefix}-btn-secondary service-activity-replay`, () => replay(item));
+      replayButton.disabled = item.replayable === false;
+      row.append(main, replayButton);
+      list.append(row);
+    });
+    panel.append(list);
+    return panel;
   }
 
   function sectionSlug(value) {
@@ -456,14 +574,18 @@ const ServiceConsole = (() => {
     apiJson,
     button,
     confirmAction,
+    clearActivity,
     el,
     formatBytes,
     formatDate,
     getCsrfToken,
     displayValue,
     loadServiceActions,
+    loadActivity,
     openModal,
     parsedJsonString,
+    recordActivity,
+    renderActivityPanel,
     renderCollection,
     renderActionButtons,
     renderDetailList,

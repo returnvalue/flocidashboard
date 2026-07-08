@@ -1,4 +1,5 @@
 from dataclasses import asdict
+from hashlib import sha256
 from pathlib import Path
 from typing import Optional
 
@@ -117,6 +118,10 @@ def environment(request):
     return render(request, 'dashboard/environment.html')
 
 
+def activity(request):
+    return render(request, 'dashboard/activity.html')
+
+
 def settings_page(request):
     return render(request, 'dashboard/settings.html')
 
@@ -201,6 +206,19 @@ def _labs_progress_snapshot():
     }
 
 
+def _labs_progress_cache_key() -> str:
+    factory = FlociClientFactory()
+    context = '|'.join([
+        factory.endpoint_url,
+        factory.region,
+        factory.credential_source,
+        factory.profile or '',
+        factory.access_key_id or '',
+    ])
+    digest = sha256(context.encode('utf-8')).hexdigest()
+    return f'{LABS_PROGRESS_CACHE_KEY}:{digest}'
+
+
 def labs_directory(request):
     rows = []
     total_labs = 0
@@ -247,11 +265,12 @@ def labs_directory(request):
 
 
 def labs_progress(request):
-    snapshot = cache.get(LABS_PROGRESS_CACHE_KEY)
+    cache_key = _labs_progress_cache_key()
+    snapshot = cache.get(cache_key)
     cached = snapshot is not None
     if snapshot is None:
         snapshot = _labs_progress_snapshot()
-        cache.set(LABS_PROGRESS_CACHE_KEY, snapshot, LABS_PROGRESS_CACHE_SECONDS)
+        cache.set(cache_key, snapshot, LABS_PROGRESS_CACHE_SECONDS)
     return JsonResponse({**snapshot, 'cached': cached})
 
 
@@ -375,7 +394,7 @@ def lab_step_run(request, service_key: str, lab_key: str, step_key: str):
 
     try:
         result = run_lab_step(service_key, lab_key, step_key)
-        cache.delete(LABS_PROGRESS_CACHE_KEY)
+        cache.delete(_labs_progress_cache_key())
         status = lab_status(service_key, lab_key)
         result['lab_complete'] = status.get('complete')
         result['next_batch'] = _next_batch_context(
@@ -395,7 +414,7 @@ def lab_reset(request, service_key: str, lab_key: str):
 
     try:
         result = reset_lab(service_key, lab_key)
-        cache.delete(LABS_PROGRESS_CACHE_KEY)
+        cache.delete(_labs_progress_cache_key())
         return JsonResponse(result)
     except (BotoCoreError, ClientError, ValueError) as exc:
         return JsonResponse({'error': str(exc)}, status=400)
@@ -437,7 +456,7 @@ def labs_global_reset(request):
                 'message': str(exc),
             })
 
-    cache.delete(LABS_PROGRESS_CACHE_KEY)
+    cache.delete(_labs_progress_cache_key())
     return JsonResponse({
         'reset': not reset_errors,
         'completed_lab_count': len(completed),

@@ -81,13 +81,47 @@ const LambdaConsole = (() => {
     return `/api/lambda/functions/${encodeURIComponent(functionName)}/invoke/`;
   }
 
-  function showInvokeModal(fn) {
+  async function invokeFunction(fn, payload) {
+    const data = await apiJson(invokePath(fn.name), {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    state.lastInvoke = data;
+    consoleUi.recordActivity({
+      service: 'lambda',
+      action: 'invoke',
+      title: fn.name,
+      summary: payload.qualifier ? `Qualifier ${payload.qualifier}` : 'Unqualified invoke',
+      detail: data.function_error ? `Error ${data.function_error}` : `Status ${data.status_code}`,
+      replayLabel: 'Prefill',
+      payload: {
+        function_name: fn.name,
+        ...payload,
+      },
+    });
+    return data;
+  }
+
+  function replayInvoke(item) {
+    const payload = item.payload || {};
+    const fn = functions().find((candidate) => candidate.name === payload.function_name) || selectedFunction();
+    if (payload.function_name) {
+      state.selectedFunctionName = payload.function_name;
+    }
+    render();
+    if (fn) {
+      showInvokeModal(fn, payload);
+    }
+  }
+
+  function showInvokeModal(fn, replay = null) {
     const form = el('div');
     const payloadInput = document.createElement('textarea');
     payloadInput.required = true;
-    payloadInput.value = '{\n  "source": "floci-dashboard"\n}';
+    payloadInput.value = JSON.stringify(replay?.payload || { source: 'floci-dashboard' }, null, 2);
     const qualifierInput = document.createElement('input');
     qualifierInput.placeholder = 'optional version or alias';
+    qualifierInput.value = replay?.qualifier || '';
 
     form.append(
       el('label', null, 'Function'),
@@ -99,12 +133,9 @@ const LambdaConsole = (() => {
     );
 
     openModal('Invoke function', form, 'Invoke', async (close) => {
-      const data = await apiJson(invokePath(fn.name), {
-        method: 'POST',
-        body: JSON.stringify({
-          payload: parsePayload(payloadInput.value),
-          qualifier: qualifierInput.value.trim() || null,
-        }),
+      const data = await invokeFunction(fn, {
+        payload: parsePayload(payloadInput.value),
+        qualifier: qualifierInput.value.trim() || null,
       });
       state.lastInvoke = data;
       close();
@@ -199,6 +230,15 @@ const LambdaConsole = (() => {
     logLink.textContent = `Open logs: ${logGroupName(fn)}`;
     content.append(logLink);
     content.append(renderInvokeResult(fn));
+    content.append(consoleUi.renderActivityPanel({
+      service: 'lambda',
+      classPrefix: 'lambda',
+      title: 'Recent invokes',
+      actions: ['invoke'],
+      emptyText: 'Invoke a function to build a local replay history.',
+      onReplay: replayInvoke,
+      onClear: render,
+    }));
     panel.append(content);
     return panel;
   }

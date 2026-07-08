@@ -30,7 +30,8 @@ Core architecture files:
 - `dashboard/services.py`: canonical service registry, maturity labels, optional assets, and action metadata.
 - `dashboard/actions.py`: shared action metadata, JSON parsing, and normalized action errors.
 - `dashboard/templates/dashboard/service.html`: common service page shell.
-- `dashboard/static/dashboard/service-console.js`: shared frontend helpers for API calls, summary cards, read-only cards, toolbars, modals, formatting, and lower-right toasts.
+- `dashboard/templates/dashboard/activity.html` and `dashboard/static/dashboard/activity.js`: browser-local recent activity and replay/prefill surface for developer-initiated workbench actions.
+- `dashboard/static/dashboard/service-console.js`: shared frontend helpers for API calls, summary cards, read-only cards, toolbars, modals, formatting, recent activity storage, and lower-right toasts.
 - `dashboard/static/dashboard/console-theme.css`: AWS-adjacent compatibility layer that keeps existing per-service consoles aligned with the shared theme while deeper CSS cleanup happens incrementally.
 - Service-specific modules such as `s3_api.py`, `s3_views.py`, `s3-console.js`, and `s3-console.css`, `iam_api.py`, `iam_views.py`, `iam-console.js`, and `iam-console.css`, `ec2_api.py`, `ec2_views.py`, `ec2-console.js`, and `ec2-console.css`, `stepfunctions_api.py`, `stepfunctions_views.py`, `stepfunctions-console.js`, and `stepfunctions-console.css`, `eventbridge_api.py`, `eventbridge_views.py`, `eventbridge-console.js`, and `eventbridge-console.css`, or the equivalent files for SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, API Gateway, AppSync, Kinesis, Secrets Manager, SSM Parameter Store, CloudFormation, Cognito, RDS, Auto Scaling, ELB v2, CloudFront, Cloud Map, CloudTrail, Route 53, ACM, ECS, ECR, EKS, ElastiCache, OpenSearch, Athena, Backup, Firehose, Glue, Kafka, Neptune, SES, Transfer Family, Textract, Transcribe, CodeDeploy, CodeBuild, Bedrock Runtime, AppConfig, Resource Groups Tagging, and newer read-only service pages such as Amazon MQ.
 
@@ -216,6 +217,9 @@ Core architecture files:
 - Added the Lambda SQS event source lab with a lab-owned queue, least-privilege polling policy, packaged consumer handler, Lambda event source mapping, SQS message proof, CloudWatch Logs proof, and dependency-aware cleanup.
 - Migrated the default visual system to an AWS-adjacent console theme with semantic CSS tokens, consistent top navigation across primary pages, tightened console page headers, shared empty-state polish, and the new README screenshot.
 - Reviewed Floci 1.5.31, added a Cloud Control read-only resource-discovery page, added a CloudWatch Logs Insights query path to the CloudWatch workbench, surfaced EC2 snapshots, refreshed release-aware notes for RDS Data API PostgreSQL support, RDS mock mode, Cloud Control/read-only APIs, Lambda persistence and cold starts, Elastic Beanstalk persistence, API Gateway API key tags/GetApiKey, EventBridge-to-Firehose delivery, Scheduler ECS targets, CloudFormation S3 CORS, Step Functions ItemReader and qualified Lambda ARNs, Secrets Manager BatchGetSecretValue, EC2 catalogs, and Firehose delivery targets.
+- Added the Activity page at `/activity/` with browser-local recent activity for API Gateway requests, EventBridge events, Lambda invokes, and SQS sends/receives; added workbench links, safe replay/prefill hooks, and shared `ServiceConsole` activity helpers.
+- Scoped lab-progress caching to the active Floci endpoint/profile context so browser sessions pointed at different local endpoints do not share cached lab progress.
+- Fixed API Gateway HTTP API request testing so AWS-shaped `execute-api` endpoints fall back to Floci's local execute-plane URL.
 - Added console navigation polish with a persistent service rail, global `Cmd/Ctrl+K` service search, local favorites, recently visited services, and a shared collection filtering/count helper used by the homepage service grid.
 
 ## Near-Term Priorities
@@ -234,6 +238,9 @@ Recently completed from the previous build order:
 - Completed action audit baseline cleanup across all historical route/test gaps.
 - Cloud Map shared action loader migration.
 - IAM policy version, group membership, and trust policy follow-ups.
+- Activity page and replay/prefill support for API Gateway, EventBridge, Lambda, and SQS.
+- Endpoint-scoped lab-progress caching.
+- API Gateway HTTP API local execute-plane fallback.
 
 ### 1. Keep Action Audit Baseline At Zero
 
@@ -378,7 +385,7 @@ Feasible follow-ups:
 - Add rule enable and disable actions.
 - Add simple rule creation for event pattern tests.
 - Add target summaries that deep-link to Lambda, SQS, SNS, or Step Functions pages where ARNs are recognizable.
-- Add recent sent-event history in browser state for quick replay.
+- Extend Activity replay from modal prefill into optional one-click resend when the event is clearly safe.
 - Add event pattern helper presets for common local app events.
 
 Why it matters:
@@ -393,7 +400,7 @@ Keep improving the new API Gateway request workbench.
 Feasible follow-ups:
 
 - Add route/resource filtering and clearer integration summaries inside the workbench.
-- Add request history in browser state for quick replay.
+- Extend Activity replay from request prefill into optional one-click resend when users explicitly opt in.
 - Add deep links to Lambda and CloudWatch Logs when integrations or log groups are recognizable.
 - Add helper presets for common JSON, query string, and header test cases.
 

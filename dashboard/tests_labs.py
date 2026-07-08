@@ -145,6 +145,52 @@ class LabsPageTests(SimpleTestCase):
         self.assertEqual(payload['total_step_count'], 3)
         self.assertFalse(payload['cached'])
 
+    @patch('dashboard.views.FlociClientFactory')
+    @patch('dashboard.views.all_labs')
+    @patch('dashboard.views.lab_status')
+    def test_labs_progress_cache_is_scoped_to_endpoint_context(self, status_mock, all_labs_mock, factory_mock):
+        cache.clear()
+        all_labs_mock.return_value = [
+            {
+                'service': 'iam',
+                'key': 'create-user-alice',
+                'title': 'Create an IAM user',
+                'steps': [{'key': 'create-user'}],
+            },
+        ]
+        status_mock.side_effect = [
+            {'complete': True, 'steps': {'create-user': {'verified': True}}},
+            {'complete': False, 'steps': {}},
+        ]
+
+        endpoint_one = MagicMock(
+            endpoint_url='http://localhost:4566',
+            region='us-east-1',
+            credential_source='local_default',
+            profile=None,
+            access_key_id='test',
+        )
+        endpoint_two = MagicMock(
+            endpoint_url='http://alternate.localhost.floci.io:4566',
+            region='us-east-1',
+            credential_source='local_default',
+            profile=None,
+            access_key_id='test',
+        )
+        factory_mock.side_effect = [endpoint_one, endpoint_one, endpoint_two]
+
+        first = self.client.get(reverse('dashboard:labs-progress')).json()
+        second = self.client.get(reverse('dashboard:labs-progress')).json()
+        third = self.client.get(reverse('dashboard:labs-progress')).json()
+
+        self.assertFalse(first['cached'])
+        self.assertTrue(second['cached'])
+        self.assertFalse(third['cached'])
+        self.assertEqual(first['completed_lab_count'], 1)
+        self.assertEqual(second['completed_lab_count'], 1)
+        self.assertEqual(third['completed_lab_count'], 0)
+        self.assertEqual(status_mock.call_count, 2)
+
     @patch('dashboard.views.lab_status')
     def test_iam_labs_page_renders_create_user_lab(self, status_mock):
         status_mock.return_value = {'complete': False, 'steps': {}}
