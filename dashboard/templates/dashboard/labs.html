@@ -4,7 +4,7 @@
 {% block title %}{{ service.title }} Labs - Floci Dashboard{% endblock %}
 
 {% block content %}
-  <header class="topbar">
+  <header class="page-header">
     <div>
       <nav class="page-breadcrumbs" aria-label="Breadcrumb">
         <a href="{% url 'dashboard:index' %}">Home</a>
@@ -16,17 +16,17 @@
       <p class="eyebrow">{{ service.eyebrow }}</p>
       <h1 class="console-title">{{ service.title }} Labs</h1>
     </div>
-    <div class="topbar-actions">
-      <a class="secondary-action" href="{% url 'dashboard:environment' %}">Environment</a>
-      <a class="secondary-action topbar-action-active" href="{% url 'dashboard:labs-directory' %}" aria-current="page">Labs</a>
-      <a class="secondary-action" href="{% url 'dashboard:service-matrix' %}">Service Matrix</a>
-      <button data-refresh-page type="button" aria-label="Refresh {{ service.title }} labs">Refresh</button>
+    <div class="page-header-actions">
+      <button data-refresh-page class="secondary-button" type="button" aria-label="Refresh {{ service.title }} labs">Refresh</button>
     </div>
   </header>
 
   <section class="section-block labs-shell" data-service="{{ service.key }}" data-lab="{{ active_lab.key }}">
     <div class="labs-sidebar">
-      <h2>Labs</h2>
+      <div class="labs-sidebar-heading">
+        <h2>Labs</h2>
+        <button id="labs-sidebar-toggle" class="global-nav-collapse-toggle labs-sidebar-toggle" type="button" aria-label="Collapse labs navigation" aria-expanded="true">&lt;</button>
+      </div>
       {% for lab in labs %}
         <a class="lab-picker{% if lab.key == active_lab.key %} lab-picker-active{% endif %}" href="?lab={{ lab.key }}" data-lab-key="{{ lab.key }}">
           {{ lab.title }}

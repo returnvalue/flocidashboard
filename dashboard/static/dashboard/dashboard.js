@@ -20,6 +20,14 @@ const serviceFilterTop36 = document.querySelector('#service-filter-top-36');
 const serviceFilterTracked = document.querySelector('#service-filter-tracked');
 const serviceFilterAll = document.querySelector('#service-filter-all');
 const backToTopButton = document.querySelector('.back-to-top');
+const globalServiceNav = document.querySelector('#global-service-nav');
+const globalStatusPanel = document.querySelector('#global-status-panel');
+const globalStatusBody = document.querySelector('#global-status-body');
+const globalStatusClose = document.querySelector('#global-status-close');
+const globalSearchOverlay = document.querySelector('#global-search-overlay');
+const globalSearchInput = document.querySelector('#global-search-input');
+const globalSearchResults = document.querySelector('#global-search-results');
+const globalSearchClose = document.querySelector('#global-search-close');
 const iamGrid = document.querySelector('#iam-grid');
 const iamSummary = document.querySelector('#iam-summary');
 const iamConsoleRoot = document.getElementById('iam-console-root');
@@ -159,6 +167,9 @@ const cloudmapLoadedAt = document.querySelector('#cloudmap-loaded-at');
 const cloudtrailGrid = document.querySelector('#cloudtrail-grid');
 const cloudtrailSummary = document.querySelector('#cloudtrail-summary');
 const cloudtrailLoadedAt = document.querySelector('#cloudtrail-loaded-at');
+const cloudcontrolGrid = document.querySelector('#cloudcontrol-grid');
+const cloudcontrolSummary = document.querySelector('#cloudcontrol-summary');
+const cloudcontrolLoadedAt = document.querySelector('#cloudcontrol-loaded-at');
 const codepipelineGrid = document.querySelector('#codepipeline-grid');
 const codepipelineSummary = document.querySelector('#codepipeline-summary');
 const codepipelineLoadedAt = document.querySelector('#codepipeline-loaded-at');
@@ -248,9 +259,25 @@ const iotSummary = document.querySelector('#iot-summary');
 const iotLoadedAt = document.querySelector('#iot-loaded-at');
 
 let latestHealthData = null;
+let latestStatusResult = null;
+let lastHealthCheckedAt = null;
+let serviceMetadataCache = null;
+let globalSearchMatches = [];
+let globalSearchActiveIndex = 0;
+let homeCollectionController = null;
+let cloudControlResourceFilterText = '';
+let cloudControlResourceFilterSelectionStart = null;
+let cloudControlResourceFilterSelectionEnd = null;
+let cloudControlResourceFilterRestoreFocus = false;
+let cloudControlLastData = null;
+const inventoryCollectionFilters = {};
 
 const flociCloudImage = '/static/dashboard/flocicloud.png';
 const minimumLoadingMs = 2000;
+const favoriteServicesStorageKey = 'floci-dashboard-favorite-services';
+const recentServicesStorageKey = 'floci-dashboard-recent-services';
+const globalNavCollapsedStorageKey = 'floci-dashboard-global-nav-collapsed';
+const maxRecentServices = 10;
 
 function waitForMinimumLoadingTime(startedAt) {
   const elapsed = performance.now() - startedAt;
@@ -362,6 +389,8 @@ const serviceDetailPages = {
   'bedrock-runtime': '/service/bedrockruntime/',
   bedrockruntime: '/service/bedrockruntime/',
   cloudfront: '/service/cloudfront/',
+  cloudcontrol: '/service/cloudcontrol/',
+  cloudcontrolapi: '/service/cloudcontrol/',
   cloudmap: '/service/cloudmap/',
   cloudtrail: '/service/cloudtrail/',
   servicediscovery: '/service/cloudmap/',
@@ -472,6 +501,7 @@ const servicePriorityOrder = [
   'cloudfront',
   'cloudmap',
   'cloudtrail',
+  'cloudcontrol',
   'kms',
   'cloudformation',
   'apigateway',
@@ -701,6 +731,123 @@ function renderDetailList(title, items, fields = []) {
   return section;
 }
 
+function renderInventoryCollectionCard(item, fields = []) {
+  const card = document.createElement('article');
+  card.className = 'iam-item collection-item';
+
+  const name = document.createElement('h4');
+  name.textContent = item.name || item.arn || item.id || item.table_name || item.url || item.InstanceId || item.VpcId || item.SubnetId || item.GroupId || item.UserPoolId || item.apiId || item.functionId || item.dataSourceName || item.CacheClusterId || item.ReplicationGroupId || item.UserId || item.UserGroupId || item.SessionId || item.CommandId || item.AutomationExecutionId || item.StackName || item.StackId || item.RepositoryName || item.repository_name || item.DBInstanceIdentifier || item.DBClusterIdentifier || item.db_name || item.database_name || item.BackupVaultName || item.BackupVaultArn || item.BackupPlanName || item.BackupJobId || item.RestoreJobId || item.ResourceArn || item.ResourceType || item.StreamName || item.stream_name || item.cluster_name || item.node_arn || item.operation_arn || item.clean_id || item.WorkflowId || item.ServerId || item.WebAppId || item.ConnectorId || item.ProfileId || item.CertificateId || item.project_name || item.application_name || item.deployment_group_name || item.deployment_id || item.pipeline_type || item.execution_id || 'Unnamed';
+  card.append(name);
+
+  const list = document.createElement('dl');
+  fields.forEach(([label, key]) => addField(list, label, item[key]));
+  card.append(list);
+  return card;
+}
+
+function inventorySearchText(item, fields = []) {
+  return [
+    item.name,
+    item.arn,
+    item.id,
+    item.table_name,
+    item.url,
+    item.InstanceId,
+    item.VpcId,
+    item.SubnetId,
+    item.GroupId,
+    item.UserPoolId,
+    item.apiId,
+    item.functionId,
+    item.dataSourceName,
+    item.CacheClusterId,
+    item.ReplicationGroupId,
+    item.UserId,
+    item.UserGroupId,
+    item.SessionId,
+    item.CommandId,
+    item.AutomationExecutionId,
+    item.StackName,
+    item.StackId,
+    item.RepositoryName,
+    item.repository_name,
+    item.DBInstanceIdentifier,
+    item.DBClusterIdentifier,
+    item.db_name,
+    item.database_name,
+    item.BackupVaultName,
+    item.BackupVaultArn,
+    item.BackupPlanName,
+    item.BackupJobId,
+    item.RestoreJobId,
+    item.ResourceArn,
+    item.ResourceType,
+    item.StreamName,
+    item.stream_name,
+    item.cluster_name,
+    item.node_arn,
+    item.operation_arn,
+    item.clean_id,
+    item.WorkflowId,
+    item.ServerId,
+    item.WebAppId,
+    item.ConnectorId,
+    item.ProfileId,
+    item.CertificateId,
+    item.project_name,
+    item.application_name,
+    item.deployment_group_name,
+    item.deployment_id,
+    item.pipeline_type,
+    item.execution_id,
+    ...fields.map(([, key]) => item[key]),
+  ].map((value) => typeof value === 'string' ? value : JSON.stringify(value || '')).join(' ');
+}
+
+function renderFilterableDetailList(title, items, fields = [], options = {}) {
+  if (!window.ServiceConsole?.renderCollection) {
+    return renderDetailList(title, items, fields);
+  }
+
+  const key = options.key || title;
+  const state = inventoryCollectionFilters[key] || {
+    filterText: '',
+    selectionStart: null,
+    selectionEnd: null,
+    restoreFocus: false,
+  };
+  inventoryCollectionFilters[key] = state;
+
+  const panel = window.ServiceConsole.renderCollection({
+    title,
+    items: Array.isArray(items) ? items : (items ? [{ name: 'Response', details: items }] : []),
+    itemRenderer: (item) => renderInventoryCollectionCard(item, fields),
+    itemSearchText: (item) => inventorySearchText(item, fields),
+    filterPlaceholder: options.filterPlaceholder || `Find ${String(title).toLowerCase()}`,
+    emptyTitle: options.emptyTitle || emptySectionText(title),
+    emptyFilteredTitle: options.emptyFilteredTitle || `No ${String(title).toLowerCase()} match this filter.`,
+    countLabel: options.countLabel || String(title).toLowerCase(),
+    classPrefix: options.classPrefix || 'inventory',
+    panelClassName: 'iam-panel',
+    filterText: state.filterText,
+    restoreFocus: state.restoreFocus,
+    selectionStart: state.selectionStart,
+    selectionEnd: state.selectionEnd,
+    onFilterTextChange: (value, filterOptions = {}) => {
+      state.filterText = value;
+      state.restoreFocus = Boolean(filterOptions.restoreFocus);
+      state.selectionStart = filterOptions.selectionStart;
+      state.selectionEnd = filterOptions.selectionEnd;
+      if (options.onFilterTextChange) {
+        options.onFilterTextChange(value, filterOptions);
+      }
+    },
+  });
+  panel.id = sectionIdForLabel(title);
+  state.restoreFocus = false;
+  return panel;
+}
+
 function renderIam(data) {
   iamGrid.textContent = '';
   renderSummary(data.summary, iamSummary);
@@ -865,7 +1012,7 @@ function renderS3(data) {
     ['Note', 'note'],
   ]);
 
-  const bucketPanel = renderDetailList('Buckets', data.buckets || [], [
+  const bucketPanel = renderFilterableDetailList('Buckets', data.buckets || [], [
     ['ARN', 'arn'],
     ['Path-style URL', 'path_style_url'],
     ['Location', 'location'],
@@ -883,7 +1030,12 @@ function renderS3(data) {
     ['Total bytes', 'total_bytes'],
     ['Objects', 'objects'],
     ['Object versions', 'object_versions'],
-  ]);
+  ], {
+    key: 's3-buckets',
+    filterPlaceholder: 'Find buckets',
+    countLabel: 'buckets',
+    onFilterTextChange: () => renderS3(data),
+  });
 
   s3Grid.append(renderS3CreateBucketPanel(), supportPanel, bucketPanel, notesPanel);
   s3LoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
@@ -899,7 +1051,7 @@ function renderEC2(data) {
       ['ID', 'id'],
       ['Details', 'details'],
     ]),
-    renderDetailList('Instances', data.instances || [], [
+    renderFilterableDetailList('Instances', data.instances || [], [
       ['Image ID', 'image_id'],
       ['Instance type', 'instance_type'],
       ['State', 'state'],
@@ -922,16 +1074,26 @@ function renderEC2(data) {
       ['Monitoring', 'monitoring'],
       ['Launch time', 'launch_time'],
       ['Tags', 'tags'],
-    ]),
-    renderDetailList('VPCs', data.vpcs || [], [
+    ], {
+      key: 'ec2-instances',
+      filterPlaceholder: 'Find instances',
+      countLabel: 'instances',
+      onFilterTextChange: () => renderEC2(data),
+    }),
+    renderFilterableDetailList('VPCs', data.vpcs || [], [
       ['VPC ID', 'VpcId'],
       ['CIDR', 'CidrBlock'],
       ['Default', 'IsDefault'],
       ['State', 'State'],
       ['CIDR associations', 'CidrBlockAssociationSet'],
       ['Tags', 'Tags'],
-    ]),
-    renderDetailList('Subnets', data.subnets || [], [
+    ], {
+      key: 'ec2-vpcs',
+      filterPlaceholder: 'Find VPCs',
+      countLabel: 'VPCs',
+      onFilterTextChange: () => renderEC2(data),
+    }),
+    renderFilterableDetailList('Subnets', data.subnets || [], [
       ['Subnet ID', 'SubnetId'],
       ['VPC ID', 'VpcId'],
       ['CIDR', 'CidrBlock'],
@@ -940,8 +1102,13 @@ function renderEC2(data) {
       ['Available IPs', 'AvailableIpAddressCount'],
       ['State', 'State'],
       ['Tags', 'Tags'],
-    ]),
-    renderDetailList('Security groups', data.security_groups || [], [
+    ], {
+      key: 'ec2-subnets',
+      filterPlaceholder: 'Find subnets',
+      countLabel: 'subnets',
+      onFilterTextChange: () => renderEC2(data),
+    }),
+    renderFilterableDetailList('Security groups', data.security_groups || [], [
       ['Group ID', 'GroupId'],
       ['Group name', 'GroupName'],
       ['VPC ID', 'VpcId'],
@@ -949,7 +1116,12 @@ function renderEC2(data) {
       ['Ingress', 'IpPermissions'],
       ['Egress', 'IpPermissionsEgress'],
       ['Tags', 'Tags'],
-    ]),
+    ], {
+      key: 'ec2-security-groups',
+      filterPlaceholder: 'Find security groups',
+      countLabel: 'security groups',
+      onFilterTextChange: () => renderEC2(data),
+    }),
     renderDetailList('Security group rules', data.security_group_rules || [], [
       ['Rule ID', 'SecurityGroupRuleId'],
       ['Group ID', 'GroupId'],
@@ -1025,6 +1197,17 @@ function renderEC2(data) {
       ['Platform', 'Platform'],
       ['Root device type', 'RootDeviceType'],
       ['State', 'State'],
+    ]),
+    renderDetailList('Snapshots', data.snapshots || [], [
+      ['Snapshot ID', 'SnapshotId'],
+      ['Volume ID', 'VolumeId'],
+      ['State', 'State'],
+      ['Started', 'StartTime'],
+      ['Progress', 'Progress'],
+      ['Description', 'Description'],
+      ['Owner ID', 'OwnerId'],
+      ['Volume size', 'VolumeSize'],
+      ['Tags', 'Tags'],
     ]),
     renderDetailList('Availability zones', data.availability_zones || [], [
       ['Zone name', 'ZoneName'],
@@ -1109,7 +1292,7 @@ function renderLambda(data) {
   renderSummary(data.summary, lambdaSummary);
 
   const panels = [
-    renderDetailList('Functions', data.functions || [], [
+    renderFilterableDetailList('Functions', data.functions || [], [
       ['ARN', 'arn'],
       ['Runtime', 'runtime'],
       ['Handler', 'handler'],
@@ -1133,7 +1316,12 @@ function renderLambda(data) {
       ['Concurrency', 'concurrency'],
       ['Tags', 'tags'],
       ['Last modified', 'last_modified'],
-    ]),
+    ], {
+      key: 'lambda-functions',
+      filterPlaceholder: 'Find functions',
+      countLabel: 'functions',
+      onFilterTextChange: () => renderLambda(data),
+    }),
     renderDetailList('Event source mappings', data.event_source_mappings || [], [
       ['UUID', 'UUID'],
       ['Function ARN', 'FunctionArn'],
@@ -1175,7 +1363,7 @@ function renderSQS(data) {
   renderSummary(data.summary, sqsSummary);
 
   const panels = [
-    renderDetailList('Queues', data.queues || [], [
+    renderFilterableDetailList('Queues', data.queues || [], [
       ['URL', 'url'],
       ['ARN', 'arn'],
       ['FIFO', 'fifo'],
@@ -1186,7 +1374,12 @@ function renderSQS(data) {
       ['Tags', 'tags'],
       ['Dead-letter source queues', 'dead_letter_source_queues'],
       ['Message move tasks', 'message_move_tasks'],
-    ]),
+    ], {
+      key: 'sqs-queues',
+      filterPlaceholder: 'Find queues',
+      countLabel: 'queues',
+      onFilterTextChange: () => renderSQS(data),
+    }),
     renderDetailList('Supported actions', (data.supported || []).map((action) => ({
       name: action,
       action,
@@ -1218,7 +1411,7 @@ function renderSecretsManager(data) {
   renderSummary(data.summary, secretsmanagerSummary);
 
   const panels = [
-    renderDetailList('Secrets', data.secrets || [], [
+    renderFilterableDetailList('Secrets', data.secrets || [], [
       ['ARN', 'arn'],
       ['Description', 'description'],
       ['KMS key ID', 'kms_key_id'],
@@ -1235,7 +1428,12 @@ function renderSecretsManager(data) {
       ['Resource policy', 'resource_policy'],
       ['Current string value', 'current_value'],
       ['Current binary value', 'current_binary_value'],
-    ]),
+    ], {
+      key: 'secretsmanager-secrets',
+      filterPlaceholder: 'Find secrets',
+      countLabel: 'secrets',
+      onFilterTextChange: () => renderSecretsManager(data),
+    }),
     renderDetailList('Supported actions', (data.supported || []).map((action) => ({
       name: action,
       action,
@@ -1261,7 +1459,7 @@ function renderDynamoDB(data) {
   renderSummary(data.summary, dynamodbSummary);
 
   const panels = [
-    renderDetailList('Tables', data.tables || [], [
+    renderFilterableDetailList('Tables', data.tables || [], [
       ['ARN', 'arn'],
       ['Status', 'status'],
       ['Item count', 'item_count'],
@@ -1277,7 +1475,12 @@ function renderDynamoDB(data) {
       ['TTL', 'ttl'],
       ['Tags', 'tags'],
       ['Scan preview', 'scan_preview'],
-    ]),
+    ], {
+      key: 'dynamodb-tables',
+      filterPlaceholder: 'Find tables',
+      countLabel: 'tables',
+      onFilterTextChange: () => renderDynamoDB(data),
+    }),
     renderDetailList('Streams', data.streams || [], [
       ['Table name', 'table_name'],
       ['Stream ARN', 'stream_arn'],
@@ -1374,7 +1577,7 @@ function renderCodeBuild(data) {
   renderSummary(data.summary, codebuildSummary);
 
   const panels = [
-    renderDetailList('Projects', data.projects || [], [
+    renderFilterableDetailList('Projects', data.projects || [], [
       ['ARN', 'arn'],
       ['Description', 'description'],
       ['Source', 'source'],
@@ -1398,8 +1601,13 @@ function renderCodeBuild(data) {
       ['Concurrent build limit', 'concurrent_build_limit'],
       ['Project visibility', 'project_visibility'],
       ['Resource access role', 'resource_access_role'],
-    ]),
-    renderDetailList('Builds', data.builds || [], [
+    ], {
+      key: 'codebuild-projects',
+      filterPlaceholder: 'Find projects',
+      countLabel: 'projects',
+      onFilterTextChange: () => renderCodeBuild(data),
+    }),
+    renderFilterableDetailList('Builds', data.builds || [], [
       ['ID', 'id'],
       ['ARN', 'arn'],
       ['Build number', 'build_number'],
@@ -1428,8 +1636,13 @@ function renderCodeBuild(data) {
       ['Report ARNs', 'report_arns'],
       ['File system locations', 'file_system_locations'],
       ['Build batch ARN', 'build_batch_arn'],
-    ]),
-    renderDetailList('Report groups', data.report_groups || [], [
+    ], {
+      key: 'codebuild-builds',
+      filterPlaceholder: 'Find builds',
+      countLabel: 'builds',
+      onFilterTextChange: () => renderCodeBuild(data),
+    }),
+    renderFilterableDetailList('Report groups', data.report_groups || [], [
       ['ARN', 'arn'],
       ['Type', 'type'],
       ['Export config', 'export_config'],
@@ -1437,8 +1650,13 @@ function renderCodeBuild(data) {
       ['Last modified', 'last_modified'],
       ['Tags', 'tags'],
       ['Status', 'status'],
-    ]),
-    renderDetailList('Reports', data.reports || [], [
+    ], {
+      key: 'codebuild-report-groups',
+      filterPlaceholder: 'Find report groups',
+      countLabel: 'report groups',
+      onFilterTextChange: () => renderCodeBuild(data),
+    }),
+    renderFilterableDetailList('Reports', data.reports || [], [
       ['ARN', 'arn'],
       ['Type', 'type'],
       ['Report group ARN', 'report_group_arn'],
@@ -1450,7 +1668,12 @@ function renderCodeBuild(data) {
       ['Truncated', 'truncated'],
       ['Test summary', 'test_summary'],
       ['Code coverage summary', 'code_coverage_summary'],
-    ]),
+    ], {
+      key: 'codebuild-reports',
+      filterPlaceholder: 'Find reports',
+      countLabel: 'reports',
+      onFilterTextChange: () => renderCodeBuild(data),
+    }),
     renderDetailList('Source credentials', data.source_credentials || [], [
       ['ARN', 'arn'],
       ['Server type', 'serverType'],
@@ -1480,7 +1703,7 @@ function renderCodeDeploy(data) {
   renderSummary(data.summary, codedeploySummary);
 
   const panels = [
-    renderDetailList('Applications', data.applications || [], [
+    renderFilterableDetailList('Applications', data.applications || [], [
       ['Application ID', 'application_id'],
       ['Compute platform', 'compute_platform'],
       ['Linked to GitHub', 'linked_to_github'],
@@ -1492,8 +1715,13 @@ function renderCodeDeploy(data) {
       ['Details', 'details'],
       ['Deployment groups error', 'deployment_groups_error'],
       ['Deployments error', 'deployments_error'],
-    ]),
-    renderDetailList('Deployment groups', data.deployment_groups || [], [
+    ], {
+      key: 'codedeploy-applications',
+      filterPlaceholder: 'Find applications',
+      countLabel: 'applications',
+      onFilterTextChange: () => renderCodeDeploy(data),
+    }),
+    renderFilterableDetailList('Deployment groups', data.deployment_groups || [], [
       ['Application name', 'application_name'],
       ['Deployment group ID', 'deployment_group_id'],
       ['Service role ARN', 'service_role_arn'],
@@ -1517,8 +1745,13 @@ function renderCodeDeploy(data) {
       ['Deployments', 'deployments'],
       ['Details', 'details'],
       ['Deployments error', 'deployments_error'],
-    ]),
-    renderDetailList('Deployments', data.deployments || [], [
+    ], {
+      key: 'codedeploy-deployment-groups',
+      filterPlaceholder: 'Find deployment groups',
+      countLabel: 'deployment groups',
+      onFilterTextChange: () => renderCodeDeploy(data),
+    }),
+    renderFilterableDetailList('Deployments', data.deployments || [], [
       ['Deployment ID', 'deployment_id'],
       ['Application name', 'application_name'],
       ['Deployment group name', 'deployment_group_name'],
@@ -1549,7 +1782,12 @@ function renderCodeDeploy(data) {
       ['Override alarm configuration', 'override_alarm_configuration'],
       ['Revision', 'revision'],
       ['Details', 'details'],
-    ]),
+    ], {
+      key: 'codedeploy-deployments',
+      filterPlaceholder: 'Find deployments',
+      countLabel: 'deployments',
+      onFilterTextChange: () => renderCodeDeploy(data),
+    }),
     renderDetailList('Deployment configs', data.deployment_configs || [], [
       ['Deployment config ID', 'deployment_config_id'],
       ['Minimum healthy hosts', 'minimum_healthy_hosts'],
@@ -1715,7 +1953,7 @@ function renderCognito(data) {
   renderSummary(data.summary, cognitoSummary);
 
   const panels = [
-    renderDetailList('User pools', data.user_pools || [], [
+    renderFilterableDetailList('User pools', data.user_pools || [], [
       ['Pool ID', 'id'],
       ['ARN', 'arn'],
       ['Status', 'status'],
@@ -1730,7 +1968,12 @@ function renderCognito(data) {
       ['Discovery URL', 'discovery_url'],
       ['JWKS URL', 'jwks_url'],
       ['OAuth token URL', 'oauth_token_url'],
-    ]),
+    ], {
+      key: 'cognito-user-pools',
+      filterPlaceholder: 'Find user pools',
+      countLabel: 'user pools',
+      onFilterTextChange: () => renderCognito(data),
+    }),
     renderDetailList('Supported actions', (data.supported || []).map((action) => ({
       name: action,
       action,
@@ -1769,7 +2012,7 @@ function renderApiGateway(data) {
   }));
 
   const panels = [
-    renderDetailList('REST APIs (v1)', data.rest_apis || [], [
+    renderFilterableDetailList('REST APIs (v1)', data.rest_apis || [], [
       ['API ID', 'id'],
       ['Description', 'description'],
       ['Created', 'created'],
@@ -1792,8 +2035,13 @@ function renderApiGateway(data) {
       ['Authorizers detail', 'authorizers'],
       ['Request validators detail', 'request_validators'],
       ['Models detail', 'models'],
-    ]),
-    renderDetailList('HTTP APIs (v2)', data.http_apis || [], [
+    ], {
+      key: 'apigateway-rest-apis',
+      filterPlaceholder: 'Find REST APIs',
+      countLabel: 'REST APIs',
+      onFilterTextChange: () => renderApiGateway(data),
+    }),
+    renderFilterableDetailList('HTTP APIs (v2)', data.http_apis || [], [
       ['API ID', 'id'],
       ['Protocol', 'protocol_type'],
       ['Endpoint', 'api_endpoint'],
@@ -1811,7 +2059,12 @@ function renderApiGateway(data) {
       ['Authorizer detail', 'authorizers'],
       ['Stage detail', 'stages'],
       ['Deployment detail', 'deployments'],
-    ]),
+    ], {
+      key: 'apigateway-http-apis',
+      filterPlaceholder: 'Find HTTP APIs',
+      countLabel: 'HTTP APIs',
+      onFilterTextChange: () => renderApiGateway(data),
+    }),
     renderDetailList('API keys', data.api_keys || [], [
       ['ID', 'id'],
       ['Description', 'description'],
@@ -1973,7 +2226,7 @@ function renderAppSync(data) {
   renderSummary(data.summary, appsyncSummary);
 
   const panels = [
-    renderDetailList('GraphQL APIs', data.graphql_apis || [], [
+    renderFilterableDetailList('GraphQL APIs', data.graphql_apis || [], [
       ['API ID', 'apiId'],
       ['ARN', 'arn'],
       ['Authentication type', 'authenticationType'],
@@ -1985,31 +2238,51 @@ function renderAppSync(data) {
       ['Types', 'type_count'],
       ['Resolvers', 'resolver_count'],
       ['Tags', 'tags'],
-    ]),
-    renderDetailList('API keys', data.api_keys || [], [
+    ], {
+      key: 'appsync-graphql-apis',
+      filterPlaceholder: 'Find GraphQL APIs',
+      countLabel: 'GraphQL APIs',
+      onFilterTextChange: () => renderAppSync(data),
+    }),
+    renderFilterableDetailList('API keys', data.api_keys || [], [
       ['ID', 'id'],
       ['Description', 'description'],
       ['Expires', 'expires'],
-    ]),
-    renderDetailList('Data sources', data.data_sources || [], [
+    ], {
+      key: 'appsync-api-keys',
+      filterPlaceholder: 'Find API keys',
+      countLabel: 'API keys',
+      onFilterTextChange: () => renderAppSync(data),
+    }),
+    renderFilterableDetailList('Data sources', data.data_sources || [], [
       ['Type', 'type'],
       ['Description', 'description'],
       ['Service role ARN', 'serviceRoleArn'],
       ['Lambda config', 'lambdaConfig'],
       ['DynamoDB config', 'dynamodbConfig'],
       ['HTTP config', 'httpConfig'],
-    ]),
-    renderDetailList('Functions', data.functions || [], [
+    ], {
+      key: 'appsync-data-sources',
+      filterPlaceholder: 'Find data sources',
+      countLabel: 'data sources',
+      onFilterTextChange: () => renderAppSync(data),
+    }),
+    renderFilterableDetailList('Functions', data.functions || [], [
       ['Function ID', 'functionId'],
       ['Data source', 'dataSourceName'],
       ['Description', 'description'],
       ['Runtime', 'runtime'],
-    ]),
+    ], {
+      key: 'appsync-functions',
+      filterPlaceholder: 'Find AppSync functions',
+      countLabel: 'functions',
+      onFilterTextChange: () => renderAppSync(data),
+    }),
     renderDetailList('Types', data.types || [], [
       ['Definition', 'definition'],
       ['Format', 'format'],
     ]),
-    renderDetailList('Resolvers', data.resolvers || [], [
+    renderFilterableDetailList('Resolvers', data.resolvers || [], [
       ['API ID', 'apiId'],
       ['Type', 'typeName'],
       ['Field', 'fieldName'],
@@ -2017,7 +2290,12 @@ function renderAppSync(data) {
       ['Data source', 'dataSourceName'],
       ['Pipeline config', 'pipelineConfig'],
       ['Runtime', 'runtime'],
-    ]),
+    ], {
+      key: 'appsync-resolvers',
+      filterPlaceholder: 'Find resolvers',
+      countLabel: 'resolvers',
+      onFilterTextChange: () => renderAppSync(data),
+    }),
     renderDetailList('Supported Phase 1 areas', (data.supported || []).map((area) => ({
       name: area,
       area,
@@ -2353,7 +2631,7 @@ function renderElastiCache(data) {
   renderSummary(data.summary, elasticacheSummary);
 
   const panels = [
-    renderDetailList('Cache clusters', data.cache_clusters || [], [
+    renderFilterableDetailList('Cache clusters', data.cache_clusters || [], [
       ['ARN', 'arn'],
       ['Engine', 'engine'],
       ['Engine version', 'engine_version'],
@@ -2379,8 +2657,13 @@ function renderElastiCache(data) {
       ['Transit encryption enabled', 'transit_encryption_enabled'],
       ['At-rest encryption enabled', 'at_rest_encryption_enabled'],
       ['Log delivery configurations', 'log_delivery_configurations'],
-    ]),
-    renderDetailList('Replication groups', data.replication_groups || [], [
+    ], {
+      key: 'elasticache-cache-clusters',
+      filterPlaceholder: 'Find cache clusters',
+      countLabel: 'cache clusters',
+      onFilterTextChange: () => renderElastiCache(data),
+    }),
+    renderFilterableDetailList('Replication groups', data.replication_groups || [], [
       ['ARN', 'arn'],
       ['Description', 'description'],
       ['Status', 'status'],
@@ -2402,8 +2685,13 @@ function renderElastiCache(data) {
       ['User group IDs', 'user_group_ids'],
       ['Log delivery configurations', 'log_delivery_configurations'],
       ['Data tiering', 'data_tiering'],
-    ]),
-    renderDetailList('Serverless caches', data.serverless_caches || [], [
+    ], {
+      key: 'elasticache-replication-groups',
+      filterPlaceholder: 'Find replication groups',
+      countLabel: 'replication groups',
+      onFilterTextChange: () => renderElastiCache(data),
+    }),
+    renderFilterableDetailList('Serverless caches', data.serverless_caches || [], [
       ['ARN', 'arn'],
       ['Engine', 'engine'],
       ['Major engine version', 'major_engine_version'],
@@ -2420,7 +2708,12 @@ function renderElastiCache(data) {
       ['Created', 'created'],
       ['Snapshot retention limit', 'snapshot_retention_limit'],
       ['Daily snapshot time', 'daily_snapshot_time'],
-    ]),
+    ], {
+      key: 'elasticache-serverless-caches',
+      filterPlaceholder: 'Find serverless caches',
+      countLabel: 'serverless caches',
+      onFilterTextChange: () => renderElastiCache(data),
+    }),
     renderDetailList('Subnet groups', data.subnet_groups || [], [
       ['Description', 'CacheSubnetGroupDescription'],
       ['VPC ID', 'VpcId'],
@@ -2450,7 +2743,7 @@ function renderElastiCache(data) {
       ['Node type', 'CacheNodeType'],
       ['Node snapshots', 'NodeSnapshots'],
     ]),
-    renderDetailList('Users', data.users || [], [
+    renderFilterableDetailList('Users', data.users || [], [
       ['User ID', 'UserId'],
       ['User name', 'UserName'],
       ['Status', 'Status'],
@@ -2459,15 +2752,25 @@ function renderElastiCache(data) {
       ['User group IDs', 'UserGroupIds'],
       ['ARN', 'ARN'],
       ['Authentication', 'Authentication'],
-    ]),
-    renderDetailList('User groups', data.user_groups || [], [
+    ], {
+      key: 'elasticache-users',
+      filterPlaceholder: 'Find users',
+      countLabel: 'users',
+      onFilterTextChange: () => renderElastiCache(data),
+    }),
+    renderFilterableDetailList('User groups', data.user_groups || [], [
       ['User group ID', 'UserGroupId'],
       ['Status', 'Status'],
       ['Engine', 'Engine'],
       ['User IDs', 'UserIds'],
       ['Pending changes', 'PendingChanges'],
       ['ARN', 'ARN'],
-    ]),
+    ], {
+      key: 'elasticache-user-groups',
+      filterPlaceholder: 'Find user groups',
+      countLabel: 'user groups',
+      onFilterTextChange: () => renderElastiCache(data),
+    }),
     renderDetailList('Global replication groups', data.global_replication_groups || [], [
       ['Status', 'Status'],
       ['ARN', 'ARN'],
@@ -2674,7 +2977,7 @@ function renderKinesis(data) {
   renderSummary(data.summary, kinesisSummary);
 
   const panels = [
-    renderDetailList('Streams', data.streams || [], [
+    renderFilterableDetailList('Streams', data.streams || [], [
       ['ARN', 'arn'],
       ['Status', 'status'],
       ['Mode', 'mode'],
@@ -2689,21 +2992,36 @@ function renderKinesis(data) {
       ['Shards', 'shards'],
       ['Consumers', 'consumers'],
       ['Tags', 'tags'],
-    ]),
-    renderDetailList('Shards', data.shards || [], [
+    ], {
+      key: 'kinesis-streams',
+      filterPlaceholder: 'Find streams',
+      countLabel: 'streams',
+      onFilterTextChange: () => renderKinesis(data),
+    }),
+    renderFilterableDetailList('Shards', data.shards || [], [
       ['Stream name', 'stream_name'],
       ['Shard ID', 'shard_id'],
       ['Parent shard ID', 'parent_shard_id'],
       ['Adjacent parent shard ID', 'adjacent_parent_shard_id'],
       ['Hash key range', 'hash_key_range'],
       ['Sequence number range', 'sequence_number_range'],
-    ]),
-    renderDetailList('Consumers', data.consumers || [], [
+    ], {
+      key: 'kinesis-shards',
+      filterPlaceholder: 'Find shards',
+      countLabel: 'shards',
+      onFilterTextChange: () => renderKinesis(data),
+    }),
+    renderFilterableDetailList('Consumers', data.consumers || [], [
       ['Stream ARN', 'stream_arn'],
       ['Consumer ARN', 'consumer_arn'],
       ['Status', 'status'],
       ['Creation timestamp', 'creation_timestamp'],
-    ]),
+    ], {
+      key: 'kinesis-consumers',
+      filterPlaceholder: 'Find consumers',
+      countLabel: 'consumers',
+      onFilterTextChange: () => renderKinesis(data),
+    }),
     renderDetailList('Account settings', data.account_settings ? [{
       name: 'Account settings',
       ...data.account_settings,
@@ -2742,7 +3060,7 @@ function renderKafka(data) {
   renderSummary(data.summary, kafkaSummary);
 
   const panels = [
-    renderDetailList('Clusters', data.clusters || [], [
+    renderFilterableDetailList('Clusters', data.clusters || [], [
       ['ARN', 'arn'],
       ['Type', 'type'],
       ['State', 'state'],
@@ -2769,15 +3087,25 @@ function renderKafka(data) {
       ['SCRAM secrets', 'scram_secrets'],
       ['Client VPC connections', 'client_vpc_connections'],
       ['Tags', 'tags'],
-    ]),
-    renderDetailList('Nodes', data.nodes || [], [
+    ], {
+      key: 'kafka-clusters',
+      filterPlaceholder: 'Find clusters',
+      countLabel: 'clusters',
+      onFilterTextChange: () => renderKafka(data),
+    }),
+    renderFilterableDetailList('Nodes', data.nodes || [], [
       ['Cluster name', 'cluster_name'],
       ['Node ARN', 'node_arn'],
       ['Node type', 'node_type'],
       ['Broker node info', 'broker_node_info'],
       ['ZooKeeper node info', 'zookeeper_node_info'],
-    ]),
-    renderDetailList('Operations', data.operations || [], [
+    ], {
+      key: 'kafka-nodes',
+      filterPlaceholder: 'Find nodes',
+      countLabel: 'nodes',
+      onFilterTextChange: () => renderKafka(data),
+    }),
+    renderFilterableDetailList('Operations', data.operations || [], [
       ['Cluster name', 'cluster_name'],
       ['Operation ARN', 'operation_arn'],
       ['Operation type', 'operation_type'],
@@ -2786,15 +3114,25 @@ function renderKafka(data) {
       ['End time', 'end_time'],
       ['Source cluster info', 'source_cluster_info'],
       ['Target cluster info', 'target_cluster_info'],
-    ]),
-    renderDetailList('Configurations', data.configurations || [], [
+    ], {
+      key: 'kafka-operations',
+      filterPlaceholder: 'Find operations',
+      countLabel: 'operations',
+      onFilterTextChange: () => renderKafka(data),
+    }),
+    renderFilterableDetailList('Configurations', data.configurations || [], [
       ['ARN', 'arn'],
       ['Description', 'description'],
       ['Kafka versions', 'kafka_versions'],
       ['Latest revision', 'latest_revision'],
       ['State', 'state'],
       ['Created', 'created'],
-    ]),
+    ], {
+      key: 'kafka-configurations',
+      filterPlaceholder: 'Find configurations',
+      countLabel: 'configurations',
+      onFilterTextChange: () => renderKafka(data),
+    }),
     renderDetailList('Kafka versions', data.kafka_versions || [], [
       ['Version', 'Version'],
       ['Status', 'Status'],
@@ -3373,7 +3711,7 @@ function renderSsm(data) {
   renderSummary(data.summary, ssmSummary);
 
   const panels = [
-    renderDetailList('Parameters', data.parameters || [], [
+    renderFilterableDetailList('Parameters', data.parameters || [], [
       ['Type', 'type'],
       ['Key ID', 'key_id'],
       ['Last modified', 'last_modified'],
@@ -3384,12 +3722,17 @@ function renderSsm(data) {
       ['Policies', 'policies'],
       ['Data type', 'data_type'],
       ['Tags', 'tags'],
-    ]),
+    ], {
+      key: 'ssm-parameters',
+      filterPlaceholder: 'Find parameters',
+      countLabel: 'parameters',
+      onFilterTextChange: () => renderSsm(data),
+    }),
     renderDetailList('Parameter types', data.parameter_types || [], [
       ['Type', 'type'],
       ['Count', 'count'],
     ]),
-    renderDetailList('Documents', data.documents || [], [
+    renderFilterableDetailList('Documents', data.documents || [], [
       ['Owner', 'owner'],
       ['Platform types', 'platform_types'],
       ['Document version', 'document_version'],
@@ -3402,8 +3745,13 @@ function renderSsm(data) {
       ['Description', 'description'],
       ['Parameters', 'parameters'],
       ['Tags', 'tags'],
-    ]),
-    renderDetailList('Managed instances', data.managed_instances || [], [
+    ], {
+      key: 'ssm-documents',
+      filterPlaceholder: 'Find documents',
+      countLabel: 'documents',
+      onFilterTextChange: () => renderSsm(data),
+    }),
+    renderFilterableDetailList('Managed instances', data.managed_instances || [], [
       ['Instance ID', 'InstanceId'],
       ['Ping status', 'PingStatus'],
       ['Last ping', 'LastPingDateTime'],
@@ -3412,8 +3760,13 @@ function renderSsm(data) {
       ['Platform name', 'PlatformName'],
       ['Platform version', 'PlatformVersion'],
       ['Resource type', 'ResourceType'],
-    ]),
-    renderDetailList('Sessions', data.sessions || [], [
+    ], {
+      key: 'ssm-managed-instances',
+      filterPlaceholder: 'Find managed instances',
+      countLabel: 'managed instances',
+      onFilterTextChange: () => renderSsm(data),
+    }),
+    renderFilterableDetailList('Sessions', data.sessions || [], [
       ['Session ID', 'SessionId'],
       ['Target', 'Target'],
       ['Status', 'Status'],
@@ -3421,8 +3774,13 @@ function renderSsm(data) {
       ['End date', 'EndDate'],
       ['Owner', 'Owner'],
       ['Output URL', 'OutputUrl'],
-    ]),
-    renderDetailList('Automation executions', data.automation_executions || [], [
+    ], {
+      key: 'ssm-sessions',
+      filterPlaceholder: 'Find sessions',
+      countLabel: 'sessions',
+      onFilterTextChange: () => renderSsm(data),
+    }),
+    renderFilterableDetailList('Automation executions', data.automation_executions || [], [
       ['Execution ID', 'AutomationExecutionId'],
       ['Document name', 'DocumentName'],
       ['Document version', 'DocumentVersion'],
@@ -3430,7 +3788,12 @@ function renderSsm(data) {
       ['Execution start', 'ExecutionStartTime'],
       ['Execution end', 'ExecutionEndTime'],
       ['Executed by', 'ExecutedBy'],
-    ]),
+    ], {
+      key: 'ssm-automation-executions',
+      filterPlaceholder: 'Find automation executions',
+      countLabel: 'automation executions',
+      onFilterTextChange: () => renderSsm(data),
+    }),
     renderDetailList('Maintenance windows', data.maintenance_windows || [], [
       ['Window ID', 'WindowId'],
       ['Description', 'Description'],
@@ -3458,7 +3821,7 @@ function renderSsm(data) {
       ['Schedule expression', 'ScheduleExpression'],
       ['Overview', 'Overview'],
     ]),
-    renderDetailList('Commands', data.commands || [], [
+    renderFilterableDetailList('Commands', data.commands || [], [
       ['Command ID', 'CommandId'],
       ['Document name', 'DocumentName'],
       ['Status', 'Status'],
@@ -3466,14 +3829,24 @@ function renderSsm(data) {
       ['Requested date', 'RequestedDateTime'],
       ['Instance IDs', 'InstanceIds'],
       ['Targets', 'Targets'],
-    ]),
-    renderDetailList('Command invocations', data.command_invocations || [], [
+    ], {
+      key: 'ssm-commands',
+      filterPlaceholder: 'Find commands',
+      countLabel: 'commands',
+      onFilterTextChange: () => renderSsm(data),
+    }),
+    renderFilterableDetailList('Command invocations', data.command_invocations || [], [
       ['Command ID', 'CommandId'],
       ['Instance ID', 'InstanceId'],
       ['Status', 'Status'],
       ['Status details', 'StatusDetails'],
       ['Command plugins', 'CommandPlugins'],
-    ]),
+    ], {
+      key: 'ssm-command-invocations',
+      filterPlaceholder: 'Find command invocations',
+      countLabel: 'command invocations',
+      onFilterTextChange: () => renderSsm(data),
+    }),
     renderDetailList('Compliance summaries', data.compliance_summaries || [], [
       ['Compliance type', 'ComplianceType'],
       ['Compliant summary', 'CompliantSummary'],
@@ -4001,7 +4374,7 @@ function renderCloudFormation(data) {
   renderSummary(data.summary, cloudformationSummary);
 
   const panels = [
-    renderDetailList('Stacks', data.stacks || [], [
+    renderFilterableDetailList('Stacks', data.stacks || [], [
       ['Stack ID', 'id'],
       ['Status', 'status'],
       ['Status reason', 'status_reason'],
@@ -4025,15 +4398,25 @@ function renderCloudFormation(data) {
       ['Template', 'template'],
       ['Stack policy', 'stack_policy'],
       ['Details', 'details'],
-    ]),
-    renderDetailList('StackSets', data.stack_sets || [], [
+    ], {
+      key: 'cloudformation-stacks',
+      filterPlaceholder: 'Find stacks',
+      countLabel: 'stacks',
+      onFilterTextChange: () => renderCloudFormation(data),
+    }),
+    renderFilterableDetailList('StackSets', data.stack_sets || [], [
       ['StackSet ID', 'id'],
       ['Status', 'status'],
       ['Description', 'description'],
       ['Created', 'created'],
       ['Updated', 'updated'],
       ['Details', 'details'],
-    ]),
+    ], {
+      key: 'cloudformation-stacksets',
+      filterPlaceholder: 'Find StackSets',
+      countLabel: 'StackSets',
+      onFilterTextChange: () => renderCloudFormation(data),
+    }),
     renderDetailList('Supported actions', (data.supported || []).map((action) => ({
       name: action,
       action,
@@ -4063,7 +4446,7 @@ function renderECR(data) {
   renderSummary(data.summary, ecrSummary);
 
   const panels = [
-    renderDetailList('Repositories', data.repositories || [], [
+    renderFilterableDetailList('Repositories', data.repositories || [], [
       ['ARN', 'arn'],
       ['Registry ID', 'registry_id'],
       ['URI', 'uri'],
@@ -4077,7 +4460,12 @@ function renderECR(data) {
       ['Tags', 'tags'],
       ['Lifecycle policy', 'lifecycle_policy'],
       ['Repository policy', 'repository_policy'],
-    ]),
+    ], {
+      key: 'ecr-repositories',
+      filterPlaceholder: 'Find repositories',
+      countLabel: 'repositories',
+      onFilterTextChange: () => renderECR(data),
+    }),
     renderDetailList('Auth proxy endpoints', data.auth_endpoints || [], [
       ['Proxy endpoint', 'proxy_endpoint'],
       ['Expires at', 'expires_at'],
@@ -4136,7 +4524,7 @@ function renderRDS(data) {
   renderSummary(data.summary, rdsSummary);
 
   const panels = [
-    renderDetailList('DB instances', data.instances || [], [
+    renderFilterableDetailList('DB instances', data.instances || [], [
       ['ARN', 'arn'],
       ['Status', 'status'],
       ['Engine', 'engine'],
@@ -4158,8 +4546,13 @@ function renderRDS(data) {
       ['Created', 'created'],
       ['Cluster identifier', 'cluster_identifier'],
       ['Tags', 'tags'],
-    ]),
-    renderDetailList('DB clusters', data.clusters || [], [
+    ], {
+      key: 'rds-db-instances',
+      filterPlaceholder: 'Find DB instances',
+      countLabel: 'DB instances',
+      onFilterTextChange: () => renderRDS(data),
+    }),
+    renderFilterableDetailList('DB clusters', data.clusters || [], [
       ['ARN', 'arn'],
       ['Status', 'status'],
       ['Engine', 'engine'],
@@ -4174,7 +4567,12 @@ function renderRDS(data) {
       ['Created', 'created'],
       ['IAM auth', 'iam_authentication'],
       ['Tags', 'tags'],
-    ]),
+    ], {
+      key: 'rds-db-clusters',
+      filterPlaceholder: 'Find DB clusters',
+      countLabel: 'DB clusters',
+      onFilterTextChange: () => renderRDS(data),
+    }),
     renderDetailList('Parameter groups', data.parameter_groups || [], [
       ['ARN', 'arn'],
       ['Family', 'family'],
@@ -4224,7 +4622,7 @@ function renderBackup(data) {
   renderSummary(data.summary, backupSummary);
 
   const panels = [
-    renderDetailList('Backup vaults', data.vaults || [], [
+    renderFilterableDetailList('Backup vaults', data.vaults || [], [
       ['ARN', 'arn'],
       ['Created', 'created'],
       ['Creator request ID', 'creator_request_id'],
@@ -4235,8 +4633,13 @@ function renderBackup(data) {
       ['Maximum retention days', 'max_retention_days'],
       ['Recovery point count', 'recovery_point_count'],
       ['Recovery point details', 'recovery_point_details'],
-    ]),
-    renderDetailList('Backup plans', data.plans || [], [
+    ], {
+      key: 'backup-vaults',
+      filterPlaceholder: 'Find backup vaults',
+      countLabel: 'backup vaults',
+      onFilterTextChange: () => renderBackup(data),
+    }),
+    renderFilterableDetailList('Backup plans', data.plans || [], [
       ['ARN', 'arn'],
       ['Plan ID', 'id'],
       ['Version ID', 'version_id'],
@@ -4247,8 +4650,13 @@ function renderBackup(data) {
       ['Rules', 'rules'],
       ['Selection count', 'selection_count'],
       ['Selections', 'selections'],
-    ]),
-    renderDetailList('Backup jobs', data.backup_jobs || [], [
+    ], {
+      key: 'backup-plans',
+      filterPlaceholder: 'Find backup plans',
+      countLabel: 'backup plans',
+      onFilterTextChange: () => renderBackup(data),
+    }),
+    renderFilterableDetailList('Backup jobs', data.backup_jobs || [], [
       ['Job ID', 'BackupJobId'],
       ['Vault name', 'BackupVaultName'],
       ['Vault ARN', 'BackupVaultArn'],
@@ -4263,8 +4671,13 @@ function renderBackup(data) {
       ['Percent done', 'PercentDone'],
       ['Backup size bytes', 'BackupSizeInBytes'],
       ['IAM role ARN', 'IamRoleArn'],
-    ]),
-    renderDetailList('Restore jobs', data.restore_jobs || [], [
+    ], {
+      key: 'backup-jobs',
+      filterPlaceholder: 'Find backup jobs',
+      countLabel: 'backup jobs',
+      onFilterTextChange: () => renderBackup(data),
+    }),
+    renderFilterableDetailList('Restore jobs', data.restore_jobs || [], [
       ['Job ID', 'RestoreJobId'],
       ['Recovery point ARN', 'RecoveryPointArn'],
       ['Resource ARN', 'ResourceArn'],
@@ -4276,14 +4689,24 @@ function renderBackup(data) {
       ['IAM role ARN', 'IamRoleArn'],
       ['Expected completion time minutes', 'ExpectedCompletionTimeMinutes'],
       ['Percent done', 'PercentDone'],
-    ]),
-    renderDetailList('Protected resources', data.protected_resources || [], [
+    ], {
+      key: 'backup-restore-jobs',
+      filterPlaceholder: 'Find restore jobs',
+      countLabel: 'restore jobs',
+      onFilterTextChange: () => renderBackup(data),
+    }),
+    renderFilterableDetailList('Protected resources', data.protected_resources || [], [
       ['Resource ARN', 'ResourceArn'],
       ['Resource type', 'ResourceType'],
       ['Last backup time', 'LastBackupTime'],
       ['Last backup vault ARN', 'LastBackupVaultArn'],
       ['Last recovery point ARN', 'LastRecoveryPointArn'],
-    ]),
+    ], {
+      key: 'backup-protected-resources',
+      filterPlaceholder: 'Find protected resources',
+      countLabel: 'protected resources',
+      onFilterTextChange: () => renderBackup(data),
+    }),
     renderDetailList('Supported actions', (data.supported || []).map((action) => ({
       name: action,
       action,
@@ -4307,7 +4730,7 @@ function renderRoute53(data) {
   renderSummary(data.summary, route53Summary);
 
   const panels = [
-    renderDetailList('Hosted zones', data.hosted_zones || [], [
+    renderFilterableDetailList('Hosted zones', data.hosted_zones || [], [
       ['ID', 'id'],
       ['Clean ID', 'clean_id'],
       ['Caller reference', 'caller_reference'],
@@ -4319,22 +4742,37 @@ function renderRoute53(data) {
       ['Query logging configs', 'query_logging_configs'],
       ['Record count', 'record_count'],
       ['Records', 'records'],
-    ]),
-    renderDetailList('Health checks', data.health_checks || [], [
+    ], {
+      key: 'route53-hosted-zones',
+      filterPlaceholder: 'Find hosted zones',
+      countLabel: 'hosted zones',
+      onFilterTextChange: () => renderRoute53(data),
+    }),
+    renderFilterableDetailList('Health checks', data.health_checks || [], [
       ['ID', 'Id'],
       ['Caller reference', 'CallerReference'],
       ['Health check version', 'HealthCheckVersion'],
       ['Config', 'HealthCheckConfig'],
       ['Linked service', 'LinkedService'],
       ['CloudWatch alarm configuration', 'CloudWatchAlarmConfiguration'],
-    ]),
-    renderDetailList('Traffic policies', data.traffic_policies || [], [
+    ], {
+      key: 'route53-health-checks',
+      filterPlaceholder: 'Find health checks',
+      countLabel: 'health checks',
+      onFilterTextChange: () => renderRoute53(data),
+    }),
+    renderFilterableDetailList('Traffic policies', data.traffic_policies || [], [
       ['ID', 'Id'],
       ['Type', 'Type'],
       ['Latest version', 'LatestVersion'],
       ['Traffic policy count', 'TrafficPolicyCount'],
-    ]),
-    renderDetailList('Traffic policy instances', data.traffic_policy_instances || [], [
+    ], {
+      key: 'route53-traffic-policies',
+      filterPlaceholder: 'Find traffic policies',
+      countLabel: 'traffic policies',
+      onFilterTextChange: () => renderRoute53(data),
+    }),
+    renderFilterableDetailList('Traffic policy instances', data.traffic_policy_instances || [], [
       ['ID', 'Id'],
       ['Hosted zone ID', 'HostedZoneId'],
       ['Name', 'Name'],
@@ -4344,7 +4782,12 @@ function renderRoute53(data) {
       ['Traffic policy ID', 'TrafficPolicyId'],
       ['Traffic policy version', 'TrafficPolicyVersion'],
       ['Traffic policy type', 'TrafficPolicyType'],
-    ]),
+    ], {
+      key: 'route53-traffic-policy-instances',
+      filterPlaceholder: 'Find traffic policy instances',
+      countLabel: 'traffic policy instances',
+      onFilterTextChange: () => renderRoute53(data),
+    }),
     renderDetailList('Reusable delegation sets', data.delegation_sets || [], [
       ['ID', 'Id'],
       ['Caller reference', 'CallerReference'],
@@ -4373,7 +4816,7 @@ function renderTransfer(data) {
   renderSummary(data.summary, transferSummary);
 
   const panels = [
-    renderDetailList('Servers', data.servers || [], [
+    renderFilterableDetailList('Servers', data.servers || [], [
       ['Server ID', 'id'],
       ['ARN', 'arn'],
       ['State', 'state'],
@@ -4394,21 +4837,36 @@ function renderTransfer(data) {
       ['Host keys', 'host_keys'],
       ['Agreement count', 'agreement_count'],
       ['Agreements', 'agreements'],
-    ]),
-    renderDetailList('Workflows', data.workflows || [], [
+    ], {
+      key: 'transfer-servers',
+      filterPlaceholder: 'Find servers',
+      countLabel: 'servers',
+      onFilterTextChange: () => renderTransfer(data),
+    }),
+    renderFilterableDetailList('Workflows', data.workflows || [], [
       ['Workflow ID', 'WorkflowId'],
       ['ARN', 'Arn'],
       ['Description', 'Description'],
-    ]),
-    renderDetailList('Profiles', data.profiles || [], [
+    ], {
+      key: 'transfer-workflows',
+      filterPlaceholder: 'Find workflows',
+      countLabel: 'workflows',
+      onFilterTextChange: () => renderTransfer(data),
+    }),
+    renderFilterableDetailList('Profiles', data.profiles || [], [
       ['Profile ID', 'id'],
       ['ARN', 'arn'],
       ['AS2 ID', 'as2_id'],
       ['Profile type', 'profile_type'],
       ['Certificate IDs', 'certificate_ids'],
       ['Tags', 'tags'],
-    ]),
-    renderDetailList('Certificates', data.certificates || [], [
+    ], {
+      key: 'transfer-profiles',
+      filterPlaceholder: 'Find profiles',
+      countLabel: 'profiles',
+      onFilterTextChange: () => renderTransfer(data),
+    }),
+    renderFilterableDetailList('Certificates', data.certificates || [], [
       ['Certificate ID', 'id'],
       ['ARN', 'arn'],
       ['Status', 'status'],
@@ -4422,8 +4880,13 @@ function renderTransfer(data) {
       ['Not after', 'not_after_date'],
       ['Description', 'description'],
       ['Tags', 'tags'],
-    ]),
-    renderDetailList('Connectors', data.connectors || [], [
+    ], {
+      key: 'transfer-certificates',
+      filterPlaceholder: 'Find certificates',
+      countLabel: 'certificates',
+      onFilterTextChange: () => renderTransfer(data),
+    }),
+    renderFilterableDetailList('Connectors', data.connectors || [], [
       ['Connector ID', 'id'],
       ['ARN', 'arn'],
       ['URL', 'url'],
@@ -4432,21 +4895,31 @@ function renderTransfer(data) {
       ['Logging role', 'logging_role'],
       ['Security policy name', 'security_policy_name'],
       ['Tags', 'tags'],
-    ]),
+    ], {
+      key: 'transfer-connectors',
+      filterPlaceholder: 'Find connectors',
+      countLabel: 'connectors',
+      onFilterTextChange: () => renderTransfer(data),
+    }),
     renderDetailList('Security policies', (data.security_policies || []).map((policy) => ({
       name: policy,
       policy,
     })), [
       ['Policy', 'policy'],
     ]),
-    renderDetailList('Web apps', data.web_apps || [], [
+    renderFilterableDetailList('Web apps', data.web_apps || [], [
       ['Web app ID', 'WebAppId'],
       ['ARN', 'Arn'],
       ['Endpoint', 'Endpoint'],
       ['Identity provider details', 'IdentityProviderDetails'],
       ['Access endpoint', 'AccessEndpoint'],
       ['Tags', 'Tags'],
-    ]),
+    ], {
+      key: 'transfer-web-apps',
+      filterPlaceholder: 'Find web apps',
+      countLabel: 'web apps',
+      onFilterTextChange: () => renderTransfer(data),
+    }),
     renderDetailList('Supported actions', (data.supported || []).map((action) => ({
       name: action,
       action,
@@ -4833,6 +5306,106 @@ function renderCloudTrail(data) {
   cloudtrailLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
 }
 
+function renderCloudControlResourceCard(resource) {
+  const card = document.createElement('article');
+  card.className = 'iam-item collection-item';
+
+  const name = document.createElement('h4');
+  name.textContent = resource.identifier || resource.name || resource.type_name || 'Unnamed resource';
+  card.append(name);
+
+  const list = document.createElement('dl');
+  [
+    ['Type name', 'type_name'],
+    ['Identifier', 'identifier'],
+    ['Properties', 'properties'],
+  ].forEach(([label, key]) => addField(list, label, resource[key]));
+  card.append(list);
+  return card;
+}
+
+function renderCloudControlResources(resources = []) {
+  if (!window.ServiceConsole?.renderCollection) {
+    return renderDetailList('Discovered resources', resources, [
+      ['Type name', 'type_name'],
+      ['Identifier', 'identifier'],
+      ['Properties', 'properties'],
+    ]);
+  }
+
+  const panel = window.ServiceConsole.renderCollection({
+    title: 'Discovered resources',
+    items: resources,
+    itemRenderer: renderCloudControlResourceCard,
+    itemSearchText: (resource) => [
+      resource.name,
+      resource.type_name,
+      resource.identifier,
+      resource.properties,
+    ].map((value) => typeof value === 'string' ? value : JSON.stringify(value || '')).join(' '),
+    filterPlaceholder: 'Find resources',
+    emptyTitle: 'No discovered resources found.',
+    emptyFilteredTitle: 'No resources match this filter.',
+    countLabel: 'resources',
+    classPrefix: 'cloudcontrol',
+    panelClassName: 'iam-panel',
+    filterText: cloudControlResourceFilterText,
+    restoreFocus: cloudControlResourceFilterRestoreFocus,
+    selectionStart: cloudControlResourceFilterSelectionStart,
+    selectionEnd: cloudControlResourceFilterSelectionEnd,
+    onFilterTextChange: (value, options = {}) => {
+      cloudControlResourceFilterText = value;
+      cloudControlResourceFilterRestoreFocus = Boolean(options.restoreFocus);
+      cloudControlResourceFilterSelectionStart = options.selectionStart;
+      cloudControlResourceFilterSelectionEnd = options.selectionEnd;
+      renderCloudControl(cloudControlLastData || {});
+    },
+  });
+  panel.id = sectionIdForLabel('Discovered resources');
+  cloudControlResourceFilterRestoreFocus = false;
+  return panel;
+}
+
+function renderCloudControl(data) {
+  cloudControlLastData = data;
+  cloudcontrolGrid.textContent = '';
+  renderSummary(data.summary, cloudcontrolSummary);
+
+  const panels = [
+    renderCloudControlResources(data.resources || []),
+    renderDetailList('Type-name presets', data.type_results || [], [
+      ['Type name', 'type_name'],
+      ['Resources', 'count'],
+      ['Error', 'error'],
+    ]),
+    renderDetailList('Type-name errors', data.errors || [], [
+      ['Type name', 'type_name'],
+      ['Error', 'error'],
+    ]),
+    renderDetailList('Supported from SDK', (data.supported_from_sdk || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Available SDK operations', (data.available_sdk_operations || []).map((operation) => ({
+      name: operation,
+      operation,
+    })), [
+      ['Operation', 'operation'],
+    ]),
+    renderDetailList('Notes', (data.notes || []).map((note, index) => ({
+      name: `Note ${index + 1}`,
+      note,
+    })), [
+      ['Note', 'note'],
+    ]),
+  ];
+
+  cloudcontrolGrid.append(...panels);
+  cloudcontrolLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+}
+
 function renderGlue(data) {
   glueGrid.textContent = '';
   renderSummary(data.summary, glueSummary);
@@ -5165,7 +5738,7 @@ function renderCodePipeline(data) {
   renderSummary(data.summary, codepipelineSummary);
 
   const panels = [
-    renderDetailList('Pipelines', data.pipelines || [], [
+    renderFilterableDetailList('Pipelines', data.pipelines || [], [
       ['Name', 'name'],
       ['Version', 'version'],
       ['Type', 'pipeline_type'],
@@ -5175,13 +5748,23 @@ function renderCodePipeline(data) {
       ['Stage states', 'stage_states'],
       ['Executions', 'execution_count'],
       ['Execution details', 'executions'],
-    ]),
-    renderDetailList('Webhooks', data.webhooks || [], [
+    ], {
+      key: 'codepipeline-pipelines',
+      filterPlaceholder: 'Find pipelines',
+      countLabel: 'pipelines',
+      onFilterTextChange: () => renderCodePipeline(data),
+    }),
+    renderFilterableDetailList('Webhooks', data.webhooks || [], [
       ['Name', 'name'],
       ['ARN', 'arn'],
       ['URL', 'url'],
       ['Definition', 'definition'],
-    ]),
+    ], {
+      key: 'codepipeline-webhooks',
+      filterPlaceholder: 'Find webhooks',
+      countLabel: 'webhooks',
+      onFilterTextChange: () => renderCodePipeline(data),
+    }),
     renderDetailList('Action types', data.action_types || [], [
       ['Category', 'category'],
       ['Owner', 'owner'],
@@ -5440,6 +6023,8 @@ function titleCaseService(name) {
     codebuild: 'CodeBuild',
     codedeploy: 'CodeDeploy',
     cloudfront: 'CloudFront',
+    cloudcontrol: 'Cloud Control',
+    cloudcontrolapi: 'Cloud Control',
     cloudmap: 'Cloud Map',
     cloudtrail: 'CloudTrail',
     cloudformation: 'CloudFormation',
@@ -5643,6 +6228,540 @@ function sortedServiceMetadata(serviceMetadata = []) {
     }
     return left.title.localeCompare(right.title);
   });
+}
+
+function readStoredArray(key) {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(key) || '[]');
+    return Array.isArray(stored) ? stored.filter((item) => typeof item === 'string') : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function writeStoredArray(key, values) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(values));
+  } catch (error) {
+    // Local storage is a convenience layer only.
+  }
+}
+
+function isGlobalNavCollapsed() {
+  try {
+    return window.localStorage.getItem(globalNavCollapsedStorageKey) === 'true';
+  } catch (error) {
+    return false;
+  }
+}
+
+function setGlobalNavCollapsed(collapsed) {
+  document.body.classList.toggle('global-service-nav-collapsed', collapsed);
+  globalServiceNav?.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  const toggle = document.querySelector('#global-nav-collapse-toggle');
+  if (toggle) {
+    toggle.textContent = collapsed ? '>' : '<';
+    toggle.title = collapsed ? 'Expand navigation' : 'Collapse navigation';
+    toggle.setAttribute('aria-label', collapsed ? 'Expand service navigation' : 'Collapse service navigation');
+    toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  }
+  try {
+    window.localStorage.setItem(globalNavCollapsedStorageKey, collapsed ? 'true' : 'false');
+  } catch (error) {
+    // Local storage is a convenience layer only.
+  }
+}
+
+function renderGlobalNavCollapseToggle() {
+  const button = document.createElement('button');
+  button.id = 'global-nav-collapse-toggle';
+  button.className = 'global-nav-collapse-toggle';
+  button.type = 'button';
+  button.addEventListener('click', () => setGlobalNavCollapsed(!document.body.classList.contains('global-service-nav-collapsed')));
+  return button;
+}
+
+function favoriteServiceKeys() {
+  return readStoredArray(favoriteServicesStorageKey);
+}
+
+function isFavoriteService(serviceKey) {
+  return favoriteServiceKeys().includes(canonicalServiceKey(serviceKey));
+}
+
+function toggleFavoriteService(serviceKey) {
+  const key = canonicalServiceKey(serviceKey);
+  const favorites = favoriteServiceKeys();
+  const next = favorites.includes(key)
+    ? favorites.filter((favorite) => favorite !== key)
+    : [...favorites, key];
+  writeStoredArray(favoriteServicesStorageKey, next);
+}
+
+function recentServiceKeys() {
+  return readStoredArray(recentServicesStorageKey);
+}
+
+function recordRecentService(serviceKey) {
+  const key = canonicalServiceKey(serviceKey);
+  if (!key) {
+    return;
+  }
+  const next = [
+    key,
+    ...recentServiceKeys().filter((recent) => canonicalServiceKey(recent) !== key),
+  ].slice(0, maxRecentServices);
+  writeStoredArray(recentServicesStorageKey, next);
+}
+
+function currentServiceKeyFromPath() {
+  const match = window.location.pathname.match(/\/service\/([^/]+)\//);
+  return match ? canonicalServiceKey(decodeURIComponent(match[1])) : '';
+}
+
+function serviceSearchText(service) {
+  return [
+    service.title,
+    service.key,
+    service.category,
+    service.description,
+    ...(service.tags || []),
+  ].filter(Boolean).join(' ').toLowerCase();
+}
+
+async function loadServiceMetadata(options = {}) {
+  if (serviceMetadataCache && !options.force) {
+    return serviceMetadataCache;
+  }
+  const response = await fetch('/api/services/', fetchOptions(options.force));
+  const data = await response.json();
+  if (!response.ok || data.error) {
+    throw new Error(data.error || 'Unable to load service metadata');
+  }
+  serviceMetadataCache = data.services || [];
+  return serviceMetadataCache;
+}
+
+function matchingServices(serviceMetadata = [], query = '') {
+  const normalized = query.trim().toLowerCase();
+  const services = sortedServiceMetadata(serviceMetadata);
+  if (!normalized) {
+    return services.slice(0, 12);
+  }
+  return services
+    .filter((service) => serviceSearchText(service).includes(normalized))
+    .slice(0, 24);
+}
+
+function serviceStatusClass(serviceKey) {
+  const status = latestHealthData?.services?.[serviceKey] || latestHealthData?.services?.[canonicalServiceKey(serviceKey)];
+  return status === 'running' ? 'global-nav-status-running' : '';
+}
+
+function statusServiceEntries() {
+  return Object.entries(latestHealthData?.services || {}).sort(([left], [right]) => left.localeCompare(right));
+}
+
+function latestHealthPayload() {
+  return latestStatusResult?.health?.data?.data || latestHealthData || {};
+}
+
+function latestIdentityPayload() {
+  return latestStatusResult?.identity?.data || {};
+}
+
+function classifyGlobalStatusCenter() {
+  if (!latestStatusResult && !latestHealthData) {
+    return {
+      severity: 'info',
+      label: 'Pending',
+      count: 0,
+      summary: 'Health has not been checked yet.',
+    };
+  }
+
+  const healthOk = Boolean(latestStatusResult?.health?.ok || latestHealthData);
+  const identityOk = Boolean(latestStatusResult?.identity?.ok);
+  const nonRunningServices = statusServiceEntries().filter(([, status]) => status !== 'running');
+  const stale = lastHealthCheckedAt ? Date.now() - lastHealthCheckedAt.getTime() > 5 * 60 * 1000 : true;
+
+  if (!healthOk) {
+    return {
+      severity: 'error',
+      label: 'Needs attention',
+      count: 1,
+      summary: latestStatusResult?.health?.data?.error || 'Floci health is unreachable.',
+    };
+  }
+
+  const warningCount = nonRunningServices.length + (identityOk ? 0 : 1) + (stale ? 1 : 0);
+  if (warningCount > 0) {
+    return {
+      severity: 'warning',
+      label: 'Attention',
+      count: warningCount,
+      summary: `${warningCount} item${warningCount === 1 ? '' : 's'} need attention.`,
+    };
+  }
+
+  return {
+    severity: 'success',
+    label: 'Healthy',
+    count: 0,
+    summary: 'Floci is healthy and tracked services are running.',
+  };
+}
+
+function renderStatusField(label, value, className = '') {
+  const item = document.createElement('div');
+  item.className = `global-status-field${className ? ` ${className}` : ''}`;
+  const term = document.createElement('dt');
+  term.textContent = label;
+  const detail = document.createElement('dd');
+  detail.textContent = value || 'Unknown';
+  item.append(term, detail);
+  return item;
+}
+
+function renderStatusSection(title, children = []) {
+  const section = document.createElement('section');
+  section.className = 'global-status-section';
+  const heading = document.createElement('h3');
+  heading.textContent = title;
+  section.append(heading, ...children);
+  return section;
+}
+
+function statusTimeLabel() {
+  return lastHealthCheckedAt ? lastHealthCheckedAt.toLocaleTimeString() : 'Not checked yet';
+}
+
+function renderGlobalStatusCenter() {
+  if (!globalStatusBody) {
+    return;
+  }
+  const classification = classifyGlobalStatusCenter();
+  const healthPayload = latestHealthPayload();
+  const identityPayload = latestIdentityPayload();
+  const identity = identityPayload.identity || {};
+  const nonRunningServices = statusServiceEntries().filter(([, status]) => status !== 'running');
+  const servicesPreview = nonRunningServices.slice(0, 8);
+
+  globalStatusBody.textContent = '';
+
+  const summary = document.createElement('div');
+  summary.className = `global-status-summary global-status-summary-${classification.severity}`;
+  const summaryTitle = document.createElement('strong');
+  summaryTitle.textContent = classification.label;
+  const summaryText = document.createElement('span');
+  summaryText.textContent = classification.summary;
+  summary.append(summaryTitle, summaryText);
+
+  const connectionList = document.createElement('dl');
+  connectionList.className = 'global-status-fields';
+  connectionList.append(
+    renderStatusField('Connection', latestStatusResult?.health?.ok ? 'Healthy' : classification.severity === 'info' ? 'Pending' : 'Unreachable'),
+    renderStatusField('Endpoint', latestStatusResult?.health?.data?.url || identityPayload.endpoint_url || 'Unknown'),
+    renderStatusField('Version', [healthPayload.edition, healthPayload.version].filter(Boolean).join(' / ') || 'Unknown'),
+    renderStatusField('Last checked', statusTimeLabel()),
+  );
+
+  const serviceList = document.createElement('div');
+  serviceList.className = 'global-status-service-list';
+  if (!statusServiceEntries().length) {
+    serviceList.textContent = 'No service health data loaded yet.';
+  } else if (!nonRunningServices.length) {
+    serviceList.textContent = 'All tracked services are running.';
+  } else {
+    servicesPreview.forEach(([service, status]) => {
+      const item = document.createElement('span');
+      item.textContent = `${service}: ${status}`;
+      serviceList.append(item);
+    });
+    if (nonRunningServices.length > servicesPreview.length) {
+      const more = document.createElement('span');
+      more.textContent = `+${nonRunningServices.length - servicesPreview.length} more`;
+      serviceList.append(more);
+    }
+  }
+
+  const identityList = document.createElement('dl');
+  identityList.className = 'global-status-fields';
+  identityList.append(
+    renderStatusField('Resolved', latestStatusResult?.identity?.ok ? 'Yes' : 'No'),
+    renderStatusField('Principal', identity.arn || identity.user_id || identityPayload.identity_error || identityPayload.error || 'Unknown'),
+    renderStatusField('Account', identity.account || 'Unknown'),
+  );
+
+  const actions = document.createElement('div');
+  actions.className = 'global-status-actions';
+  const refreshAction = document.createElement('button');
+  refreshAction.type = 'button';
+  refreshAction.textContent = 'Refresh';
+  refreshAction.addEventListener('click', () => {
+    closeGlobalStatusCenter();
+    if (refreshButton) {
+      refresh({ force: true });
+    } else if (environmentRefreshButton) {
+      refreshEnvironment({ force: true });
+    } else {
+      loadStatusTiles({ force: true })
+        .then(() => loadServiceMetadata({ force: true }))
+        .then((serviceMetadata) => renderGlobalNavigation(serviceMetadata))
+        .catch(() => renderGlobalStatusCenter());
+    }
+  });
+  const environmentAction = document.createElement('a');
+  environmentAction.className = 'secondary-action';
+  environmentAction.href = '/environment/';
+  environmentAction.textContent = 'Open Environment';
+  actions.append(refreshAction, environmentAction);
+
+  globalStatusBody.append(
+    summary,
+    renderStatusSection('Connection', [connectionList]),
+    renderStatusSection('Services', [serviceList]),
+    renderStatusSection('Identity', [identityList]),
+    actions,
+  );
+}
+
+function openGlobalStatusCenter() {
+  if (!globalStatusPanel) {
+    return;
+  }
+  renderGlobalStatusCenter();
+  globalStatusPanel.classList.add('global-status-panel-open');
+  globalStatusPanel.setAttribute('aria-hidden', 'false');
+  document.querySelector('#global-status-trigger')?.setAttribute('aria-expanded', 'true');
+}
+
+function closeGlobalStatusCenter() {
+  if (!globalStatusPanel) {
+    return;
+  }
+  globalStatusPanel.classList.remove('global-status-panel-open');
+  globalStatusPanel.setAttribute('aria-hidden', 'true');
+  document.querySelector('#global-status-trigger')?.setAttribute('aria-expanded', 'false');
+}
+
+function renderGlobalStatusButton() {
+  const classification = classifyGlobalStatusCenter();
+  const button = document.createElement('button');
+  button.id = 'global-status-trigger';
+  button.className = `global-status-trigger global-status-trigger-${classification.severity}`;
+  button.type = 'button';
+  button.setAttribute('aria-haspopup', 'dialog');
+  button.setAttribute('aria-expanded', globalStatusPanel?.classList.contains('global-status-panel-open') ? 'true' : 'false');
+  button.title = classification.summary;
+  button.textContent = classification.count ? `${classification.label} ${classification.count}` : classification.label;
+  button.addEventListener('click', () => {
+    if (globalStatusPanel?.classList.contains('global-status-panel-open')) {
+      closeGlobalStatusCenter();
+    } else {
+      openGlobalStatusCenter();
+    }
+  });
+  return button;
+}
+
+function renderServiceLink(service, className = 'global-nav-item') {
+  const href = service.page_path || serviceHref(service.key);
+  const link = document.createElement('a');
+  link.className = className;
+  link.href = href;
+  link.dataset.service = service.key;
+  if (canonicalServiceKey(service.key) === currentServiceKeyFromPath()) {
+    link.classList.add('global-nav-item-active');
+  }
+  link.addEventListener('click', () => recordRecentService(service.key));
+
+  const status = document.createElement('span');
+  status.className = `global-nav-status ${serviceStatusClass(service.key)}`;
+  status.setAttribute('aria-hidden', 'true');
+
+  const title = document.createElement('span');
+  title.className = 'global-nav-service-title';
+  title.textContent = service.title;
+
+  const meta = document.createElement('span');
+  meta.className = 'global-nav-service-meta';
+  meta.textContent = serviceExperience(service);
+
+  link.append(status, title, meta);
+  return link;
+}
+
+function renderGlobalNavSection(container, title, services) {
+  const section = document.createElement('section');
+  section.className = 'global-nav-section';
+  const heading = document.createElement('p');
+  heading.className = 'global-nav-section-title';
+  heading.textContent = title;
+  const list = document.createElement('div');
+  list.className = 'global-nav-list';
+  if (!services.length) {
+    const empty = document.createElement('p');
+    empty.className = 'global-nav-empty';
+    empty.textContent = 'None yet.';
+    list.append(empty);
+  } else {
+    services.forEach((service) => list.append(renderServiceLink(service)));
+  }
+  section.append(heading, list);
+  container.append(section);
+}
+
+function renderGlobalNavigation(serviceMetadata = []) {
+  if (!globalServiceNav || !serviceMetadata.length) {
+    return;
+  }
+  const metadata = serviceMetadataMap(serviceMetadata);
+  const favorites = favoriteServiceKeys()
+    .map((key) => metadata.get(canonicalServiceKey(key)))
+    .filter(Boolean);
+  const recent = recentServiceKeys()
+    .map((key) => metadata.get(canonicalServiceKey(key)))
+    .filter(Boolean);
+  const priority = sortedServiceMetadata(serviceMetadata).slice(0, 18);
+
+  globalServiceNav.textContent = '';
+  globalServiceNav.classList.add('global-service-nav-active');
+  document.body.classList.add('has-global-service-nav');
+  setGlobalNavCollapsed(isGlobalNavCollapsed());
+
+  const header = document.createElement('div');
+  header.className = 'global-nav-header';
+  const title = document.createElement('div');
+  title.className = 'global-nav-title';
+  const homeLink = document.createElement('a');
+  homeLink.className = 'global-nav-home';
+  homeLink.href = '/';
+  homeLink.textContent = 'Floci';
+  const running = latestHealthData?.services
+    ? Object.values(latestHealthData.services).filter((status) => status === 'running').length
+    : 0;
+  const total = latestHealthData?.services ? Object.keys(latestHealthData.services).length : 0;
+  const runningSummary = document.createElement('span');
+  runningSummary.textContent = `${running || '—'} / ${total || '—'} running`;
+  title.append(homeLink, runningSummary, renderGlobalStatusButton(), renderGlobalNavCollapseToggle());
+  const search = document.createElement('button');
+  search.id = 'global-search-trigger';
+  search.className = 'global-search-trigger';
+  search.type = 'button';
+  search.textContent = navigator.platform.startsWith('Mac') ? 'Search services ⌘K' : 'Search services Ctrl+K';
+  search.addEventListener('click', openGlobalSearch);
+  const links = document.createElement('div');
+  links.className = 'global-nav-links';
+  [
+    ['Environment', '/environment/'],
+    ['Labs', '/labs/'],
+    ['Inspector', '/inspector/'],
+    ['Matrix', '/services/'],
+    ['Settings', '/settings/'],
+    ['Home', '/'],
+  ].forEach(([label, href]) => {
+    const link = document.createElement('a');
+    link.className = 'global-nav-quick-link';
+    link.href = href;
+    link.textContent = label;
+    links.append(link);
+  });
+  header.append(title, search, links);
+  globalServiceNav.append(header);
+  setGlobalNavCollapsed(isGlobalNavCollapsed());
+
+  renderGlobalNavSection(globalServiceNav, 'Favorites', favorites);
+  renderGlobalNavSection(globalServiceNav, 'Recently Visited', recent);
+  renderGlobalNavSection(globalServiceNav, 'Services', priority);
+}
+
+function renderGlobalNavigationForCurrentPage(serviceMetadata = []) {
+  const currentService = currentServiceKeyFromPath();
+  if (currentService) {
+    recordRecentService(currentService);
+  }
+  renderGlobalNavigation(serviceMetadata);
+}
+
+function openGlobalSearch() {
+  if (!globalSearchOverlay || !globalSearchInput) {
+    return;
+  }
+  globalSearchOverlay.classList.add('global-search-overlay-open');
+  globalSearchOverlay.setAttribute('aria-hidden', 'false');
+  if (!serviceMetadataCache) {
+    loadServiceMetadata()
+      .then((serviceMetadata) => {
+        renderGlobalNavigation(serviceMetadata);
+        renderGlobalSearchResults();
+      })
+      .catch(() => renderGlobalSearchResults());
+  } else {
+    renderGlobalSearchResults();
+  }
+  window.setTimeout(() => {
+    globalSearchInput.focus();
+    globalSearchInput.select();
+  }, 0);
+}
+
+function closeGlobalSearch() {
+  if (!globalSearchOverlay || !globalSearchInput) {
+    return;
+  }
+  globalSearchOverlay.classList.remove('global-search-overlay-open');
+  globalSearchOverlay.setAttribute('aria-hidden', 'true');
+  globalSearchInput.value = '';
+  globalSearchActiveIndex = 0;
+}
+
+function renderGlobalSearchResults() {
+  if (!globalSearchResults) {
+    return;
+  }
+  globalSearchMatches = matchingServices(serviceMetadataCache || [], globalSearchInput?.value || '');
+  globalSearchResults.textContent = '';
+
+  if (!globalSearchMatches.length) {
+    const empty = document.createElement('p');
+    empty.className = 'global-nav-empty';
+    empty.textContent = 'No matching services.';
+    globalSearchResults.append(empty);
+    return;
+  }
+
+  globalSearchMatches.forEach((service, index) => {
+    const result = document.createElement('a');
+    result.className = `global-search-result${index === globalSearchActiveIndex ? ' global-search-result-active' : ''}`;
+    result.href = service.page_path || serviceHref(service.key);
+    result.setAttribute('role', 'option');
+    result.setAttribute('aria-selected', String(index === globalSearchActiveIndex));
+    result.addEventListener('click', () => recordRecentService(service.key));
+
+    const content = document.createElement('span');
+    const title = document.createElement('strong');
+    title.textContent = service.title;
+    const meta = document.createElement('span');
+    meta.className = 'global-search-result-meta';
+    meta.textContent = `${service.category} / ${service.key}`;
+    content.append(title, document.createElement('br'), meta);
+
+    const experience = document.createElement('span');
+    experience.className = `service-experience service-experience-${serviceExperience(service).toLowerCase().replaceAll(' ', '-')}`;
+    experience.textContent = serviceExperience(service);
+    result.append(content, experience);
+    globalSearchResults.append(result);
+  });
+}
+
+function selectGlobalSearchResult() {
+  const service = globalSearchMatches[globalSearchActiveIndex];
+  if (!service) {
+    return;
+  }
+  recordRecentService(service.key);
+  window.location.href = service.page_path || serviceHref(service.key);
 }
 
 function topHomeServices(serviceMetadata = [], count = defaultHomeServiceCount) {
@@ -5891,6 +7010,202 @@ function mergeServiceCards(resources, healthServices = {}, serviceMetadata = [])
   });
 }
 
+const DashboardCollections = (() => {
+  function render({
+    container,
+    items,
+    className,
+    filterPlaceholder = 'Filter',
+    countLabel = 'items',
+    filterText = '',
+    restoreFocus = false,
+    selectionStart = null,
+    selectionEnd = null,
+    onFilterTextChange = null,
+    itemSearchText = (item) => JSON.stringify(item),
+    itemRenderer,
+  }) {
+    if (!container) {
+      return { filterText, items: [] };
+    }
+    const normalized = filterText.trim().toLowerCase();
+    const filtered = normalized
+      ? items.filter((item) => itemSearchText(item).toLowerCase().includes(normalized))
+      : items;
+
+    container.textContent = '';
+    container.classList.add('service-grid-collection');
+
+    const toolbar = document.createElement('div');
+    toolbar.className = 'collection-toolbar';
+
+    const filter = document.createElement('input');
+    filter.className = 'collection-filter';
+    filter.type = 'search';
+    filter.placeholder = filterPlaceholder;
+    filter.value = filterText;
+    filter.addEventListener('input', () => {
+      const nextSelectionStart = filter.selectionStart;
+      const nextSelectionEnd = filter.selectionEnd;
+      if (onFilterTextChange) {
+        onFilterTextChange(filter.value, {
+          restoreFocus: true,
+          selectionStart: nextSelectionStart,
+          selectionEnd: nextSelectionEnd,
+        });
+        return;
+      }
+      render({
+        container,
+        items,
+        className,
+        filterPlaceholder,
+        countLabel,
+        filterText: filter.value,
+        restoreFocus: true,
+        selectionStart: nextSelectionStart,
+        selectionEnd: nextSelectionEnd,
+        itemSearchText,
+        itemRenderer,
+      });
+    });
+
+    const count = document.createElement('span');
+    count.className = 'collection-count';
+    count.textContent = `${filtered.length} of ${items.length} ${countLabel}`;
+
+    toolbar.append(filter, count);
+
+    const grid = document.createElement('div');
+    grid.className = className;
+    filtered.forEach((item) => grid.append(itemRenderer(item)));
+
+    if (!filtered.length) {
+      const empty = document.createElement('section');
+      empty.className = 'iam-panel';
+      const message = document.createElement('p');
+      message.className = 'muted empty-state';
+      message.textContent = filterText ? 'No matching services.' : 'No services found.';
+      empty.append(message);
+      container.append(toolbar, empty);
+      restoreCollectionFilterFocus(filter, restoreFocus, selectionStart, selectionEnd);
+      return { filterText, items: filtered };
+    }
+
+    container.append(toolbar, grid);
+    restoreCollectionFilterFocus(filter, restoreFocus, selectionStart, selectionEnd);
+    return { filterText, items: filtered };
+  }
+
+  return { render };
+})();
+
+function restoreCollectionFilterFocus(filter, restoreFocus, selectionStart, selectionEnd) {
+  if (!restoreFocus) {
+    return;
+  }
+  filter.focus();
+  if (selectionStart !== null && selectionEnd !== null) {
+    try {
+      filter.setSelectionRange(selectionStart, selectionEnd);
+    } catch (error) {
+      // Some browsers do not expose selection ranges for every input mode.
+    }
+  }
+}
+
+function renderServiceCard(service) {
+  const card = document.createElement('article');
+  card.className = 'service-card';
+  card.dataset.service = service.key;
+
+  if (!service.error && service.count > 0) {
+    card.classList.add('service-card-active');
+  }
+
+  if (isFavoriteService(service.key)) {
+    card.classList.add('service-card-favorite');
+  }
+
+  if (service.href) {
+    card.classList.add('service-card-linked');
+    card.tabIndex = 0;
+    card.setAttribute('role', 'link');
+    card.addEventListener('click', () => {
+      recordRecentService(service.key);
+      window.location.href = service.href;
+    });
+    card.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        recordRecentService(service.key);
+        window.location.href = service.href;
+      }
+    });
+  }
+
+  const heading = document.createElement('div');
+  heading.className = 'card-heading';
+
+  const h3 = document.createElement('h3');
+  const status = document.createElement('span');
+  status.className = `service-status service-status-${service.status || 'unknown'}`;
+  status.title = service.status || 'unknown';
+  h3.textContent = service.name;
+  const headingActions = document.createElement('span');
+  headingActions.className = 'service-card-heading-actions';
+
+  const favorite = document.createElement('button');
+  favorite.className = `service-favorite-button${isFavoriteService(service.key) ? ' service-favorite-button-active' : ''}`;
+  favorite.type = 'button';
+  favorite.setAttribute('aria-label', `${isFavoriteService(service.key) ? 'Remove' : 'Add'} ${service.name} ${isFavoriteService(service.key) ? 'from' : 'to'} favorites`);
+  favorite.textContent = isFavoriteService(service.key) ? '♥' : '♡';
+  favorite.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleFavoriteService(service.key);
+    renderGlobalNavigation(serviceMetadataCache || []);
+    if (homeCollectionController) {
+      homeCollectionController();
+    }
+  });
+
+  headingActions.append(favorite, status);
+  heading.append(h3, headingActions);
+
+  const message = document.createElement('p');
+  message.className = service.error ? 'message error' : 'message';
+  message.textContent = service.href
+    ? `${service.descriptions.join(' ')} Details available.`
+    : service.descriptions.join(' ');
+
+  const meta = document.createElement('p');
+  meta.className = 'service-meta';
+  meta.textContent = service.error ? 'Resource count unavailable' : `${service.count} tracked resource${service.count === 1 ? '' : 's'}`;
+
+  if (service.href) {
+    const footer = document.createElement('span');
+    footer.className = 'service-card-footer';
+    const open = document.createElement('a');
+    open.className = 'service-open';
+    open.href = service.href;
+    open.textContent = 'Open details';
+    open.addEventListener('click', (event) => {
+      event.stopPropagation();
+      recordRecentService(service.key);
+    });
+    const experience = document.createElement('span');
+    experience.className = `service-experience service-experience-${serviceExperience(service).toLowerCase().replaceAll(' ', '-')}`;
+    experience.textContent = serviceExperience(service);
+    footer.append(open, experience);
+    card.append(heading, message, meta, footer);
+    return card;
+  }
+
+  card.append(heading, message, meta);
+  return card;
+}
+
 function renderServices(resources, healthServices = {}, serviceMetadata = [], options = {}) {
   serviceGrid.textContent = '';
   serviceGrid.setAttribute('aria-busy', 'false');
@@ -5898,58 +7213,30 @@ function renderServices(resources, healthServices = {}, serviceMetadata = [], op
   const services = mergeServiceCards(resources, healthServices, serviceMetadata)
     .filter((service) => !options.onlyTrackedResources || (!service.error && service.count > 0));
 
-  services.forEach((service) => {
-    const card = document.createElement(service.href ? 'a' : 'article');
-    card.className = 'service-card';
-    card.dataset.service = service.key;
-
-    if (!service.error && service.count > 0) {
-      card.classList.add('service-card-active');
-    }
-
-    if (service.href) {
-      card.href = service.href;
-      card.classList.add('service-card-linked');
-    }
-
-    const heading = document.createElement('div');
-    heading.className = 'card-heading';
-
-    const h3 = document.createElement('h3');
-    const status = document.createElement('span');
-    status.className = `service-status service-status-${service.status || 'unknown'}`;
-    status.title = service.status || 'unknown';
-    h3.textContent = service.name;
-    heading.append(h3, status);
-
-    const message = document.createElement('p');
-    message.className = service.error ? 'message error' : 'message';
-    message.textContent = service.href
-      ? `${service.descriptions.join(' ')} Details available.`
-      : service.descriptions.join(' ');
-
-    const meta = document.createElement('p');
-    meta.className = 'service-meta';
-    meta.textContent = service.error ? 'Resource count unavailable' : `${service.count} tracked resource${service.count === 1 ? '' : 's'}`;
-
-    if (service.href) {
-      const footer = document.createElement('span');
-      footer.className = 'service-card-footer';
-      const open = document.createElement('span');
-      open.className = 'service-open';
-      open.textContent = 'Open details';
-      const experience = document.createElement('span');
-      experience.className = `service-experience service-experience-${serviceExperience(service).toLowerCase().replaceAll(' ', '-')}`;
-      experience.textContent = serviceExperience(service);
-      footer.append(open, experience);
-      card.append(heading, message, meta, footer);
-      serviceGrid.append(card);
-      return;
-    }
-
-    card.append(heading, message, meta);
-    serviceGrid.append(card);
-  });
+  let homeServiceFilterText = '';
+  homeCollectionController = (nextFilterText = homeServiceFilterText, renderOptions = {}) => {
+    homeServiceFilterText = nextFilterText;
+    return DashboardCollections.render({
+      container: serviceGrid,
+      items: services,
+      className: 'service-grid',
+      filterPlaceholder: 'Filter services',
+      countLabel: 'services',
+      filterText: homeServiceFilterText,
+      restoreFocus: Boolean(renderOptions.restoreFocus),
+      selectionStart: renderOptions.selectionStart,
+      selectionEnd: renderOptions.selectionEnd,
+      onFilterTextChange: homeCollectionController,
+      itemSearchText: (service) => [
+        service.name,
+        service.key,
+        service.maturity,
+        service.descriptions.join(' '),
+      ].join(' '),
+      itemRenderer: renderServiceCard,
+    });
+  };
+  homeCollectionController();
 
   loadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
 }
@@ -5972,7 +7259,10 @@ function renderFlociUnavailable(data = {}) {
   const status = document.createElement('span');
   status.className = 'service-status service-status-error';
   status.title = 'unavailable';
-  heading.append(title, status);
+  const headingActions = document.createElement('span');
+  headingActions.className = 'service-card-heading-actions';
+  headingActions.append(status);
+  heading.append(title, headingActions);
 
   const message = document.createElement('p');
   message.className = 'message error';
@@ -6105,17 +7395,25 @@ async function loadIdentity(options = {}) {
   const response = await fetch('/api/identity/', fetchOptions(options.force));
   const data = await response.json();
 
-  endpoint.textContent = data.endpoint_url || 'Unknown';
-  profile.textContent = credentialLabel(data);
+  if (endpoint) {
+    endpoint.textContent = data.endpoint_url || 'Unknown';
+  }
+  if (profile) {
+    profile.textContent = credentialLabel(data);
+  }
 
   if (!response.ok || data.error) {
-    identity.textContent = isMissingCredentialsError(data.error)
-      ? 'Not resolved. Restart Django after exporting credentials, or create the configured profile.'
-      : data.error || 'Unable to resolve identity';
+    if (identity) {
+      identity.textContent = isMissingCredentialsError(data.error)
+        ? 'Not resolved. Restart Django after exporting credentials, or create the configured profile.'
+        : data.error || 'Unable to resolve identity';
+    }
     return { ok: false, data };
   }
 
-  identity.textContent = data.identity?.arn || data.identity?.user_id || 'Unknown';
+  if (identity) {
+    identity.textContent = data.identity?.arn || data.identity?.user_id || 'Unknown';
+  }
   return { ok: true, data };
 }
 
@@ -6125,10 +7423,14 @@ async function loadStatusTiles(options = {}) {
   try {
     identityResult = await loadIdentity(options);
   } catch (error) {
-    identity.textContent = healthResult.ok ? error.message : 'Unavailable until Floci starts';
+    if (identity) {
+      identity.textContent = healthResult.ok ? error.message : 'Unavailable until Floci starts';
+    }
     identityResult = { ok: false, data: { error: error.message } };
   }
-  return { health: healthResult, identity: identityResult };
+  latestStatusResult = { health: healthResult, identity: identityResult };
+  lastHealthCheckedAt = new Date();
+  return latestStatusResult;
 }
 
 async function refreshEnvironment(options = {}) {
@@ -6142,6 +7444,8 @@ async function refreshEnvironment(options = {}) {
   environmentState.textContent = 'Checking...';
   try {
     const statusResult = await loadStatusTiles(options);
+    const serviceMetadata = await loadServiceMetadata(options);
+    renderGlobalNavigation(serviceMetadata);
     renderEnvironmentDetails(statusResult);
   } catch (error) {
     renderEnvironmentDetails({
@@ -6162,29 +7466,26 @@ async function loadHealth(options = {}) {
 
   if (!response.ok || !data.ok) {
     latestHealthData = null;
-    health.textContent = 'Not running';
+    if (health) {
+      health.textContent = 'Not running';
+    }
     return { ok: false, data };
   }
 
   const edition = data.data?.edition;
   const version = data.data?.version;
   latestHealthData = data.data || null;
-  health.textContent = [edition, version].filter(Boolean).join(' / ') || 'Healthy';
+  if (health) {
+    health.textContent = [edition, version].filter(Boolean).join(' / ') || 'Healthy';
+  }
   return { ok: true, data };
 }
 
 async function loadHome(loadingStartedAt, options = {}) {
   const fetchInit = fetchOptions(options.force);
-  const servicesPromise = fetch('/api/services/', fetchInit);
   const minimumLoadingPromise = waitForMinimumLoadingTime(loadingStartedAt);
-  const servicesResponse = await servicesPromise;
-  const servicesData = await servicesResponse.json();
-
-  if (!servicesResponse.ok || servicesData.error) {
-    throw new Error(servicesData.error || 'Unable to load service metadata');
-  }
-
-  const serviceMetadata = servicesData.services || [];
+  const serviceMetadata = await loadServiceMetadata(options);
+  renderGlobalNavigation(serviceMetadata);
   renderServiceFilter(serviceMetadata);
 
   const resourcesPath = homeServiceFilterMode === homeServiceFilterModes.trackedResources
@@ -6255,6 +7556,7 @@ const servicePages = [
   { key: 'cloudfront', label: 'CloudFront', grid: cloudfrontGrid, apiPath: '/api/cloudfront/', render: renderCloudFront },
   { key: 'cloudmap', label: 'Cloud Map', grid: cloudmapGrid, apiPath: '/api/cloudmap/', render: renderCloudMap },
   { key: 'cloudtrail', label: 'CloudTrail', grid: cloudtrailGrid, apiPath: '/api/cloudtrail/', render: renderCloudTrail },
+  { key: 'cloudcontrol', label: 'Cloud Control', grid: cloudcontrolGrid, apiPath: '/api/cloudcontrol/', render: renderCloudControl },
   { key: 'config', label: 'AWS Config', grid: configGrid, apiPath: '/api/config/', render: renderConfig },
   { key: 'costexplorer', label: 'Cost Explorer', grid: costexplorerGrid, apiPath: '/api/costexplorer/', render: renderCostExplorer },
   { key: 'cur', label: 'Cost and Usage Reports', grid: curGrid, apiPath: '/api/cur/', render: renderCur },
@@ -6344,6 +7646,8 @@ async function refresh(options = {}) {
 
   try {
     const statusResult = await loadStatusTiles(options);
+    const serviceMetadata = await loadServiceMetadata(options);
+    renderGlobalNavigationForCurrentPage(serviceMetadata);
 
     if (serviceGrid) {
       if (!statusResult.health.ok) {
@@ -6452,6 +7756,72 @@ if (backToTopButton) {
 }
 
 document.addEventListener('pointerdown', closeServiceFilterOnOutsidePointerDown);
+document.addEventListener('keydown', (event) => {
+  const searchIsOpen = globalSearchOverlay?.classList.contains('global-search-overlay-open');
+  const statusIsOpen = globalStatusPanel?.classList.contains('global-status-panel-open');
+  if (event.key === 'Escape' && statusIsOpen) {
+    event.preventDefault();
+    closeGlobalStatusCenter();
+    return;
+  }
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+    event.preventDefault();
+    openGlobalSearch();
+    return;
+  }
+  if (!searchIsOpen) {
+    return;
+  }
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeGlobalSearch();
+    return;
+  }
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    globalSearchActiveIndex = Math.min(globalSearchActiveIndex + 1, Math.max(globalSearchMatches.length - 1, 0));
+    renderGlobalSearchResults();
+    return;
+  }
+  if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    globalSearchActiveIndex = Math.max(globalSearchActiveIndex - 1, 0);
+    renderGlobalSearchResults();
+    return;
+  }
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    selectGlobalSearchResult();
+  }
+});
+if (globalSearchInput) {
+  globalSearchInput.addEventListener('input', () => {
+    globalSearchActiveIndex = 0;
+    renderGlobalSearchResults();
+  });
+}
+if (globalSearchClose) {
+  globalSearchClose.addEventListener('click', closeGlobalSearch);
+}
+if (globalSearchOverlay) {
+  globalSearchOverlay.addEventListener('pointerdown', (event) => {
+    if (event.target === globalSearchOverlay) {
+      closeGlobalSearch();
+    }
+  });
+}
+if (globalStatusClose) {
+  globalStatusClose.addEventListener('click', closeGlobalStatusCenter);
+}
+document.addEventListener('pointerdown', (event) => {
+  if (!globalStatusPanel?.classList.contains('global-status-panel-open')) {
+    return;
+  }
+  if (globalStatusPanel.contains(event.target) || event.target.closest('#global-status-trigger')) {
+    return;
+  }
+  closeGlobalStatusCenter();
+});
 if (refreshButton) {
   refreshButton.addEventListener('click', () => refresh({ force: true }));
 }
@@ -6470,12 +7840,32 @@ pageRefreshButtons.forEach((button) => {
     window.location.reload();
   });
 });
+if (!refreshButton && !environmentRefreshButton && !s3ConsoleRoot) {
+  loadStatusTiles()
+    .catch((error) => {
+      if (health) {
+        health.textContent = error.message;
+      }
+    })
+    .then(() => loadServiceMetadata())
+    .then((serviceMetadata) => renderGlobalNavigationForCurrentPage(serviceMetadata))
+    .catch(() => {
+      // Navigation is helpful, but page content should still render without it.
+    });
+}
 if (s3ConsoleRoot) {
-  loadStatusTiles().catch((error) => {
-    if (health) {
-      health.textContent = error.message;
-    }
-  });
+  Promise.all([
+    loadStatusTiles().catch((error) => {
+      if (health) {
+        health.textContent = error.message;
+      }
+    }),
+    loadServiceMetadata(),
+  ])
+    .then(([, serviceMetadata]) => renderGlobalNavigationForCurrentPage(serviceMetadata))
+    .catch(() => {
+      // The S3 console owns its own content; the shared rail can fail quietly.
+    });
 } else if (refreshButton) {
   refresh();
 }

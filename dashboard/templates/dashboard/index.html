@@ -1,16 +1,12 @@
 {% extends 'dashboard/base.html' %}
 
 {% block content %}
-  <header class="topbar">
+  <header class="page-header">
     <div>
-      <p class="eyebrow">Floci Dashboard / Local AWS-compatible environment</p>
       <h1 class="home-title">Floci Dashboard</h1>
     </div>
-    <div class="topbar-actions">
-      <a class="secondary-action" href="{% url 'dashboard:environment' %}">Environment</a>
-      <a class="secondary-action" href="{% url 'dashboard:labs-directory' %}">Labs</a>
-      <a class="secondary-action" href="{% url 'dashboard:service-matrix' %}">Service Matrix</a>
-      <button id="refresh" type="button" aria-label="Refresh services">Refresh</button>
+    <div class="page-header-actions">
+      <button id="refresh" class="secondary-button" type="button" aria-label="Refresh services">Refresh</button>
     </div>
   </header>
 

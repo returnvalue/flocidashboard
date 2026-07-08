@@ -1,19 +1,17 @@
 {% extends 'dashboard/base.html' %}
+{% load static %}
 
 {% block title %}Labs - Floci Dashboard{% endblock %}
 
 {% block content %}
-  <header class="topbar">
+  <header class="page-header">
     <div>
-      <a class="back-link" href="{% url 'dashboard:index' %}">Services</a>
-      <p class="eyebrow">Local AWS workflow labs</p>
+      <p class="page-kicker">Local AWS workflow labs</p>
       <h1 class="console-title">Labs</h1>
     </div>
-    <div class="topbar-actions">
-      <a class="secondary-action" href="{% url 'dashboard:environment' %}">Environment</a>
-      <a class="secondary-action topbar-action-active" href="{% url 'dashboard:labs-directory' %}" aria-current="page">Labs</a>
-      <a class="secondary-action" href="{% url 'dashboard:service-matrix' %}">Service Matrix</a>
-      <button data-refresh-page type="button" aria-label="Refresh labs directory">Refresh</button>
+    <div class="page-header-actions">
+      <button id="labs-global-reset" class="secondary-button destructive-action" type="button" disabled>Reset completed labs</button>
+      <button data-refresh-page class="secondary-button" type="button" aria-label="Refresh labs directory">Refresh</button>
     </div>
   </header>
 
@@ -31,7 +29,18 @@
         <span class="label">Runnable steps</span>
         <strong>{{ step_count }}</strong>
       </div>
+      <div class="matrix-summary-item">
+        <span class="label">Steps complete</span>
+        <strong id="labs-progress-count">Checking...</strong>
+      </div>
+      <div class="matrix-summary-item">
+        <span class="label">Labs complete</span>
+        <strong id="labs-complete-count">Checking...</strong>
+      </div>
     </div>
+    <p id="labs-global-reset-status" class="labs-global-reset-status" role="status" aria-live="polite">
+      Checking lab progress.
+    </p>
   </section>
 
   <section class="section-block">
@@ -67,7 +76,10 @@
               <td>
                 <ul class="labs-directory-list">
                   {% for lab in service.labs %}
-                    <li>{{ lab.title }}</li>
+                    <li>
+                      {{ lab.title }}
+                      <span class="labs-directory-progress" data-lab-progress="{{ service.key }}:{{ lab.key }}">-- / {{ lab.step_count }}</span>
+                    </li>
                   {% endfor %}
                 </ul>
               </td>
@@ -80,4 +92,8 @@
       </table>
     </div>
   </section>
+{% endblock %}
+
+{% block extrascripts %}
+  <script src="{% static 'dashboard/labs-directory.js' %}"></script>
 {% endblock %}

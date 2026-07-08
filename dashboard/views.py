@@ -5,18 +5,21 @@ from typing import Optional
 from botocore.exceptions import BotoCoreError, ClientError
 from botocore.parsers import ResponseParserError
 from django.conf import settings
+from django.core.cache import cache
 from django.http import Http404, JsonResponse
 from django.shortcuts import render
 from django.urls import reverse
 from django.views.decorators.cache import cache_control
 from django.views.decorators.http import require_POST
-from .aws import FlociClientFactory, acm_inventory, amazonmq_inventory, apigateway_inventory, appconfig_inventory, appsync_inventory, athena_inventory, autoscaling_inventory, backup_inventory, batch_inventory, bcmdataexports_inventory, bedrockruntime_inventory, cloudformation_inventory, cloudfront_inventory, cloudmap_inventory, cloudtrail_inventory, cloudwatch_inventory, codebuild_inventory, codepipeline_inventory, codedeploy_inventory, config_inventory, cognito_inventory, costexplorer_inventory, cur_inventory, docdb_inventory, dynamodb_inventory, ec2_inventory, ecr_inventory, ecs_inventory, eks_inventory, elasticache_inventory, elasticbeanstalk_inventory, elasticloadbalancing_inventory, emr_inventory, eventbridge_inventory, firehose_inventory, glue_inventory, iam_inventory, iot_inventory, kafka_inventory, kinesis_inventory, kms_inventory, lambda_inventory, list_resources, memorydb_inventory, neptune_inventory, opensearch_inventory, pipes_inventory, pricing_inventory, rds_inventory, rdsdata_inventory, resourcegroupstagging_inventory, route53_inventory, s3_inventory, s3vectors_inventory, scheduler_inventory, secretsmanager_inventory, ses_inventory, sns_inventory, sqs_inventory, ssm_inventory, stepfunctions_inventory, textract_inventory, transcribe_inventory, transfer_inventory, wafv2_inventory
+from .aws import FlociClientFactory, acm_inventory, amazonmq_inventory, apigateway_inventory, appconfig_inventory, appsync_inventory, athena_inventory, autoscaling_inventory, backup_inventory, batch_inventory, bcmdataexports_inventory, bedrockruntime_inventory, cloudcontrol_inventory, cloudformation_inventory, cloudfront_inventory, cloudmap_inventory, cloudtrail_inventory, cloudwatch_inventory, codebuild_inventory, codepipeline_inventory, codedeploy_inventory, config_inventory, cognito_inventory, costexplorer_inventory, cur_inventory, docdb_inventory, dynamodb_inventory, ec2_inventory, ecr_inventory, ecs_inventory, eks_inventory, elasticache_inventory, elasticbeanstalk_inventory, elasticloadbalancing_inventory, emr_inventory, eventbridge_inventory, firehose_inventory, glue_inventory, iam_inventory, iot_inventory, kafka_inventory, kinesis_inventory, kms_inventory, lambda_inventory, list_resources, memorydb_inventory, neptune_inventory, opensearch_inventory, pipes_inventory, pricing_inventory, rds_inventory, rdsdata_inventory, resourcegroupstagging_inventory, route53_inventory, s3_inventory, s3vectors_inventory, scheduler_inventory, secretsmanager_inventory, ses_inventory, sns_inventory, sqs_inventory, ssm_inventory, stepfunctions_inventory, textract_inventory, transcribe_inventory, transfer_inventory, wafv2_inventory
 from .labs import get_lab, lab_status, labs_for_service, next_lab_batch, reset_lab, run_lab_step
+from .labs.registry import all_labs
 from .services import SERVICES, SERVICE_PAGES, get_service, services_payload
 
 
 SERVICE_ALIASES = {
     'cognito-idp': 'cognito',
+    'cloudcontrolapi': 'cloudcontrol',
     'events': 'eventbridge',
     'logs': 'cloudwatch',
     'monitoring': 'cloudwatch',
@@ -43,6 +46,7 @@ HOME_SERVICE_ORDER = (
     'cloudfront',
     'cloudmap',
     'cloudtrail',
+    'cloudcontrol',
     'kms',
     'cloudformation',
     'apigateway',
@@ -87,6 +91,8 @@ HOME_SERVICE_ORDER = (
 )
 
 HOME_SERVICE_RANK = {key: index for index, key in enumerate(HOME_SERVICE_ORDER)}
+LABS_PROGRESS_CACHE_KEY = 'dashboard:labs-progress'
+LABS_PROGRESS_CACHE_SECONDS = 15
 
 
 def selected_service_keys(request) -> Optional[set[str]]:
@@ -111,6 +117,10 @@ def environment(request):
     return render(request, 'dashboard/environment.html')
 
 
+def settings_page(request):
+    return render(request, 'dashboard/settings.html')
+
+
 def _next_batch_context(service_key, lab_key, complete):
     if not complete:
         return None
@@ -123,6 +133,72 @@ def _next_batch_context(service_key, lab_key, complete):
             'href': f'{reverse("dashboard:service-labs", kwargs={"service_key": batch["service"]})}?lab={batch["lab"]}',
         }
     return batch
+
+
+def _lab_progress(lab):
+    steps = lab.get('steps', [])
+    try:
+        status = lab_status(lab['service'], lab['key'])
+    except (BotoCoreError, ClientError, ValueError) as exc:
+        return {
+            'completed_steps': 0,
+            'total_steps': len(steps),
+            'complete': False,
+            'error': str(exc),
+        }
+    step_statuses = status.get('steps', {})
+    completed_steps = sum(
+        1
+        for step in steps
+        if step_statuses.get(step.get('key'), {}).get('verified')
+    )
+    return {
+        'completed_steps': completed_steps,
+        'total_steps': len(steps),
+        'complete': bool(status.get('complete')),
+        'error': None,
+    }
+
+
+def _labs_progress_snapshot():
+    total_labs = 0
+    total_steps = 0
+    completed_labs = 0
+    completed_steps = 0
+    progress_errors = []
+    lab_progress = []
+
+    for lab in all_labs():
+        progress = _lab_progress(lab)
+        total_labs += 1
+        total_steps += progress['total_steps']
+        completed_labs += 1 if progress['complete'] else 0
+        completed_steps += progress['completed_steps']
+        if progress['error']:
+            progress_errors.append({
+                'service': lab['service'],
+                'lab': lab['key'],
+                'message': progress['error'],
+            })
+        lab_progress.append({
+            'service': lab['service'],
+            'lab': lab['key'],
+            'title': lab.get('title'),
+            'completed_steps': progress['completed_steps'],
+            'total_steps': progress['total_steps'],
+            'complete': progress['complete'],
+            'error': progress['error'],
+        })
+
+    return {
+        'completed_lab_count': completed_labs,
+        'total_lab_count': total_labs,
+        'completed_step_count': completed_steps,
+        'total_step_count': total_steps,
+        'progress_error_count': len(progress_errors),
+        'progress_errors': progress_errors,
+        'labs': lab_progress,
+    }
 
 
 def labs_directory(request):
@@ -142,13 +218,20 @@ def labs_directory(request):
             continue
         lab_count = len(service_labs)
         step_count = sum(len(lab.get('steps', [])) for lab in service_labs)
+        enriched_labs = [
+            {
+                **lab,
+                'step_count': len(lab.get('steps', [])),
+            }
+            for lab in service_labs
+        ]
         total_labs += lab_count
         total_steps += step_count
         rows.append({
             **definition.as_dict(),
             'lab_count': lab_count,
             'step_count': step_count,
-            'labs': service_labs,
+            'labs': enriched_labs,
         })
 
     return render(
@@ -161,6 +244,15 @@ def labs_directory(request):
             'step_count': total_steps,
         },
     )
+
+
+def labs_progress(request):
+    snapshot = cache.get(LABS_PROGRESS_CACHE_KEY)
+    cached = snapshot is not None
+    if snapshot is None:
+        snapshot = _labs_progress_snapshot()
+        cache.set(LABS_PROGRESS_CACHE_KEY, snapshot, LABS_PROGRESS_CACHE_SECONDS)
+    return JsonResponse({**snapshot, 'cached': cached})
 
 
 def service_matrix(request):
@@ -282,7 +374,16 @@ def lab_step_run(request, service_key: str, lab_key: str, step_key: str):
         raise Http404('Lab not found')
 
     try:
-        return JsonResponse(run_lab_step(service_key, lab_key, step_key))
+        result = run_lab_step(service_key, lab_key, step_key)
+        cache.delete(LABS_PROGRESS_CACHE_KEY)
+        status = lab_status(service_key, lab_key)
+        result['lab_complete'] = status.get('complete')
+        result['next_batch'] = _next_batch_context(
+            service_key,
+            lab_key,
+            status.get('complete'),
+        )
+        return JsonResponse(result)
     except (BotoCoreError, ClientError, ValueError) as exc:
         return JsonResponse({'error': str(exc)}, status=400)
 
@@ -293,9 +394,60 @@ def lab_reset(request, service_key: str, lab_key: str):
         raise Http404('Lab not found')
 
     try:
-        return JsonResponse(reset_lab(service_key, lab_key))
+        result = reset_lab(service_key, lab_key)
+        cache.delete(LABS_PROGRESS_CACHE_KEY)
+        return JsonResponse(result)
     except (BotoCoreError, ClientError, ValueError) as exc:
         return JsonResponse({'error': str(exc)}, status=400)
+
+
+@require_POST
+def labs_global_reset(request):
+    completed = []
+    skipped_errors = []
+    for lab in all_labs():
+        try:
+            status = lab_status(lab['service'], lab['key'])
+        except (BotoCoreError, ClientError, ValueError) as exc:
+            skipped_errors.append({
+                'service': lab['service'],
+                'lab': lab['key'],
+                'message': str(exc),
+            })
+            continue
+        if status.get('complete'):
+            completed.append(lab)
+
+    reset_results = []
+    reset_errors = []
+    for lab in reversed(completed):
+        try:
+            result = reset_lab(lab['service'], lab['key'])
+            reset_results.append({
+                'service': lab['service'],
+                'lab': lab['key'],
+                'title': lab.get('title'),
+                'result': result,
+            })
+        except (BotoCoreError, ClientError, ValueError) as exc:
+            reset_errors.append({
+                'service': lab['service'],
+                'lab': lab['key'],
+                'title': lab.get('title'),
+                'message': str(exc),
+            })
+
+    cache.delete(LABS_PROGRESS_CACHE_KEY)
+    return JsonResponse({
+        'reset': not reset_errors,
+        'completed_lab_count': len(completed),
+        'reset_lab_count': len(reset_results),
+        'skipped_error_count': len(skipped_errors),
+        'reset_error_count': len(reset_errors),
+        'results': reset_results,
+        'skipped_errors': skipped_errors,
+        'reset_errors': reset_errors,
+    })
 
 
 @cache_control(public=True, max_age=60)
@@ -434,6 +586,13 @@ def elasticbeanstalk(request):
 def cloudwatch(request):
     try:
         return JsonResponse(cloudwatch_inventory())
+    except (BotoCoreError, ClientError, ValueError) as exc:
+        return JsonResponse({'error': str(exc)}, status=502)
+
+
+def cloudcontrol(request):
+    try:
+        return JsonResponse(cloudcontrol_inventory())
     except (BotoCoreError, ClientError, ValueError) as exc:
         return JsonResponse({'error': str(exc)}, status=502)
 

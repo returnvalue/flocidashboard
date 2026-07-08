@@ -10,22 +10,18 @@
 {% endblock %}
 
 {% block content %}
-  <header class="topbar">
+  <header class="page-header">
     <div>
-      <a class="back-link" href="/">Services</a>
       <p class="eyebrow service-eyebrow">
         <span>{{ service.eyebrow }}</span>
-        {% if service.has_labs %}
-          <a class="service-labs-link" href="{% url 'dashboard:service-labs' service.key %}">Labs</a>
-        {% endif %}
       </p>
       <h1 class="console-title">{{ service.title }}</h1>
     </div>
-    <div class="topbar-actions">
-      <a class="secondary-action" href="{% url 'dashboard:environment' %}">Environment</a>
-      <a class="secondary-action" href="{% url 'dashboard:labs-directory' %}">Labs</a>
-      <a class="secondary-action" href="{% url 'dashboard:service-matrix' %}">Service Matrix</a>
-      <button id="refresh" type="button" aria-label="Refresh {{ service.title }}">Refresh</button>
+    <div class="page-header-actions">
+      {% if service.has_labs %}
+        <a class="secondary-action" href="{% url 'dashboard:service-labs' service.key %}">Labs</a>
+      {% endif %}
+      <button id="refresh" class="secondary-button" type="button" aria-label="Refresh {{ service.title }}">Refresh</button>
     </div>
   </header>
 

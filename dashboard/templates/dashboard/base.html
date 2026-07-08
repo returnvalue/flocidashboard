@@ -11,6 +11,33 @@
     <link rel="stylesheet" href="{% static 'dashboard/console-theme.css' %}">
   </head>
   <body>
+    <aside id="global-service-nav" class="global-service-nav" aria-label="Service navigation"></aside>
+    <section id="global-status-panel" class="global-status-panel" aria-hidden="true">
+      <div class="global-status-card" role="dialog" aria-modal="false" aria-labelledby="global-status-title">
+        <div class="global-status-heading">
+          <div>
+            <p class="eyebrow">Status Center</p>
+            <h2 id="global-status-title">Floci status</h2>
+          </div>
+          <button id="global-status-close" class="icon-button" type="button" aria-label="Close status center">×</button>
+        </div>
+        <div id="global-status-body" class="global-status-body"></div>
+      </div>
+    </section>
+    <section id="global-search-overlay" class="global-search-overlay" aria-hidden="true">
+      <div class="global-search-panel" role="dialog" aria-modal="true" aria-labelledby="global-search-title">
+        <div class="global-search-heading">
+          <div>
+            <p class="eyebrow">Service Search</p>
+            <h2 id="global-search-title">Open a service</h2>
+          </div>
+          <button id="global-search-close" class="icon-button" type="button" aria-label="Close service search">×</button>
+        </div>
+        <label class="global-search-label" for="global-search-input">Search services</label>
+        <input id="global-search-input" class="global-search-input" type="search" autocomplete="off" placeholder="Type a service name, key, or category">
+        <div id="global-search-results" class="global-search-results" role="listbox"></div>
+      </div>
+    </section>
     <main class="shell">
       {% block content %}{% endblock %}
     </main>

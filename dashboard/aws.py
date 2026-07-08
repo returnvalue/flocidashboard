@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import json
+from contextvars import ContextVar
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -18,6 +19,41 @@ from botocore.parsers import ResponseParserError
 from django.conf import settings
 
 
+RUNTIME_ENDPOINT_SESSION_KEY = 'floci_runtime_endpoint_url'
+_runtime_endpoint_override: ContextVar[str | None] = ContextVar(
+    'floci_runtime_endpoint_override',
+    default=None,
+)
+
+
+def normalize_endpoint_url(value: str) -> str:
+    return str(value or '').strip().rstrip('/')
+
+
+def set_runtime_endpoint_override(endpoint_url: str | None):
+    return _runtime_endpoint_override.set(normalize_endpoint_url(endpoint_url) if endpoint_url else None)
+
+
+def reset_runtime_endpoint_override(token) -> None:
+    _runtime_endpoint_override.reset(token)
+
+
+def runtime_endpoint_override() -> str | None:
+    return _runtime_endpoint_override.get()
+
+
+def default_endpoint_url() -> str:
+    return normalize_endpoint_url(
+        os.getenv(
+            'FLOCI_AWS_ENDPOINT_URL',
+            os.getenv(
+                'AWS_ENDPOINT_URL',
+                settings.FLOCI_AWS_ENDPOINT_URL,
+            ),
+        ),
+    )
+
+
 @dataclass(frozen=True)
 class ResourceResult:
     name: str
@@ -28,14 +64,9 @@ class ResourceResult:
 
 
 class FlociClientFactory:
-    def __init__(self) -> None:
-        self.endpoint_url = os.getenv(
-            'FLOCI_AWS_ENDPOINT_URL',
-            os.getenv(
-                'AWS_ENDPOINT_URL',
-                settings.FLOCI_AWS_ENDPOINT_URL,
-            ),
-        )
+    def __init__(self, endpoint_url: str | None = None) -> None:
+        override = normalize_endpoint_url(endpoint_url) if endpoint_url else runtime_endpoint_override()
+        self.endpoint_url = override or default_endpoint_url()
         self.region = os.getenv('AWS_DEFAULT_REGION') or os.getenv(
             'AWS_REGION',
             os.getenv(
@@ -67,7 +98,8 @@ class FlociClientFactory:
                 self.secret_access_key = 'test'
                 self.credential_source = 'local_default'
         self.endpoint_source = (
-            'FLOCI_AWS_ENDPOINT_URL' if os.getenv('FLOCI_AWS_ENDPOINT_URL')
+            'runtime_override' if override
+            else 'FLOCI_AWS_ENDPOINT_URL' if os.getenv('FLOCI_AWS_ENDPOINT_URL')
             else 'AWS_ENDPOINT_URL' if os.getenv('AWS_ENDPOINT_URL')
             else 'settings'
         )
@@ -1419,6 +1451,7 @@ def elasticbeanstalk_inventory() -> dict[str, Any]:
         'available_sdk_operations': sorted(operations),
         'notes': [
             'Floci 1.5.28 adds initial Elastic Beanstalk Query API support.',
+            'Floci 1.5.31 persists Elastic Beanstalk applications, versions, and environments across restart.',
             'This read-only inspector focuses on applications, environments, application versions, platforms, and solution stacks exposed by the local endpoint.',
         ],
     }
@@ -1472,6 +1505,7 @@ def rdsdata_inventory() -> dict[str, Any]:
         ],
         'available_sdk_operations': sorted(operations),
         'notes': [
+            'Floci 1.5.31 adds PostgreSQL support to the RDS Data API, extending the MySQL-backed flow introduced in 1.5.25.',
             'Floci 1.5.25 adds RDS Data API support under the rds-data service name.',
             'RDS Data API is request-oriented rather than catalog-oriented, so this page surfaces supported calls and required request fields.',
         ],
@@ -1643,6 +1677,10 @@ def ec2_inventory() -> dict[str, Any]:
         lambda: _paginate(ec2, 'describe_flow_logs', 'FlowLogs'),
         [],
     )) if 'DescribeFlowLogs' in operations else []
+    snapshots = _clean_response(_safe_value(
+        lambda: _paginate(ec2, 'describe_snapshots', 'Snapshots'),
+        [],
+    )) if 'DescribeSnapshots' in operations else []
 
     return {
         'summary': {
@@ -1658,6 +1696,7 @@ def ec2_inventory() -> dict[str, Any]:
             'key_pairs': len(key_pairs),
             'iam_instance_profile_associations': len(iam_instance_profile_associations),
             'flow_logs': len(flow_logs),
+            'snapshots': len(snapshots),
         },
         'instances': instances,
         'vpcs': vpcs,
@@ -1678,14 +1717,18 @@ def ec2_inventory() -> dict[str, Any]:
         'account_attributes': account_attributes,
         'instance_types': instance_types,
         'flow_logs': flow_logs,
+        'snapshots': snapshots,
         'supported_from_sdk': [
             operation
             for operation in [
                 'CreateFlowLogs',
                 'DescribeFlowLogs',
                 'DeleteFlowLogs',
+                'DescribeImages',
+                'DescribeInstanceTypes',
                 'DescribeInstanceAttribute',
                 'DescribeSecurityGroupRules',
+                'DescribeSnapshots',
             ]
             if operation in operations
         ],
@@ -1706,6 +1749,7 @@ def ec2_inventory() -> dict[str, Any]:
             'Floci serves IMDS-compatible metadata on the configured host IMDS port, default 9169.',
             'Security group rules are stored and returned but local Docker networking handles enforcement.',
             'Floci 1.5.30 adds VPC Flow Logs and publishes security-group TCP ingress ports on the host.',
+            'Floci 1.5.31 adds instance metadata catalog architecture parity plus registered images and snapshots support.',
             'Floci 1.5.27 adds EC2 Network ACL support for VPC subnet traffic-control workflows.',
             'Floci 1.5.28 adds a Java-built Ubuntu AMI guest image, instance type metadata catalog, VPC endpoint compatibility improvements, and persisted default egress security group rules.',
             'Floci 1.5.26 adds Spot Instance request actions and embedded DNS support for instances.',
@@ -2026,6 +2070,7 @@ def lambda_inventory() -> dict[str, Any]:
             'S3-based deployments support reactive hot reload when the source object changes.',
             'Bind-mount hot reload uses S3Bucket=hot-reload and requires explicit configuration.',
             'Reserved concurrency is enforced; provisioned concurrency is not implemented.',
+            'Floci 1.5.31 persists Lambda version counters and event-invoke configs, and mounts function code read-only for faster cold starts.',
             'Floci 1.5.28 improves SQS event source mappings by carrying message attributes, FIFO system attributes, and persisted firstReceiveTimestamp, and resolves leading ./ handler paths inside packages.',
             'Floci 1.5.18 uses a checkout/release Lambda port pool with clearer exhaustion errors during concurrent invocations.',
             'Floci 1.5.19 adds Lambda layer publishing, lookup, version listing, and deletion.',
@@ -2243,6 +2288,7 @@ def secretsmanager_inventory() -> dict[str, Any]:
             'DeleteResourcePolicy',
             'TagResource',
             'UntagResource',
+            'BatchGetSecretValue',
         ],
         'configuration': {
             'default_recovery_window_days': 30,
@@ -2250,6 +2296,7 @@ def secretsmanager_inventory() -> dict[str, Any]:
             'value_display': 'Secret values are masked; only type, length, and a short preview are shown.',
         },
         'notes': [
+            'Floci 1.5.31 supports filters and pagination in BatchGetSecretValue.',
             'Floci 1.5.27 implements automatic secret rotation lifecycle behavior.',
             'Floci 1.5.28 registers AWSPENDING before invoking the rotation Lambda.',
         ],
@@ -2486,6 +2533,8 @@ def cloudwatch_inventory() -> dict[str, Any]:
             'TagLogGroup',
             'UntagLogGroup',
             'ListTagsLogGroup',
+            'StartQuery',
+            'GetQueryResults',
         ],
         'metrics_supported': [
             'PutMetricData',
@@ -2503,8 +2552,115 @@ def cloudwatch_inventory() -> dict[str, Any]:
             'metrics_protocol': 'Query XML and JSON 1.1',
         },
         'notes': [
+            'Floci 1.5.31 adds CloudWatch Logs Insights query support for local log analysis workflows.',
             'Floci 1.5.23 accepts CloudWatch Logs log group ARNs through logGroupIdentifier where AWS allows either a name or ARN.',
             'Floci 1.5.23 also fixes rpc-v2-cbor timestamp list tagging for GetMetricData decoding.',
+        ],
+    }
+
+
+_CLOUDCONTROL_TYPE_PRESETS = [
+    'AWS::ApiGateway::RestApi',
+    'AWS::CloudFormation::Stack',
+    'AWS::CloudWatch::Alarm',
+    'AWS::DynamoDB::Table',
+    'AWS::EC2::Instance',
+    'AWS::EC2::SecurityGroup',
+    'AWS::EC2::Subnet',
+    'AWS::EC2::VPC',
+    'AWS::Events::Rule',
+    'AWS::IAM::Role',
+    'AWS::IAM::User',
+    'AWS::Kinesis::Stream',
+    'AWS::Lambda::Function',
+    'AWS::Logs::LogGroup',
+    'AWS::S3::Bucket',
+    'AWS::SecretsManager::Secret',
+    'AWS::SNS::Topic',
+    'AWS::SQS::Queue',
+    'AWS::StepFunctions::StateMachine',
+]
+
+
+def _cloudcontrol_resource_items(cloudcontrol, type_name: str) -> tuple[list[dict[str, Any]], str | None]:
+    try:
+        resource_descriptions = _paginate(
+            cloudcontrol,
+            'list_resources',
+            'ResourceDescriptions',
+            TypeName=type_name,
+            MaxResults=100,
+        )
+    except Exception as exc:
+        return [], str(exc)
+
+    items = []
+    for resource in resource_descriptions:
+        properties = resource.get('Properties')
+        parsed_properties = properties
+        if isinstance(properties, str):
+            try:
+                parsed_properties = json.loads(properties)
+            except ValueError:
+                parsed_properties = properties
+        items.append({
+            'name': resource.get('Identifier') or type_name,
+            'type_name': type_name,
+            'identifier': resource.get('Identifier'),
+            'properties': _clean_response(parsed_properties),
+        })
+    return items, None
+
+
+def cloudcontrol_inventory() -> dict[str, Any]:
+    factory = FlociClientFactory()
+    cloudcontrol = factory.client('cloudcontrol')
+    operations = set(cloudcontrol.meta.service_model.operation_names)
+
+    type_results = []
+    resources = []
+    errors = []
+    if 'ListResources' in operations:
+        for type_name in _CLOUDCONTROL_TYPE_PRESETS:
+            items, error = _cloudcontrol_resource_items(cloudcontrol, type_name)
+            type_results.append({
+                'name': type_name,
+                'type_name': type_name,
+                'count': len(items),
+                'error': error,
+            })
+            resources.extend(items)
+            if error:
+                errors.append({
+                    'name': type_name,
+                    'type_name': type_name,
+                    'error': error,
+                })
+
+    return {
+        'summary': {
+            'type_presets': len(_CLOUDCONTROL_TYPE_PRESETS),
+            'resource_types_with_results': sum(1 for result in type_results if result['count']),
+            'resources': len(resources),
+            'errors': len(errors),
+            'available_sdk_operations': len(operations),
+        },
+        'resources': resources,
+        'type_results': type_results,
+        'errors': errors,
+        'supported_from_sdk': [
+            operation
+            for operation in [
+                'ListResources',
+                'GetResource',
+            ]
+            if operation in operations
+        ],
+        'available_sdk_operations': sorted(operations),
+        'notes': [
+            'Floci 1.5.31 adds Cloud Control list_resources backed by local service resource collections.',
+            'This read-only inspector queries common AWS type-name presets and keeps per-type errors visible so unsupported gaps are easy to spot.',
+            'Cloud Control is useful for generic resource discovery tools and complements the service-specific dashboard inventories.',
         ],
     }
 
@@ -3035,6 +3191,7 @@ def eventbridge_inventory() -> dict[str, Any]:
         'notes': [
             'The default event bus is named default and accepts AWS service events.',
             'Custom event buses are for application events.',
+            'Floci 1.5.31 can deliver EventBridge events to Data Firehose delivery stream targets.',
             'Floci 1.5.28 syncs EventBridge tags to Resource Groups Tagging discovery.',
             'Floci 1.5.22 preserves the PutEvents call region and account through pattern matching and delivered event envelopes.',
             'Floci 1.5.21 fixes rule tagging on custom buses whose name contains event-bus.',
@@ -3404,7 +3561,7 @@ def apigateway_inventory() -> dict[str, Any]:
             'Integrations': ['PutIntegration', 'GetIntegration', 'UpdateIntegration', 'DeleteIntegration'],
             'Deployments and stages': ['CreateDeployment', 'GetDeployments', 'DeleteDeployment', 'CreateStage', 'GetStage', 'GetStages', 'UpdateStage', 'DeleteStage'],
             'Authorizers and validation': ['CreateAuthorizer', 'GetAuthorizer', 'GetAuthorizers', 'CreateRequestValidator', 'GetRequestValidator', 'GetRequestValidators', 'DeleteRequestValidator'],
-            'Keys and plans': ['CreateApiKey', 'GetApiKeys', 'CreateUsagePlan', 'GetUsagePlans', 'DeleteUsagePlan', 'CreateUsagePlanKey', 'GetUsagePlanKey', 'GetUsagePlanKeys', 'DeleteUsagePlanKey'],
+            'Keys and plans': ['CreateApiKey', 'GetApiKey', 'GetApiKeys', 'CreateUsagePlan', 'GetUsagePlans', 'DeleteUsagePlan', 'CreateUsagePlanKey', 'GetUsagePlanKey', 'GetUsagePlanKeys', 'DeleteUsagePlanKey'],
             'Models and domains': ['CreateModel', 'GetModel', 'GetModels', 'DeleteModel', 'CreateDomainName', 'GetDomainName', 'GetDomainNames', 'DeleteDomainName'],
             'Tags': ['TagResource', 'UntagResource', 'GetTags'],
         },
@@ -3421,7 +3578,6 @@ def apigateway_inventory() -> dict[str, Any]:
             'UpdateAuthorizer',
             'DeleteAuthorizer',
             'TestInvokeAuthorizer',
-            'GetApiKey',
             'UpdateApiKey',
             'DeleteApiKey',
             'ImportApiKeys',
@@ -3435,6 +3591,7 @@ def apigateway_inventory() -> dict[str, Any]:
         ],
         'notes': [
             'Floci supports API Gateway v1 REST APIs and API Gateway v2 HTTP APIs.',
+            'Floci 1.5.31 persists API key tags and adds the GetApiKey route.',
             'Floci 1.5.22 implements REST API EndpointConfiguration and the ApiGatewayV2 CloudFormation update path.',
             'Floci 1.5.21 implements the API Gateway v1 DeleteDeployment endpoint and returns JSON 404 errors for missing deployments.',
             'Floci 1.5.19 fills REQUEST authorizer events for REST APIs, supports Lambda REQUEST authorizers on HTTP API v2 routes, and persists v1 UpdateStage methodSettings patch operations.',
@@ -5187,6 +5344,7 @@ def firehose_inventory() -> dict[str, Any]:
             'Incoming records are buffered in memory and flushed to S3 after every 5 records for immediate local feedback.',
             'Floci writes flushed records as raw NDJSON to the floci-firehose-results bucket.',
             'Destinations are flattened from each delivery stream so delivery configuration can be scanned together.',
+            'Floci 1.5.31 lets EventBridge rules deliver events to Firehose delivery stream targets.',
             'Floci 1.5.30 returns ExtendedS3DestinationDescription and supports UpdateDestination.',
         ],
     }
@@ -7758,6 +7916,7 @@ def cloudformation_inventory() -> dict[str, Any]:
             'CloudFormation actions use the Query XML protocol at the Floci root endpoint.',
             'Stacks can expose templates, events, resources, outputs, stack policies, and change sets.',
             'Floci 1.5.30 adds StackSets with account-aware provisioning for multi-account CloudFormation patterns.',
+            'Floci 1.5.31 applies S3 Bucket CorsConfiguration from CloudFormation templates.',
             'Floci 1.5.26 provisions EC2 instances, RDS resources, EKS clusters and node groups, CloudWatch Logs log groups, CloudWatch metric alarms, Auto Scaling groups and launch configurations, Kinesis streams, and Firehose delivery streams.',
             'Floci 1.5.26 also adds Fn::GetAZs and Fn::Cidr intrinsics and creates API Gateway stages from inline StageName on AWS::ApiGateway::Deployment.',
             'Floci 1.5.29 makes ECS resource deletion idempotent during CloudFormation stack delete.',
@@ -8059,6 +8218,7 @@ def rds_inventory() -> dict[str, Any]:
         'notes': [
             'RDS management uses Query XML and the data plane uses PostgreSQL or MySQL wire protocol.',
             'Floci manages real PostgreSQL, MySQL, and MariaDB Docker containers.',
+            'Floci 1.5.31 adds RDS mock mode so clusters and instances can be created without Docker for CI and fast unit-style tests.',
             'Instances expose local TCP proxy endpoints on localhost:<proxy-port>.',
             'Floci 1.5.28 aligns CreateDBInstance/CreateDBCluster parameter group validation, subnet group placement, and requested database-name proxy handling with AWS behavior.',
             'Floci 1.5.25 adds RDS provisioning lifecycle support for create, describe, modify, and delete flows.',
@@ -8301,6 +8461,7 @@ def stepfunctions_inventory() -> dict[str, Any]:
         'protocol': 'JSON 1.1',
         'notes': [
             'Floci exposes Step Functions through the AmazonStatesService JSON 1.1 target.',
+            'Floci 1.5.31 supports Map ItemReader for S3-backed JSON datasets and resolves qualified Lambda function ARNs in lambda:invoke service integrations.',
             'Floci 1.5.30 adds state machine version APIs, ECS runTask integration, ResultSelector, ResultPath wildcard projection, ArrayContains, and account-aware execution routing.',
             'Floci 1.5.29 adds aws-sdk integrations for CloudFormation, EC2, and S3 PutObject.',
             'Floci 1.5.28 returns no execution data through the SDK where AWS omits it.',
@@ -8415,6 +8576,7 @@ def scheduler_inventory() -> dict[str, Any]:
             'SQS',
             'Lambda',
             'SNS',
+            'ECS RunTask',
             'EventBridge PutEvents',
             'Universal AWS SDK targets for SNS Publish and SQS SendMessage',
         ],
@@ -8432,6 +8594,7 @@ def scheduler_inventory() -> dict[str, Any]:
             'Schedules without an explicit group are placed in the default group.',
             'The default group cannot be deleted.',
             'State=DISABLED schedules and schedules outside StartDate/EndDate are skipped.',
+            'Floci 1.5.31 dispatches ECS targets to RunTask.',
             'FIFO SQS targets can carry MessageGroupId through Target.SqsParameters.',
         ],
     }

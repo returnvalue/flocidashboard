@@ -1,18 +1,32 @@
 from django.urls import path
 
-from . import acm_views, apigateway_views, appconfig_views, appsync_views, athena_views, autoscaling_views, backup_views, bedrockruntime_views, cloudformation_views, cloudfront_views, cloudmap_views, cloudwatch_logs_views, codebuild_views, codedeploy_views, cognito_views, config_views, dynamodb_views, ec2_views, ecr_views, ecs_views, eks_views, elasticache_views, elasticloadbalancing_views, eventbridge_views, firehose_views, glue_views, iam_views, kafka_views, kinesis_views, kms_views, lambda_views, neptune_views, opensearch_views, pipes_views, rds_views, resourcegroupstagging_views, route53_views, s3_views, scheduler_views, secretsmanager_views, ses_views, sns_views, sqs_views, ssm_views, stepfunctions_views, textract_views, transcribe_views, transfer_views, views
+from . import acm_views, apigateway_views, appconfig_views, appsync_views, athena_views, autoscaling_views, backup_views, bedrockruntime_views, cloudformation_views, cloudfront_views, cloudmap_views, cloudwatch_logs_views, codebuild_views, codedeploy_views, cognito_views, config_views, dynamodb_views, ec2_views, ecr_views, ecs_views, eks_views, elasticache_views, elasticloadbalancing_views, eventbridge_views, firehose_views, glue_views, iam_views, inspector_views, kafka_views, kinesis_views, kms_views, lambda_views, neptune_views, opensearch_views, pipes_views, rds_views, resourcegroupstagging_views, route53_views, s3_views, scheduler_views, secretsmanager_views, ses_views, settings_views, sns_views, sqs_views, ssm_views, stepfunctions_views, textract_views, transcribe_views, transfer_views, views
 
 app_name = 'dashboard'
 
 urlpatterns = [
     path('', views.index, name='index'),
     path('environment/', views.environment, name='environment'),
+    path('settings/', views.settings_page, name='settings'),
+    path('inspector/', inspector_views.inspector_page, name='inspector'),
     path('labs/', views.labs_directory, name='labs-directory'),
     path('services/', views.service_matrix, name='service-matrix'),
     path('service/<slug:service_key>/', views.service_page, name='service-page'),
     path('service/<slug:service_key>/labs/', views.service_labs, name='service-labs'),
     path('api/labs/<slug:service_key>/<slug:lab_key>/steps/<slug:step_key>/run/', views.lab_step_run, name='lab-step-run'),
     path('api/labs/<slug:service_key>/<slug:lab_key>/reset/', views.lab_reset, name='lab-reset'),
+    path('api/labs/progress/', views.labs_progress, name='labs-progress'),
+    path('api/labs/reset-completed/', views.labs_global_reset, name='labs-global-reset'),
+    path('api/settings/', settings_views.settings_detail, name='settings-detail'),
+    path('api/settings/endpoint/', settings_views.settings_endpoint_save, name='settings-endpoint'),
+    path('api/settings/endpoint/reset/', settings_views.settings_endpoint_reset, name='settings-endpoint-reset'),
+    path('api/settings/test-connection/', settings_views.settings_test_connection, name='settings-test-connection'),
+    path('api/inspector/sqs/queues/', inspector_views.inspector_sqs_queues, name='inspector-sqs-queues'),
+    path('api/inspector/sqs/messages/', inspector_views.inspector_sqs_messages, name='inspector-sqs-messages'),
+    path('api/inspector/ses/messages/', inspector_views.inspector_ses_messages, name='inspector-ses-messages'),
+    path('api/inspector/ses/messages/clear/', inspector_views.inspector_ses_messages_clear, name='inspector-ses-messages-clear'),
+    path('api/inspector/lambda/log-groups/', inspector_views.inspector_lambda_log_groups, name='inspector-lambda-log-groups'),
+    path('api/inspector/lambda/log-events/', inspector_views.inspector_lambda_log_events, name='inspector-lambda-log-events'),
     path('api/acm/', views.acm, name='acm'),
     path('api/acm/certificates/', acm_views.acm_certificates_create, name='acm-certificates'),
     path('api/acm/certificates/<path:certificate_arn>/renew/', acm_views.acm_certificate_renew, name='acm-certificate-renew'),
@@ -121,6 +135,7 @@ urlpatterns = [
     path('api/cloudmap/services/<str:service_id>/instances/<str:instance_id>/health/', cloudmap_views.cloudmap_instance_health, name='cloudmap-instance-health'),
     path('api/cloudmap/discover/', cloudmap_views.cloudmap_instances_discover, name='cloudmap-discover'),
     path('api/cloudmap/tags/', cloudmap_views.cloudmap_tags, name='cloudmap-tags'),
+    path('api/cloudcontrol/', views.cloudcontrol, name='cloudcontrol'),
     path('api/cloudtrail/', views.cloudtrail, name='cloudtrail'),
     path('api/cloudformation/', views.cloudformation, name='cloudformation'),
     path('api/cloudformation/templates/validate/', cloudformation_views.cloudformation_templates_validate, name='cloudformation-templates-validate'),
@@ -159,6 +174,8 @@ urlpatterns = [
     path('api/cloudwatch/', views.cloudwatch, name='cloudwatch'),
     path('api/cloudwatch/log-streams/', cloudwatch_logs_views.cloudwatch_log_streams, name='cloudwatch-log-streams'),
     path('api/cloudwatch/log-events/', cloudwatch_logs_views.cloudwatch_log_events, name='cloudwatch-log-events'),
+    path('api/cloudwatch/logs-insights/query/', cloudwatch_logs_views.cloudwatch_logs_insights_query, name='cloudwatch-logs-insights-query'),
+    path('api/cloudwatch/logs-insights/results/', cloudwatch_logs_views.cloudwatch_logs_insights_results, name='cloudwatch-logs-insights-results'),
     path('api/codepipeline/', views.codepipeline, name='codepipeline'),
     path('api/dynamodb/', views.dynamodb, name='dynamodb'),
     path('api/dynamodb/tables/<str:table_name>/scan/', dynamodb_views.dynamodb_table_scan, name='dynamodb-table-scan'),

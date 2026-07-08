@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from unittest.mock import patch
 
 from django.test import SimpleTestCase
@@ -17,6 +18,20 @@ class CloudWatchPageTemplateTests(SimpleTestCase):
         self.assertContains(response, 'dashboard/cloudwatch-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/cloudwatch-console.js')
+
+
+class CloudWatchStaticConsoleTests(SimpleTestCase):
+    def test_log_groups_and_streams_use_shared_collection_helper(self):
+        script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'cloudwatch-console.js'
+        source = script.read_text()
+
+        self.assertIn('consoleUi.renderCollection({', source)
+        self.assertIn("filterPlaceholder: 'Find log groups'", source)
+        self.assertIn('state.groupFilterText = value', source)
+        self.assertIn("emptyFilteredTitle: 'No log groups match this filter.'", source)
+        self.assertIn("filterPlaceholder: 'Find streams'", source)
+        self.assertIn('state.streamFilterText = value', source)
+        self.assertIn("emptyFilteredTitle: 'No streams match this filter.'", source)
 
 
 class CloudWatchLogsApiTests(SimpleTestCase):
@@ -63,3 +78,49 @@ class CloudWatchLogsApiTests(SimpleTestCase):
             limit=50,
             start_time=None,
         )
+
+    @patch('dashboard.cloudwatch_logs_views.start_logs_insights_query')
+    def test_start_logs_insights_query_success(self, query_mock):
+        query_mock.return_value = {
+            'log_group_name': '/aws/lambda/worker',
+            'query_id': 'query-1',
+            'query_string': 'fields @message',
+        }
+
+        response = self.client.post(
+            reverse('dashboard:cloudwatch-logs-insights-query'),
+            data=json.dumps({
+                'log_group_name': '/aws/lambda/worker',
+                'query_string': 'fields @message',
+                'limit': 25,
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['query_id'], 'query-1')
+        query_mock.assert_called_once_with(
+            '/aws/lambda/worker',
+            'fields @message',
+            start_time=None,
+            end_time=None,
+            limit=25,
+        )
+
+    @patch('dashboard.cloudwatch_logs_views.get_logs_insights_query_results')
+    def test_get_logs_insights_query_results_success(self, results_mock):
+        results_mock.return_value = {
+            'query_id': 'query-1',
+            'status': 'Complete',
+            'results': [[{'field': '@message', 'value': 'hello'}]],
+        }
+
+        response = self.client.post(
+            reverse('dashboard:cloudwatch-logs-insights-results'),
+            data=json.dumps({'query_id': 'query-1'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['status'], 'Complete')
+        results_mock.assert_called_once_with('query-1')

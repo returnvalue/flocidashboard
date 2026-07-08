@@ -215,6 +215,8 @@ Core architecture files:
 - Added the Lambda runtime configuration lab with lab-owned SSM and Secrets Manager inputs, least-privilege read policy, environment-driven resource IDs, safe response verification, CloudWatch Logs proof, and dependency-aware cleanup.
 - Added the Lambda SQS event source lab with a lab-owned queue, least-privilege polling policy, packaged consumer handler, Lambda event source mapping, SQS message proof, CloudWatch Logs proof, and dependency-aware cleanup.
 - Migrated the default visual system to an AWS-adjacent console theme with semantic CSS tokens, consistent top navigation across primary pages, tightened console page headers, shared empty-state polish, and the new README screenshot.
+- Reviewed Floci 1.5.31, added a Cloud Control read-only resource-discovery page, added a CloudWatch Logs Insights query path to the CloudWatch workbench, surfaced EC2 snapshots, refreshed release-aware notes for RDS Data API PostgreSQL support, RDS mock mode, Cloud Control/read-only APIs, Lambda persistence and cold starts, Elastic Beanstalk persistence, API Gateway API key tags/GetApiKey, EventBridge-to-Firehose delivery, Scheduler ECS targets, CloudFormation S3 CORS, Step Functions ItemReader and qualified Lambda ARNs, Secrets Manager BatchGetSecretValue, EC2 catalogs, and Firehose delivery targets.
+- Added console navigation polish with a persistent service rail, global `Cmd/Ctrl+K` service search, local favorites, recently visited services, and a shared collection filtering/count helper used by the homepage service grid.
 
 ## Near-Term Priorities
 
@@ -265,7 +267,23 @@ Why it matters:
 - Action buttons become registry-driven instead of duplicated per workbench.
 - Future service migrations get smaller and less error-prone.
 
-### 3. Step Functions Follow-Ups
+### 3. Cloud Control And Unified Resource Discovery
+
+Floci 1.5.31 adds Cloud Control `list_resources` plus broader read-only describe/list APIs. The dashboard now has a first read-only Cloud Control page; the next pass should make it easier to compare unified discovery with the service-specific pages.
+
+Feasible first version:
+
+- Add a type-name filter or preset picker instead of loading only the fixed default set.
+- Cross-check Cloud Control results against the existing service-specific inventory pages.
+- Add deep links from Cloud Control resources to matching service pages where the resource type is known.
+- Document gaps where Cloud Control can discover resources that the dashboard does not yet render directly.
+
+Why it matters:
+
+- Cloud Control is a useful bridge for Steampipe, IaC, and generic AWS resource explorers.
+- The new dashboard view can become the comparison point between unified discovery and service-specific workbenches.
+
+### 4. Step Functions Follow-Ups
 
 Keep improving the Step Functions execution and version workbench.
 
@@ -281,7 +299,7 @@ Why it matters:
 
 - Step Functions is a natural workflow debugger for local Lambda and service-integration testing.
 
-### 4. IAM Polish
+### 5. IAM Polish
 
 Keep improving the new IAM workbench.
 
@@ -297,7 +315,7 @@ Why it matters:
 - IAM is central to local AWS debugging.
 - The current workbench is already useful, and a few focused additions would make it a stronger identity debugger.
 
-### 5. S3 Follow-Ups
+### 6. S3 Follow-Ups
 
 Keep improving the existing S3 workbench.
 
@@ -315,7 +333,7 @@ Why it matters:
 - S3 is the reference workbench and likely a high-traffic page.
 - The completed S3 lab sequence now provides a repeatable regression and learning surface for these workflows.
 
-### 6. Workflow Lab Framework
+### 7. Workflow Lab Framework
 
 Continue the local AWS workflow lab system beyond the completed IAM, S3, SQS, SNS, Scheduler, CloudFormation, EC2, Lambda, API Gateway, DynamoDB, KMS, SSM, and Secrets Manager foundations.
 
@@ -334,7 +352,7 @@ Why it matters:
 - The curated runner model keeps command execution safe and repeatable.
 - Multi-service labs can turn the dashboard into a practical local integration-learning environment.
 
-### 7. EC2 Follow-Ups
+### 8. EC2 Follow-Ups
 
 Keep improving the new EC2 instance workbench.
 
@@ -351,7 +369,7 @@ Why it matters:
 - EC2 is now a real local compute workflow in Floci.
 - Launch, lifecycle, key import, IMDS, and networking hints make the dashboard a better local debugger than raw inventory alone.
 
-### 8. EventBridge Follow-Ups
+### 9. EventBridge Follow-Ups
 
 Keep improving the new EventBridge event sender.
 
@@ -368,7 +386,7 @@ Why it matters:
 - EventBridge sits between many existing interactive workbenches.
 - Better cross-service links would turn it into a practical event-routing debugger.
 
-### 9. API Gateway Follow-Ups
+### 10. API Gateway Follow-Ups
 
 Keep improving the new API Gateway request workbench.
 
@@ -384,7 +402,7 @@ Why it matters:
 - API Gateway is now the local HTTP front door for Lambda and HTTP proxy workflows.
 - Replay and cross-service links would make it a stronger request debugger.
 
-### 10. Kinesis Follow-Ups
+### 11. Kinesis Follow-Ups
 
 Keep improving the new Kinesis stream workbench.
 
@@ -400,7 +418,7 @@ Why it matters:
 
 - Kinesis now completes the event/data-stream testing loop alongside SQS, SNS, EventBridge, Lambda, and CloudWatch.
 
-### 11. Secrets Manager And SSM Follow-Ups
+### 12. Secrets Manager And SSM Follow-Ups
 
 Keep improving local configuration and secret debugging.
 
@@ -437,15 +455,16 @@ This order is intentionally modest and can change:
 
 1. Keep action audit baseline at zero.
 2. Finish shared action loader migration.
-3. Step Functions follow-ups.
-4. IAM polish.
-5. S3 follow-ups.
-6. Split and extend the workflow lab framework beyond the completed foundational sequences.
-7. EC2 follow-ups.
-8. EventBridge follow-ups.
-9. API Gateway follow-ups.
-10. Kinesis follow-ups.
-11. Secrets Manager and SSM follow-ups.
+3. Iterate on the Cloud Control and unified resource discovery surface.
+4. Step Functions follow-ups.
+5. IAM polish.
+6. S3 follow-ups.
+7. Split and extend the workflow lab framework beyond the completed foundational sequences.
+8. EC2 follow-ups.
+9. EventBridge follow-ups.
+10. API Gateway follow-ups.
+11. Kinesis follow-ups.
+12. Secrets Manager and SSM follow-ups.
 
 ## Contributor Checklist
 
@@ -470,3 +489,4 @@ When adding or improving a service page:
 - Should tutorial definitions live in this repo, Floci docs, or both?
 - Which remaining inventory-only service should become the next interactive workbench?
 - Should the Environment page grow a Docker/runtime lens when Floci exposes stable runtime fields?
+- Which Cloud Control type names should be in the default preset list, and which should be opt-in?

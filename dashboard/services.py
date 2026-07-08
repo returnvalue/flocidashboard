@@ -809,6 +809,32 @@ CLOUDWATCH_ACTIONS = (
             action_field('start_time', 'Start time milliseconds', field_type='number'),
         ),
     ),
+    action(
+        'start_logs_insights_query',
+        'Start Logs Insights query',
+        'POST',
+        '/api/cloudwatch/logs-insights/query/',
+        'read',
+        safety='safe',
+        fields=(
+            action_field('log_group_name', 'Log group name', required=True),
+            action_field('query_string', 'Query string', field_type='textarea', required=True),
+            action_field('start_time', 'Start time epoch seconds', field_type='number'),
+            action_field('end_time', 'End time epoch seconds', field_type='number'),
+            action_field('limit', 'Limit', field_type='number'),
+        ),
+    ),
+    action(
+        'get_logs_insights_query_results',
+        'Get Logs Insights query results',
+        'POST',
+        '/api/cloudwatch/logs-insights/results/',
+        'read',
+        safety='safe',
+        fields=(
+            action_field('query_id', 'Query ID', required=True),
+        ),
+    ),
 )
 
 
@@ -4045,6 +4071,15 @@ SERVICES: tuple[ServiceDefinition, ...] = (
         tutorial_available=True,
         tags=('service-discovery', 'layered-workbench'),
         actions=CLOUDMAP_ACTIONS,
+    ),
+    service(
+        'cloudcontrol',
+        'Cloud Control',
+        'Unified resource discovery through Cloud Control API type names',
+        'Management',
+        maturity='read_only_inspector',
+        shared_console=True,
+        tags=('resource-discovery', 'cloudcontrol', 'inventory'),
     ),
     service(
         'cloudtrail',

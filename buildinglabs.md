@@ -1782,6 +1782,11 @@ aws ec2 create-security-group --group-name floci-lab-app-sg --description "Priva
 aws ec2 authorize-security-group-ingress --group-id <app-sg-id> --ip-permissions file://web-to-app.json
 aws ec2 describe-security-groups --group-ids <web-sg-id> <app-sg-id>
 aws ec2 describe-security-group-rules --filters Name=group-id,Values=<web-sg-id>,<app-sg-id>
+aws ec2 create-network-acl --vpc-id <vpc-id>
+aws ec2 create-network-acl-entry --network-acl-id <network-acl-id> --rule-number 90 --protocol 6 --rule-action deny --ingress --cidr-block 0.0.0.0/0 --port-range From=22,To=22
+aws ec2 create-network-acl-entry --network-acl-id <network-acl-id> --rule-number 100 --protocol 6 --rule-action allow --ingress --cidr-block 203.0.113.0/24 --port-range From=443,To=443
+aws ec2 create-network-acl-entry --network-acl-id <network-acl-id> --rule-number 100 --protocol 6 --rule-action allow --egress --cidr-block 203.0.113.0/24 --port-range From=1024,To=65535
+aws ec2 replace-network-acl-association --association-id <default-association-id> --network-acl-id <network-acl-id>
 aws ec2 describe-network-acls --filters Name=vpc-id,Values=<vpc-id>
 ```
 
@@ -1796,15 +1801,15 @@ The accompanying NACL design demonstrates ordered, stateless rules:
 - outbound rule 100 allows ephemeral response ports 1024–65535,
 - the final `*` rule denies unmatched traffic.
 
-Floci 1.5.26 capability boundary:
+Floci 1.5.26 implementation notes:
 
 - Security-group creation, CIDR ingress, and security-group source references are accepted.
 - Describe responses retain the TCP 8080 rule but currently omit its `UserIdGroupPairs` source. The lab records successful relationship creation as short-lived state while verifying the live port rule.
-- `CreateNetworkAcl` and `DescribeNetworkAcls` return `UnsupportedOperation`.
+- Network ACL create, entry, association, and describe calls are now exercised directly.
 
-The NACL step therefore verifies and displays the support boundary plus the exact AWS rule design; it does not claim that Floci enforced those NACL rules. Add a fully executable NACL sequence when the APIs become available.
+The final NACL step verifies the custom ACL association plus the ordered stateless inbound and outbound entries.
 
-Reset deletes the app and web security groups before removing the subnet and dedicated VPC.
+Reset restores the subnet to the default NACL, deletes the custom NACL, then deletes the app and web security groups before removing the subnet and dedicated VPC.
 
 Recommended next networking lab:
 
@@ -2059,7 +2064,7 @@ Steps:
 aws dynamodb create-table --table-name floci-lab-orders --attribute-definitions file://attribute-definitions.json --key-schema file://key-schema.json --global-secondary-indexes file://customer-index.json --billing-mode PAY_PER_REQUEST
 aws dynamodb put-item --table-name floci-lab-orders --item file://order-item.json
 aws dynamodb get-item --table-name floci-lab-orders --key file://order-key.json
-aws dynamodb update-item --table-name floci-lab-orders --key file://order-key.json --update-expression "SET #status = :status, Total = :total" --expression-attribute-names file://attribute-names.json --expression-attribute-values file://updated-values.json --return-values ALL_NEW
+aws dynamodb update-item --table-name floci-lab-orders --key file://order-key.json --update-expression "SET #status = :status, #total = :total" --expression-attribute-names file://attribute-names.json --expression-attribute-values file://updated-values.json --return-values ALL_NEW
 aws dynamodb query --table-name floci-lab-orders --index-name CustomerIdIndex --key-condition-expression "CustomerId = :customer" --expression-attribute-values file://query-values.json
 aws dynamodb delete-item --table-name floci-lab-orders --key file://order-key.json
 aws dynamodb delete-table --table-name floci-lab-orders

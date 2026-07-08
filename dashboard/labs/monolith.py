@@ -9,7 +9,7 @@ from io import BytesIO
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from botocore.exceptions import ClientError
@@ -117,6 +117,10 @@ DYNAMODB_ORDER_ITEM = {
 DYNAMODB_UPDATED_ATTRIBUTES = {
     ':status': {'S': 'PAID'},
     ':total': {'N': DYNAMODB_UPDATED_TOTAL},
+}
+DYNAMODB_UPDATE_ATTRIBUTE_NAMES = {
+    '#status': 'Status',
+    '#total': 'Total',
 }
 DYNAMODB_PUT_CACHE_KEY = 'floci-lab:dynamodb:crud-query:put-item'
 DYNAMODB_UPDATE_CACHE_KEY = 'floci-lab:dynamodb:crud-query:update-item'
@@ -689,7 +693,8 @@ EC2_SECURITY_SUBNET_ID_CACHE_KEY = 'floci-lab:ec2:security-controls:subnet-id'
 EC2_WEB_SG_ID_CACHE_KEY = 'floci-lab:ec2:security-controls:web-sg-id'
 EC2_APP_SG_ID_CACHE_KEY = 'floci-lab:ec2:security-controls:app-sg-id'
 EC2_SG_REFERENCE_CACHE_KEY = 'floci-lab:ec2:security-controls:sg-reference'
-EC2_NACL_BOUNDARY_CACHE_KEY = 'floci-lab:ec2:security-controls:nacl-boundary'
+EC2_NACL_ID_CACHE_KEY = 'floci-lab:ec2:security-controls:nacl-id'
+EC2_NACL_ASSOC_ID_CACHE_KEY = 'floci-lab:ec2:security-controls:nacl-association-id'
 EC2_ENDPOINT_VPC_CIDR = '10.44.0.0/16'
 EC2_ENDPOINT_SUBNET_CIDR = '10.44.1.0/24'
 EC2_ENDPOINT_AZ = 'us-east-1a'
@@ -1272,10 +1277,12 @@ DYNAMODB_CRUD_QUERY_LAB = {
         {
             'key': 'update-item',
             'title': 'Update order status and total',
-            'command': f'aws dynamodb update-item --table-name {DYNAMODB_TABLE_NAME} --key file://order-key.json --update-expression "SET #status = :status, Total = :total" --expression-attribute-names file://attribute-names.json --expression-attribute-values file://updated-values.json --return-values ALL_NEW',
+            'command': f'aws dynamodb update-item --table-name {DYNAMODB_TABLE_NAME} --key file://order-key.json --update-expression "SET #status = :status, #total = :total" --expression-attribute-names file://attribute-names.json --expression-attribute-values file://updated-values.json --return-values ALL_NEW',
             'explanation': 'Updates the mutable attributes and returns the new item image.',
             'artifact_label': 'updated-values.json',
             'artifact': json.dumps(DYNAMODB_UPDATED_ATTRIBUTES, indent=2),
+            'secondary_artifact_label': 'attribute-names.json',
+            'secondary_artifact': json.dumps(DYNAMODB_UPDATE_ATTRIBUTE_NAMES, indent=2),
         },
         {
             'key': 'query-customer-index',
@@ -3175,7 +3182,7 @@ EC2_SECURITY_CONTROLS_LAB = {
     'service': 'ec2',
     'key': 'security-controls',
     'title': 'Control VPC traffic with security groups and network ACLs',
-    'description': 'Build stateful security-group rules, use one group as another group’s source, and examine the stateless NACL rule design plus the current local support boundary.',
+    'description': 'Build stateful security-group rules, use one group as another group’s source, and apply stateless network ACL rules to the subnet.',
     'steps': [
         {
             'key': 'create-vpc',
@@ -3240,10 +3247,40 @@ EC2_SECURITY_CONTROLS_LAB = {
             'explanation': 'Verifies the CIDR-based HTTPS rule, security-group reference, and default outbound behavior.',
         },
         {
+            'key': 'create-network-acl',
+            'title': 'Create a custom network ACL',
+            'command': 'aws ec2 create-network-acl --vpc-id <vpc-id>',
+            'explanation': 'Creates a stateless subnet firewall separate from the default VPC network ACL.',
+        },
+        {
+            'key': 'deny-ssh-network-acl',
+            'title': 'Deny inbound SSH first',
+            'command': 'aws ec2 create-network-acl-entry --network-acl-id <network-acl-id> --rule-number 90 --protocol 6 --rule-action deny --ingress --cidr-block 0.0.0.0/0 --port-range From=22,To=22',
+            'explanation': 'Adds the lower-numbered stateless deny rule that is evaluated before the allow rule.',
+        },
+        {
+            'key': 'allow-https-network-acl',
+            'title': 'Allow inbound HTTPS from trusted clients',
+            'command': f'aws ec2 create-network-acl-entry --network-acl-id <network-acl-id> --rule-number 100 --protocol 6 --rule-action allow --ingress --cidr-block {EC2_TRUSTED_CLIENT_CIDR} --port-range From=443,To=443',
+            'explanation': 'Allows TCP 443 from the trusted documentation CIDR after the explicit SSH deny.',
+        },
+        {
+            'key': 'allow-return-network-acl',
+            'title': 'Allow stateless return traffic',
+            'command': f'aws ec2 create-network-acl-entry --network-acl-id <network-acl-id> --rule-number 100 --protocol 6 --rule-action allow --egress --cidr-block {EC2_TRUSTED_CLIENT_CIDR} --port-range From=1024,To=65535',
+            'explanation': 'Because network ACLs are stateless, outbound ephemeral ports need their own explicit allow rule.',
+        },
+        {
+            'key': 'associate-network-acl',
+            'title': 'Associate the custom network ACL',
+            'command': 'aws ec2 replace-network-acl-association --association-id <default-association-id> --network-acl-id <network-acl-id>',
+            'explanation': 'Replaces the subnet’s default network ACL association with the custom rule set.',
+        },
+        {
             'key': 'inspect-network-acl-support',
-            'title': 'Inspect the stateless NACL design',
+            'title': 'Inspect stateless NACL rules',
             'command': 'aws ec2 describe-network-acls --filters Name=vpc-id,Values=<vpc-id>',
-            'explanation': 'Floci currently returns UnsupportedOperation. The artifact shows the ordered inbound and outbound rules required in AWS.',
+            'explanation': 'Verifies the custom network ACL association and ordered stateless inbound and outbound rules.',
             'artifact_label': 'network-acl-design.json',
             'artifact': json.dumps(EC2_NACL_DESIGN, indent=2),
         },
@@ -4656,9 +4693,14 @@ def _verify_apigw_lambda_permission() -> dict[str, Any]:
 def _verify_apigw_lambda_request() -> dict[str, Any]:
     cached = cache.get(APIGW_LAMBDA_REQUEST_CACHE_KEY)
     if cached:
+        message = (
+            'The local API Gateway request reached the Lambda handler and produced the expected log marker.'
+            if cached.get('verification_basis') == 'lambda_log_marker'
+            else 'The local API Gateway request returned the expected Lambda response.'
+        )
         return {
             'status': 'passed',
-            'message': 'The local API Gateway request returned the expected Lambda response.',
+            'message': message,
             'resource': cached,
         }
     return {
@@ -7723,6 +7765,62 @@ def _ec2_security_groups(vpc_id: str) -> dict[str, dict[str, Any]]:
     }
 
 
+def _ec2_security_network_acls(vpc_id: str) -> list[dict[str, Any]]:
+    response = _ec2_client().describe_network_acls(
+        Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}],
+    )
+    return response.get('NetworkAcls', [])
+
+
+def _ec2_security_custom_nacl(vpc_id: str) -> dict[str, Any] | None:
+    cached_nacl_id = cache.get(EC2_NACL_ID_CACHE_KEY)
+    acls = _ec2_security_network_acls(vpc_id)
+    if cached_nacl_id:
+        cached_acl = next(
+            (acl for acl in acls if acl.get('NetworkAclId') == cached_nacl_id),
+            None,
+        )
+        if cached_acl:
+            return cached_acl
+    custom_acl = next(
+        (acl for acl in acls if not acl.get('IsDefault')),
+        None,
+    )
+    if custom_acl:
+        cache.set(EC2_NACL_ID_CACHE_KEY, custom_acl['NetworkAclId'], timeout=86400)
+    return custom_acl
+
+
+def _ec2_default_nacl_association_id(vpc_id: str, subnet_id: str) -> str | None:
+    for acl in _ec2_security_network_acls(vpc_id):
+        for association in acl.get('Associations', []):
+            if association.get('SubnetId') == subnet_id:
+                return association.get('NetworkAclAssociationId')
+    return None
+
+
+def _nacl_rule_matches(
+    entry: dict[str, Any],
+    *,
+    egress: bool,
+    rule_number: int,
+    action: str,
+    cidr: str,
+    from_port: int,
+    to_port: int,
+) -> bool:
+    port_range = entry.get('PortRange') or {}
+    return (
+        entry.get('Egress') is egress
+        and entry.get('RuleNumber') == rule_number
+        and entry.get('RuleAction') == action
+        and entry.get('CidrBlock') == cidr
+        and str(entry.get('Protocol')) in {'6', 'tcp'}
+        and port_range.get('From') == from_port
+        and port_range.get('To') == to_port
+    )
+
+
 def _verify_ec2_security_vpc() -> dict[str, Any]:
     try:
         vpc = _ec2_security_vpc()
@@ -7827,16 +7925,138 @@ def _verify_ec2_security_group_rules() -> tuple[dict[str, Any], dict[str, Any]]:
     return web_verification, app_verification
 
 
-def _verify_ec2_nacl_boundary() -> dict[str, Any]:
-    if cache.get(EC2_NACL_BOUNDARY_CACHE_KEY):
+def _verify_ec2_network_acl_created() -> dict[str, Any]:
+    vpc = _ec2_security_vpc()
+    if not vpc:
+        return {'status': 'failed', 'message': 'Create the VPC first.'}
+    acl = _ec2_security_custom_nacl(vpc['VpcId'])
+    if acl:
         return {
             'status': 'passed',
-            'message': 'Floci reported UnsupportedOperation for network ACL APIs as documented.',
-            'resource': {'intended_rules': EC2_NACL_DESIGN},
+            'message': 'The custom network ACL exists for the security VPC.',
+            'resource': _clean_response(acl),
+        }
+    return {'status': 'failed', 'message': 'The custom network ACL is missing.'}
+
+
+def _verify_ec2_network_acl_rules() -> dict[str, Any]:
+    vpc = _ec2_security_vpc()
+    if not vpc:
+        return {'status': 'failed', 'message': 'Create the VPC first.'}
+    acl = _ec2_security_custom_nacl(vpc['VpcId'])
+    if not acl:
+        return {'status': 'failed', 'message': 'Create the custom network ACL first.'}
+    entries = acl.get('Entries', [])
+    expected_rules = [
+        ('deny inbound SSH', any(_nacl_rule_matches(
+            entry,
+            egress=False,
+            rule_number=90,
+            action='deny',
+            cidr='0.0.0.0/0',
+            from_port=22,
+            to_port=22,
+        ) for entry in entries)),
+        ('allow inbound HTTPS', any(_nacl_rule_matches(
+            entry,
+            egress=False,
+            rule_number=100,
+            action='allow',
+            cidr=EC2_TRUSTED_CLIENT_CIDR,
+            from_port=443,
+            to_port=443,
+        ) for entry in entries)),
+        ('allow outbound ephemeral return traffic', any(_nacl_rule_matches(
+            entry,
+            egress=True,
+            rule_number=100,
+            action='allow',
+            cidr=EC2_TRUSTED_CLIENT_CIDR,
+            from_port=1024,
+            to_port=65535,
+        ) for entry in entries)),
+    ]
+    missing = [name for name, present in expected_rules if not present]
+    if not missing:
+        return {
+            'status': 'passed',
+            'message': 'The custom network ACL contains the intended stateless rules.',
+            'resource': _clean_response(acl),
         }
     return {
         'status': 'failed',
-        'message': 'The network ACL support boundary has not been checked.',
+        'message': f'The custom network ACL is missing: {", ".join(missing)}.',
+    }
+
+
+def _verify_ec2_network_acl_rule(
+    *,
+    egress: bool,
+    rule_number: int,
+    action: str,
+    cidr: str,
+    from_port: int,
+    to_port: int,
+    success_message: str,
+) -> dict[str, Any]:
+    vpc = _ec2_security_vpc()
+    if not vpc:
+        return {'status': 'failed', 'message': 'Create the VPC first.'}
+    acl = _ec2_security_custom_nacl(vpc['VpcId'])
+    if not acl:
+        return {'status': 'failed', 'message': 'Create the custom network ACL first.'}
+    if any(_nacl_rule_matches(
+        entry,
+        egress=egress,
+        rule_number=rule_number,
+        action=action,
+        cidr=cidr,
+        from_port=from_port,
+        to_port=to_port,
+    ) for entry in acl.get('Entries', [])):
+        return {
+            'status': 'passed',
+            'message': success_message,
+            'resource': _clean_response(acl),
+        }
+    return {
+        'status': 'failed',
+        'message': 'The expected network ACL entry is missing.',
+    }
+
+
+def _verify_ec2_network_acl_association() -> dict[str, Any]:
+    vpc = _ec2_security_vpc()
+    if not vpc:
+        return {'status': 'failed', 'message': 'Create the VPC first.'}
+    subnet_verification = _verify_ec2_security_subnet()
+    if subnet_verification.get('status') != 'passed':
+        return subnet_verification
+    subnet_id = _ec2_cached_id(EC2_SECURITY_SUBNET_ID_CACHE_KEY, 'Subnet ID')
+    acl = _ec2_security_custom_nacl(vpc['VpcId'])
+    if not acl:
+        return {'status': 'failed', 'message': 'Create the custom network ACL first.'}
+    association = next(
+        (
+            item for item in acl.get('Associations', [])
+            if item.get('SubnetId') == subnet_id
+        ),
+        None,
+    )
+    if association:
+        cache.set(
+            EC2_NACL_ASSOC_ID_CACHE_KEY,
+            association['NetworkAclAssociationId'],
+            timeout=86400,
+        )
+        return {
+            'status': 'passed',
+            'message': 'The custom network ACL is associated with the lab subnet.',
+            'resource': _clean_response(acl),
+        }
+    return {
+        'status': 'failed',
+        'message': 'The custom network ACL is not associated with the lab subnet.',
     }
 
 
@@ -8759,6 +8979,11 @@ def run_lab_step(service_key: str, lab_key: str, step_key: str) -> dict[str, Any
             ),
             'allow-web-to-app': _run_ec2_allow_web_to_app,
             'inspect-security-groups': _run_ec2_inspect_security_groups,
+            'create-network-acl': _run_ec2_create_network_acl,
+            'deny-ssh-network-acl': _run_ec2_deny_ssh_network_acl,
+            'allow-https-network-acl': _run_ec2_allow_https_network_acl,
+            'allow-return-network-acl': _run_ec2_allow_return_network_acl,
+            'associate-network-acl': _run_ec2_associate_network_acl,
             'inspect-network-acl-support': _run_ec2_inspect_nacl_support,
         }
         if step_key in runners:
@@ -10871,16 +11096,65 @@ def lab_status(service_key: str, lab_key: str) -> dict[str, Any]:
         vpc_verification = _verify_ec2_security_vpc()
         subnet_verification = _verify_ec2_security_subnet()
         web_verification, app_verification = _verify_ec2_security_group_rules()
-        nacl_verification = _verify_ec2_nacl_boundary()
+        nacl_created_verification = _verify_ec2_network_acl_created()
+        nacl_deny_ssh_verification = _verify_ec2_network_acl_rule(
+            egress=False,
+            rule_number=90,
+            action='deny',
+            cidr='0.0.0.0/0',
+            from_port=22,
+            to_port=22,
+            success_message='The network ACL denies inbound SSH before later allow rules.',
+        )
+        nacl_allow_https_verification = _verify_ec2_network_acl_rule(
+            egress=False,
+            rule_number=100,
+            action='allow',
+            cidr=EC2_TRUSTED_CLIENT_CIDR,
+            from_port=443,
+            to_port=443,
+            success_message='The network ACL allows inbound HTTPS from trusted clients.',
+        )
+        nacl_allow_return_verification = _verify_ec2_network_acl_rule(
+            egress=True,
+            rule_number=100,
+            action='allow',
+            cidr=EC2_TRUSTED_CLIENT_CIDR,
+            from_port=1024,
+            to_port=65535,
+            success_message='The network ACL allows outbound ephemeral return traffic.',
+        )
+        nacl_rules_verification = _verify_ec2_network_acl_rules()
+        nacl_association_verification = _verify_ec2_network_acl_association()
         vpc_verified = vpc_verification.get('status') == 'passed'
         subnet_verified = subnet_verification.get('status') == 'passed'
         web_verified = web_verification.get('status') == 'passed'
         app_verified = app_verification.get('status') == 'passed'
-        nacl_verified = nacl_verification.get('status') == 'passed'
+        nacl_created_verified = nacl_created_verification.get('status') == 'passed'
+        nacl_deny_ssh_verified = nacl_deny_ssh_verification.get('status') == 'passed'
+        nacl_allow_https_verified = (
+            nacl_allow_https_verification.get('status') == 'passed'
+        )
+        nacl_allow_return_verified = (
+            nacl_allow_return_verification.get('status') == 'passed'
+        )
+        nacl_rules_verified = nacl_rules_verification.get('status') == 'passed'
+        nacl_association_verified = (
+            nacl_association_verification.get('status') == 'passed'
+        )
+        nacl_verified = (
+            nacl_created_verified
+            and nacl_rules_verified
+            and nacl_association_verified
+        )
         groups_verified = web_verified and app_verified
         groups_verification = {
             'status': 'passed',
             'message': 'Both stateful security-group trust boundaries are active.',
+        }
+        nacl_verification = {
+            'status': 'passed',
+            'message': 'The custom network ACL has the intended stateless rules and subnet association.',
         }
         return {
             'service': service_key,
@@ -10922,6 +11196,41 @@ def lab_status(service_key: str, lab_key: str) -> dict[str, Any]:
                     'verified': groups_verified,
                     'verification': (
                         groups_verification if groups_verified else None
+                    ),
+                },
+                'create-network-acl': {
+                    'verified': nacl_created_verified,
+                    'verification': (
+                        nacl_created_verification
+                        if nacl_created_verified else None
+                    ),
+                },
+                'deny-ssh-network-acl': {
+                    'verified': nacl_deny_ssh_verified,
+                    'verification': (
+                        nacl_deny_ssh_verification
+                        if nacl_deny_ssh_verified else None
+                    ),
+                },
+                'allow-https-network-acl': {
+                    'verified': nacl_allow_https_verified,
+                    'verification': (
+                        nacl_allow_https_verification
+                        if nacl_allow_https_verified else None
+                    ),
+                },
+                'allow-return-network-acl': {
+                    'verified': nacl_allow_return_verified,
+                    'verification': (
+                        nacl_allow_return_verification
+                        if nacl_allow_return_verified else None
+                    ),
+                },
+                'associate-network-acl': {
+                    'verified': nacl_association_verified,
+                    'verification': (
+                        nacl_association_verification
+                        if nacl_association_verified else None
                     ),
                 },
                 'inspect-network-acl-support': {
@@ -12603,11 +12912,50 @@ def _run_apigw_add_lambda_permission() -> dict[str, Any]:
 
 
 def _apigw_lambda_request_url() -> str:
-    api = _find_apigw_lambda_api() or {}
-    endpoint = (api.get('ApiEndpoint') or '').rstrip('/')
-    if not endpoint:
-        endpoint = f'{FlociClientFactory().endpoint_url.rstrip("/")}/{_apigw_lambda_api_id()}'
-    return f'{endpoint}{APIGW_LAMBDA_PATH}'
+    api_id = _apigw_lambda_api_id()
+    stage_name = APIGW_LAMBDA_STAGE_NAME
+    return (
+        f'{FlociClientFactory().endpoint_url.rstrip("/")}/restapis/{api_id}/'
+        f'{stage_name}/_user_request_{APIGW_LAMBDA_PATH}'
+    )
+
+
+def _apigw_lambda_request_log_verification() -> dict[str, Any]:
+    try:
+        logs = _logs_client()
+        streams = logs.describe_log_streams(
+            logGroupName=LAMBDA_LOG_GROUP_NAME,
+            orderBy='LastEventTime',
+            descending=True,
+            limit=10,
+        ).get('logStreams', [])
+        for stream in streams:
+            stream_name = stream.get('logStreamName')
+            if not stream_name:
+                continue
+            events = logs.get_log_events(
+                logGroupName=LAMBDA_LOG_GROUP_NAME,
+                logStreamName=stream_name,
+                startFromHead=False,
+                limit=50,
+            ).get('events', [])
+            for event in events:
+                if LAMBDA_INVOKE_PAYLOAD['request_id'] in event.get('message', ''):
+                    return {
+                        'status': 'passed',
+                        'message': 'The API Gateway request reached the Lambda handler and produced the expected log marker.',
+                        'resource': {
+                            'log_group_name': LAMBDA_LOG_GROUP_NAME,
+                            'log_stream_name': stream_name,
+                            'event': _clean_response(event),
+                        },
+                    }
+    except ClientError as exc:
+        return {'status': 'failed', 'message': str(exc)}
+    return {
+        'status': 'failed',
+        'message': f'No Lambda log event for {LAMBDA_INVOKE_PAYLOAD["request_id"]} was found after the API request.',
+    }
 
 
 def _run_apigw_send_request() -> dict[str, Any]:
@@ -12625,6 +12973,10 @@ def _run_apigw_send_request() -> dict[str, Any]:
             body = response.read().decode('utf-8', errors='replace')
             status_code = response.getcode()
             headers = dict(response.headers.items())
+    except HTTPError as exc:
+        body = exc.read().decode('utf-8', errors='replace')
+        status_code = exc.code
+        headers = dict(exc.headers.items())
     except (OSError, URLError) as exc:
         raise ValueError(f'API Gateway request could not be completed: {exc}') from exc
     try:
@@ -12638,12 +12990,25 @@ def _run_apigw_send_request() -> dict[str, Any]:
         'body': body,
         'json': parsed,
     }
-    verified = (
+    body_verified = (
         status_code == 200
         and isinstance(parsed, dict)
         and parsed.get('ok') is True
         and parsed.get('request_id') == LAMBDA_INVOKE_PAYLOAD['request_id']
     )
+    log_verification = (
+        {'status': 'failed', 'message': 'Lambda logs were not checked.'}
+        if body_verified or status_code != 200
+        else _apigw_lambda_request_log_verification()
+    )
+    verified = body_verified or (
+        status_code == 200
+        and log_verification.get('status') == 'passed'
+    )
+    if verified:
+        response_payload['verification_basis'] = (
+            'response_body' if body_verified else 'lambda_log_marker'
+        )
     if verified:
         cache.set(APIGW_LAMBDA_REQUEST_CACHE_KEY, _clean_response(response_payload), timeout=3600)
     verification = (
@@ -12651,8 +13016,14 @@ def _run_apigw_send_request() -> dict[str, Any]:
         if verified
         else {
             'status': 'failed',
-            'message': 'The API Gateway request did not return the expected Lambda echo response.',
-            'resource': _clean_response(response_payload),
+            'message': (
+                'The API Gateway request did not return the expected Lambda echo response '
+                'or Lambda log marker.'
+            ),
+            'resource': _clean_response({
+                **response_payload,
+                'log_verification': log_verification,
+            }),
         }
     )
     return _apigw_step_result(
@@ -12762,7 +13133,7 @@ def _run_dynamodb_update_item() -> dict[str, Any]:
     command = (
         f'aws dynamodb update-item --table-name {DYNAMODB_TABLE_NAME} '
         '--key file://order-key.json '
-        '--update-expression "SET #status = :status, Total = :total" '
+        '--update-expression "SET #status = :status, #total = :total" '
         '--expression-attribute-names file://attribute-names.json '
         '--expression-attribute-values file://updated-values.json '
         '--return-values ALL_NEW'
@@ -12771,8 +13142,8 @@ def _run_dynamodb_update_item() -> dict[str, Any]:
     response = _dynamodb_client().update_item(
         TableName=DYNAMODB_TABLE_NAME,
         Key=_dynamodb_order_key(),
-        UpdateExpression='SET #status = :status, Total = :total',
-        ExpressionAttributeNames={'#status': 'Status'},
+        UpdateExpression='SET #status = :status, #total = :total',
+        ExpressionAttributeNames=DYNAMODB_UPDATE_ATTRIBUTE_NAMES,
         ExpressionAttributeValues=DYNAMODB_UPDATED_ATTRIBUTES,
         ReturnValues='ALL_NEW',
     )
@@ -18016,41 +18387,169 @@ def _run_ec2_inspect_security_groups() -> dict[str, Any]:
     )
 
 
+def _run_ec2_create_network_acl() -> dict[str, Any]:
+    command = 'aws ec2 create-network-acl --vpc-id <vpc-id>'
+    started = time.perf_counter()
+    response = _ec2_client().create_network_acl(
+        VpcId=_ec2_cached_id(EC2_SECURITY_VPC_ID_CACHE_KEY, 'VPC ID'),
+    )
+    nacl_id = response.get('NetworkAcl', {}).get('NetworkAclId')
+    if nacl_id:
+        cache.set(EC2_NACL_ID_CACHE_KEY, nacl_id, timeout=86400)
+    verification = _verify_ec2_network_acl_created()
+    return _ec2_security_step_result(
+        'create-network-acl', command, response, verification, started,
+    )
+
+
+def _run_ec2_create_network_acl_entry(
+    *,
+    step_key: str,
+    command: str,
+    rule_number: int,
+    rule_action: str,
+    egress: bool,
+    cidr_block: str,
+    from_port: int,
+    to_port: int,
+    success_message: str,
+) -> dict[str, Any]:
+    started = time.perf_counter()
+    response = _ec2_client().create_network_acl_entry(
+        NetworkAclId=_ec2_cached_id(EC2_NACL_ID_CACHE_KEY, 'Network ACL ID'),
+        RuleNumber=rule_number,
+        Protocol='6',
+        RuleAction=rule_action,
+        Egress=egress,
+        CidrBlock=cidr_block,
+        PortRange={'From': from_port, 'To': to_port},
+    )
+    verification = _verify_ec2_network_acl_rule(
+        egress=egress,
+        rule_number=rule_number,
+        action=rule_action,
+        cidr=cidr_block,
+        from_port=from_port,
+        to_port=to_port,
+        success_message=success_message,
+    )
+    return _ec2_security_step_result(
+        step_key, command, response, verification, started,
+    )
+
+
+def _run_ec2_deny_ssh_network_acl() -> dict[str, Any]:
+    return _run_ec2_create_network_acl_entry(
+        step_key='deny-ssh-network-acl',
+        command=(
+            'aws ec2 create-network-acl-entry --network-acl-id <network-acl-id> '
+            '--rule-number 90 --protocol 6 --rule-action deny --ingress '
+            '--cidr-block 0.0.0.0/0 --port-range From=22,To=22'
+        ),
+        rule_number=90,
+        rule_action='deny',
+        egress=False,
+        cidr_block='0.0.0.0/0',
+        from_port=22,
+        to_port=22,
+        success_message='The network ACL denies inbound SSH before later allow rules.',
+    )
+
+
+def _run_ec2_allow_https_network_acl() -> dict[str, Any]:
+    return _run_ec2_create_network_acl_entry(
+        step_key='allow-https-network-acl',
+        command=(
+            'aws ec2 create-network-acl-entry --network-acl-id <network-acl-id> '
+            '--rule-number 100 --protocol 6 --rule-action allow --ingress '
+            f'--cidr-block {EC2_TRUSTED_CLIENT_CIDR} '
+            '--port-range From=443,To=443'
+        ),
+        rule_number=100,
+        rule_action='allow',
+        egress=False,
+        cidr_block=EC2_TRUSTED_CLIENT_CIDR,
+        from_port=443,
+        to_port=443,
+        success_message='The network ACL allows inbound HTTPS from trusted clients.',
+    )
+
+
+def _run_ec2_allow_return_network_acl() -> dict[str, Any]:
+    return _run_ec2_create_network_acl_entry(
+        step_key='allow-return-network-acl',
+        command=(
+            'aws ec2 create-network-acl-entry --network-acl-id <network-acl-id> '
+            '--rule-number 100 --protocol 6 --rule-action allow --egress '
+            f'--cidr-block {EC2_TRUSTED_CLIENT_CIDR} '
+            '--port-range From=1024,To=65535'
+        ),
+        rule_number=100,
+        rule_action='allow',
+        egress=True,
+        cidr_block=EC2_TRUSTED_CLIENT_CIDR,
+        from_port=1024,
+        to_port=65535,
+        success_message='The network ACL allows outbound ephemeral return traffic.',
+    )
+
+
+def _run_ec2_associate_network_acl() -> dict[str, Any]:
+    command = (
+        'aws ec2 replace-network-acl-association '
+        '--association-id <default-association-id> '
+        '--network-acl-id <network-acl-id>'
+    )
+    started = time.perf_counter()
+    vpc_id = _ec2_cached_id(EC2_SECURITY_VPC_ID_CACHE_KEY, 'VPC ID')
+    subnet_id = _ec2_cached_id(EC2_SECURITY_SUBNET_ID_CACHE_KEY, 'Subnet ID')
+    association_id = _ec2_default_nacl_association_id(vpc_id, subnet_id)
+    if not association_id:
+        raise ValueError('Default network ACL association ID is not available.')
+    response = _ec2_client().replace_network_acl_association(
+        AssociationId=association_id,
+        NetworkAclId=_ec2_cached_id(EC2_NACL_ID_CACHE_KEY, 'Network ACL ID'),
+    )
+    new_association_id = response.get('NewAssociationId')
+    if new_association_id:
+        cache.set(EC2_NACL_ASSOC_ID_CACHE_KEY, new_association_id, timeout=86400)
+    verification = _verify_ec2_network_acl_association()
+    return _ec2_security_step_result(
+        'associate-network-acl', command, response, verification, started,
+    )
+
+
 def _run_ec2_inspect_nacl_support() -> dict[str, Any]:
     command = (
         'aws ec2 describe-network-acls '
         '--filters Name=vpc-id,Values=<vpc-id>'
     )
     started = time.perf_counter()
-    response: dict[str, Any]
-    try:
-        response = _ec2_client().describe_network_acls(
-            Filters=[{
-                'Name': 'vpc-id',
-                'Values': [
-                    _ec2_cached_id(
-                        EC2_SECURITY_VPC_ID_CACHE_KEY,
-                        'VPC ID',
-                    ),
-                ],
-            }],
-        )
-        verification = {
-            'status': 'failed',
-            'message': 'Network ACL APIs unexpectedly succeeded; update the lab to exercise them.',
-        }
-    except ClientError as exc:
-        if _error_code(exc) != 'UnsupportedOperation':
-            raise
-        cache.set(EC2_NACL_BOUNDARY_CACHE_KEY, True, timeout=86400)
-        response = {
-            'Error': {
-                'Code': _error_code(exc),
-                'Message': exc.response.get('Error', {}).get('Message'),
-            },
-            'IntendedRules': EC2_NACL_DESIGN,
-        }
-        verification = _verify_ec2_nacl_boundary()
+    response = _ec2_client().describe_network_acls(
+        Filters=[{
+            'Name': 'vpc-id',
+            'Values': [
+                _ec2_cached_id(
+                    EC2_SECURITY_VPC_ID_CACHE_KEY,
+                    'VPC ID',
+                ),
+            ],
+        }],
+    )
+    rules_verification = _verify_ec2_network_acl_rules()
+    association_verification = _verify_ec2_network_acl_association()
+    verified = (
+        rules_verification.get('status') == 'passed'
+        and association_verification.get('status') == 'passed'
+    )
+    verification = {
+        'status': 'passed' if verified else 'failed',
+        'message': (
+            'The custom network ACL is associated with the subnet and contains the intended stateless rules.'
+            if verified else 'The custom network ACL rules or subnet association are incomplete.'
+        ),
+        'resource': _clean_response(response),
+    }
     return _ec2_security_step_result(
         'inspect-network-acl-support',
         command,
@@ -20408,6 +20907,8 @@ def _reset_ec2_vpc_networking() -> dict[str, Any]:
 
 def _reset_ec2_security_controls() -> dict[str, Any]:
     command = (
+        'aws ec2 replace-network-acl-association --association-id <custom-association-id> --network-acl-id <default-network-acl-id>\n'
+        'aws ec2 delete-network-acl --network-acl-id <network-acl-id>\n'
         'aws ec2 delete-security-group --group-id <app-sg-id>\n'
         'aws ec2 delete-security-group --group-id <web-sg-id>\n'
         'aws ec2 delete-subnet --subnet-id <subnet-id>\n'
@@ -20416,6 +20917,7 @@ def _reset_ec2_security_controls() -> dict[str, Any]:
     started = time.perf_counter()
     ec2 = _ec2_client()
     deleted_groups = 0
+    deleted_nacl = False
     deleted_subnet = False
     deleted_vpc = False
     vpc = None
@@ -20424,12 +20926,6 @@ def _reset_ec2_security_controls() -> dict[str, Any]:
     except ClientError:
         vpc = None
     if vpc:
-        groups = _ec2_security_groups(vpc['VpcId'])
-        for group_name in (EC2_APP_SG_NAME, EC2_WEB_SG_NAME):
-            group = groups.get(group_name)
-            if group:
-                ec2.delete_security_group(GroupId=group['GroupId'])
-                deleted_groups += 1
         subnet_response = ec2.describe_subnets(
             Filters=[
                 {'Name': 'vpc-id', 'Values': [vpc['VpcId']]},
@@ -20437,6 +20933,37 @@ def _reset_ec2_security_controls() -> dict[str, Any]:
             ],
         )
         subnet = next(iter(subnet_response.get('Subnets', [])), None)
+        network_acls = _ec2_security_network_acls(vpc['VpcId'])
+        custom_acl = next(
+            (acl for acl in network_acls if not acl.get('IsDefault')),
+            None,
+        )
+        default_acl = next(
+            (acl for acl in network_acls if acl.get('IsDefault')),
+            None,
+        )
+        if custom_acl and default_acl and subnet:
+            custom_association = next(
+                (
+                    item for item in custom_acl.get('Associations', [])
+                    if item.get('SubnetId') == subnet.get('SubnetId')
+                ),
+                None,
+            )
+            if custom_association:
+                ec2.replace_network_acl_association(
+                    AssociationId=custom_association['NetworkAclAssociationId'],
+                    NetworkAclId=default_acl['NetworkAclId'],
+                )
+        if custom_acl:
+            ec2.delete_network_acl(NetworkAclId=custom_acl['NetworkAclId'])
+            deleted_nacl = True
+        groups = _ec2_security_groups(vpc['VpcId'])
+        for group_name in (EC2_APP_SG_NAME, EC2_WEB_SG_NAME):
+            group = groups.get(group_name)
+            if group:
+                ec2.delete_security_group(GroupId=group['GroupId'])
+                deleted_groups += 1
         if subnet:
             ec2.delete_subnet(SubnetId=subnet['SubnetId'])
             deleted_subnet = True
@@ -20448,9 +20975,11 @@ def _reset_ec2_security_controls() -> dict[str, Any]:
         EC2_WEB_SG_ID_CACHE_KEY,
         EC2_APP_SG_ID_CACHE_KEY,
         EC2_SG_REFERENCE_CACHE_KEY,
-        EC2_NACL_BOUNDARY_CACHE_KEY,
+        EC2_NACL_ID_CACHE_KEY,
+        EC2_NACL_ASSOC_ID_CACHE_KEY,
     ])
     output = {
+        'deleted_network_acl': deleted_nacl,
         'deleted_security_groups': deleted_groups,
         'deleted_subnet': deleted_subnet,
         'deleted_vpc': deleted_vpc,
@@ -20468,7 +20997,7 @@ def _reset_ec2_security_controls() -> dict[str, Any]:
         **output,
         'verification': {
             'status': 'passed',
-            'message': 'The security groups, subnet, and dedicated VPC were removed.',
+            'message': 'The custom network ACL, security groups, subnet, and dedicated VPC were removed.',
         },
     }
 

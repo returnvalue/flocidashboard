@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 from botocore.exceptions import ClientError, NoCredentialsError, ProfileNotFound
 from botocore.parsers import ResponseParserError
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 from django.urls import Resolver404, resolve, reverse
 
 from .actions import error_payload, error_status, handle_action_error, json_error
@@ -20,6 +20,126 @@ ACTION_TEST_REFERENCE_GAP_BASELINE = frozenset()
 
 
 class StaticJavaScriptTests(SimpleTestCase):
+    def test_global_nav_brand_links_home(self):
+        script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'dashboard.js'
+        source = script.read_text()
+
+        self.assertIn("homeLink.className = 'global-nav-home'", source)
+        self.assertIn("homeLink.href = '/'", source)
+        self.assertIn("homeLink.textContent = 'Floci'", source)
+
+    def test_collection_filter_preserves_typing_focus(self):
+        script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'dashboard.js'
+        source = script.read_text()
+
+        self.assertIn('onFilterTextChange(filter.value', source)
+        self.assertIn('restoreCollectionFilterFocus(filter, restoreFocus', source)
+        self.assertIn('let homeServiceFilterText =', source)
+        self.assertIn('filterText: homeServiceFilterText', source)
+
+    def test_service_favorites_use_heart_button_near_status(self):
+        script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'dashboard.js'
+        source = script.read_text()
+
+        self.assertIn("headingActions.className = 'service-card-heading-actions'", source)
+        self.assertIn("favorite.textContent = isFavoriteService(service.key) ? '♥' : '♡'", source)
+        self.assertIn('headingActions.append(favorite, status)', source)
+
+    def test_global_status_center_is_wired(self):
+        script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'dashboard.js'
+        source = script.read_text()
+
+        self.assertIn('function classifyGlobalStatusCenter()', source)
+        self.assertIn('function renderGlobalStatusCenter()', source)
+        self.assertIn("button.id = 'global-status-trigger'", source)
+        self.assertIn('lastHealthCheckedAt = new Date()', source)
+
+    def test_s3_console_bootstraps_global_navigation(self):
+        script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'dashboard.js'
+        source = script.read_text()
+
+        self.assertIn('function renderGlobalNavigationForCurrentPage', source)
+        self.assertIn('if (s3ConsoleRoot) {', source)
+        self.assertIn('loadServiceMetadata(),', source)
+        self.assertIn('renderGlobalNavigationForCurrentPage(serviceMetadata)', source)
+
+    def test_static_pages_load_health_before_global_navigation(self):
+        script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'dashboard.js'
+        source = script.read_text()
+
+        self.assertIn('if (!refreshButton && !environmentRefreshButton && !s3ConsoleRoot) {', source)
+        self.assertIn('loadStatusTiles()', source)
+        self.assertIn('.then(() => loadServiceMetadata())', source)
+
+    def test_health_and_identity_tiles_are_optional(self):
+        script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'dashboard.js'
+        source = script.read_text()
+
+        self.assertIn('if (health) {', source)
+        self.assertIn('if (identity) {', source)
+        self.assertIn('if (endpoint) {', source)
+        self.assertIn('if (profile) {', source)
+
+    def test_service_console_exposes_shared_collection_helper(self):
+        script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'service-console.js'
+        source = script.read_text()
+
+        self.assertIn('function renderCollection(options = {})', source)
+        self.assertIn('emptyFilteredTitle', source)
+        self.assertIn('onFilterTextChange(filter.value', source)
+        self.assertIn('renderCollection,', source)
+
+    def test_inventory_sections_can_use_shared_collection_helper(self):
+        script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'dashboard.js'
+        source = script.read_text()
+
+        self.assertIn('function renderFilterableDetailList(title, items, fields = [], options = {})', source)
+        self.assertIn("filterPlaceholder: 'Find functions'", source)
+        self.assertIn("filterPlaceholder: 'Find queues'", source)
+        self.assertIn("filterPlaceholder: 'Find secrets'", source)
+        self.assertIn("filterPlaceholder: 'Find tables'", source)
+        self.assertIn("filterPlaceholder: 'Find parameters'", source)
+        self.assertIn("filterPlaceholder: 'Find buckets'", source)
+        self.assertIn("filterPlaceholder: 'Find instances'", source)
+        self.assertIn("filterPlaceholder: 'Find VPCs'", source)
+        self.assertIn("filterPlaceholder: 'Find subnets'", source)
+        self.assertIn("filterPlaceholder: 'Find security groups'", source)
+        self.assertIn("filterPlaceholder: 'Find user pools'", source)
+        self.assertIn("filterPlaceholder: 'Find GraphQL APIs'", source)
+        self.assertIn("filterPlaceholder: 'Find REST APIs'", source)
+        self.assertIn("filterPlaceholder: 'Find HTTP APIs'", source)
+        self.assertIn("filterPlaceholder: 'Find data sources'", source)
+        self.assertIn("filterPlaceholder: 'Find resolvers'", source)
+        self.assertIn("filterPlaceholder: 'Find cache clusters'", source)
+        self.assertIn("filterPlaceholder: 'Find replication groups'", source)
+        self.assertIn("filterPlaceholder: 'Find serverless caches'", source)
+        self.assertIn("filterPlaceholder: 'Find documents'", source)
+        self.assertIn("filterPlaceholder: 'Find managed instances'", source)
+        self.assertIn("filterPlaceholder: 'Find commands'", source)
+        self.assertIn("filterPlaceholder: 'Find stacks'", source)
+        self.assertIn("filterPlaceholder: 'Find repositories'", source)
+        self.assertIn("filterPlaceholder: 'Find DB instances'", source)
+        self.assertIn("filterPlaceholder: 'Find DB clusters'", source)
+        self.assertIn("filterPlaceholder: 'Find backup vaults'", source)
+        self.assertIn("filterPlaceholder: 'Find backup jobs'", source)
+        self.assertIn("filterPlaceholder: 'Find protected resources'", source)
+        self.assertIn("filterPlaceholder: 'Find streams'", source)
+        self.assertIn("filterPlaceholder: 'Find shards'", source)
+        self.assertIn("filterPlaceholder: 'Find clusters'", source)
+        self.assertIn("filterPlaceholder: 'Find hosted zones'", source)
+        self.assertIn("filterPlaceholder: 'Find traffic policy instances'", source)
+        self.assertIn("filterPlaceholder: 'Find servers'", source)
+        self.assertIn("filterPlaceholder: 'Find workflows'", source)
+        self.assertIn("filterPlaceholder: 'Find connectors'", source)
+        self.assertIn("filterPlaceholder: 'Find web apps'", source)
+        self.assertIn("filterPlaceholder: 'Find projects'", source)
+        self.assertIn("filterPlaceholder: 'Find builds'", source)
+        self.assertIn("filterPlaceholder: 'Find report groups'", source)
+        self.assertIn("filterPlaceholder: 'Find deployment groups'", source)
+        self.assertIn("filterPlaceholder: 'Find deployments'", source)
+        self.assertIn("filterPlaceholder: 'Find pipelines'", source)
+        self.assertIn("filterPlaceholder: 'Find webhooks'", source)
+
     def test_dashboard_javascript_files_are_valid(self):
         node = shutil.which('node')
         if not node:
@@ -99,43 +219,34 @@ class ActionRegistryAuditTests(SimpleTestCase):
 
 
 class DashboardTemplateTests(SimpleTestCase):
-    def assertTopbarActions(self, response):
-        self.assertContains(response, f'href="{reverse("dashboard:environment")}"')
-        self.assertContains(response, f'href="{reverse("dashboard:labs-directory")}"')
-        self.assertContains(response, f'href="{reverse("dashboard:service-matrix")}"')
-        self.assertContains(response, '>Refresh</button>')
+    def assertSharedShell(self, response):
+        self.assertContains(response, 'id="global-service-nav"')
+        self.assertContains(response, 'id="global-status-panel"')
+        self.assertContains(response, 'id="global-status-body"')
+        self.assertContains(response, 'id="global-search-overlay"')
+        self.assertContains(response, 'id="global-search-input"')
 
-    def assertTopbarActiveAction(self, response, label):
-        self.assertContains(
-            response,
-            f'class="secondary-action topbar-action-active"',
-        )
-        self.assertContains(response, f'aria-current="page">{label}</a>')
+    def assertCompactPageHeader(self, response):
+        self.assertContains(response, 'class="page-header"')
+        self.assertContains(response, 'class="page-header-actions"')
+        self.assertContains(response, '>Refresh</button>')
 
     def test_home_page_renders_dashboard_shell(self):
         response = self.client.get(reverse('dashboard:index'))
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<title>Floci Dashboard</title>', html=True)
+        self.assertContains(response, '<h1 class="home-title">Floci Dashboard</h1>', html=True)
         self.assertContains(response, 'id="service-grid"')
-        self.assertContains(response, reverse('dashboard:environment'))
-        self.assertContains(response, reverse('dashboard:labs-directory'))
-        self.assertContains(response, reverse('dashboard:service-matrix'))
         self.assertContains(response, 'dashboard/styles.css')
         self.assertContains(response, 'dashboard/console-theme.css')
         self.assertContains(response, 'dashboard/dashboard.js')
-        content = response.content.decode()
-        self.assertLess(
-            content.index(reverse('dashboard:environment')),
-            content.index(reverse('dashboard:labs-directory')),
-        )
-        self.assertLess(
-            content.index(reverse('dashboard:labs-directory')),
-            content.index(reverse('dashboard:service-matrix')),
-        )
+        self.assertSharedShell(response)
+        self.assertCompactPageHeader(response)
+        self.assertNotContains(response, 'Local AWS-compatible environment')
 
     @patch('dashboard.views.lab_status')
-    def test_topbar_actions_are_consistent_across_primary_pages(self, status_mock):
+    def test_page_headers_are_compact_across_primary_pages(self, status_mock):
         status_mock.return_value = {'complete': False, 'steps': {}}
         urls = [
             reverse('dashboard:index'),
@@ -150,7 +261,9 @@ class DashboardTemplateTests(SimpleTestCase):
             with self.subTest(url=url):
                 response = self.client.get(url)
                 self.assertEqual(response.status_code, 200)
-                self.assertTopbarActions(response)
+                self.assertSharedShell(response)
+                self.assertCompactPageHeader(response)
+                self.assertNotContains(response, 'topbar-action-active')
 
     def test_environment_page_renders_diagnostics_shell(self):
         response = self.client.get(reverse('dashboard:environment'))
@@ -162,9 +275,20 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertContains(response, 'id="environment-state"')
         self.assertContains(response, 'id="environment-endpoint"')
         self.assertContains(response, 'id="environment-identity-arn"')
-        self.assertContains(response, reverse('dashboard:service-matrix'))
-        self.assertTopbarActiveAction(response, 'Environment')
+        self.assertSharedShell(response)
         self.assertContains(response, 'dashboard/dashboard.js')
+
+    def test_settings_page_renders_runtime_configuration_shell(self):
+        response = self.client.get(reverse('dashboard:settings'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '<title>Settings - Floci Dashboard</title>', html=True)
+        self.assertContains(response, '<h1 class="console-title">Settings</h1>', html=True)
+        self.assertContains(response, 'id="settings-endpoint-url"')
+        self.assertContains(response, 'id="settings-save"')
+        self.assertContains(response, 'id="settings-test"')
+        self.assertContains(response, 'dashboard/settings.js')
+        self.assertSharedShell(response)
 
     def test_service_matrix_renders_registry_coverage(self):
         response = self.client.get(reverse('dashboard:service-matrix'))
@@ -178,7 +302,7 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertContains(response, 'href="/service/s3/"')
         self.assertContains(response, 'Interactive Workbench')
         self.assertContains(response, 'dashboard/s3-console.js', count=0)
-        self.assertTopbarActiveAction(response, 'Service Matrix')
+        self.assertSharedShell(response)
         self.assertNotContains(response, '<th scope="col">Page</th>', html=True)
         content = response.content.decode()
         self.assertLess(content.index('href="/service/iam/"'), content.index('href="/service/s3/"'))
@@ -189,7 +313,7 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<title>Labs - Floci Dashboard</title>', html=True)
         self.assertContains(response, '<h1 class="console-title">Labs</h1>', html=True)
-        self.assertTopbarActiveAction(response, 'Labs')
+        self.assertSharedShell(response)
         self.assertContains(response, '13 services with labs')
         self.assertNotContains(response, 'Learning paths')
         self.assertNotContains(response, 'Recommended starting point')
@@ -305,6 +429,7 @@ class DashboardTemplateTests(SimpleTestCase):
                 self.assertContains(response, f'<title>{service["title"]} - Floci Dashboard</title>', html=True)
                 self.assertContains(response, f'<h1 class="console-title">{service["title"]}</h1>', html=True)
                 self.assertContains(response, service['eyebrow'])
+                self.assertSharedShell(response)
                 self.assertContains(response, 'dashboard/styles.css')
                 self.assertContains(response, 'dashboard/dashboard.js')
                 if key == 's3':
@@ -464,6 +589,107 @@ class ActionErrorTests(SimpleTestCase):
         self.assertEqual(payload['status'], 400)
 
 
+class DashboardSettingsApiTests(TestCase):
+    def factory(self, endpoint='http://localhost:4566', source='settings'):
+        factory = MagicMock()
+        factory.endpoint_url = endpoint
+        factory.endpoint_source = source
+        factory.region = 'us-east-1'
+        factory.credential_context.return_value = {
+            'credential_source': 'local_default',
+            'endpoint_source': source,
+            'has_env_credentials': False,
+            'profile': None,
+            'profile_source': None,
+            'region_source': 'settings',
+        }
+        factory.health.return_value = {
+            'ok': True,
+            'url': f'{endpoint}/_floci/health',
+            'data': {'version': '1.5.31', 'edition': 'Community'},
+        }
+        factory.identity.return_value = {
+            'account': '000000000000',
+            'arn': 'arn:aws:iam::000000000000:user/test',
+            'user_id': 'test',
+        }
+        factory.local_identity_hint.return_value = None
+        return factory
+
+    @patch('dashboard.settings_views.FlociClientFactory')
+    def test_settings_detail_returns_effective_configuration(self, factory_mock):
+        factory_mock.return_value = self.factory()
+
+        response = self.client.get(reverse('dashboard:settings-detail'))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload['endpoint_url'], 'http://localhost:4566')
+        self.assertEqual(payload['endpoint_source'], 'settings')
+        self.assertEqual(payload['default_endpoint_url'], 'http://localhost:4566')
+        self.assertEqual(payload['region'], 'us-east-1')
+
+    def test_endpoint_save_rejects_invalid_endpoint(self):
+        response = self.client.post(
+            reverse('dashboard:settings-endpoint'),
+            data=json.dumps({'endpoint_url': 'not-a-url'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('valid http or https URL', response.json()['error'])
+
+    @patch('dashboard.settings_views.FlociClientFactory')
+    def test_endpoint_save_stores_session_override(self, factory_mock):
+        endpoint = 'http://127.0.0.1:4566'
+        factory_mock.return_value = self.factory(endpoint=endpoint, source='runtime_override')
+
+        response = self.client.post(
+            reverse('dashboard:settings-endpoint'),
+            data=json.dumps({'endpoint_url': f'{endpoint}/'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload['saved'])
+        self.assertEqual(payload['endpoint_url'], endpoint)
+        self.assertEqual(payload['runtime_endpoint_url'], endpoint)
+        self.assertEqual(self.client.session['floci_runtime_endpoint_url'], endpoint)
+
+    @patch('dashboard.settings_views.FlociClientFactory')
+    def test_endpoint_reset_clears_session_override(self, factory_mock):
+        session = self.client.session
+        session['floci_runtime_endpoint_url'] = 'http://127.0.0.1:4566'
+        session.save()
+        factory_mock.return_value = self.factory()
+
+        response = self.client.delete(reverse('dashboard:settings-endpoint-reset'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['reset'])
+        self.assertNotIn('floci_runtime_endpoint_url', self.client.session)
+
+    @patch('dashboard.settings_views.FlociClientFactory')
+    def test_test_connection_returns_health_and_identity(self, factory_mock):
+        endpoint = 'http://localhost:4566'
+        factory_mock.return_value = self.factory(endpoint=endpoint, source='submitted')
+
+        response = self.client.post(
+            reverse('dashboard:settings-test-connection'),
+            data=json.dumps({'endpoint_url': endpoint}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload['endpoint_url'], endpoint)
+        self.assertEqual(payload['endpoint_source'], 'submitted')
+        self.assertTrue(payload['health']['ok'])
+        self.assertTrue(payload['identity_resolved'])
+        self.assertEqual(payload['identity']['account'], '000000000000')
+
+
 class ServiceRegistryApiTests(SimpleTestCase):
     def test_services_api_exposes_registry_metadata(self):
         response = self.client.get(reverse('dashboard:services'))
@@ -514,6 +740,8 @@ class ServiceRegistryApiTests(SimpleTestCase):
         cloudwatch_actions = {action['name']: action for action in services['cloudwatch']['actions']}
         self.assertEqual(cloudwatch_actions['list_log_streams']['safety'], 'safe')
         self.assertEqual(cloudwatch_actions['get_log_events']['fields'][1]['name'], 'log_stream_name')
+        self.assertEqual(cloudwatch_actions['start_logs_insights_query']['fields'][1]['field_type'], 'textarea')
+        self.assertEqual(cloudwatch_actions['get_logs_insights_query_results']['fields'][0]['name'], 'query_id')
         self.assertEqual(services['stepfunctions']['maturity'], 'interactive_workbench')
         self.assertEqual(services['stepfunctions']['console_js'], 'dashboard/stepfunctions-console.js')
         stepfunctions_actions = {action['name']: action for action in services['stepfunctions']['actions']}

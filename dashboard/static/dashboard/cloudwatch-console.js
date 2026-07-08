@@ -13,7 +13,20 @@ const CloudWatchConsole = (() => {
     selectedStreamName: '',
     streams: [],
     events: [],
+    insightsQuery: 'fields @timestamp, @message | sort @timestamp desc | limit 20',
+    insightsQueryId: '',
+    insightsStatus: '',
+    insightsResults: [],
+    insightsStatistics: null,
     limit: 50,
+    groupFilterText: '',
+    groupFilterSelectionStart: null,
+    groupFilterSelectionEnd: null,
+    groupFilterRestoreFocus: false,
+    streamFilterText: '',
+    streamFilterSelectionStart: null,
+    streamFilterSelectionEnd: null,
+    streamFilterRestoreFocus: false,
     autoRefresh: false,
     timer: null,
   };
@@ -149,6 +162,7 @@ const CloudWatchConsole = (() => {
       state.selectedStreamName = '';
       state.streams = [];
       state.events = [];
+      state.streamFilterText = '';
       render();
       await refreshLogs();
     });
@@ -156,15 +170,35 @@ const CloudWatchConsole = (() => {
   }
 
   function renderGroupList() {
-    const panel = el('section', 'cloudwatch-panel');
-    panel.append(el('div', 'cloudwatch-panel-heading', 'Log groups'));
-    const list = el('div', 'cloudwatch-group-list');
-    if (!groups().length) {
-      list.append(el('div', 'cloudwatch-empty', 'No log groups found.'));
-    } else {
-      groups().forEach((group) => list.append(renderGroupRow(group)));
-    }
-    panel.append(list);
+    const panel = consoleUi.renderCollection({
+      title: 'Log groups',
+      items: groups(),
+      itemRenderer: renderGroupRow,
+      itemSearchText: (group) => [
+        group.name,
+        group.arn,
+        group.stream_count,
+        group.stored_bytes,
+      ].join(' '),
+      filterPlaceholder: 'Find log groups',
+      emptyTitle: 'No log groups found.',
+      emptyFilteredTitle: 'No log groups match this filter.',
+      countLabel: 'log groups',
+      classPrefix: 'cloudwatch',
+      panelClassName: 'cloudwatch-panel',
+      filterText: state.groupFilterText,
+      restoreFocus: state.groupFilterRestoreFocus,
+      selectionStart: state.groupFilterSelectionStart,
+      selectionEnd: state.groupFilterSelectionEnd,
+      onFilterTextChange: (value, options = {}) => {
+        state.groupFilterText = value;
+        state.groupFilterRestoreFocus = Boolean(options.restoreFocus);
+        state.groupFilterSelectionStart = options.selectionStart;
+        state.groupFilterSelectionEnd = options.selectionEnd;
+        render();
+      },
+    });
+    state.groupFilterRestoreFocus = false;
     return panel;
   }
 
@@ -185,19 +219,35 @@ const CloudWatchConsole = (() => {
   }
 
   function renderStreamsPanel() {
-    const panel = el('section', 'cloudwatch-panel');
-    const heading = el('div', 'cloudwatch-panel-heading');
-    heading.append(el('span', null, 'Streams'), el('span', 'cloudwatch-group-meta', `${state.streams.length} loaded`));
-    panel.append(heading);
-    const list = el('div', 'cloudwatch-stream-list');
-    if (!selectedGroup()) {
-      list.append(el('div', 'cloudwatch-empty', 'Select a log group.'));
-    } else if (!state.streams.length) {
-      list.append(el('div', 'cloudwatch-empty', 'No streams loaded.'));
-    } else {
-      state.streams.forEach((stream) => list.append(renderStreamRow(stream)));
-    }
-    panel.append(list);
+    const panel = consoleUi.renderCollection({
+      title: 'Streams',
+      items: selectedGroup() ? state.streams : [],
+      itemRenderer: renderStreamRow,
+      itemSearchText: (stream) => [
+        stream.logStreamName,
+        stream.arn,
+        stream.lastEventTimestamp,
+        stream.creationTime,
+      ].join(' '),
+      filterPlaceholder: 'Find streams',
+      emptyTitle: selectedGroup() ? 'No streams loaded.' : 'Select a log group.',
+      emptyFilteredTitle: 'No streams match this filter.',
+      countLabel: 'streams',
+      classPrefix: 'cloudwatch',
+      panelClassName: 'cloudwatch-panel',
+      filterText: state.streamFilterText,
+      restoreFocus: state.streamFilterRestoreFocus,
+      selectionStart: state.streamFilterSelectionStart,
+      selectionEnd: state.streamFilterSelectionEnd,
+      onFilterTextChange: (value, options = {}) => {
+        state.streamFilterText = value;
+        state.streamFilterRestoreFocus = Boolean(options.restoreFocus);
+        state.streamFilterSelectionStart = options.selectionStart;
+        state.streamFilterSelectionEnd = options.selectionEnd;
+        render();
+      },
+    });
+    state.streamFilterRestoreFocus = false;
     return panel;
   }
 
@@ -232,6 +282,93 @@ const CloudWatchConsole = (() => {
     return panel;
   }
 
+  function formatInsightsResults(results = []) {
+    if (!Array.isArray(results) || !results.length) {
+      return 'No query results yet.';
+    }
+    return JSON.stringify(results, null, 2);
+  }
+
+  async function loadInsightsResults() {
+    if (!state.insightsQueryId) {
+      toast('Run a Logs Insights query first.', true);
+      return;
+    }
+    const data = await apiJson('/api/cloudwatch/logs-insights/results/', {
+      method: 'POST',
+      body: JSON.stringify({ query_id: state.insightsQueryId }),
+    });
+    state.insightsStatus = data.status || '';
+    state.insightsResults = data.results || [];
+    state.insightsStatistics = data.statistics || null;
+    render();
+  }
+
+  function renderInsightsPanel() {
+    const panel = el('section', 'cloudwatch-panel cloudwatch-insights-panel');
+    const heading = el('div', 'cloudwatch-panel-heading');
+    heading.append(
+      el('span', null, 'Logs Insights'),
+      el('span', 'cloudwatch-group-meta', state.insightsStatus || 'Query local log events'),
+    );
+    panel.append(heading);
+
+    const body = el('div', 'cloudwatch-insights-body');
+    const queryInput = document.createElement('textarea');
+    queryInput.className = 'cloudwatch-insights-query';
+    queryInput.value = state.insightsQuery;
+    queryInput.addEventListener('input', () => {
+      state.insightsQuery = queryInput.value;
+    });
+
+    const actions = el('div', 'cloudwatch-inline-actions');
+    actions.append(
+      btn('Run query', null, async () => {
+        const group = selectedGroup();
+        if (!group) {
+          toast('Select a log group before running Logs Insights.', true);
+          return;
+        }
+        try {
+          const data = await apiJson('/api/cloudwatch/logs-insights/query/', {
+            method: 'POST',
+            body: JSON.stringify({
+              log_group_name: group.name,
+              query_string: queryInput.value,
+              limit: state.limit,
+            }),
+          });
+          state.insightsQuery = queryInput.value;
+          state.insightsQueryId = data.query_id || '';
+          state.insightsStatus = state.insightsQueryId ? 'Scheduled' : '';
+          state.insightsResults = [];
+          state.insightsStatistics = null;
+          render();
+          await loadInsightsResults();
+        } catch (error) {
+          toast(error.message, true);
+        }
+      }),
+      btn('Refresh results', 'cloudwatch-btn-secondary', () => {
+        loadInsightsResults().catch((error) => toast(error.message, true));
+      }),
+    );
+
+    const meta = el('div', 'cloudwatch-group-meta');
+    meta.textContent = state.insightsQueryId ? `Query ID: ${state.insightsQueryId}` : 'Uses the selected log group.';
+    body.append(
+      queryInput,
+      actions,
+      meta,
+      el('pre', 'cloudwatch-insights-results', formatInsightsResults(state.insightsResults)),
+    );
+    if (state.insightsStatistics) {
+      body.append(el('pre', 'cloudwatch-insights-results cloudwatch-insights-stats', JSON.stringify(state.insightsStatistics, null, 2)));
+    }
+    panel.append(body);
+    return panel;
+  }
+
   function renderWorkbench() {
     const limitSelect = document.createElement('select');
     [25, 50, 100].forEach((limit) => {
@@ -260,7 +397,7 @@ const CloudWatchConsole = (() => {
     ));
     const workbench = el('div', 'cloudwatch-workbench');
     workbench.append(renderGroupList(), renderStreamsPanel(), renderEventsPanel());
-    container.append(workbench);
+    container.append(workbench, renderInsightsPanel());
     return container;
   }
 

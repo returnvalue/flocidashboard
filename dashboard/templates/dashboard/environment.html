@@ -3,17 +3,13 @@
 {% block title %}Environment - Floci Dashboard{% endblock %}
 
 {% block content %}
-  <header class="topbar">
+  <header class="page-header">
     <div>
-      <a class="back-link" href="/">Services</a>
-      <p class="eyebrow">Local runtime diagnostics</p>
+      <p class="page-kicker">Local runtime diagnostics</p>
       <h1 class="console-title">Environment</h1>
     </div>
-    <div class="topbar-actions">
-      <a class="secondary-action topbar-action-active" href="{% url 'dashboard:environment' %}" aria-current="page">Environment</a>
-      <a class="secondary-action" href="{% url 'dashboard:labs-directory' %}">Labs</a>
-      <a class="secondary-action" href="{% url 'dashboard:service-matrix' %}">Service Matrix</a>
-      <button id="environment-refresh" type="button" aria-label="Refresh environment">Refresh</button>
+    <div class="page-header-actions">
+      <button id="environment-refresh" class="secondary-button" type="button" aria-label="Refresh environment">Refresh</button>
     </div>
   </header>
 

@@ -44,7 +44,8 @@
 }
 
 .cloudwatch-toolbar-left,
-.cloudwatch-toolbar-right {
+.cloudwatch-toolbar-right,
+.cloudwatch-inline-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -81,6 +82,7 @@
 }
 
 .cloudwatch-panel-heading,
+.cloudwatch-collection-heading,
 .cloudwatch-event-heading {
   display: flex;
   align-items: center;
@@ -90,6 +92,33 @@
   border-bottom: 1px solid #e8ebf1;
   font-size: 0.95rem;
   font-weight: 700;
+}
+
+.cloudwatch-collection-heading h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.cloudwatch-collection .collection-toolbar {
+  margin: 0;
+  border: none;
+  border-bottom: 1px solid #e8ebf1;
+  border-radius: 0;
+  padding: 10px 12px;
+  background: var(--surface-panel-alt);
+  box-shadow: none;
+}
+
+.cloudwatch-collection .collection-filter {
+  width: 100%;
+}
+
+.cloudwatch-collection .collection-count {
+  font-size: 0.78rem;
+}
+
+.cloudwatch-collection-list {
+  display: grid;
 }
 
 .cloudwatch-group-list,
@@ -148,6 +177,44 @@
   word-break: break-word;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.82rem;
+}
+
+.cloudwatch-insights-panel {
+  margin-top: 14px;
+}
+
+.cloudwatch-insights-body {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.cloudwatch-insights-query {
+  width: 100%;
+  min-height: 96px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.84rem;
+}
+
+.cloudwatch-insights-results {
+  overflow-x: auto;
+  max-height: 360px;
+  margin: 0;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: #f7f8fb;
+  color: var(--text);
+  font-size: 0.82rem;
+  white-space: pre-wrap;
+}
+
+.cloudwatch-insights-stats {
+  max-height: 180px;
 }
 
 .cloudwatch-empty {

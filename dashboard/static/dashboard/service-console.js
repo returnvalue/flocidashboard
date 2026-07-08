@@ -228,6 +228,102 @@ const ServiceConsole = (() => {
     return section;
   }
 
+  function defaultCollectionSearchText(item) {
+    if (item == null) {
+      return '';
+    }
+    if (typeof item === 'string') {
+      return item;
+    }
+    return Object.values(item)
+      .map((value) => typeof value === 'string' || typeof value === 'number' ? String(value) : JSON.stringify(value || ''))
+      .join(' ');
+  }
+
+  function renderCollection(options = {}) {
+    const {
+      container = null,
+      title = 'Items',
+      items = [],
+      itemRenderer,
+      itemSearchText = defaultCollectionSearchText,
+      filterPlaceholder = `Filter ${String(title).toLowerCase()}`,
+      emptyTitle = `No ${String(title).toLowerCase()} found`,
+      emptyFilteredTitle = 'No matches',
+      countLabel = 'items',
+      classPrefix = 'service',
+      panelClassName = '',
+      filterText = '',
+      onFilterTextChange = null,
+      restoreFocus = false,
+      selectionStart = null,
+      selectionEnd = null,
+      actions = [],
+    } = options;
+    const normalizedItems = Array.isArray(items) ? items : [];
+    const normalizedFilter = String(filterText || '').trim().toLowerCase();
+    const visibleItems = normalizedFilter
+      ? normalizedItems.filter((item) => String(itemSearchText(item) || '').toLowerCase().includes(normalizedFilter))
+      : normalizedItems;
+    const panel = el('section', `${classPrefix}-collection collection-panel${panelClassName ? ` ${panelClassName}` : ''}`);
+    const heading = el('div', `${classPrefix}-collection-heading collection-heading`);
+    const headingTitle = document.createElement('h3');
+    const count = el('span', 'count', visibleItems.length);
+    headingTitle.textContent = title;
+    heading.append(headingTitle, count);
+    panel.append(heading);
+
+    const toolbar = el('div', 'collection-toolbar');
+    const filter = document.createElement('input');
+    filter.className = 'collection-filter';
+    filter.type = 'search';
+    filter.placeholder = filterPlaceholder;
+    filter.value = filterText;
+    filter.setAttribute('aria-label', filterPlaceholder);
+    filter.addEventListener('input', () => {
+      if (onFilterTextChange) {
+        onFilterTextChange(filter.value, {
+          restoreFocus: true,
+          selectionStart: filter.selectionStart,
+          selectionEnd: filter.selectionEnd,
+        });
+      }
+    });
+    const summary = el(
+      'span',
+      'collection-count',
+      `${visibleItems.length} of ${normalizedItems.length} ${countLabel}`,
+    );
+    toolbar.append(filter, summary, ...actions);
+    panel.append(toolbar);
+
+    const list = el('div', `${classPrefix}-collection-list collection-list`);
+    if (!normalizedItems.length) {
+      list.append(el('p', 'muted empty-state', emptyTitle));
+    } else if (!visibleItems.length) {
+      list.append(el('p', 'muted empty-state', emptyFilteredTitle));
+    } else {
+      visibleItems.forEach((item, index) => list.append(itemRenderer ? itemRenderer(item, index) : el('div', 'collection-item', valueText(item))));
+    }
+    panel.append(list);
+
+    if (container) {
+      container.textContent = '';
+      container.append(panel);
+    }
+
+    if (restoreFocus) {
+      window.requestAnimationFrame(() => {
+        filter.focus();
+        if (selectionStart != null && selectionEnd != null) {
+          filter.setSelectionRange(selectionStart, selectionEnd);
+        }
+      });
+    }
+
+    return panel;
+  }
+
   function button(label, className, onClick) {
     const node = el('button', className, label);
     node.type = 'button';
@@ -368,6 +464,7 @@ const ServiceConsole = (() => {
     loadServiceActions,
     openModal,
     parsedJsonString,
+    renderCollection,
     renderActionButtons,
     renderDetailList,
     renderSummary,

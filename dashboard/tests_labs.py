@@ -90,6 +90,62 @@ class LabsPageTests(SimpleTestCase):
         self.assertTrue(issubclass(VerificationResult, dict))
 
     @patch('dashboard.views.lab_status')
+    def test_labs_directory_loads_progress_asynchronously(self, status_mock):
+        response = self.client.get(reverse('dashboard:labs-directory'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Steps complete')
+        self.assertContains(response, 'Checking...')
+        self.assertContains(response, 'Reset completed labs')
+        self.assertContains(response, 'disabled>Reset completed labs</button>')
+        self.assertContains(response, 'dashboard/labs-directory.js')
+        status_mock.assert_not_called()
+
+    @patch('dashboard.views.all_labs')
+    @patch('dashboard.views.lab_status')
+    def test_labs_progress_reports_completed_labs_and_steps(self, status_mock, all_labs_mock):
+        cache.clear()
+        all_labs_mock.return_value = [
+            {
+                'service': 'iam',
+                'key': 'create-user-alice',
+                'title': 'Create an IAM user',
+                'steps': [
+                    {'key': 'create-user'},
+                    {'key': 'attach-policy'},
+                ],
+            },
+            {
+                'service': 's3',
+                'key': 'create-bucket',
+                'title': 'Create an S3 bucket',
+                'steps': [
+                    {'key': 'create-bucket'},
+                ],
+            },
+        ]
+        status_mock.side_effect = [
+            {
+                'complete': True,
+                'steps': {
+                    'create-user': {'verified': True},
+                    'attach-policy': {'verified': True},
+                },
+            },
+            {'complete': False, 'steps': {}},
+        ]
+
+        response = self.client.get(reverse('dashboard:labs-progress'))
+        payload = response.json()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(payload['completed_lab_count'], 1)
+        self.assertEqual(payload['total_lab_count'], 2)
+        self.assertEqual(payload['completed_step_count'], 2)
+        self.assertEqual(payload['total_step_count'], 3)
+        self.assertFalse(payload['cached'])
+
+    @patch('dashboard.views.lab_status')
     def test_iam_labs_page_renders_create_user_lab(self, status_mock):
         status_mock.return_value = {'complete': False, 'steps': {}}
 
@@ -105,6 +161,8 @@ class LabsPageTests(SimpleTestCase):
         self.assertContains(response, 'aws iam create-user --user-name Alice')
         self.assertNotContains(response, 'Next recommended batch')
         self.assertContains(response, 'id="lab-reset"')
+        self.assertContains(response, 'id="labs-sidebar-toggle"')
+        self.assertContains(response, 'aria-label="Collapse labs navigation"')
         self.assertContains(response, '>Not started</span>')
         self.assertNotContains(response, 'Floci health')
         self.assertContains(response, 'dashboard/labs.js')
@@ -890,8 +948,10 @@ class LabsPageTests(SimpleTestCase):
         self.assertContains(response, '203.0.113.0/24')
         self.assertContains(response, 'FromPort')
         self.assertContains(response, '8080')
+        self.assertContains(response, 'create-network-acl')
+        self.assertContains(response, 'create-network-acl-entry')
+        self.assertContains(response, 'replace-network-acl-association')
         self.assertContains(response, 'describe-network-acls')
-        self.assertContains(response, 'UnsupportedOperation')
         self.assertContains(response, 'network-acl-design.json')
 
     @patch('dashboard.views.lab_status')
@@ -1275,6 +1335,11 @@ class LabsRunnerTests(SimpleTestCase):
                 'create-app-security-group',
                 'allow-web-to-app',
                 'inspect-security-groups',
+                'create-network-acl',
+                'deny-ssh-network-acl',
+                'allow-https-network-acl',
+                'allow-return-network-acl',
+                'associate-network-acl',
                 'inspect-network-acl-support',
             ],
         )
@@ -6246,23 +6311,26 @@ class LabsRunnerTests(SimpleTestCase):
         self.assertTrue(result['verified'])
         cache.clear()
 
+    @patch('dashboard.labs._verify_ec2_network_acl_association')
+    @patch('dashboard.labs._verify_ec2_network_acl_rules')
     @patch('dashboard.labs.FlociClientFactory')
-    def test_ec2_security_lab_records_network_acl_support_boundary(
+    def test_ec2_security_lab_inspects_network_acl_rules(
         self,
         factory_mock,
+        verify_rules_mock,
+        verify_association_mock,
     ):
         cache.clear()
         cache.set('floci-lab:ec2:security-controls:vpc-id', 'vpc-security')
+        verify_rules_mock.return_value = {'status': 'passed', 'message': 'rules verified'}
+        verify_association_mock.return_value = {
+            'status': 'passed',
+            'message': 'association verified',
+        }
         ec2 = MagicMock()
-        ec2.describe_network_acls.side_effect = ClientError(
-            {
-                'Error': {
-                    'Code': 'UnsupportedOperation',
-                    'Message': 'not supported',
-                },
-            },
-            'DescribeNetworkAcls',
-        )
+        ec2.describe_network_acls.return_value = {
+            'NetworkAcls': [{'NetworkAclId': 'acl-custom'}],
+        }
         factory_mock.return_value.client.return_value = ec2
 
         result = run_lab_step(
@@ -6272,13 +6340,14 @@ class LabsRunnerTests(SimpleTestCase):
         )
 
         self.assertTrue(result['verified'])
-        self.assertEqual(result['json']['Error']['Code'], 'UnsupportedOperation')
-        self.assertTrue(
-            cache.get('floci-lab:ec2:security-controls:nacl-boundary')
+        self.assertEqual(
+            result['verification']['message'],
+            'The custom network ACL is associated with the subnet and contains the intended stateless rules.',
         )
+        ec2.describe_network_acls.assert_called_once()
         cache.clear()
 
-    def test_ec2_security_lab_status_requires_groups_and_nacl_boundary(self):
+    def test_ec2_security_lab_status_requires_groups_and_network_acl(self):
         passed = {'status': 'passed', 'message': 'verified'}
         with ExitStack() as stack:
             stack.enter_context(patch(
@@ -6294,7 +6363,19 @@ class LabsRunnerTests(SimpleTestCase):
                 return_value=(passed, passed),
             ))
             stack.enter_context(patch(
-                'dashboard.labs._verify_ec2_nacl_boundary',
+                'dashboard.labs._verify_ec2_network_acl_created',
+                return_value=passed,
+            ))
+            stack.enter_context(patch(
+                'dashboard.labs._verify_ec2_network_acl_rule',
+                return_value=passed,
+            ))
+            stack.enter_context(patch(
+                'dashboard.labs._verify_ec2_network_acl_rules',
+                return_value=passed,
+            ))
+            stack.enter_context(patch(
+                'dashboard.labs._verify_ec2_network_acl_association',
                 return_value=passed,
             ))
             from .labs import lab_status
@@ -6304,6 +6385,8 @@ class LabsRunnerTests(SimpleTestCase):
         self.assertTrue(status['complete'])
         self.assertTrue(status['steps']['allow-trusted-https']['verified'])
         self.assertTrue(status['steps']['allow-web-to-app']['verified'])
+        self.assertTrue(status['steps']['create-network-acl']['verified'])
+        self.assertTrue(status['steps']['associate-network-acl']['verified'])
         self.assertTrue(status['steps']['inspect-network-acl-support']['verified'])
 
     @patch('dashboard.labs._verify_ec2_s3_gateway_endpoint')
@@ -6634,10 +6717,74 @@ class LabsRunnerTests(SimpleTestCase):
 
         request = urlopen_mock.call_args.args[0]
         self.assertEqual(request.get_method(), 'POST')
-        self.assertEqual(request.full_url, 'http://localhost:4566/api123/echo')
+        self.assertEqual(
+            request.full_url,
+            'http://localhost:4566/restapis/api123/$default/_user_request_/echo',
+        )
         self.assertIn(b'FLOCI-LAMBDA-1001', request.data)
         self.assertTrue(result['verified'])
         self.assertTrue(cache.get('floci-lab:apigateway:lambda-request:request'))
+        cache.clear()
+
+    @patch('dashboard.labs.FlociClientFactory')
+    @patch('dashboard.labs.urlopen')
+    @patch('dashboard.labs._find_apigw_lambda_api')
+    def test_apigateway_lab_send_request_falls_back_to_local_endpoint(
+        self,
+        api_mock,
+        urlopen_mock,
+        factory_mock,
+    ):
+        cache.clear()
+        api_mock.return_value = {
+            'ApiId': 'api123',
+            'ApiEndpoint': 'https://api123.execute-api.localhost.localstack.cloud:4566',
+        }
+        factory_mock.return_value.endpoint_url = 'http://localhost:4566'
+        response_mock = MagicMock()
+        response_mock.__enter__.return_value = response_mock
+        response_mock.read.return_value = b'{"ok": true, "request_id": "FLOCI-LAMBDA-1001"}'
+        response_mock.getcode.return_value = 200
+        response_mock.headers.items.return_value = [('Content-Type', 'application/json')]
+        urlopen_mock.return_value = response_mock
+
+        result = run_lab_step('apigateway', 'lambda-request', 'send-request')
+
+        request = urlopen_mock.call_args.args[0]
+        self.assertEqual(
+            request.full_url,
+            'http://localhost:4566/restapis/api123/$default/_user_request_/echo',
+        )
+        self.assertTrue(result['verified'])
+        cache.clear()
+
+    @patch('dashboard.labs._apigw_lambda_request_log_verification')
+    @patch('dashboard.labs.urlopen')
+    @patch('dashboard.labs._find_apigw_lambda_api')
+    def test_apigateway_lab_send_request_accepts_logged_empty_response(
+        self,
+        api_mock,
+        urlopen_mock,
+        log_verify_mock,
+    ):
+        cache.clear()
+        api_mock.return_value = {'ApiId': 'api123', 'ApiEndpoint': 'https://api123.execute-api.us-east-1.amazonaws.com'}
+        log_verify_mock.return_value = {
+            'status': 'passed',
+            'message': 'log marker found',
+        }
+        response_mock = MagicMock()
+        response_mock.__enter__.return_value = response_mock
+        response_mock.read.return_value = b''
+        response_mock.getcode.return_value = 200
+        response_mock.headers.items.return_value = []
+        urlopen_mock.return_value = response_mock
+
+        result = run_lab_step('apigateway', 'lambda-request', 'send-request')
+
+        self.assertTrue(result['verified'])
+        self.assertEqual(result['json']['body'], '')
+        log_verify_mock.assert_called_once()
         cache.clear()
 
     def test_apigateway_lab_status_requires_api_lambda_and_request(self):
@@ -6771,8 +6918,8 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('dynamodb', 'crud-query', 'update-item')
 
         call = dynamodb.update_item.call_args.kwargs
-        self.assertEqual(call['UpdateExpression'], 'SET #status = :status, Total = :total')
-        self.assertEqual(call['ExpressionAttributeNames'], {'#status': 'Status'})
+        self.assertEqual(call['UpdateExpression'], 'SET #status = :status, #total = :total')
+        self.assertEqual(call['ExpressionAttributeNames'], {'#status': 'Status', '#total': 'Total'})
         self.assertEqual(call['ExpressionAttributeValues'][':total']['N'], '84.00')
         self.assertTrue(result['verified'])
         self.assertTrue(cache.get('floci-lab:dynamodb:crud-query:update-item'))
@@ -7679,8 +7826,9 @@ class LabsRunnerTests(SimpleTestCase):
         self.assertTrue(response.json()['reset'])
         reset_mock.assert_called_once_with('iam', 'create-user-alice')
 
+    @patch('dashboard.views.lab_status')
     @patch('dashboard.views.run_lab_step')
-    def test_run_lab_step_endpoint_returns_runner_payload(self, run_mock):
+    def test_run_lab_step_endpoint_returns_runner_payload(self, run_mock, status_mock):
         run_mock.return_value = {
             'service': 'iam',
             'lab': 'create-user-alice',
@@ -7692,6 +7840,7 @@ class LabsRunnerTests(SimpleTestCase):
             'verified': True,
             'verification': {'status': 'passed', 'message': 'User Alice exists in local IAM.'},
         }
+        status_mock.return_value = {'complete': False, 'steps': {}}
 
         response = self.client.post(reverse('dashboard:lab-step-run', kwargs={
             'service_key': 'iam',
@@ -7701,4 +7850,74 @@ class LabsRunnerTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()['verified'])
+        self.assertFalse(response.json()['lab_complete'])
+        self.assertIsNone(response.json()['next_batch'])
         run_mock.assert_called_once_with('iam', 'create-user-alice', 'create-user')
+
+    @patch('dashboard.views.lab_status')
+    @patch('dashboard.views.run_lab_step')
+    def test_run_lab_step_endpoint_returns_next_batch_when_complete(
+        self,
+        run_mock,
+        status_mock,
+    ):
+        run_mock.return_value = {
+            'service': 'iam',
+            'lab': 'ec2-instance-profile',
+            'step': 'list-instance-profiles-for-role',
+            'verified': True,
+        }
+        status_mock.return_value = {'complete': True, 'steps': {}}
+
+        response = self.client.post(reverse('dashboard:lab-step-run', kwargs={
+            'service_key': 'iam',
+            'lab_key': 'ec2-instance-profile',
+            'step_key': 'list-instance-profiles-for-role',
+        }))
+
+        payload = response.json()
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(payload['lab_complete'])
+        self.assertEqual(payload['next_batch']['title'], 'S3 labs')
+        self.assertEqual(
+            payload['next_batch']['href'],
+            '/service/s3/labs/?lab=create-bucket',
+        )
+
+    @patch('dashboard.views.reset_lab')
+    @patch('dashboard.views.lab_status')
+    @patch('dashboard.views.all_labs')
+    def test_global_lab_reset_resets_only_completed_labs(
+        self,
+        all_labs_mock,
+        status_mock,
+        reset_mock,
+    ):
+        all_labs_mock.return_value = [
+            {
+                'service': 'iam',
+                'key': 'create-user-alice',
+                'title': 'Create an IAM user',
+                'steps': [],
+            },
+            {
+                'service': 's3',
+                'key': 'create-bucket',
+                'title': 'Create an S3 bucket',
+                'steps': [],
+            },
+        ]
+        status_mock.side_effect = [
+            {'complete': True, 'steps': {}},
+            {'complete': False, 'steps': {}},
+        ]
+        reset_mock.return_value = {'reset': True}
+
+        response = self.client.post(reverse('dashboard:labs-global-reset'))
+
+        payload = response.json()
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(payload['reset'])
+        self.assertEqual(payload['completed_lab_count'], 1)
+        self.assertEqual(payload['reset_lab_count'], 1)
+        reset_mock.assert_called_once_with('iam', 'create-user-alice')

@@ -7,6 +7,79 @@
   const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
   const labState = document.querySelector('#lab-state');
   const resetButton = document.querySelector('#lab-reset');
+  const labsSidebarToggle = document.querySelector('#labs-sidebar-toggle');
+  const labsSidebarCollapsedStorageKey = 'floci-dashboard-labs-sidebar-collapsed';
+
+  function isLabsSidebarCollapsed() {
+    try {
+      return window.localStorage.getItem(labsSidebarCollapsedStorageKey) === 'true';
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function setLabsSidebarCollapsed(collapsed) {
+    shell.classList.toggle('labs-sidebar-collapsed', collapsed);
+    if (labsSidebarToggle) {
+      labsSidebarToggle.textContent = collapsed ? '>' : '<';
+      labsSidebarToggle.title = collapsed ? 'Expand labs navigation' : 'Collapse labs navigation';
+      labsSidebarToggle.setAttribute('aria-label', collapsed ? 'Expand labs navigation' : 'Collapse labs navigation');
+      labsSidebarToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    }
+    try {
+      window.localStorage.setItem(labsSidebarCollapsedStorageKey, collapsed ? 'true' : 'false');
+    } catch (error) {
+      // Local storage is a convenience layer only.
+    }
+  }
+
+  setLabsSidebarCollapsed(isLabsSidebarCollapsed());
+
+  labsSidebarToggle?.addEventListener('click', () => {
+    setLabsSidebarCollapsed(!shell.classList.contains('labs-sidebar-collapsed'));
+  });
+
+  function removeNextBatchCard() {
+    document.querySelector('.lab-next-batch')?.remove();
+  }
+
+  function renderNextBatchCard(nextBatch) {
+    removeNextBatchCard();
+    if (!nextBatch) {
+      return;
+    }
+
+    const card = document.createElement('section');
+    card.className = 'lab-next-batch';
+
+    const copy = document.createElement('div');
+    const eyebrow = document.createElement('p');
+    eyebrow.className = 'eyebrow';
+    eyebrow.textContent = 'Next recommended batch';
+    const title = document.createElement('h2');
+    title.textContent = nextBatch.title || 'Next labs';
+    const summary = document.createElement('p');
+    summary.textContent = nextBatch.summary || '';
+    copy.append(eyebrow, title, summary);
+
+    const actions = document.createElement('div');
+    actions.className = 'lab-next-batch-actions';
+    if (nextBatch.href) {
+      const link = document.createElement('a');
+      link.className = 'primary-action';
+      link.href = nextBatch.href;
+      link.textContent = `Open ${nextBatch.title || 'next labs'}`;
+      actions.append(link);
+    } else {
+      const note = document.createElement('span');
+      note.className = 'lab-next-note';
+      note.textContent = 'Ready to build';
+      actions.append(note);
+    }
+
+    card.append(copy, actions);
+    document.querySelector('.labs-heading')?.before(card);
+  }
 
   function activeResponsePanel() {
     const firstStep = document.querySelector('.lab-step');
@@ -56,6 +129,9 @@
       button.disabled = Boolean(data.verified);
       button.textContent = data.verified ? '\u2713 Done' : 'Run';
       labState.textContent = data.verified ? 'Complete' : 'Needs review';
+      if (data.lab_complete) {
+        renderNextBatchCard(data.next_batch);
+      }
     } catch (error) {
       responseStatus.textContent = 'Failed';
       responseBody.textContent = error.message;
@@ -104,6 +180,7 @@
           button.textContent = 'Run';
         }
       });
+      removeNextBatchCard();
       if (response.panel) {
         response.panel.hidden = false;
         response.status.textContent = 'Reset';
