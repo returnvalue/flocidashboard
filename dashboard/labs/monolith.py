@@ -20,6 +20,21 @@ from ..aws import FlociClientFactory, _clean_response
 AWS_ACCOUNT_ID = '000000000000'
 AWS_REGION = 'us-east-1'
 ALICE_USER_NAME = 'Alice'
+FLOCI_ADMIN_USER_NAME = 'floci-admin'
+FLOCI_ADMIN_POLICY_NAME = 'AdministratorAccess'
+FLOCI_ADMIN_ACCESS_KEY_CACHE_KEY = 'floci-lab:iam:create-admin-user:access-key-id'
+FLOCI_ADMIN_SECRET_KEY_CACHE_KEY = 'floci-lab:iam:create-admin-user:secret-access-key'
+FLOCI_ADMIN_IDENTITY_CACHE_KEY = 'floci-lab:iam:create-admin-user:identity'
+FLOCI_ADMIN_POLICY_DOCUMENT = {
+    'Version': '2012-10-17',
+    'Statement': [
+        {
+            'Effect': 'Allow',
+            'Action': '*',
+            'Resource': '*',
+        },
+    ],
+}
 ALICE_POLICY_NAME = 'AliceListBucketsPolicy'
 ALICE_POLICY_ARN = f'arn:aws:iam::{AWS_ACCOUNT_ID}:policy/{ALICE_POLICY_NAME}'
 ALICE_INLINE_POLICY_NAME = 'AliceInlineListBuckets'
@@ -804,11 +819,18 @@ IAM_ENFORCEMENT_ROLE_SQS_CACHE_KEY = 'floci-lab:iam:enforcement:role-sqs-allowed
 IAM_ENFORCEMENT_ROLE_S3_DENY_CACHE_KEY = 'floci-lab:iam:enforcement:role-s3-denied'
 IAM_ENFORCEMENT_SELF_POLICY = {
     'Version': '2012-10-17',
-    'Statement': [{
-        'Effect': 'Allow',
-        'Action': 'sts:GetCallerIdentity',
-        'Resource': '*',
-    }],
+    'Statement': [
+        {
+            'Effect': 'Allow',
+            'Action': 'sts:GetCallerIdentity',
+            'Resource': '*',
+        },
+        {
+            'Effect': 'Allow',
+            'Action': 'sts:AssumeRole',
+            'Resource': '*',
+        },
+    ],
 }
 IAM_ENFORCEMENT_ROLE_TRUST_POLICY = {
     'Version': '2012-10-17',
@@ -1035,6 +1057,41 @@ IAM_CREATE_USER_LAB = {
             'title': 'Create user Alice',
             'command': 'aws iam create-user --user-name Alice',
             'explanation': 'Creates a local IAM user named Alice through the IAM CreateUser API.',
+        },
+    ],
+}
+
+IAM_CREATE_ADMIN_USER_LAB = {
+    'service': 'iam',
+    'key': 'create-admin-user',
+    'title': 'Create a local admin user',
+    'description': 'Follow the first responsible AWS habit: use bootstrap credentials only to create an administrator identity, then do daily work as that admin user.',
+    'steps': [
+        {
+            'key': 'create-user',
+            'title': 'Create the admin user',
+            'command': f'aws iam create-user --user-name {FLOCI_ADMIN_USER_NAME}',
+            'explanation': 'Creates a local IAM user that will become the administrator identity for normal Floci work.',
+        },
+        {
+            'key': 'put-admin-policy',
+            'title': 'Attach administrator permissions',
+            'command': f'aws iam put-user-policy --user-name {FLOCI_ADMIN_USER_NAME} --policy-name {FLOCI_ADMIN_POLICY_NAME} --policy-document file://administrator-access.json',
+            'explanation': 'Adds an inline administrator policy. In real AWS, this is the moment where you stop using root for daily work.',
+            'artifact_label': 'administrator-access.json',
+            'artifact': json.dumps(FLOCI_ADMIN_POLICY_DOCUMENT, indent=2),
+        },
+        {
+            'key': 'create-access-key',
+            'title': 'Create admin access keys',
+            'command': f'aws iam create-access-key --user-name {FLOCI_ADMIN_USER_NAME}',
+            'explanation': 'Creates programmatic credentials for the admin user so local tools can use that identity.',
+        },
+        {
+            'key': 'verify-admin-identity',
+            'title': 'Verify the admin identity',
+            'command': 'aws sts get-caller-identity',
+            'explanation': 'Uses the generated admin access key to confirm that the daily-work identity is the admin IAM user, not the bootstrap root-like credentials.',
         },
     ],
 }
@@ -1846,8 +1903,8 @@ IAM_ENFORCEMENT_CAPSTONE_LAB = {
         {
             'key': 'assume-role',
             'title': 'Assume the SQS role as Charlie',
-            'command': f'aws sts assume-role --role-arn {IAM_ENFORCEMENT_ROLE_ARN} --role-session-name {IAM_ENFORCEMENT_SESSION_NAME}',
-            'explanation': 'Requests temporary role credentials using Charlie as the caller.',
+            'command': f'aws sts assume-role --role-arn {IAM_ENFORCEMENT_ROLE_ARN} --role-session-name {IAM_ENFORCEMENT_SESSION_NAME}  # using {IAM_ENFORCEMENT_USER_NAME} credentials',
+            'explanation': 'Requests temporary role credentials using Charlie as the caller. Charlie needs both an identity policy allowing sts:AssumeRole and a role trust policy that names Charlie as the trusted principal. Floci currently accepts the local AssumeRole identity allow with a wildcard resource while the role trust policy keeps this lab scoped to Charlie.',
         },
         {
             'key': 'verify-role-sqs',
@@ -3500,6 +3557,7 @@ EC2_SQS_INTERFACE_ENDPOINT_LAB = {
 def labs_for_service(service_key: str) -> list[dict[str, Any]]:
     if service_key == 'iam':
         return [
+            IAM_CREATE_ADMIN_USER_LAB,
             IAM_CREATE_USER_LAB,
             IAM_ATTACH_POLICY_LAB,
             IAM_ACCESS_KEY_LAB,
@@ -8481,6 +8539,16 @@ def run_lab_step(service_key: str, lab_key: str, step_key: str) -> dict[str, Any
     if service_key == 'iam' and lab_key == 'create-user-alice' and step_key == 'create-user':
         return _run_iam_create_user_alice()
 
+    if service_key == 'iam' and lab_key == 'create-admin-user':
+        runners = {
+            'create-user': _run_iam_create_admin_user,
+            'put-admin-policy': _run_iam_put_admin_policy,
+            'create-access-key': _run_iam_create_admin_access_key,
+            'verify-admin-identity': _run_iam_verify_admin_identity,
+        }
+        if step_key in runners:
+            return runners[step_key]()
+
     if service_key == 'iam' and lab_key == 'attach-policy-alice':
         runners = {
             'create-user': lambda: _run_iam_create_user_alice('attach-policy-alice'),
@@ -9176,6 +9244,39 @@ def lab_status(service_key: str, lab_key: str) -> dict[str, Any]:
                 'create-user': {
                     'verified': verified,
                     'verification': verification if verified else None,
+                },
+            },
+        }
+
+    if service_key == 'iam' and lab_key == 'create-admin-user':
+        user_verification = _verify_iam_user(FLOCI_ADMIN_USER_NAME)
+        policy_verification = _verify_iam_admin_policy()
+        key_verification = _verify_iam_admin_access_key()
+        identity_verification = _verify_iam_admin_identity()
+        user_verified = user_verification.get('status') == 'passed'
+        policy_verified = policy_verification.get('status') == 'passed'
+        key_verified = key_verification.get('status') == 'passed'
+        identity_verified = identity_verification.get('status') == 'passed'
+        return {
+            'service': service_key,
+            'lab': lab_key,
+            'complete': user_verified and policy_verified and key_verified and identity_verified,
+            'steps': {
+                'create-user': {
+                    'verified': user_verified,
+                    'verification': user_verification if user_verified else None,
+                },
+                'put-admin-policy': {
+                    'verified': policy_verified,
+                    'verification': policy_verification if policy_verified else None,
+                },
+                'create-access-key': {
+                    'verified': key_verified,
+                    'verification': key_verification if key_verified else None,
+                },
+                'verify-admin-identity': {
+                    'verified': identity_verified,
+                    'verification': identity_verification if identity_verified else None,
                 },
             },
         }
@@ -11488,6 +11589,9 @@ def reset_lab(service_key: str, lab_key: str) -> dict[str, Any]:
     if service_key == 'iam' and lab_key == 'create-user-alice':
         return _reset_iam_create_user_alice()
 
+    if service_key == 'iam' and lab_key == 'create-admin-user':
+        return _reset_iam_create_admin_user()
+
     if service_key == 'iam' and lab_key == 'attach-policy-alice':
         return _reset_iam_attach_policy_alice()
 
@@ -11696,6 +11800,273 @@ def _reset_iam_create_user_alice() -> dict[str, Any]:
         'verification': {
             'status': 'passed',
             'message': 'User Alice was removed.' if deleted else 'User Alice was already absent.',
+        },
+    }
+
+
+def _run_iam_create_admin_user() -> dict[str, Any]:
+    command = f'aws iam create-user --user-name {FLOCI_ADMIN_USER_NAME}'
+    started = time.perf_counter()
+
+    try:
+        response = _iam_client().create_user(UserName=FLOCI_ADMIN_USER_NAME)
+    except ClientError as exc:
+        if _error_code(exc) != 'EntityAlreadyExists':
+            raise
+        response = _iam_client().get_user(UserName=FLOCI_ADMIN_USER_NAME)
+    duration_ms = round((time.perf_counter() - started) * 1000)
+    verification = _verify_iam_user(FLOCI_ADMIN_USER_NAME)
+
+    return {
+        'service': 'iam',
+        'lab': 'create-admin-user',
+        'step': 'create-user',
+        'command': command,
+        'exit_code': 0,
+        'stdout': _json_text(response),
+        'stderr': '',
+        'json': _clean_response(response),
+        'duration_ms': duration_ms,
+        'verified': verification.get('status') == 'passed',
+        'verification': verification,
+    }
+
+
+def _run_iam_put_admin_policy() -> dict[str, Any]:
+    command = f'aws iam put-user-policy --user-name {FLOCI_ADMIN_USER_NAME} --policy-name {FLOCI_ADMIN_POLICY_NAME} --policy-document file://administrator-access.json'
+    started = time.perf_counter()
+    _iam_client().put_user_policy(
+        UserName=FLOCI_ADMIN_USER_NAME,
+        PolicyName=FLOCI_ADMIN_POLICY_NAME,
+        PolicyDocument=json.dumps(FLOCI_ADMIN_POLICY_DOCUMENT),
+    )
+    duration_ms = round((time.perf_counter() - started) * 1000)
+    verification = _verify_iam_admin_policy()
+
+    return {
+        'service': 'iam',
+        'lab': 'create-admin-user',
+        'step': 'put-admin-policy',
+        'command': command,
+        'exit_code': 0,
+        'stdout': _json_text({}),
+        'stderr': '',
+        'json': {},
+        'duration_ms': duration_ms,
+        'verified': verification.get('status') == 'passed',
+        'verification': verification,
+    }
+
+
+def _run_iam_create_admin_access_key() -> dict[str, Any]:
+    command = f'aws iam create-access-key --user-name {FLOCI_ADMIN_USER_NAME}'
+    started = time.perf_counter()
+    response = _iam_client().create_access_key(UserName=FLOCI_ADMIN_USER_NAME)
+    key = response.get('AccessKey', {})
+    if key.get('AccessKeyId') and key.get('SecretAccessKey'):
+        cache.set(FLOCI_ADMIN_ACCESS_KEY_CACHE_KEY, key['AccessKeyId'], timeout=3600)
+        cache.set(FLOCI_ADMIN_SECRET_KEY_CACHE_KEY, key['SecretAccessKey'], timeout=3600)
+    duration_ms = round((time.perf_counter() - started) * 1000)
+    verification = _verify_iam_admin_access_key()
+
+    return {
+        'service': 'iam',
+        'lab': 'create-admin-user',
+        'step': 'create-access-key',
+        'command': command,
+        'exit_code': 0,
+        'stdout': _json_text(response),
+        'stderr': '',
+        'json': _clean_response(response),
+        'duration_ms': duration_ms,
+        'verified': verification.get('status') == 'passed',
+        'verification': verification,
+    }
+
+
+def _run_iam_verify_admin_identity() -> dict[str, Any]:
+    command = 'aws sts get-caller-identity'
+    key_id = cache.get(FLOCI_ADMIN_ACCESS_KEY_CACHE_KEY)
+    secret_key = cache.get(FLOCI_ADMIN_SECRET_KEY_CACHE_KEY)
+    if not key_id or not secret_key:
+        raise ValueError('Run the access key step first so the lab can verify the generated admin credentials.')
+
+    started = time.perf_counter()
+    identity = {
+        'type': 'user',
+        'label': FLOCI_ADMIN_USER_NAME,
+        'access_key_id': key_id,
+        'secret_access_key': secret_key,
+    }
+    response = FlociClientFactory(identity=identity).client('sts').get_caller_identity()
+    cache.set(FLOCI_ADMIN_IDENTITY_CACHE_KEY, _clean_response(response), timeout=3600)
+    duration_ms = round((time.perf_counter() - started) * 1000)
+    verification = _verify_iam_admin_identity()
+
+    return {
+        'service': 'iam',
+        'lab': 'create-admin-user',
+        'step': 'verify-admin-identity',
+        'command': command,
+        'exit_code': 0,
+        'stdout': _json_text(response),
+        'stderr': '',
+        'json': _clean_response(response),
+        'duration_ms': duration_ms,
+        'verified': verification.get('status') == 'passed',
+        'verification': verification,
+    }
+
+
+def _verify_iam_admin_policy() -> dict[str, Any]:
+    try:
+        response = _iam_client().get_user_policy(
+            UserName=FLOCI_ADMIN_USER_NAME,
+            PolicyName=FLOCI_ADMIN_POLICY_NAME,
+        )
+    except ClientError as exc:
+        return {
+            'status': 'failed',
+            'message': str(exc),
+        }
+
+    document = response.get('PolicyDocument') or {}
+    statements = document.get('Statement') if isinstance(document, dict) else []
+    statements = statements if isinstance(statements, list) else [statements]
+    has_admin_allow = any(
+        statement.get('Effect') == 'Allow'
+        and statement.get('Action') == '*'
+        and statement.get('Resource') == '*'
+        for statement in statements
+        if isinstance(statement, dict)
+    )
+    if has_admin_allow:
+        return {
+            'status': 'passed',
+            'message': f'{FLOCI_ADMIN_USER_NAME} has administrator permissions.',
+            'resource': _clean_response(response),
+        }
+    return {
+        'status': 'failed',
+        'message': f'{FLOCI_ADMIN_POLICY_NAME} does not contain the expected administrator allow statement.',
+        'resource': _clean_response(response),
+    }
+
+
+def _verify_iam_admin_access_key() -> dict[str, Any]:
+    try:
+        response = _iam_client().list_access_keys(UserName=FLOCI_ADMIN_USER_NAME)
+    except ClientError as exc:
+        return {
+            'status': 'failed',
+            'message': str(exc),
+        }
+
+    keys = response.get('AccessKeyMetadata', [])
+    active_keys = [key for key in keys if key.get('Status') == 'Active']
+    if active_keys:
+        return {
+            'status': 'passed',
+            'message': f'{FLOCI_ADMIN_USER_NAME} has an active access key.',
+            'resource': _clean_response(active_keys),
+        }
+    return {
+        'status': 'failed',
+        'message': f'{FLOCI_ADMIN_USER_NAME} has no active access keys.',
+        'resource': _clean_response(keys),
+    }
+
+
+def _verify_iam_admin_identity() -> dict[str, Any]:
+    cached_identity = cache.get(FLOCI_ADMIN_IDENTITY_CACHE_KEY)
+    arn = (cached_identity or {}).get('Arn') if isinstance(cached_identity, dict) else None
+    if arn and arn.endswith(f':user/{FLOCI_ADMIN_USER_NAME}'):
+        return {
+            'status': 'passed',
+            'message': f'Generated credentials resolve to {FLOCI_ADMIN_USER_NAME}.',
+            'resource': cached_identity,
+        }
+
+    key_id = cache.get(FLOCI_ADMIN_ACCESS_KEY_CACHE_KEY)
+    secret_key = cache.get(FLOCI_ADMIN_SECRET_KEY_CACHE_KEY)
+    if key_id and secret_key:
+        try:
+            response = FlociClientFactory(identity={
+                'type': 'user',
+                'label': FLOCI_ADMIN_USER_NAME,
+                'access_key_id': key_id,
+                'secret_access_key': secret_key,
+            }).client('sts').get_caller_identity()
+        except Exception as exc:
+            return {
+                'status': 'failed',
+                'message': str(exc),
+            }
+        clean_response = _clean_response(response)
+        if str(clean_response.get('Arn', '')).endswith(f':user/{FLOCI_ADMIN_USER_NAME}'):
+            cache.set(FLOCI_ADMIN_IDENTITY_CACHE_KEY, clean_response, timeout=3600)
+            return {
+                'status': 'passed',
+                'message': f'Generated credentials resolve to {FLOCI_ADMIN_USER_NAME}.',
+                'resource': clean_response,
+            }
+
+    return {
+        'status': 'failed',
+        'message': 'Run the access key and identity verification steps to prove the admin credentials.',
+    }
+
+
+def _reset_iam_create_admin_user() -> dict[str, Any]:
+    command = f'aws iam delete-user --user-name {FLOCI_ADMIN_USER_NAME}'
+    started = time.perf_counter()
+    iam = _iam_client()
+    deleted_keys = 0
+    deleted_policy = False
+    deleted_user = False
+
+    try:
+        keys = iam.list_access_keys(UserName=FLOCI_ADMIN_USER_NAME).get('AccessKeyMetadata', [])
+    except ClientError as exc:
+        if _error_code(exc) != 'NoSuchEntity':
+            raise
+        keys = []
+
+    for key in keys:
+        key_id = key.get('AccessKeyId')
+        if key_id:
+            _ignore_missing(lambda key_id=key_id: iam.delete_access_key(UserName=FLOCI_ADMIN_USER_NAME, AccessKeyId=key_id))
+            deleted_keys += 1
+
+    deleted_policy = _ignore_missing(lambda: iam.delete_user_policy(
+        UserName=FLOCI_ADMIN_USER_NAME,
+        PolicyName=FLOCI_ADMIN_POLICY_NAME,
+    ))
+    deleted_user = _ignore_missing(lambda: iam.delete_user(UserName=FLOCI_ADMIN_USER_NAME))
+    cache.delete(FLOCI_ADMIN_ACCESS_KEY_CACHE_KEY)
+    cache.delete(FLOCI_ADMIN_SECRET_KEY_CACHE_KEY)
+    cache.delete(FLOCI_ADMIN_IDENTITY_CACHE_KEY)
+    duration_ms = round((time.perf_counter() - started) * 1000)
+
+    return {
+        'service': 'iam',
+        'lab': 'create-admin-user',
+        'command': command,
+        'exit_code': 0,
+        'stdout': _json_text({}),
+        'stderr': '',
+        'json': {},
+        'duration_ms': duration_ms,
+        'reset': True,
+        'deleted': deleted_user,
+        'verification': {
+            'status': 'passed',
+            'message': f'Removed {FLOCI_ADMIN_USER_NAME}, {deleted_keys} access keys, and admin policy.' if deleted_user else f'{FLOCI_ADMIN_USER_NAME} was already absent.',
+            'resource': {
+                'deleted_keys': deleted_keys,
+                'deleted_policy': deleted_policy,
+                'deleted_user': deleted_user,
+            },
         },
     }
 
@@ -12280,17 +12651,39 @@ def _iam_enforcement_user_identity() -> dict[str, Any]:
     access_key_id = cache.get(IAM_ENFORCEMENT_USER_KEY_CACHE_KEY)
     secret_access_key = cache.get(IAM_ENFORCEMENT_USER_SECRET_CACHE_KEY)
     if not access_key_id or not secret_access_key:
-        key = _iam_client().create_access_key(UserName=IAM_ENFORCEMENT_USER_NAME).get('AccessKey', {})
+        key = _rotate_iam_enforcement_user_access_key()
         access_key_id = key.get('AccessKeyId')
         secret_access_key = key.get('SecretAccessKey')
-        cache.set(IAM_ENFORCEMENT_USER_KEY_CACHE_KEY, access_key_id, timeout=3600)
-        cache.set(IAM_ENFORCEMENT_USER_SECRET_CACHE_KEY, secret_access_key, timeout=3600)
     return {
         'type': 'user',
         'label': IAM_ENFORCEMENT_USER_NAME,
         'access_key_id': access_key_id,
         'secret_access_key': secret_access_key,
     }
+
+
+def _rotate_iam_enforcement_user_access_key() -> dict[str, Any]:
+    iam = _iam_client()
+    try:
+        keys = iam.list_access_keys(UserName=IAM_ENFORCEMENT_USER_NAME).get('AccessKeyMetadata', [])
+    except ClientError as exc:
+        if _error_code(exc) != 'NoSuchEntity':
+            raise
+        keys = []
+
+    for key in keys:
+        key_id = key.get('AccessKeyId')
+        if key_id:
+            _ignore_missing(lambda key_id=key_id: iam.delete_access_key(
+                UserName=IAM_ENFORCEMENT_USER_NAME,
+                AccessKeyId=key_id,
+            ))
+
+    key = iam.create_access_key(UserName=IAM_ENFORCEMENT_USER_NAME).get('AccessKey', {})
+    cache.set(IAM_ENFORCEMENT_USER_KEY_CACHE_KEY, key.get('AccessKeyId'), timeout=3600)
+    cache.set(IAM_ENFORCEMENT_USER_SECRET_CACHE_KEY, key.get('SecretAccessKey'), timeout=3600)
+    cache.delete(IAM_ENFORCEMENT_ROLE_CREDENTIALS_CACHE_KEY)
+    return key
 
 
 def _iam_enforcement_role_identity() -> dict[str, Any]:
@@ -12325,10 +12718,7 @@ def _run_iam_enforcement_create_user() -> dict[str, Any]:
         PolicyName='CharlieSelfIdentity',
         PolicyDocument=json.dumps(IAM_ENFORCEMENT_SELF_POLICY),
     )
-    if not cache.get(IAM_ENFORCEMENT_USER_KEY_CACHE_KEY) or not cache.get(IAM_ENFORCEMENT_USER_SECRET_CACHE_KEY):
-        key = _iam_client().create_access_key(UserName=IAM_ENFORCEMENT_USER_NAME).get('AccessKey', {})
-        cache.set(IAM_ENFORCEMENT_USER_KEY_CACHE_KEY, key.get('AccessKeyId'), timeout=3600)
-        cache.set(IAM_ENFORCEMENT_USER_SECRET_CACHE_KEY, key.get('SecretAccessKey'), timeout=3600)
+    _rotate_iam_enforcement_user_access_key()
     verification = _verify_iam_user(IAM_ENFORCEMENT_USER_NAME)
     return _lab_step_result('identity-enforcement-capstone', 'create-user', command, _json_text(response), verification, started, response)
 
@@ -12374,8 +12764,14 @@ def _run_iam_enforcement_put_role_policy() -> dict[str, Any]:
 
 
 def _run_iam_enforcement_assume_role() -> dict[str, Any]:
-    command = f'aws sts assume-role --role-arn {IAM_ENFORCEMENT_ROLE_ARN} --role-session-name {IAM_ENFORCEMENT_SESSION_NAME}'
+    command = f'aws sts assume-role --role-arn {IAM_ENFORCEMENT_ROLE_ARN} --role-session-name {IAM_ENFORCEMENT_SESSION_NAME}  # using {IAM_ENFORCEMENT_USER_NAME} credentials'
     started = time.perf_counter()
+    _iam_client().put_user_policy(
+        UserName=IAM_ENFORCEMENT_USER_NAME,
+        PolicyName='CharlieSelfIdentity',
+        PolicyDocument=json.dumps(IAM_ENFORCEMENT_SELF_POLICY),
+    )
+    _rotate_iam_enforcement_user_access_key()
     response = FlociClientFactory(identity=_iam_enforcement_user_identity()).client('sts').assume_role(
         RoleArn=IAM_ENFORCEMENT_ROLE_ARN,
         RoleSessionName=IAM_ENFORCEMENT_SESSION_NAME,

@@ -192,7 +192,7 @@ Core architecture files:
 - Added local AWS workflow labs with shared routes, UI, live-state verification, reset behavior, and breadcrumb navigation.
 - Added a top-level Labs directory that automatically lists services with registered labs and links it from the homepage between Environment and Service Matrix.
 - Added completion-only next-batch recommendations so the final lab in each service batch points learners toward the next practical batch without turning the labs directory into a separate path system.
-- Completed ten IAM labs covering users, managed and inline policies, access keys, groups, roles, STS session policies, EC2 instance profiles, switched dashboard identities, and local IAM enforcement checks.
+- Completed eleven IAM labs covering local admin identity bootstrap, users, managed and inline policies, access keys, groups, roles, STS session policies, EC2 instance profiles, switched dashboard identities, and local IAM enforcement checks.
 - Completed twelve S3 labs covering bucket/object fundamentals, prefixes, metadata and tags, version recovery, presigned URLs, bucket security, default encryption, lifecycle retention, CORS, S3-to-SQS notifications, and multipart upload.
 - Built the SQS lab foundation with queue creation, URL resolution, full attribute inspection, account queue listing, live-state completion, and queue-owned reset.
 - Added the SQS message lifecycle lab with a known JSON event, message attributes, reload-safe receive verification, live receipt-handle discovery, delete verification, and message-only reset behavior.

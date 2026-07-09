@@ -364,6 +364,11 @@ const ServiceConsole = (() => {
       title = 'Items',
       items = [],
       itemRenderer,
+      mode = 'cards',
+      columns = [],
+      primaryColumn = null,
+      primaryHref = null,
+      itemKey = null,
       itemSearchText = defaultCollectionSearchText,
       filterPlaceholder = `Filter ${String(title).toLowerCase()}`,
       emptyTitle = `No ${String(title).toLowerCase()} found`,
@@ -377,6 +382,10 @@ const ServiceConsole = (() => {
       selectionStart = null,
       selectionEnd = null,
       actions = [],
+      selectedKeys = new Set(),
+      onSelectedKeysChange = null,
+      selectedActions = [],
+      lastUpdatedLabel = '',
     } = options;
     const normalizedItems = Array.isArray(items) ? items : [];
     const normalizedFilter = String(filterText || '').trim().toLowerCase();
@@ -412,14 +421,43 @@ const ServiceConsole = (() => {
       'collection-count',
       `${visibleItems.length} of ${normalizedItems.length} ${countLabel}`,
     );
-    toolbar.append(filter, summary, ...actions);
+    const meta = el('div', 'collection-toolbar-meta');
+    meta.append(summary);
+    if (lastUpdatedLabel) {
+      meta.append(el('span', 'collection-refreshed-at', lastUpdatedLabel));
+    }
+    toolbar.append(filter, meta, ...actions);
     panel.append(toolbar);
 
-    const list = el('div', `${classPrefix}-collection-list collection-list`);
+    const selectedSet = selectedKeys instanceof Set ? selectedKeys : new Set(selectedKeys || []);
+    if (mode === 'table' && selectedSet.size) {
+      const selectedBar = el('div', 'collection-selected-bar');
+      selectedBar.append(el('strong', null, `${selectedSet.size} selected`));
+      const clearSelected = button('Clear selection', 'collection-action-secondary', () => {
+        selectedSet.clear();
+        if (onSelectedKeysChange) {
+          onSelectedKeysChange(new Set(selectedSet));
+        }
+      });
+      selectedBar.append(clearSelected, ...selectedActions);
+      panel.append(selectedBar);
+    }
+
+    const list = el('div', `${classPrefix}-collection-list collection-list${mode === 'table' ? ' collection-list-table' : ''}`);
     if (!normalizedItems.length) {
       list.append(el('p', 'muted empty-state', emptyTitle));
     } else if (!visibleItems.length) {
       list.append(el('p', 'muted empty-state', emptyFilteredTitle));
+    } else if (mode === 'table') {
+      list.append(renderResourceTable({
+        columns,
+        primaryColumn,
+        primaryHref,
+        itemKey,
+        items: visibleItems,
+        selectedKeys: selectedSet,
+        onSelectedKeysChange,
+      }));
     } else {
       visibleItems.forEach((item, index) => list.append(itemRenderer ? itemRenderer(item, index) : el('div', 'collection-item', valueText(item))));
     }
@@ -440,6 +478,138 @@ const ServiceConsole = (() => {
     }
 
     return panel;
+  }
+
+  function collectionItemKey(item, index, itemKey) {
+    if (typeof itemKey === 'function') {
+      return String(itemKey(item, index));
+    }
+    if (itemKey && item?.[itemKey] != null) {
+      return String(item[itemKey]);
+    }
+    return String(
+      item?.arn
+      || item?.ARN
+      || item?.url
+      || item?.id
+      || item?.name
+      || item?.table_name
+      || item?.ResourceArn
+      || item?.ResourceARN
+      || item?.QueueUrl
+      || item?.TopicArn
+      || item?.InstanceId
+      || index
+    );
+  }
+
+  function columnValue(item, column) {
+    if (!column) {
+      return '';
+    }
+    if (typeof column.value === 'function') {
+      return column.value(item);
+    }
+    if (column.key) {
+      return item?.[column.key];
+    }
+    return '';
+  }
+
+  function renderResourceTable(options = {}) {
+    const {
+      columns = [],
+      primaryColumn = columns[0] || null,
+      primaryHref = null,
+      itemKey = null,
+      items = [],
+      selectedKeys = new Set(),
+      onSelectedKeysChange = null,
+    } = options;
+    const effectivePrimaryColumn = primaryColumn || columns.find((column) => column.primary) || columns[0] || null;
+    const tableWrap = el('div', 'collection-table-wrap');
+    const table = document.createElement('table');
+    table.className = 'collection-table';
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    const selectHead = document.createElement('th');
+    selectHead.className = 'collection-table-select';
+    const selectAll = document.createElement('input');
+    selectAll.type = 'checkbox';
+    selectAll.setAttribute('aria-label', 'Select all visible resources');
+    selectAll.checked = Boolean(items.length) && items.every((item, index) => selectedKeys.has(collectionItemKey(item, index, itemKey)));
+    selectAll.indeterminate = !selectAll.checked && items.some((item, index) => selectedKeys.has(collectionItemKey(item, index, itemKey)));
+    selectAll.addEventListener('change', () => {
+      const next = new Set(selectedKeys);
+      items.forEach((item, index) => {
+        const key = collectionItemKey(item, index, itemKey);
+        if (selectAll.checked) {
+          next.add(key);
+        } else {
+          next.delete(key);
+        }
+      });
+      if (onSelectedKeysChange) {
+        onSelectedKeysChange(next);
+      }
+    });
+    selectHead.append(selectAll);
+    headerRow.append(selectHead);
+    columns.forEach((column) => {
+      const th = document.createElement('th');
+      th.textContent = column.label || column.key || '';
+      headerRow.append(th);
+    });
+    thead.append(headerRow);
+
+    const tbody = document.createElement('tbody');
+    items.forEach((item, index) => {
+      const rowKey = collectionItemKey(item, index, itemKey);
+      const row = document.createElement('tr');
+      if (selectedKeys.has(rowKey)) {
+        row.className = 'collection-table-row-selected';
+      }
+      const selectCell = document.createElement('td');
+      selectCell.className = 'collection-table-select';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = selectedKeys.has(rowKey);
+      checkbox.setAttribute('aria-label', `Select ${valueText(columnValue(item, effectivePrimaryColumn) || rowKey)}`);
+      checkbox.addEventListener('change', () => {
+        const next = new Set(selectedKeys);
+        if (checkbox.checked) {
+          next.add(rowKey);
+        } else {
+          next.delete(rowKey);
+        }
+        if (onSelectedKeysChange) {
+          onSelectedKeysChange(next);
+        }
+      });
+      selectCell.append(checkbox);
+      row.append(selectCell);
+
+      columns.forEach((column) => {
+        const td = document.createElement('td');
+        const value = columnValue(item, column);
+        if (column === effectivePrimaryColumn || column.primary) {
+          const href = typeof primaryHref === 'function' ? primaryHref(item) : primaryHref;
+          const link = document.createElement('a');
+          link.className = 'collection-primary-link';
+          link.href = href || '#';
+          link.textContent = valueText(value || rowKey);
+          td.append(link);
+        } else {
+          td.textContent = valueText(value);
+        }
+        row.append(td);
+      });
+      tbody.append(row);
+    });
+
+    table.append(thead, tbody);
+    tableWrap.append(table);
+    return tableWrap;
   }
 
   function button(label, className, onClick) {

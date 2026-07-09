@@ -15,6 +15,7 @@ from .s3_api import (
     delete_s3_bucket,
     delete_s3_cors,
     delete_s3_lifecycle,
+    delete_s3_website,
     delete_s3_objects,
     download_s3_object,
     empty_s3_bucket,
@@ -28,6 +29,7 @@ from .s3_api import (
     get_s3_policy,
     get_s3_public_access_block,
     get_s3_versioning,
+    get_s3_website,
     head_s3_object,
     list_s3_buckets,
     list_s3_objects,
@@ -41,6 +43,7 @@ from .s3_api import (
     put_s3_policy,
     put_s3_public_access_block,
     put_s3_versioning,
+    put_s3_website,
     upload_s3_object,
 )
 
@@ -484,5 +487,30 @@ def s3_bucket_notifications(request, bucket_name: str):
     try:
         body = _parse_json_body(request)
         return JsonResponse(put_s3_notifications(bucket_name, body))
+    except Exception as exc:
+        return _handle_s3(exc)
+
+
+@require_http_methods(['GET', 'PUT', 'DELETE'])
+def s3_bucket_website(request, bucket_name: str):
+    err = _validate_bucket(bucket_name)
+    if err:
+        return _json_error(err)
+    if request.method == 'GET':
+        try:
+            return JsonResponse({'configuration': get_s3_website(bucket_name)})
+        except Exception as exc:
+            return _handle_s3(exc)
+    if request.method == 'DELETE':
+        try:
+            return JsonResponse(delete_s3_website(bucket_name))
+        except Exception as exc:
+            return _handle_s3(exc)
+    try:
+        body = _parse_json_body(request)
+        config = body.get('configuration')
+        if not isinstance(config, dict):
+            return _json_error('configuration object is required')
+        return JsonResponse({'configuration': put_s3_website(bucket_name, config)})
     except Exception as exc:
         return _handle_s3(exc)

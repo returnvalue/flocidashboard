@@ -94,7 +94,7 @@ class LabsRegistryAuditTests(SimpleTestCase):
 class LabsPageTests(SimpleTestCase):
     def test_labs_package_facades_preserve_public_api(self):
         self.assertIs(facade_run_lab_step, run_lab_step)
-        self.assertEqual(len(all_labs()), 48)
+        self.assertEqual(len(all_labs()), 49)
         self.assertTrue(labs_for_service('iam'))
         self.assertTrue(issubclass(Lab, dict))
         self.assertTrue(issubclass(LabStep, dict))
@@ -217,7 +217,7 @@ class LabsPageTests(SimpleTestCase):
         self.assertEqual(status_mock.call_count, 2)
 
     @patch('dashboard.views.lab_status')
-    def test_iam_labs_page_renders_create_user_lab(self, status_mock):
+    def test_iam_labs_page_renders_admin_first_lab(self, status_mock):
         status_mock.return_value = {'complete': False, 'steps': {}}
 
         response = self.client.get(reverse('dashboard:service-labs', kwargs={'service_key': 'iam'}))
@@ -228,8 +228,9 @@ class LabsPageTests(SimpleTestCase):
         self.assertContains(response, f'href="{reverse("dashboard:index")}"')
         self.assertContains(response, f'href="{reverse("dashboard:service-page", kwargs={"service_key": "iam"})}"')
         self.assertContains(response, 'aria-current="page">Labs</span>')
+        self.assertContains(response, 'Create a local admin user')
+        self.assertContains(response, 'aws iam create-user --user-name floci-admin')
         self.assertContains(response, 'Create an IAM user')
-        self.assertContains(response, 'aws iam create-user --user-name Alice')
         self.assertNotContains(response, 'Next recommended batch')
         self.assertContains(response, 'id="lab-reset"')
         self.assertContains(response, 'id="labs-sidebar-toggle"')
@@ -1112,29 +1113,32 @@ class LabsPageTests(SimpleTestCase):
 
 
 class LabsRunnerTests(SimpleTestCase):
-    def test_iam_lab_registry_includes_alice_step(self):
+    def test_iam_lab_registry_starts_with_admin_then_alice(self):
         labs = labs_for_service('iam')
 
-        self.assertEqual(labs[0]['key'], 'create-user-alice')
-        self.assertEqual(labs[0]['steps'][0]['command'], 'aws iam create-user --user-name Alice')
-        self.assertEqual(labs[1]['key'], 'attach-policy-alice')
-        self.assertEqual(len(labs[1]['steps']), 4)
-        self.assertEqual(labs[2]['key'], 'access-key-alice')
-        self.assertEqual(len(labs[2]['steps']), 3)
-        self.assertEqual(labs[3]['key'], 'group-membership-alice')
-        self.assertEqual(len(labs[3]['steps']), 4)
-        self.assertEqual(labs[4]['key'], 'group-policy-floci-developers')
-        self.assertEqual(len(labs[4]['steps']), 6)
-        self.assertEqual(labs[5]['key'], 'inline-policy-alice')
-        self.assertEqual(len(labs[5]['steps']), 4)
-        self.assertEqual(labs[6]['key'], 'role-trust-policy')
+        self.assertEqual(labs[0]['key'], 'create-admin-user')
+        self.assertEqual(labs[0]['steps'][0]['command'], 'aws iam create-user --user-name floci-admin')
+        self.assertEqual(labs[0]['steps'][1]['command'], 'aws iam put-user-policy --user-name floci-admin --policy-name AdministratorAccess --policy-document file://administrator-access.json')
+        self.assertEqual(labs[1]['key'], 'create-user-alice')
+        self.assertEqual(labs[1]['steps'][0]['command'], 'aws iam create-user --user-name Alice')
+        self.assertEqual(labs[2]['key'], 'attach-policy-alice')
+        self.assertEqual(len(labs[2]['steps']), 4)
+        self.assertEqual(labs[3]['key'], 'access-key-alice')
+        self.assertEqual(len(labs[3]['steps']), 3)
+        self.assertEqual(labs[4]['key'], 'group-membership-alice')
+        self.assertEqual(len(labs[4]['steps']), 4)
+        self.assertEqual(labs[5]['key'], 'group-policy-floci-developers')
+        self.assertEqual(len(labs[5]['steps']), 6)
+        self.assertEqual(labs[6]['key'], 'inline-policy-alice')
         self.assertEqual(len(labs[6]['steps']), 4)
-        self.assertEqual(labs[7]['key'], 'sts-session-policy')
-        self.assertEqual(len(labs[7]['steps']), 3)
-        self.assertEqual(labs[8]['key'], 'ec2-instance-profile')
-        self.assertEqual(len(labs[8]['steps']), 5)
-        self.assertEqual(labs[9]['key'], 'identity-enforcement-capstone')
-        self.assertEqual(len(labs[9]['steps']), 7)
+        self.assertEqual(labs[7]['key'], 'role-trust-policy')
+        self.assertEqual(len(labs[7]['steps']), 4)
+        self.assertEqual(labs[8]['key'], 'sts-session-policy')
+        self.assertEqual(len(labs[8]['steps']), 3)
+        self.assertEqual(labs[9]['key'], 'ec2-instance-profile')
+        self.assertEqual(len(labs[9]['steps']), 5)
+        self.assertEqual(labs[10]['key'], 'identity-enforcement-capstone')
+        self.assertEqual(len(labs[10]['steps']), 7)
 
     def test_s3_lab_registry_includes_create_bucket_workflow(self):
         labs = labs_for_service('s3')
@@ -2170,6 +2174,44 @@ class LabsRunnerTests(SimpleTestCase):
         self.assertIsNone(cache.get('floci-lab:iam:sts-session-policy:assumed'))
         self.assertTrue(result['deleted_policy'])
         self.assertTrue(result['deleted_role'])
+
+    @patch('dashboard.labs.FlociClientFactory')
+    def test_identity_enforcement_lab_allows_charlie_to_assume_role(self, factory_mock):
+        iam = MagicMock()
+        iam.create_user.return_value = {
+            'User': {
+                'UserName': 'Charlie',
+                'Arn': 'arn:aws:iam::000000000000:user/Charlie',
+            },
+        }
+        iam.get_user.return_value = {
+            'User': {
+                'UserName': 'Charlie',
+                'Arn': 'arn:aws:iam::000000000000:user/Charlie',
+            },
+        }
+        iam.list_access_keys.return_value = {'AccessKeyMetadata': []}
+        iam.create_access_key.return_value = {
+            'AccessKey': {
+                'AccessKeyId': 'AKIACHARLIE',
+                'SecretAccessKey': 'secret',
+            },
+        }
+        factory_mock.return_value.client.return_value = iam
+
+        result = run_lab_step('iam', 'identity-enforcement-capstone', 'create-user')
+
+        self.assertTrue(result['verified'])
+        iam.put_user_policy.assert_called_once()
+        policy = json.loads(iam.put_user_policy.call_args.kwargs['PolicyDocument'])
+        self.assertIn(
+            {
+                'Effect': 'Allow',
+                'Action': 'sts:AssumeRole',
+                'Resource': '*',
+            },
+            policy['Statement'],
+        )
 
     @patch('dashboard.labs.FlociClientFactory')
     def test_instance_profile_lab_creates_profile(self, factory_mock):

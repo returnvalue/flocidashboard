@@ -4,5 +4,6 @@ __pycache__/
 db.sqlite3
 .DS_Store
 cloudscapedesign.md
+moreawslike.md
 .env
 data/

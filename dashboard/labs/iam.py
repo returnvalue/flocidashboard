@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from .monolith import (
     IAM_ACCESS_KEY_LAB,
+    IAM_CREATE_ADMIN_USER_LAB,
     IAM_ATTACH_POLICY_LAB,
     IAM_CREATE_USER_LAB,
     IAM_GROUP_MEMBERSHIP_LAB,
@@ -20,6 +21,7 @@ from .monolith import (
 )
 
 LABS = [
+    IAM_CREATE_ADMIN_USER_LAB,
     IAM_CREATE_USER_LAB,
     IAM_ATTACH_POLICY_LAB,
     IAM_ACCESS_KEY_LAB,

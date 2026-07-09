@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from typing import Any, Literal
 
+from django.core.cache import cache
+
 from .aws import FlociClientFactory
 
 PrincipalType = Literal['user', 'group', 'role']
@@ -18,6 +20,7 @@ BASELINE_IDENTITY_POLICY_DOCUMENT = {
         'Resource': '*',
     }],
 }
+BOUNDARY_CACHE_KEY = 'dashboard:iam-permissions-boundaries'
 
 TRUST_POLICY_TEMPLATES = {
     'lambda': {
@@ -53,6 +56,36 @@ def _iam_client():
 
 def _sts_client():
     return FlociClientFactory().client('sts')
+
+
+def _boundary_cache_scope(factory: FlociClientFactory) -> str:
+    return '|'.join([
+        str(factory.endpoint_url),
+        str(factory.region),
+        str(factory.credential_source),
+        str(factory.profile or ''),
+        str(factory.access_key_id or ''),
+    ])
+
+
+def _boundary_cache_key(principal_type: str, principal_name: str) -> str:
+    return f'{principal_type}:{principal_name}'
+
+
+def _cache_permissions_boundary(factory: FlociClientFactory, principal_type: str, principal_name: str, policy_arn: str | None) -> None:
+    cache_data = cache.get(BOUNDARY_CACHE_KEY, {})
+    scope = _boundary_cache_scope(factory)
+    scoped = dict(cache_data.get(scope, {}))
+    key = _boundary_cache_key(principal_type, principal_name)
+    if policy_arn:
+        scoped[key] = {
+            'PermissionsBoundaryType': 'PermissionsBoundaryPolicy',
+            'PermissionsBoundaryArn': policy_arn,
+        }
+    else:
+        scoped.pop(key, None)
+    cache_data = {**cache_data, scope: scoped}
+    cache.set(BOUNDARY_CACHE_KEY, cache_data, None)
 
 
 def validate_name(value: str, label: str) -> str:
@@ -436,6 +469,37 @@ def detach_managed_policy(principal_type: str, principal_name: str, policy_arn: 
     iam = _iam_client()
     _detach_method(iam, clean_type)(**_principal_arg(clean_type, name), PolicyArn=arn)
     return {'principal_type': clean_type, 'principal_name': name, 'policy_arn': arn, 'detached': True}
+
+
+def put_permissions_boundary(principal_type: str, principal_name: str, policy_arn: str) -> dict[str, Any]:
+    clean_type = validate_principal_type(principal_type)
+    if clean_type == 'group':
+        raise ValueError('Permission boundaries are supported for users and roles only')
+    name = validate_name(principal_name, 'Principal name')
+    arn = validate_name(policy_arn, 'Policy ARN')
+    factory = FlociClientFactory()
+    iam = factory.client('iam')
+    if clean_type == 'user':
+        iam.put_user_permissions_boundary(UserName=name, PermissionsBoundary=arn)
+    else:
+        iam.put_role_permissions_boundary(RoleName=name, PermissionsBoundary=arn)
+    _cache_permissions_boundary(factory, clean_type, name, arn)
+    return {'principal_type': clean_type, 'principal_name': name, 'policy_arn': arn, 'saved': True}
+
+
+def delete_permissions_boundary(principal_type: str, principal_name: str) -> dict[str, Any]:
+    clean_type = validate_principal_type(principal_type)
+    if clean_type == 'group':
+        raise ValueError('Permission boundaries are supported for users and roles only')
+    name = validate_name(principal_name, 'Principal name')
+    factory = FlociClientFactory()
+    iam = factory.client('iam')
+    if clean_type == 'user':
+        iam.delete_user_permissions_boundary(UserName=name)
+    else:
+        iam.delete_role_permissions_boundary(RoleName=name)
+    _cache_permissions_boundary(factory, clean_type, name, None)
+    return {'principal_type': clean_type, 'principal_name': name, 'deleted': True}
 
 
 def put_inline_policy(principal_type: str, principal_name: str, policy_name: str, document: Any) -> dict[str, Any]:

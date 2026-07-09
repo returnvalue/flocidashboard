@@ -17,10 +17,12 @@ from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError, ProfileNotFound
 from botocore.parsers import ResponseParserError
 from django.conf import settings
+from django.core.cache import cache
 
 
 RUNTIME_ENDPOINT_SESSION_KEY = 'floci_runtime_endpoint_url'
 RUNTIME_IDENTITY_SESSION_KEY = 'floci_identity'
+IAM_BOUNDARY_CACHE_KEY = 'dashboard:iam-permissions-boundaries'
 _runtime_endpoint_override: ContextVar[str | None] = ContextVar(
     'floci_runtime_endpoint_override',
     default=None,
@@ -428,6 +430,20 @@ def iam_inventory() -> dict[str, Any]:
     factory = FlociClientFactory()
     iam = factory.client('iam')
 
+    boundary_cache = cache.get(IAM_BOUNDARY_CACHE_KEY, {})
+    boundary_cache_scope = '|'.join([
+        str(factory.endpoint_url),
+        str(factory.region),
+        str(factory.credential_source),
+        str(factory.profile or ''),
+        str(factory.access_key_id or ''),
+    ])
+    scoped_boundaries = boundary_cache.get(boundary_cache_scope, {})
+
+    def cached_boundary(principal_type: str, principal_name: str) -> dict[str, Any] | None:
+        value = scoped_boundaries.get(f'{principal_type}:{principal_name}')
+        return value if isinstance(value, dict) else None
+
     def user_detail(user: dict[str, Any]) -> dict[str, Any]:
         name = user.get('UserName')
         full_user = _safe_value(lambda: iam.get_user(UserName=name).get('User', {}), {})
@@ -436,7 +452,7 @@ def iam_inventory() -> dict[str, Any]:
             'name': name,
             'arn': user.get('Arn'),
             'created': user.get('CreateDate'),
-            'permissions_boundary': full_user.get('PermissionsBoundary'),
+            'permissions_boundary': full_user.get('PermissionsBoundary') or cached_boundary('user', name),
             'groups': [
                 group.get('GroupName')
                 for group in _safe_value(
@@ -508,7 +524,7 @@ def iam_inventory() -> dict[str, Any]:
             'name': name,
             'arn': role.get('Arn'),
             'created': role.get('CreateDate'),
-            'permissions_boundary': full_role.get('PermissionsBoundary'),
+            'permissions_boundary': full_role.get('PermissionsBoundary') or cached_boundary('role', name),
             'trust_policy': full_role.get('AssumeRolePolicyDocument') or role.get('AssumeRolePolicyDocument'),
             'attached_policies': [
                 {

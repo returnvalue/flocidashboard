@@ -4,7 +4,7 @@
 
 The current curriculum is complete through the first messaging, infrastructure, networking, serverless compute, data, encryption, and application configuration sequences:
 
-- ten IAM labs,
+- eleven IAM labs,
 - twelve S3 labs,
 - nine SQS labs,
 - two SNS labs,
@@ -632,18 +632,19 @@ Current UI lessons:
 
 Build IAM labs in this order:
 
-1. Create user Alice
-2. Create managed policy and attach it to Alice
-3. Create user and access key
-4. Create group and add user
-5. Attach managed policy to group
-6. Create user and attach inline policy
-7. Create role with trust policy
-8. Assume a role with an STS session policy
-9. Create instance profile and add role
-10. Switch identities and verify IAM enforcement
+1. Create a local admin user
+2. Create user Alice
+3. Create managed policy and attach it to Alice
+4. Create user and access key
+5. Create group and add user
+6. Attach managed policy to group
+7. Create user and attach inline policy
+8. Create role with trust policy
+9. Assume a role with an STS session policy
+10. Create instance profile and add role
+11. Switch identities and verify IAM enforcement
 
-The first lab proves the core one-step pattern. The second lab proves the multi-step pattern and the core IAM permissions story. The third lab proves credential creation, metadata listing, and live-state cleanup for generated IDs. The fourth lab proves group membership and relationship verification. The fifth lab proves group-based permission assignment. The sixth proves inline user policies. The seventh separates role trust from role permissions. The eighth proves STS session policies on assumed-role credentials. The ninth proves EC2 instance-profile wiring. The tenth proves that switched dashboard credentials experience real allow and deny outcomes.
+The first lab teaches the responsible AWS habit: use bootstrap/root-like credentials only long enough to create an administrator identity, then do daily work as that user. The second lab proves the core one-step user pattern. The third lab proves the multi-step pattern and the core IAM permissions story. The fourth lab proves credential creation, metadata listing, and live-state cleanup for generated IDs. The fifth proves group membership and relationship verification. The sixth proves group-based permission assignment. The seventh proves inline user policies. The eighth separates role trust from role permissions. The ninth proves STS session policies on assumed-role credentials. The tenth proves EC2 instance-profile wiring. The eleventh proves that switched dashboard credentials experience real allow and deny outcomes.
 
 Implemented second lab:
 

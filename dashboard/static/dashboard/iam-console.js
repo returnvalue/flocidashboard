@@ -13,6 +13,12 @@ const IAMConsole = (() => {
     selectedName: '',
     selectedPolicy: null,
     lastCredentials: null,
+    principalFilterText: '',
+    principalFilterRestoreFocus: false,
+    principalFilterSelectionStart: null,
+    principalFilterSelectionEnd: null,
+    selectedPrincipals: new Set(),
+    loadedAt: null,
   };
 
   const el = consoleUi.el;
@@ -450,6 +456,35 @@ const IAMConsole = (() => {
     });
   }
 
+  function showPermissionsBoundaryModal(principal) {
+    const form = el('div');
+    const policyInput = document.createElement('input');
+    policyInput.value = principal.permissions_boundary?.PermissionsBoundaryArn || principal.permissions_boundary || '';
+    policyInput.placeholder = 'arn:aws:iam::aws:policy/PowerUserAccess';
+    form.append(el('label', null, 'Boundary policy ARN'), policyInput);
+    openModal('Set permissions boundary', form, 'Save', async (close) => {
+      await apiJson(`/api/iam/principals/${encodeURIComponent(state.selectedType)}/${encodeURIComponent(principal.name)}/permissions-boundary/`, {
+        method: 'PUT',
+        body: JSON.stringify({ policy_arn: policyInput.value.trim() }),
+      });
+      close();
+      toast('Permissions boundary saved');
+      await refresh();
+    });
+  }
+
+  function clearPermissionsBoundary(principal) {
+    openModal('Clear permissions boundary', el('p', null, `Clear the permissions boundary for ${principal.name}?`), 'Clear', async (close) => {
+      await apiJson(`/api/iam/principals/${encodeURIComponent(state.selectedType)}/${encodeURIComponent(principal.name)}/permissions-boundary/`, {
+        method: 'DELETE',
+        body: JSON.stringify({}),
+      });
+      close();
+      toast('Permissions boundary cleared');
+      await refresh();
+    });
+  }
+
   function showTrustPolicyModal(role) {
     const form = el('div');
     const documentInput = document.createElement('textarea');
@@ -723,6 +758,8 @@ const IAMConsole = (() => {
         state.selectedType = type;
         state.selectedName = '';
         state.selectedPolicy = null;
+        state.principalFilterText = '';
+        state.selectedPrincipals.clear();
         render();
       });
       tabs.append(tab);
@@ -730,25 +767,162 @@ const IAMConsole = (() => {
     return tabs;
   }
 
-  function renderPrincipalRow(type, principal) {
-    const active = type === state.selectedType && principal.name === selectedPrincipal()?.name;
-    const row = el('button', `iam-principal-row${active ? ' iam-principal-row-active' : ''}`);
-    const meta = [
-      type,
+  function principalKey(type, principal) {
+    return `${type}:${principal.name || principal.arn || ''}`;
+  }
+
+  function principalSearchText(principal) {
+    return [
+      principal.name,
       principal.arn,
       principal.status,
-    ].filter(Boolean);
-    row.append(
-      el('span', 'iam-principal-name', principal.name || principal.arn || 'Unnamed'),
-      el('span', 'iam-principal-meta', meta.join(' / ') || 'No summary'),
-    );
-    row.addEventListener('click', () => {
-      state.selectedType = type;
-      state.selectedName = principal.name;
-      state.selectedPolicy = null;
+      principal.default_version,
+      principal.attachment_count,
+      principal.groups,
+      principal.users,
+      principal.attached_policies,
+      principal.inline_policies,
+      principal.access_keys,
+      principal.instance_profiles,
+    ].map((value) => typeof value === 'string' ? value : JSON.stringify(value || '')).join(' ').toLowerCase();
+  }
+
+  function principalStatus(type, principal) {
+    if (type === 'user') {
+      return `${(principal.access_keys || []).length} access keys`;
+    }
+    if (type === 'group') {
+      return `${(principal.users || []).length} users`;
+    }
+    if (type === 'role') {
+      return `${(principal.instance_profiles || []).length} instance profiles`;
+    }
+    return `Default ${principal.default_version || 'unknown'}`;
+  }
+
+  function principalPolicyCount(type, principal) {
+    if (type === 'policy') {
+      return principal.attachment_count || 0;
+    }
+    return (principal.attached_policies || []).length + (principal.inline_policies || []).length;
+  }
+
+  function selectPrincipal(type, principal) {
+    state.selectedType = type;
+    state.selectedName = principal.name;
+    state.selectedPolicy = null;
+    render();
+  }
+
+  function renderPrincipalTable(type, items) {
+    const visibleItems = state.principalFilterText
+      ? items.filter((item) => principalSearchText(item).includes(state.principalFilterText.trim().toLowerCase()))
+      : items;
+    const wrapper = el('div', 'iam-principal-table-wrap');
+    const table = el('table', 'iam-principal-table');
+    const thead = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    const selectHead = document.createElement('th');
+    selectHead.className = 'iam-principal-check';
+    const selectAll = document.createElement('input');
+    selectAll.type = 'checkbox';
+    selectAll.setAttribute('aria-label', 'Select all visible principals');
+    selectAll.checked = Boolean(visibleItems.length) && visibleItems.every((principal) => state.selectedPrincipals.has(principalKey(type, principal)));
+    selectAll.indeterminate = !selectAll.checked && visibleItems.some((principal) => state.selectedPrincipals.has(principalKey(type, principal)));
+    selectAll.addEventListener('change', () => {
+      visibleItems.forEach((principal) => {
+        const key = principalKey(type, principal);
+        if (selectAll.checked) {
+          state.selectedPrincipals.add(key);
+        } else {
+          state.selectedPrincipals.delete(key);
+        }
+      });
       render();
     });
-    return row;
+    selectHead.append(selectAll);
+    headRow.append(selectHead);
+    ['Name', 'Type', 'ARN', 'Status', 'Policies'].forEach((label) => {
+      const th = document.createElement('th');
+      th.textContent = label;
+      headRow.append(th);
+    });
+    thead.append(headRow);
+
+    const tbody = document.createElement('tbody');
+    visibleItems.forEach((principal) => {
+      const key = principalKey(type, principal);
+      const active = type === state.selectedType && principal.name === selectedPrincipal()?.name;
+      const row = document.createElement('tr');
+      if (active) {
+        row.classList.add('iam-principal-row-active');
+      }
+      if (state.selectedPrincipals.has(key)) {
+        row.classList.add('iam-principal-row-selected');
+      }
+      const selectCell = document.createElement('td');
+      selectCell.className = 'iam-principal-check';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = state.selectedPrincipals.has(key);
+      checkbox.setAttribute('aria-label', `Select ${principal.name || principal.arn || type}`);
+      checkbox.addEventListener('click', (event) => event.stopPropagation());
+      checkbox.addEventListener('change', () => {
+        if (checkbox.checked) {
+          state.selectedPrincipals.add(key);
+        } else {
+          state.selectedPrincipals.delete(key);
+        }
+        render();
+      });
+      selectCell.append(checkbox);
+
+      const nameCell = document.createElement('td');
+      nameCell.className = 'iam-principal-primary-cell';
+      const link = document.createElement('a');
+      link.href = '#';
+      link.className = 'iam-principal-primary-link';
+      link.textContent = principal.name || principal.arn || 'Unnamed';
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        selectPrincipal(type, principal);
+      });
+      nameCell.append(link);
+
+      const typeCell = document.createElement('td');
+      typeCell.textContent = type;
+      const arnCell = document.createElement('td');
+      arnCell.textContent = principal.arn || '—';
+      const statusCell = document.createElement('td');
+      statusCell.textContent = principalStatus(type, principal);
+      const policiesCell = document.createElement('td');
+      policiesCell.textContent = String(principalPolicyCount(type, principal));
+      row.append(selectCell, nameCell, typeCell, arnCell, statusCell, policiesCell);
+      row.addEventListener('click', () => selectPrincipal(type, principal));
+      tbody.append(row);
+    });
+    table.append(thead, tbody);
+    wrapper.append(table);
+    if (!visibleItems.length) {
+      wrapper.append(el('div', 'iam-empty iam-empty-compact', state.principalFilterText ? `No ${type}s match this filter.` : `No ${type}s found.`));
+    }
+    return wrapper;
+  }
+
+  function renderPrincipalSelectionBar() {
+    if (!state.selectedPrincipals.size) {
+      return null;
+    }
+    const bar = el('div', 'iam-selected-action-bar');
+    bar.append(
+      el('strong', null, `${state.selectedPrincipals.size} selected`),
+      btn('Clear selection', 'iam-btn-secondary', () => {
+        state.selectedPrincipals.clear();
+        render();
+      }),
+    );
+    return bar;
   }
 
   function resourceMeta(type, resource) {
@@ -857,16 +1031,43 @@ const IAMConsole = (() => {
 
   function renderPrincipalList() {
     const panel = el('section', 'iam-panel-console');
-    panel.append(el('div', 'iam-panel-heading-console', 'Principal explorer'));
+    const heading = el('div', 'iam-panel-heading-console');
+    const refreshedAt = state.loadedAt ? state.loadedAt.toLocaleTimeString() : 'pending';
+    heading.append(el('span', null, 'Principal explorer'), el('span', 'iam-principal-meta', `Last refreshed ${refreshedAt}`));
+    panel.append(heading);
     panel.append(renderPrincipalTypeTabs());
-    const list = el('div', 'iam-principal-list');
     const items = principals();
-    if (!items.length) {
-      list.append(el('div', 'iam-empty', `No ${state.selectedType}s found.`));
-    } else {
-      items.forEach((principal) => list.append(renderPrincipalRow(state.selectedType, principal)));
+    const filterBar = el('div', 'iam-principal-filter-bar');
+    const filter = document.createElement('input');
+    filter.type = 'search';
+    filter.placeholder = `Find ${state.selectedType}s`;
+    filter.value = state.principalFilterText;
+    filter.setAttribute('aria-label', `Find ${state.selectedType}s`);
+    filter.addEventListener('input', () => {
+      state.principalFilterText = filter.value;
+      state.principalFilterRestoreFocus = true;
+      state.principalFilterSelectionStart = filter.selectionStart;
+      state.principalFilterSelectionEnd = filter.selectionEnd;
+      render();
+    });
+    filterBar.append(filter, el('span', 'iam-principal-meta', `${items.length} ${state.selectedType}${items.length === 1 ? '' : 's'}`));
+    panel.append(filterBar);
+    const selectionBar = renderPrincipalSelectionBar();
+    if (selectionBar) {
+      panel.append(selectionBar);
     }
-    panel.append(list);
+    panel.append(renderPrincipalTable(state.selectedType, items));
+    if (state.principalFilterRestoreFocus) {
+      window.requestAnimationFrame(() => {
+        filter.focus();
+        if (typeof filter.setSelectionRange === 'function') {
+          const start = state.principalFilterSelectionStart ?? filter.value.length;
+          const end = state.principalFilterSelectionEnd ?? start;
+          filter.setSelectionRange(start, end);
+        }
+        state.principalFilterRestoreFocus = false;
+      });
+    }
     return panel;
   }
 
@@ -1007,18 +1208,26 @@ const IAMConsole = (() => {
         btn('Use this user', null, () => showUseUserIdentityModal(principal)),
         btn('Create access key', 'iam-btn-secondary', () => showCreateAccessKeyModal(principal)),
         btn('Attach managed policy', 'iam-btn-secondary', () => showAttachManagedPolicyModal(principal)),
+        btn('Set boundary', 'iam-btn-secondary', () => showPermissionsBoundaryModal(principal)),
         btn('Add inline policy', 'iam-btn-secondary', () => showInlinePolicyModal(principal)),
         btn('Clean up user', 'iam-btn-danger', () => confirmCleanupPrincipal(principal)),
       );
+      if (principal.permissions_boundary) {
+        actions.append(btn('Clear boundary', 'iam-btn-danger', () => clearPermissionsBoundary(principal)));
+      }
     } else if (state.selectedType === 'role') {
       actions.append(
         btn('Assume in dashboard', null, () => useRoleIdentity(principal).catch((error) => toast(error.message, true))),
         btn('Get temporary credentials', 'iam-btn-secondary', () => showAssumeRoleModal(principal)),
         btn('Attach managed policy', 'iam-btn-secondary', () => showAttachManagedPolicyModal(principal)),
+        btn('Set boundary', 'iam-btn-secondary', () => showPermissionsBoundaryModal(principal)),
         btn('Add inline policy', 'iam-btn-secondary', () => showInlinePolicyModal(principal)),
         btn('Edit trust policy', 'iam-btn-secondary', () => showTrustPolicyModal(principal)),
         btn('Clean up role', 'iam-btn-danger', () => confirmCleanupPrincipal(principal)),
       );
+      if (principal.permissions_boundary) {
+        actions.append(btn('Clear boundary', 'iam-btn-danger', () => clearPermissionsBoundary(principal)));
+      }
     } else if (state.selectedType === 'group') {
       actions.append(
         btn('Attach managed policy', 'iam-btn-secondary', () => showAttachManagedPolicyModal(principal)),
@@ -1103,8 +1312,30 @@ const IAMConsole = (() => {
     const detail = el('div', 'iam-detail-stack');
     detail.append(renderPrincipalDetail(principal), renderPolicyViewer());
     workbench.append(renderPrincipalList(), detail);
+    const users = state.inventory?.users || [];
+    if (!users.length) {
+      container.append(renderAdminFirstCallout());
+    }
     container.append(renderResourceOverview(), workbench);
     return container;
+  }
+
+  function renderAdminFirstCallout() {
+    const panel = el('section', 'iam-admin-first-callout');
+    panel.append(
+      el('div', 'iam-admin-first-eyebrow', 'First IAM step'),
+      el('h2', null, 'Create an admin user before daily work'),
+      el('p', null, 'A fresh local Floci account starts with bootstrap root-like credentials. The AWS habit is to use those credentials only long enough to create an administrator identity, then do normal work as that user.'),
+    );
+    const actions = el('div', 'iam-admin-first-actions');
+    const labs = el('a', 'iam-btn-secondary', 'Open IAM labs');
+    labs.href = '/service/iam/labs/';
+    actions.append(
+      labs,
+      btn('Create user', 'iam-btn-secondary', showCreateUserModal),
+    );
+    panel.append(actions);
+    return panel;
   }
 
   function render() {
@@ -1115,7 +1346,8 @@ const IAMConsole = (() => {
     root.textContent = '';
     root.append(renderWorkbench());
     if (loadedAtEl) {
-      loadedAtEl.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
+      const loadedAt = state.loadedAt ? state.loadedAt.toLocaleTimeString() : new Date().toLocaleTimeString();
+      loadedAtEl.textContent = `Loaded ${loadedAt}`;
     }
   }
 
@@ -1152,6 +1384,7 @@ const IAMConsole = (() => {
   async function refresh() {
     const data = await apiJson('/api/iam/');
     state.inventory = data;
+    state.loadedAt = new Date();
     if (!selectedPrincipal() && principals().length) {
       state.selectedName = principals()[0].name;
     }

@@ -370,7 +370,7 @@ const S3Console = (() => {
     return all.filter((item) => state.selected.has(selectionKey(item)));
   }
 
-  function buildTable(columns, rows, onRowClick) {
+  function buildTable(columns, rows, onRowClick, options = {}) {
     const wrap = el('div', 's3-table-wrap');
     const table = el('table', 's3-table');
     const thead = document.createElement('thead');
@@ -380,6 +380,16 @@ const S3Console = (() => {
       th.textContent = col.label;
       if (col.className) {
         th.className = col.className;
+      }
+      if (col.selectAll) {
+        th.textContent = '';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.setAttribute('aria-label', col.selectAllLabel || 'Select all visible resources');
+        cb.checked = Boolean(rows.length) && rows.every((row) => row._selected);
+        cb.indeterminate = !cb.checked && rows.some((row) => row._selected);
+        cb.addEventListener('change', () => col.onSelectAll?.(cb.checked, rows));
+        th.append(cb);
       }
       headRow.append(th);
     });
@@ -401,6 +411,9 @@ const S3Console = (() => {
         } else {
           td.textContent = content ?? '—';
         }
+        if (col.primary) {
+          td.classList.add('s3-primary-cell');
+        }
         tr.append(td);
       });
       if (onRowClick) {
@@ -414,8 +427,35 @@ const S3Console = (() => {
       tbody.append(tr);
     });
     table.append(thead, tbody);
+    if (options.caption) {
+      const caption = document.createElement('caption');
+      caption.textContent = options.caption;
+      table.prepend(caption);
+    }
     wrap.append(table);
     return wrap;
+  }
+
+  function primaryLink(label, onClick) {
+    const link = document.createElement('a');
+    link.href = '#';
+    link.className = 's3-primary-link';
+    link.textContent = label || 'Unnamed';
+    link.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onClick();
+    });
+    return link;
+  }
+
+  function selectedActionBar(count, actions = []) {
+    if (!count) {
+      return null;
+    }
+    const bar = el('div', 's3-selected-action-bar');
+    bar.append(el('strong', null, `${count} selected`), ...actions);
+    return bar;
   }
 
   function renderBucketsView() {
@@ -425,8 +465,8 @@ const S3Console = (() => {
     search.type = 'search';
     search.placeholder = 'Find buckets by name';
     const bar = toolbar(
-      [search],
-      [btn('Create bucket', null, showCreateBucketModal)],
+      [search, el('span', 's3-toolbar-note', `${state.buckets.length} buckets`)],
+      [el('span', 's3-toolbar-note', `Last refreshed ${new Date().toLocaleTimeString()}`), btn('Create bucket', null, showCreateBucketModal)],
     );
     panel.append(bar);
 
@@ -435,6 +475,7 @@ const S3Console = (() => {
       if (existing) {
         existing.remove();
       }
+      panel.querySelectorAll('.s3-empty').forEach((node) => node.remove());
       const buckets = state.buckets.filter((b) =>
         !filter || (b.name || '').toLowerCase().includes(filter.toLowerCase()),
       );
@@ -444,11 +485,18 @@ const S3Console = (() => {
       }
       const table = buildTable(
         [
-          { label: 'Name', render: (r) => r.name },
+          {
+            label: 'Bucket name',
+            primary: true,
+            render: (r) => primaryLink(r.name, () => navigate({ bucket: r.name, prefix: '', tab: 'objects', key: '', versionId: '' })),
+          },
+          { label: 'ARN', render: (r) => r.arn || `arn:aws:s3:::${r.name}` },
+          { label: 'URL', render: (r) => r.path_style_url || `s3://${r.name}` },
           { label: 'Region', render: (r) => r.region || '—' },
           { label: 'Creation date', render: (r) => formatDate(r.created) },
+          { label: 'Status', render: () => 'Available' },
           {
-            label: '',
+            label: 'Actions',
             render: (r) => {
               const del = btn('Delete', 's3-btn-danger', (e) => {
                 e.stopPropagation();
@@ -556,7 +604,6 @@ const S3Console = (() => {
 
     const selected = getSelectedItems();
     const filesOnly = selected.filter((i) => i.type === 'file' || i.type === 'delete_marker');
-    const selectedCount = el('span', 's3-selection-count', `${selected.length} selected`);
     const downloadButton = btn('Download', 's3-btn-secondary', () => {
       if (filesOnly.length !== 1) {
         toast('Select exactly one file to download', true);
@@ -582,16 +629,18 @@ const S3Console = (() => {
     deleteButton.disabled = selected.length === 0;
 
     const bar = toolbar(
-      [versionToggle, selectedCount],
+      [versionToggle, el('span', 's3-toolbar-note', `${(state.objects?.folders || []).length + (state.objects?.objects || []).length} resources`)],
       [
+        el('span', 's3-toolbar-note', `Last refreshed ${new Date().toLocaleTimeString()}`),
         btn('Upload', null, () => showUploadModal(bucket)),
         btn('Create folder', 's3-btn-secondary', () => showCreateFolderModal(bucket)),
-        downloadButton,
-        copyButton,
-        deleteButton,
       ],
     );
     container.append(bar);
+    const actionBar = selectedActionBar(selected.length, [downloadButton, copyButton, deleteButton]);
+    if (actionBar) {
+      container.append(actionBar);
+    }
 
     const panel = el('div', 's3-panel');
     const rows = [];
@@ -623,6 +672,18 @@ const S3Console = (() => {
         {
           label: '',
           className: 's3-col-check',
+          selectAll: true,
+          onSelectAll: (checked, visibleRows) => {
+            visibleRows.forEach((row) => {
+              const key = selectionKey(row);
+              if (checked) {
+                state.selected.add(key);
+              } else {
+                state.selected.delete(key);
+              }
+            });
+            render();
+          },
           render: (row) => {
             const cb = document.createElement('input');
             cb.type = 'checkbox';
@@ -642,19 +703,28 @@ const S3Console = (() => {
         },
         {
           label: 'Name',
+          primary: true,
           render: (row) => {
             const cell = el('div', 's3-name-cell');
             cell.append(
               el('span', row._type === 'folder' ? 's3-icon-folder' : 's3-icon-file'),
-              el('span', null, row.name || row.key),
+              primaryLink(row.name || row.key, () => {
+                if (row._type === 'folder') {
+                  navigate({ prefix: row.prefix || row.key, key: '', versionId: '' });
+                  return;
+                }
+                navigate({ key: row.key, versionId: row.version_id || '' });
+              }),
             );
             return cell;
           },
         },
+        { label: 'Key', render: (r) => r.key || r.prefix || '—' },
         { label: 'Type', render: (r) => (r._type === 'folder' ? 'Folder' : 'File') },
         { label: 'Last modified', render: (r) => formatDate(r.last_modified) },
         { label: 'Size', render: (r) => formatBytes(r.size) },
         { label: 'Storage class', render: (r) => r.storage_class || '—' },
+        { label: 'Status', render: (r) => r._type === 'delete_marker' ? 'Delete marker' : 'Available' },
       ];
       if (state.showVersions) {
         cols.push({ label: 'Version ID', render: (r) => r.version_id || '—' });
@@ -696,7 +766,7 @@ const S3Console = (() => {
     return container;
   }
 
-  function settingsTextarea(label, value, onSave) {
+  function settingsTextarea(label, value, onSave, onDelete = null) {
     const section = el('div', 's3-settings-section');
     section.append(el('h4', null, label));
     const textarea = document.createElement('textarea');
@@ -715,6 +785,18 @@ const S3Console = (() => {
         }
       }),
     );
+    if (onDelete) {
+      actions.append(btn('Delete', 's3-btn-danger', async () => {
+        try {
+          await onDelete();
+          toast('Deleted');
+          state.bucketDetail = await apiJson(`/api/s3/buckets/${encodeURIComponent(getRoute().bucket)}/`);
+          render();
+        } catch (error) {
+          toast(error.message, true);
+        }
+      }));
+    }
     section.append(textarea, actions);
     return section;
   }
@@ -823,6 +905,27 @@ const S3Console = (() => {
       }),
     );
     panel.append(
+      settingsTextarea(
+        'Website hosting',
+        state.bucketDetail?.website || {
+          IndexDocument: { Suffix: 'index.html' },
+          ErrorDocument: { Key: 'error.html' },
+        },
+        async (configuration) => {
+          await apiJson(`/api/s3/buckets/${encodeURIComponent(bucket)}/website/`, {
+            method: 'PUT',
+            body: JSON.stringify({ configuration }),
+          });
+        },
+        async () => {
+          await apiJson(`/api/s3/buckets/${encodeURIComponent(bucket)}/website/`, {
+            method: 'DELETE',
+            body: JSON.stringify({}),
+          });
+        },
+      ),
+    );
+    panel.append(
       settingsTextarea('Bucket tags', state.bucketDetail?.tagging || [], async (tags) => {
         await apiJson(`/api/s3/buckets/${encodeURIComponent(bucket)}/tags/`, {
           method: 'PUT',
@@ -833,7 +936,7 @@ const S3Console = (() => {
     const disabled = el('div', 's3-settings-section');
     disabled.append(
       el('h4', null, 'Not available in Floci'),
-      el('p', null, 'Replication, access logging, inventory, and metrics configurations.'),
+      el('p', null, 'Replication, inventory, and metrics configurations.'),
     );
     panel.append(disabled);
     return panel;

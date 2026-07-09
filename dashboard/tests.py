@@ -68,11 +68,23 @@ class StaticJavaScriptTests(SimpleTestCase):
         script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'dashboard.js'
         source = script.read_text()
 
-        self.assertIn("search.textContent = 'Search'", source)
+        self.assertIn("search.textContent = 'Command search'", source)
+        self.assertIn("serviceSearchInput.id = 'global-nav-service-search'", source)
+        self.assertIn('renderGlobalNavServiceGroups(globalServiceNav, serviceMetadata, navQuery)', source)
         self.assertIn("activity.href = '/activity/'", source)
         self.assertIn("activity.textContent = 'Activity'", source)
         self.assertIn("navActions.className = 'global-nav-actions'", source)
         self.assertIn("['Console', '/console/']", source)
+
+    def test_service_console_exposes_resource_table_mode(self):
+        script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'service-console.js'
+        source = script.read_text()
+
+        self.assertIn("mode = 'cards'", source)
+        self.assertIn("mode === 'table'", source)
+        self.assertIn("selectAll.setAttribute('aria-label', 'Select all visible resources')", source)
+        self.assertIn("link.className = 'collection-primary-link'", source)
+        self.assertIn("collection-selected-bar", source)
 
     def test_aws_cli_console_exposes_draggable_command_palette(self):
         script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'console.js'
@@ -111,6 +123,26 @@ class StaticJavaScriptTests(SimpleTestCase):
         self.assertIn("apiJson('/api/session-identity/use-admin/'", source)
         self.assertIn("btn('Return to admin/default identity'", source)
         self.assertIn('window.location.reload()', source)
+
+    def test_iam_console_exposes_permissions_boundary_actions(self):
+        script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'iam-console.js'
+        source = script.read_text()
+
+        self.assertIn('function showPermissionsBoundaryModal(principal)', source)
+        self.assertIn('function clearPermissionsBoundary(principal)', source)
+        self.assertIn('/permissions-boundary/', source)
+        self.assertIn("btn('Set boundary'", source)
+        self.assertIn("btn('Clear boundary'", source)
+
+    def test_iam_console_principal_explorer_uses_resource_table(self):
+        script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'iam-console.js'
+        source = script.read_text()
+
+        self.assertIn('function renderPrincipalTable(type, items)', source)
+        self.assertIn("selectAll.setAttribute('aria-label', 'Select all visible principals')", source)
+        self.assertIn("link.className = 'iam-principal-primary-link'", source)
+        self.assertIn("'iam-selected-action-bar'", source)
+        self.assertIn('Last refreshed ${refreshedAt}', source)
 
     def test_dashboard_credential_label_names_session_identity(self):
         script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'dashboard.js'
@@ -431,7 +463,7 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertContains(response, '13 services with labs')
         self.assertNotContains(response, 'Learning paths')
         self.assertNotContains(response, 'Recommended starting point')
-        self.assertContains(response, 'Create an IAM user')
+        self.assertContains(response, 'Create a local admin user')
         self.assertContains(response, 'Complete a multipart upload')
         self.assertContains(response, 'Configure SQS queue attributes and tags')
         self.assertContains(response, 'Fan out an SNS message to SQS queues')
@@ -1160,6 +1192,8 @@ class ServiceRegistryApiTests(SimpleTestCase):
         self.assertEqual(s3_actions['create_bucket']['method'], 'POST')
         self.assertEqual(s3_actions['delete_bucket']['safety'], 'destructive')
         self.assertEqual(s3_actions['upload_object']['fields'][1]['field_type'], 'file')
+        self.assertEqual(s3_actions['put_website']['path'], '/api/s3/buckets/{bucket}/website/')
+        self.assertEqual(s3_actions['delete_website']['safety'], 'destructive')
         self.assertEqual(services['sqs']['maturity'], 'interactive_workbench')
         self.assertEqual(services['sqs']['console_js'], 'dashboard/sqs-console.js')
         sqs_actions = {action['name']: action for action in services['sqs']['actions']}
@@ -1188,6 +1222,8 @@ class ServiceRegistryApiTests(SimpleTestCase):
         self.assertEqual(iam_actions['create_access_key']['kind'], 'create')
         self.assertEqual(iam_actions['assume_role']['kind'], 'execute')
         self.assertEqual(iam_actions['delete_access_key']['safety'], 'destructive')
+        self.assertEqual(iam_actions['put_permissions_boundary']['path'], '/api/iam/principals/{principal_type}/{principal}/permissions-boundary/')
+        self.assertEqual(iam_actions['delete_permissions_boundary']['safety'], 'destructive')
         self.assertEqual(iam_actions['put_inline_policy']['fields'][1]['field_type'], 'textarea')
         self.assertEqual(services['dynamodb']['maturity'], 'interactive_workbench')
         self.assertEqual(services['dynamodb']['console_js'], 'dashboard/dynamodb-console.js')
@@ -3135,6 +3171,87 @@ class IAMActionTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()['detached'])
         detach_managed_policy.assert_called_once_with('role', 'app', 'arn:aws:iam::000000000000:policy/Local')
+
+    @patch('dashboard.iam_api.FlociClientFactory')
+    def test_put_permissions_boundary_helper_routes_user_and_role_calls(self, factory_mock):
+        from .iam_api import put_permissions_boundary
+
+        iam = MagicMock()
+        factory_mock.return_value.client.return_value = iam
+
+        user_result = put_permissions_boundary('user', 'alice', 'arn:aws:iam::aws:policy/PowerUserAccess')
+        role_result = put_permissions_boundary('role', 'app', 'arn:aws:iam::aws:policy/ReadOnlyAccess')
+
+        self.assertTrue(user_result['saved'])
+        self.assertTrue(role_result['saved'])
+        iam.put_user_permissions_boundary.assert_called_once_with(
+            UserName='alice',
+            PermissionsBoundary='arn:aws:iam::aws:policy/PowerUserAccess',
+        )
+        iam.put_role_permissions_boundary.assert_called_once_with(
+            RoleName='app',
+            PermissionsBoundary='arn:aws:iam::aws:policy/ReadOnlyAccess',
+        )
+
+    @patch('dashboard.iam_api.FlociClientFactory')
+    def test_delete_permissions_boundary_helper_routes_user_and_role_calls(self, factory_mock):
+        from .iam_api import delete_permissions_boundary
+
+        iam = MagicMock()
+        factory_mock.return_value.client.return_value = iam
+
+        user_result = delete_permissions_boundary('user', 'alice')
+        role_result = delete_permissions_boundary('role', 'app')
+
+        self.assertTrue(user_result['deleted'])
+        self.assertTrue(role_result['deleted'])
+        iam.delete_user_permissions_boundary.assert_called_once_with(UserName='alice')
+        iam.delete_role_permissions_boundary.assert_called_once_with(RoleName='app')
+
+    @patch('dashboard.iam_views.put_permissions_boundary')
+    def test_put_permissions_boundary_endpoint_uses_action_helper(self, put_permissions_boundary):
+        put_permissions_boundary.return_value = {
+            'principal_type': 'role',
+            'principal_name': 'app',
+            'policy_arn': 'arn:aws:iam::aws:policy/PowerUserAccess',
+            'saved': True,
+        }
+
+        response = self.client.put(
+            reverse('dashboard:iam-permissions-boundary', kwargs={
+                'principal_type': 'role',
+                'principal_name': 'app',
+            }),
+            data=json.dumps({'policy_arn': 'arn:aws:iam::aws:policy/PowerUserAccess'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['saved'])
+        put_permissions_boundary.assert_called_once_with(
+            'role',
+            'app',
+            'arn:aws:iam::aws:policy/PowerUserAccess',
+        )
+
+    @patch('dashboard.iam_views.delete_permissions_boundary')
+    def test_delete_permissions_boundary_endpoint_uses_action_helper(self, delete_permissions_boundary):
+        delete_permissions_boundary.return_value = {
+            'principal_type': 'role',
+            'principal_name': 'app',
+            'deleted': True,
+        }
+
+        response = self.client.delete(
+            reverse('dashboard:iam-permissions-boundary', kwargs={
+                'principal_type': 'role',
+                'principal_name': 'app',
+            }),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['deleted'])
+        delete_permissions_boundary.assert_called_once_with('role', 'app')
 
     @patch('dashboard.iam_views.put_inline_policy')
     def test_put_inline_policy_endpoint_uses_action_helper(self, put_inline_policy):

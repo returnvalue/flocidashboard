@@ -48,12 +48,31 @@ class S3PageTemplateTests(SimpleTestCase):
             / 's3-console.js'
         ).read_text()
 
-        self.assertIn("const selectedCount = el('span', 's3-selection-count'", source)
+        self.assertIn("function selectedActionBar(count, actions = [])", source)
+        self.assertIn("'s3-selected-action-bar'", source)
+        self.assertIn("cb.setAttribute('aria-label', col.selectAllLabel || 'Select all visible resources')", source)
+        self.assertIn("primaryLink(row.name || row.key", source)
         self.assertIn('downloadButton.disabled = filesOnly.length !== 1', source)
         self.assertIn('copyButton.disabled = filesOnly.length === 0', source)
         self.assertIn('deleteButton.disabled = selected.length === 0', source)
         self.assertIn("btn('Copy object'", source)
         self.assertIn("btn('Delete object'", source)
+
+    def test_s3_console_exposes_website_hosting_editor(self):
+        from pathlib import Path
+        from django.conf import settings
+
+        source = (
+            Path(settings.BASE_DIR)
+            / 'dashboard'
+            / 'static'
+            / 'dashboard'
+            / 's3-console.js'
+        ).read_text()
+
+        self.assertIn("'Website hosting'", source)
+        self.assertIn('/website/', source)
+        self.assertIn("method: 'DELETE'", source)
 
 
 class S3BucketsApiTests(SimpleTestCase):
@@ -172,6 +191,15 @@ class S3ListObjectsTests(SimpleTestCase):
         self.assertEqual(result['summary']['total_bytes'], 12)
         self.assertEqual(result['summary']['versioned_buckets'], 1)
 
+    @patch('dashboard.s3_api.list_s3_buckets')
+    def test_inventory_summary_marks_website_hosting_supported(self, list_mock):
+        list_mock.return_value = []
+
+        result = s3_inventory_summary()
+
+        self.assertIn('Website hosting', result['supported']['bucket_configuration'])
+        self.assertNotIn('Website hosting', result['supported']['not_implemented'])
+
 
 class S3ObjectApiTests(SimpleTestCase):
     @patch('dashboard.s3_views.list_s3_objects')
@@ -275,3 +303,31 @@ class S3ObjectApiTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['expires_in'], 120)
         presign_mock.assert_called_once_with('my-bucket', 'file.txt', 'v1', 120)
+
+    @patch('dashboard.s3_views.put_s3_website')
+    def test_put_bucket_website(self, put_mock):
+        configuration = {
+            'IndexDocument': {'Suffix': 'index.html'},
+            'ErrorDocument': {'Key': 'error.html'},
+        }
+        put_mock.return_value = configuration
+
+        response = self.client.put(
+            reverse('dashboard:s3-bucket-website', kwargs={'bucket_name': 'my-bucket'}),
+            data=json.dumps({'configuration': configuration}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['configuration'], configuration)
+        put_mock.assert_called_once_with('my-bucket', configuration)
+
+    @patch('dashboard.s3_views.delete_s3_website')
+    def test_delete_bucket_website(self, delete_mock):
+        delete_mock.return_value = {'deleted': True}
+
+        response = self.client.delete(reverse('dashboard:s3-bucket-website', kwargs={'bucket_name': 'my-bucket'}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['deleted'])
+        delete_mock.assert_called_once_with('my-bucket')

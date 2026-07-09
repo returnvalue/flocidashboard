@@ -840,6 +840,31 @@ function inventorySearchText(item, fields = []) {
   ].map((value) => typeof value === 'string' ? value : JSON.stringify(value || '')).join(' ');
 }
 
+function inventoryResourceName(item) {
+  return item.name || item.arn || item.id || item.table_name || item.url || item.InstanceId || item.VpcId || item.SubnetId || item.GroupId || item.UserPoolId || item.apiId || item.functionId || item.dataSourceName || item.CacheClusterId || item.ReplicationGroupId || item.UserId || item.UserGroupId || item.SessionId || item.CommandId || item.AutomationExecutionId || item.StackName || item.StackId || item.RepositoryName || item.repository_name || item.DBInstanceIdentifier || item.DBClusterIdentifier || item.db_name || item.database_name || item.BackupVaultName || item.BackupVaultArn || item.BackupPlanName || item.BackupJobId || item.RestoreJobId || item.ResourceArn || item.ResourceType || item.StreamName || item.stream_name || item.cluster_name || item.node_arn || item.operation_arn || item.clean_id || item.WorkflowId || item.ServerId || item.WebAppId || item.ConnectorId || item.ProfileId || item.CertificateId || item.project_name || item.application_name || item.deployment_group_name || item.deployment_id || item.pipeline_type || item.execution_id || item.Id || item.ARN || item.Name || item.DomainName || item.TopicArn || item.SubscriptionArn || item.IdentityName || item.TemplateName || item.ConfigurationSetName || item.query || item.database || item.catalog || item.class_name || item.InternetGatewayId || item.RouteTableId || item.NetworkAclId || item.VpcEndpointId || item.AllocationId || item.PublicIp || item.KeyName || item.KeyPairId || item.ImageId || item.SnapshotId || item.VolumeId || item.family || item.capacityProviderArn || item.principalArn || item.nodegroup_name || item.fargate_profile_name || item.addon_name || item.principal_arn || item.load_balancer_name || item.listener_arn || item.target_group_arn || item.delivery_stream_name || item.destination_id || 'Unnamed';
+}
+
+function inventoryTableColumns(fields = [], options = {}) {
+  if (options.tableColumns) {
+    return options.tableColumns;
+  }
+  const columns = [
+    {
+      label: 'Resource name',
+      value: inventoryResourceName,
+      primary: true,
+    },
+  ];
+  fields.slice(0, 5).forEach(([label, key]) => {
+    columns.push({ label, key });
+  });
+  return columns;
+}
+
+function inventoryItemKey(item, index) {
+  return String(item.arn || item.ARN || item.url || item.id || inventoryResourceName(item) || index);
+}
+
 function renderFilterableDetailList(title, items, fields = [], options = {}) {
   if (!window.ServiceConsole?.renderCollection) {
     return renderDetailList(title, items, fields);
@@ -851,12 +876,21 @@ function renderFilterableDetailList(title, items, fields = [], options = {}) {
     selectionStart: null,
     selectionEnd: null,
     restoreFocus: false,
+    selectedKeys: new Set(),
   };
+  if (!(state.selectedKeys instanceof Set)) {
+    state.selectedKeys = new Set(state.selectedKeys || []);
+  }
   inventoryCollectionFilters[key] = state;
+  const normalizedItems = Array.isArray(items) ? items : (items ? [{ name: 'Response', details: items }] : []);
 
   const panel = window.ServiceConsole.renderCollection({
     title,
-    items: Array.isArray(items) ? items : (items ? [{ name: 'Response', details: items }] : []),
+    items: normalizedItems,
+    mode: options.mode || 'table',
+    columns: inventoryTableColumns(fields, options),
+    itemKey: (item, index) => inventoryItemKey(item, index),
+    primaryHref: () => `#${sectionIdForLabel(title)}`,
     itemRenderer: (item) => renderInventoryCollectionCard(item, fields),
     itemSearchText: (item) => inventorySearchText(item, fields),
     filterPlaceholder: options.filterPlaceholder || `Find ${String(title).toLowerCase()}`,
@@ -869,6 +903,17 @@ function renderFilterableDetailList(title, items, fields = [], options = {}) {
     restoreFocus: state.restoreFocus,
     selectionStart: state.selectionStart,
     selectionEnd: state.selectionEnd,
+    selectedKeys: state.selectedKeys,
+    lastUpdatedLabel: `Last refreshed ${new Date().toLocaleTimeString()}`,
+    onSelectedKeysChange: (selectedKeys) => {
+      state.selectedKeys = selectedKeys;
+      if (options.onSelectionChange) {
+        options.onSelectionChange(selectedKeys);
+      }
+      if (options.onFilterTextChange) {
+        options.onFilterTextChange(state.filterText, {});
+      }
+    },
     onFilterTextChange: (value, filterOptions = {}) => {
       state.filterText = value;
       state.restoreFocus = Boolean(filterOptions.restoreFocus);
@@ -6634,6 +6679,27 @@ function matchingServices(serviceMetadata = [], query = '') {
     .slice(0, 24);
 }
 
+function filteredServices(serviceMetadata = [], query = '') {
+  const normalized = query.trim().toLowerCase();
+  const services = sortedServiceMetadata(serviceMetadata);
+  if (!normalized) {
+    return services;
+  }
+  return services.filter((service) => serviceSearchText(service).includes(normalized));
+}
+
+function groupedServices(serviceMetadata = [], query = '') {
+  const groups = new Map();
+  filteredServices(serviceMetadata, query).forEach((service) => {
+    const category = service.category || 'Other';
+    if (!groups.has(category)) {
+      groups.set(category, []);
+    }
+    groups.get(category).push(service);
+  });
+  return [...groups.entries()].sort(([left], [right]) => left.localeCompare(right));
+}
+
 function serviceStatusClass(serviceKey) {
   const status = latestHealthData?.services?.[serviceKey] || latestHealthData?.services?.[canonicalServiceKey(serviceKey)];
   return status === 'running' ? 'global-nav-status-running' : '';
@@ -6848,34 +6914,57 @@ function renderGlobalStatusButton() {
 
 function renderServiceLink(service, className = 'global-nav-item') {
   const href = service.page_path || serviceHref(service.key);
+  const item = document.createElement('div');
+  item.className = className;
+  if (canonicalServiceKey(service.key) === currentServiceKeyFromPath()) {
+    item.classList.add('global-nav-item-active');
+  }
+
   const link = document.createElement('a');
-  link.className = className;
+  link.className = 'global-nav-item-link';
   link.href = href;
   link.dataset.service = service.key;
-  if (canonicalServiceKey(service.key) === currentServiceKeyFromPath()) {
-    link.classList.add('global-nav-item-active');
-  }
   link.addEventListener('click', () => recordRecentService(service.key));
+
+  const favorite = document.createElement('button');
+  favorite.className = `global-nav-favorite${isFavoriteService(service.key) ? ' global-nav-favorite-active' : ''}`;
+  favorite.type = 'button';
+  favorite.textContent = isFavoriteService(service.key) ? '★' : '☆';
+  favorite.title = isFavoriteService(service.key) ? `Remove ${service.title} from favorites` : `Add ${service.title} to favorites`;
+  favorite.setAttribute('aria-label', favorite.title);
+  favorite.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleFavoriteService(service.key);
+    renderGlobalNavigation(serviceMetadataCache || []);
+  });
 
   const status = document.createElement('span');
   status.className = `global-nav-status ${serviceStatusClass(service.key)}`;
   status.setAttribute('aria-hidden', 'true');
 
+  const content = document.createElement('span');
+  content.className = 'global-nav-service-content';
   const title = document.createElement('span');
   title.className = 'global-nav-service-title';
   title.textContent = service.title;
+  const category = document.createElement('span');
+  category.className = 'global-nav-service-category';
+  category.textContent = service.category || service.key;
+  content.append(title, category);
 
   const meta = document.createElement('span');
-  meta.className = 'global-nav-service-meta';
+  meta.className = `global-nav-service-meta global-nav-service-meta-${serviceExperience(service).toLowerCase().replaceAll(' ', '-')}`;
   meta.textContent = serviceExperience(service);
 
-  link.append(status, title, meta);
-  return link;
+  link.append(status, content, meta);
+  item.append(favorite, link);
+  return item;
 }
 
-function renderGlobalNavSection(container, title, services) {
+function renderGlobalNavSection(container, title, services, options = {}) {
   const section = document.createElement('section');
-  section.className = 'global-nav-section';
+  section.className = `global-nav-section${options.compact ? ' global-nav-section-compact' : ''}`;
   const heading = document.createElement('p');
   heading.className = 'global-nav-section-title';
   heading.textContent = title;
@@ -6893,6 +6982,42 @@ function renderGlobalNavSection(container, title, services) {
   container.append(section);
 }
 
+function renderGlobalNavServiceGroups(container, serviceMetadata = [], query = '') {
+  const section = document.createElement('section');
+  section.className = 'global-nav-section global-nav-all-services';
+  const heading = document.createElement('p');
+  heading.className = 'global-nav-section-title';
+  heading.textContent = query.trim() ? 'Matching services' : 'All services';
+  section.append(heading);
+
+  const groups = groupedServices(serviceMetadata, query);
+  if (!groups.length) {
+    const empty = document.createElement('p');
+    empty.className = 'global-nav-empty';
+    empty.textContent = 'No matching services.';
+    section.append(empty);
+  } else {
+    groups.forEach(([category, services]) => {
+      const group = document.createElement('details');
+      group.className = 'global-nav-category';
+      group.open = Boolean(query.trim()) || services.some((service) => canonicalServiceKey(service.key) === currentServiceKeyFromPath());
+      const summary = document.createElement('summary');
+      summary.className = 'global-nav-category-title';
+      const label = document.createElement('span');
+      label.textContent = category;
+      const count = document.createElement('span');
+      count.textContent = String(services.length);
+      summary.append(label, count);
+      const list = document.createElement('div');
+      list.className = 'global-nav-list';
+      services.forEach((service) => list.append(renderServiceLink(service)));
+      group.append(summary, list);
+      section.append(group);
+    });
+  }
+  container.append(section);
+}
+
 function renderGlobalNavigation(serviceMetadata = []) {
   if (!globalServiceNav || !serviceMetadata.length) {
     return;
@@ -6904,7 +7029,11 @@ function renderGlobalNavigation(serviceMetadata = []) {
   const recent = recentServiceKeys()
     .map((key) => metadata.get(canonicalServiceKey(key)))
     .filter(Boolean);
-  const priority = sortedServiceMetadata(serviceMetadata).slice(0, 18);
+  const existingSearch = globalServiceNav.querySelector('#global-nav-service-search');
+  const navQuery = existingSearch?.value || '';
+  const searchHadFocus = document.activeElement === existingSearch;
+  const searchSelectionStart = existingSearch?.selectionStart || navQuery.length;
+  const searchSelectionEnd = existingSearch?.selectionEnd || navQuery.length;
 
   globalServiceNav.textContent = '';
   globalServiceNav.classList.add('global-service-nav-active');
@@ -6930,7 +7059,7 @@ function renderGlobalNavigation(serviceMetadata = []) {
   search.id = 'global-search-trigger';
   search.className = 'global-search-trigger';
   search.type = 'button';
-  search.textContent = 'Search';
+  search.textContent = 'Command search';
   search.title = navigator.platform.startsWith('Mac') ? 'Search services (⌘K)' : 'Search services (Ctrl+K)';
   search.addEventListener('click', openGlobalSearch);
   const activity = document.createElement('a');
@@ -6958,13 +7087,29 @@ function renderGlobalNavigation(serviceMetadata = []) {
     link.textContent = label;
     links.append(link);
   });
-  header.append(title, navActions, links);
+  const serviceSearch = document.createElement('label');
+  serviceSearch.className = 'global-nav-service-search-label';
+  serviceSearch.textContent = 'Search services';
+  const serviceSearchInput = document.createElement('input');
+  serviceSearchInput.id = 'global-nav-service-search';
+  serviceSearchInput.className = 'global-nav-service-search';
+  serviceSearchInput.type = 'search';
+  serviceSearchInput.placeholder = 'Search services';
+  serviceSearchInput.value = navQuery;
+  serviceSearchInput.autocomplete = 'off';
+  serviceSearchInput.addEventListener('input', () => renderGlobalNavigation(serviceMetadataCache || serviceMetadata));
+  serviceSearch.append(serviceSearchInput);
+  header.append(title, serviceSearch, navActions, links);
   globalServiceNav.append(header);
+  if (searchHadFocus) {
+    serviceSearchInput.focus();
+    serviceSearchInput.setSelectionRange(searchSelectionStart, searchSelectionEnd);
+  }
   setGlobalNavCollapsed(isGlobalNavCollapsed());
 
-  renderGlobalNavSection(globalServiceNav, 'Favorites', favorites);
-  renderGlobalNavSection(globalServiceNav, 'Recently Visited', recent);
-  renderGlobalNavSection(globalServiceNav, 'Services', priority);
+  renderGlobalNavSection(globalServiceNav, 'Favorites', favorites, { compact: true });
+  renderGlobalNavSection(globalServiceNav, 'Recently Visited', recent, { compact: true });
+  renderGlobalNavServiceGroups(globalServiceNav, serviceMetadata, navQuery);
 }
 
 function renderGlobalNavigationForCurrentPage(serviceMetadata = []) {

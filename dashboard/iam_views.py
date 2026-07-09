@@ -24,9 +24,11 @@ from .iam_api import (
     delete_inline_policy,
     delete_policy_version,
     detach_managed_policy,
+    delete_permissions_boundary,
     get_inline_policy,
     get_managed_policy,
     put_inline_policy,
+    put_permissions_boundary,
     remove_user_from_group,
     set_default_policy_version,
     simulate_principal_policy,
@@ -181,6 +183,18 @@ def iam_attached_policies(request, principal_type: str, principal_name: str):
         return JsonResponse(attach_managed_policy(principal_type, principal_name, body.get('policy_arn', '')))
     except Exception as exc:
         operation = 'detach_managed_policy' if request.method == 'DELETE' else 'attach_managed_policy'
+        return handle_action_error(exc, service='iam', operation=operation)
+
+
+@require_http_methods(['PUT', 'DELETE'])
+def iam_permissions_boundary(request, principal_type: str, principal_name: str):
+    try:
+        if request.method == 'DELETE':
+            return JsonResponse(delete_permissions_boundary(principal_type, principal_name))
+        body = parse_json_body(request)
+        return JsonResponse(put_permissions_boundary(principal_type, principal_name, body.get('policy_arn', '')))
+    except Exception as exc:
+        operation = 'delete_permissions_boundary' if request.method == 'DELETE' else 'put_permissions_boundary'
         return handle_action_error(exc, service='iam', operation=operation)
 
 

@@ -113,6 +113,10 @@ def get_s3_bucket(name: str) -> dict[str, Any]:
             lambda: s3.get_bucket_notification_configuration(Bucket=name),
             {'NoSuchBucket'},
         ),
+        'website': _s3_optional(
+            lambda: s3.get_bucket_website(Bucket=name),
+            {'NoSuchWebsiteConfiguration', 'NoSuchBucket'},
+        ),
         'public_access_block': _s3_optional(
             lambda: s3.get_public_access_block(Bucket=name).get('PublicAccessBlockConfiguration'),
             {'NoSuchPublicAccessBlockConfiguration', 'NoSuchBucket'},
@@ -601,6 +605,23 @@ def put_s3_notifications(bucket: str, config: dict[str, Any]) -> dict[str, Any]:
     return config
 
 
+def get_s3_website(bucket: str) -> dict[str, Any] | None:
+    return _s3_optional(
+        lambda: _s3_client().get_bucket_website(Bucket=bucket),
+        {'NoSuchWebsiteConfiguration', 'NoSuchBucket'},
+    )
+
+
+def put_s3_website(bucket: str, config: dict[str, Any]) -> dict[str, Any]:
+    _s3_client().put_bucket_website(Bucket=bucket, WebsiteConfiguration=config)
+    return config
+
+
+def delete_s3_website(bucket: str) -> dict[str, bool]:
+    _s3_client().delete_bucket_website(Bucket=bucket)
+    return {'deleted': True}
+
+
 def s3_inventory_summary() -> dict[str, Any]:
     buckets = list_s3_buckets()
     detailed_buckets = [
@@ -626,7 +647,7 @@ def s3_inventory_summary() -> dict[str, Any]:
             'bucket_configuration': [
                 'Location', 'Versioning', 'Tagging', 'Policy', 'CORS', 'Lifecycle',
                 'ACL', 'Encryption', 'Notifications', 'Object Lock', 'Public Access Block',
-                'Request payment',
+                'Request payment', 'Website hosting',
             ],
             'objects': [
                 'ListObjectsV2',
@@ -647,7 +668,6 @@ def s3_inventory_summary() -> dict[str, Any]:
             ],
             'not_implemented': [
                 'Replication',
-                'Website hosting',
                 'Access logging',
                 'Intelligent-Tiering configurations',
                 'Inventory configurations',
@@ -655,6 +675,7 @@ def s3_inventory_summary() -> dict[str, Any]:
             ],
         },
         'notes': [
+            'Floci supports S3 bucket website hosting configuration and local website-style object serving.',
             'Floci 1.5.28 supports bucket logging configuration and serves custom static-website error documents for missing keys.',
             'Floci 1.5.25 makes conditional puts atomic and returns BadRequest for S3 dot-dot paths.',
             'Floci 1.5.24 streams S3 range responses to keep large local object reads memory efficient.',
