@@ -9,6 +9,43 @@ from .aws import FlociClientFactory
 
 PrincipalType = Literal['user', 'group', 'role']
 
+BASELINE_IDENTITY_POLICY_NAME = 'FlociDashboardGetCallerIdentity'
+BASELINE_IDENTITY_POLICY_DOCUMENT = {
+    'Version': '2012-10-17',
+    'Statement': [{
+        'Effect': 'Allow',
+        'Action': 'sts:GetCallerIdentity',
+        'Resource': '*',
+    }],
+}
+
+TRUST_POLICY_TEMPLATES = {
+    'lambda': {
+        'Version': '2012-10-17',
+        'Statement': [{
+            'Effect': 'Allow',
+            'Principal': {'Service': 'lambda.amazonaws.com'},
+            'Action': 'sts:AssumeRole',
+        }],
+    },
+    'ec2': {
+        'Version': '2012-10-17',
+        'Statement': [{
+            'Effect': 'Allow',
+            'Principal': {'Service': 'ec2.amazonaws.com'},
+            'Action': 'sts:AssumeRole',
+        }],
+    },
+    'account-root': {
+        'Version': '2012-10-17',
+        'Statement': [{
+            'Effect': 'Allow',
+            'Principal': {'AWS': 'arn:aws:iam::000000000000:root'},
+            'Action': 'sts:AssumeRole',
+        }],
+    },
+}
+
 
 def _iam_client():
     return FlociClientFactory().client('iam')
@@ -72,6 +109,79 @@ def create_access_key(user_name: str) -> dict[str, Any]:
     }
 
 
+def create_user(user_name: str, *, add_baseline_policy: bool = True) -> dict[str, Any]:
+    name = validate_name(user_name, 'User name')
+    iam = _iam_client()
+    response = iam.create_user(UserName=name)['User']
+    policy_name = None
+    if add_baseline_policy:
+        policy_name = BASELINE_IDENTITY_POLICY_NAME
+        iam.put_user_policy(
+            UserName=name,
+            PolicyName=policy_name,
+            PolicyDocument=json.dumps(BASELINE_IDENTITY_POLICY_DOCUMENT),
+        )
+    return {
+        'user_name': response.get('UserName') or name,
+        'arn': response.get('Arn'),
+        'user_id': response.get('UserId'),
+        'created': response.get('CreateDate'),
+        'baseline_policy': policy_name,
+    }
+
+
+def create_group(group_name: str) -> dict[str, Any]:
+    name = validate_name(group_name, 'Group name')
+    group = _iam_client().create_group(GroupName=name)['Group']
+    return {
+        'group_name': group.get('GroupName') or name,
+        'arn': group.get('Arn'),
+        'created': group.get('CreateDate'),
+    }
+
+
+def trust_policy_from_template(template: str, document: Any = None) -> dict[str, Any]:
+    if document:
+        return policy_document(document)
+    key = (template or '').strip() or 'lambda'
+    if key not in TRUST_POLICY_TEMPLATES:
+        raise ValueError('Trust template must be lambda, ec2, account-root, or custom JSON')
+    return TRUST_POLICY_TEMPLATES[key]
+
+
+def create_role(role_name: str, trust_template: str = 'lambda', trust_policy: Any = None) -> dict[str, Any]:
+    name = validate_name(role_name, 'Role name')
+    doc = trust_policy_from_template(trust_template, trust_policy)
+    role = _iam_client().create_role(
+        RoleName=name,
+        AssumeRolePolicyDocument=json.dumps(doc),
+    )['Role']
+    return {
+        'role_name': role.get('RoleName') or name,
+        'arn': role.get('Arn'),
+        'created': role.get('CreateDate'),
+        'trust_policy': doc,
+    }
+
+
+def create_instance_profile(profile_name: str) -> dict[str, Any]:
+    name = validate_name(profile_name, 'Instance profile name')
+    profile = _iam_client().create_instance_profile(InstanceProfileName=name)['InstanceProfile']
+    return {
+        'instance_profile_name': profile.get('InstanceProfileName') or name,
+        'arn': profile.get('Arn'),
+        'created': profile.get('CreateDate'),
+        'roles': profile.get('Roles', []),
+    }
+
+
+def add_role_to_instance_profile(profile_name: str, role_name: str) -> dict[str, Any]:
+    profile = validate_name(profile_name, 'Instance profile name')
+    role = validate_name(role_name, 'Role name')
+    _iam_client().add_role_to_instance_profile(InstanceProfileName=profile, RoleName=role)
+    return {'instance_profile_name': profile, 'role_name': role, 'added': True}
+
+
 def update_access_key(user_name: str, access_key_id: str, status: str) -> dict[str, Any]:
     name = validate_name(user_name, 'User name')
     key_id = validate_name(access_key_id, 'Access key ID')
@@ -87,6 +197,144 @@ def delete_access_key(user_name: str, access_key_id: str) -> dict[str, Any]:
     key_id = validate_name(access_key_id, 'Access key ID')
     _iam_client().delete_access_key(UserName=name, AccessKeyId=key_id)
     return {'user_name': name, 'access_key_id': key_id, 'deleted': True}
+
+
+def _client_error_code(exc: Exception) -> str:
+    if isinstance(exc, Exception) and hasattr(exc, 'response'):
+        response = getattr(exc, 'response', {}) or {}
+        error = response.get('Error', {}) if isinstance(response, dict) else {}
+        return error.get('Code', '')
+    return ''
+
+
+def _safe_iam(call, missing_codes: set[str] | None = None):
+    try:
+        return call()
+    except Exception as exc:
+        if _client_error_code(exc) in (missing_codes or {'NoSuchEntity'}):
+            return None
+        raise
+
+
+def _policy_arn_list(iam, method_name: str, result_key: str, **kwargs) -> list[dict[str, str]]:
+    return _safe_iam(lambda: getattr(iam, method_name)(**kwargs).get(result_key, [])) or []
+
+
+def cleanup_user(user_name: str, *, force: bool = False) -> dict[str, Any]:
+    name = validate_name(user_name, 'User name')
+    iam = _iam_client()
+    keys = _safe_iam(lambda: iam.list_access_keys(UserName=name).get('AccessKeyMetadata', [])) or []
+    groups = _safe_iam(lambda: iam.list_groups_for_user(UserName=name).get('Groups', [])) or []
+    attached = _policy_arn_list(iam, 'list_attached_user_policies', 'AttachedPolicies', UserName=name)
+    inline = _safe_iam(lambda: iam.list_user_policies(UserName=name).get('PolicyNames', [])) or []
+    blockers = []
+    if keys:
+        blockers.append(f'{len(keys)} access keys')
+    if groups:
+        blockers.append(f'{len(groups)} group memberships')
+    if attached:
+        blockers.append(f'{len(attached)} managed policies')
+    if inline:
+        blockers.append(f'{len(inline)} inline policies')
+    if blockers and not force:
+        raise ValueError(f'User {name} has dependencies: {", ".join(blockers)}. Confirm cleanup to delete them first.')
+    for key in keys:
+        if key.get('AccessKeyId'):
+            _safe_iam(lambda key=key: iam.delete_access_key(UserName=name, AccessKeyId=key['AccessKeyId']))
+    for group in groups:
+        if group.get('GroupName'):
+            _safe_iam(lambda group=group: iam.remove_user_from_group(UserName=name, GroupName=group['GroupName']))
+    for policy in attached:
+        if policy.get('PolicyArn'):
+            _safe_iam(lambda policy=policy: iam.detach_user_policy(UserName=name, PolicyArn=policy['PolicyArn']))
+    for policy_name in inline:
+        _safe_iam(lambda policy_name=policy_name: iam.delete_user_policy(UserName=name, PolicyName=policy_name))
+    _safe_iam(lambda: iam.delete_user(UserName=name))
+    return {'user_name': name, 'deleted': True, 'cleaned': {'access_keys': len(keys), 'groups': len(groups), 'attached_policies': len(attached), 'inline_policies': len(inline)}}
+
+
+def cleanup_group(group_name: str, *, force: bool = False) -> dict[str, Any]:
+    name = validate_name(group_name, 'Group name')
+    iam = _iam_client()
+    group_response = _safe_iam(lambda: iam.get_group(GroupName=name)) or {}
+    users = group_response.get('Users', [])
+    attached = _policy_arn_list(iam, 'list_attached_group_policies', 'AttachedPolicies', GroupName=name)
+    inline = _safe_iam(lambda: iam.list_group_policies(GroupName=name).get('PolicyNames', [])) or []
+    blockers = []
+    if users:
+        blockers.append(f'{len(users)} users')
+    if attached:
+        blockers.append(f'{len(attached)} managed policies')
+    if inline:
+        blockers.append(f'{len(inline)} inline policies')
+    if blockers and not force:
+        raise ValueError(f'Group {name} has dependencies: {", ".join(blockers)}. Confirm cleanup to delete them first.')
+    for user in users:
+        if user.get('UserName'):
+            _safe_iam(lambda user=user: iam.remove_user_from_group(GroupName=name, UserName=user['UserName']))
+    for policy in attached:
+        if policy.get('PolicyArn'):
+            _safe_iam(lambda policy=policy: iam.detach_group_policy(GroupName=name, PolicyArn=policy['PolicyArn']))
+    for policy_name in inline:
+        _safe_iam(lambda policy_name=policy_name: iam.delete_group_policy(GroupName=name, PolicyName=policy_name))
+    _safe_iam(lambda: iam.delete_group(GroupName=name))
+    return {'group_name': name, 'deleted': True, 'cleaned': {'users': len(users), 'attached_policies': len(attached), 'inline_policies': len(inline)}}
+
+
+def cleanup_role(role_name: str, *, force: bool = False) -> dict[str, Any]:
+    name = validate_name(role_name, 'Role name')
+    iam = _iam_client()
+    profiles = _safe_iam(lambda: iam.list_instance_profiles_for_role(RoleName=name).get('InstanceProfiles', [])) or []
+    attached = _policy_arn_list(iam, 'list_attached_role_policies', 'AttachedPolicies', RoleName=name)
+    inline = _safe_iam(lambda: iam.list_role_policies(RoleName=name).get('PolicyNames', [])) or []
+    blockers = []
+    if profiles:
+        blockers.append(f'{len(profiles)} instance profiles')
+    if attached:
+        blockers.append(f'{len(attached)} managed policies')
+    if inline:
+        blockers.append(f'{len(inline)} inline policies')
+    if blockers and not force:
+        raise ValueError(f'Role {name} has dependencies: {", ".join(blockers)}. Confirm cleanup to delete them first.')
+    for profile in profiles:
+        if profile.get('InstanceProfileName'):
+            _safe_iam(lambda profile=profile: iam.remove_role_from_instance_profile(InstanceProfileName=profile['InstanceProfileName'], RoleName=name))
+    for policy in attached:
+        if policy.get('PolicyArn'):
+            _safe_iam(lambda policy=policy: iam.detach_role_policy(RoleName=name, PolicyArn=policy['PolicyArn']))
+    for policy_name in inline:
+        _safe_iam(lambda policy_name=policy_name: iam.delete_role_policy(RoleName=name, PolicyName=policy_name))
+    _safe_iam(lambda: iam.delete_role(RoleName=name))
+    return {'role_name': name, 'deleted': True, 'cleaned': {'instance_profiles': len(profiles), 'attached_policies': len(attached), 'inline_policies': len(inline)}}
+
+
+def simulate_principal_policy(principal_arn: str, action_names: Any, resource_arns: Any = None) -> dict[str, Any]:
+    arn = validate_name(principal_arn, 'Principal ARN')
+    if isinstance(action_names, str):
+        actions = [item.strip() for item in action_names.replace('\n', ',').split(',') if item.strip()]
+    else:
+        actions = [str(item).strip() for item in (action_names or []) if str(item).strip()]
+    if not actions:
+        raise ValueError('At least one action is required')
+    if isinstance(resource_arns, str):
+        resources = [item.strip() for item in resource_arns.replace('\n', ',').split(',') if item.strip()]
+    else:
+        resources = [str(item).strip() for item in (resource_arns or []) if str(item).strip()]
+    payload: dict[str, Any] = {'PolicySourceArn': arn, 'ActionNames': actions}
+    if resources:
+        payload['ResourceArns'] = resources
+    iam = _iam_client()
+    operations = set(getattr(iam.meta.service_model, 'operation_names', []))
+    if 'SimulatePrincipalPolicy' not in operations:
+        return {'principal_arn': arn, 'actions': actions, 'resources': resources, 'supported': False, 'message': 'SimulatePrincipalPolicy is not available in this local Floci IAM runtime.'}
+    response = iam.simulate_principal_policy(**payload)
+    return {
+        'principal_arn': arn,
+        'actions': actions,
+        'resources': resources,
+        'supported': True,
+        'evaluations': response.get('EvaluationResults', []),
+    }
 
 
 def assume_role(

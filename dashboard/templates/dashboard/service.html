@@ -124,9 +124,17 @@
       <div id="iam-console-root" class="iam-console-root" aria-live="polite"></div>
       <details class="iam-about-floci">
         <summary>About Floci IAM</summary>
-        <p>Local IAM stores users, roles, groups, policies, access keys, and trust relationships for AWS-compatible development workflows.</p>
-        <p>IAM is most often used to shape what local SDK calls are allowed to do and to test role-based credentials. In Floci, a good learning flow is to inspect a principal, review its attached and inline policies, create a temporary access key or assume a role, then test those credentials from your app. Floci 1.5.29 routes assumed-role credentials to the target account.</p>
-        <p>Common local test cases include missing permissions, incorrect trust policies, inactive access keys, group policy inheritance, permission boundaries, and role-session credential wiring.</p>
+        <p>IAM is the control layer for local AWS work: it answers who is making a request, which credentials they are using, and whether a policy allows the action. Floci IAM gives you a safe local place to build that model before you wire it into an app.</p>
+        <ol>
+          <li><strong>Start with principals.</strong> Use the tabs to inspect users, groups, roles, managed policies, and instance profiles. Select any principal to see its ARN, attached policies, inline policies, access keys, trust policy, or group membership.</li>
+          <li><strong>Create identities intentionally.</strong> Create users for people or app credentials, groups for shared user permissions, roles for temporary credentials, and instance profiles when EC2-style workloads need a role.</li>
+          <li><strong>Attach permissions in small pieces.</strong> Managed policies are reusable and versioned. Inline policies live directly on one user, group, or role. In Floci, a good first policy is a narrow allow such as <code>s3:ListAllMyBuckets</code> or <code>sqs:ListQueues</code>, then broaden only when the workflow needs it.</li>
+          <li><strong>Separate role trust from role permissions.</strong> A role needs a trust policy that says who may assume it, and a permissions policy that says what the resulting temporary credentials may do. Use the role trust templates for Lambda, EC2, account-root testing, or custom JSON.</li>
+          <li><strong>Test the identity, not just the policy document.</strong> Use <em>Use this user</em> to switch the dashboard session to a user, or <em>Get temporary credentials</em> to assume a role. Then try the target service from Floci, the workbench, or the AWS CLI Console and confirm both the allowed path and the denied path.</li>
+          <li><strong>Clean up after experiments.</strong> The cleanup buttons remove lab-style dependencies such as keys, group membership, attached policies, inline policies, and role/profile links before deleting the principal.</li>
+        </ol>
+        <p>The IAM labs turn this into a guided sequence: create a user, attach managed and inline policies, use access keys, work with groups, create roles, constrain STS sessions, wire instance profiles, and verify real IAM enforcement with switched identities. Use this workbench when you want to explore freely; use the labs when you want the shortest proven path through the concepts.</p>
+        <p>Useful local test cases include missing permissions, explicit deny behavior, incorrect trust policies, inactive access keys, group policy inheritance, session-policy constraints, permission boundaries, and role-session credential wiring. Floci 1.5.29 routes assumed-role credentials to the target account.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid iam-readonly-grid"></div>
     {% elif service.key == 'sqs' %}

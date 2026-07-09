@@ -36,6 +36,25 @@ class S3PageTemplateTests(SimpleTestCase):
 
         self.assertIn("['User metadata', Object.keys(head.metadata || {}).length", source)
 
+    def test_s3_console_groups_object_and_selection_actions(self):
+        from pathlib import Path
+        from django.conf import settings
+
+        source = (
+            Path(settings.BASE_DIR)
+            / 'dashboard'
+            / 'static'
+            / 'dashboard'
+            / 's3-console.js'
+        ).read_text()
+
+        self.assertIn("const selectedCount = el('span', 's3-selection-count'", source)
+        self.assertIn('downloadButton.disabled = filesOnly.length !== 1', source)
+        self.assertIn('copyButton.disabled = filesOnly.length === 0', source)
+        self.assertIn('deleteButton.disabled = selected.length === 0', source)
+        self.assertIn("btn('Copy object'", source)
+        self.assertIn("btn('Delete object'", source)
+
 
 class S3BucketsApiTests(SimpleTestCase):
     def test_create_bucket_rejects_invalid_name(self):

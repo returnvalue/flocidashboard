@@ -6,6 +6,7 @@ import inspect
 import re
 from contextlib import ExitStack
 from io import BytesIO
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from botocore.exceptions import ClientError
@@ -17,6 +18,18 @@ from .labs import labs_for_service, reset_lab, run_lab_step
 from .labs.registry import LAB_BATCH_ORDER, all_labs
 from .labs.runner import run_lab_step as facade_run_lab_step
 from .labs.types import Lab, LabStep, ResetResult, StepResult, VerificationResult
+
+
+def access_denied(action: str = 'iam:GetUser') -> ClientError:
+    return ClientError(
+        {
+            'Error': {
+                'Code': 'AccessDenied',
+                'Message': f'User is not authorized to perform: {action}',
+            },
+        },
+        action.rsplit(':', 1)[-1],
+    )
 
 
 class LabsRegistryAuditTests(SimpleTestCase):
@@ -81,7 +94,7 @@ class LabsRegistryAuditTests(SimpleTestCase):
 class LabsPageTests(SimpleTestCase):
     def test_labs_package_facades_preserve_public_api(self):
         self.assertIs(facade_run_lab_step, run_lab_step)
-        self.assertEqual(len(all_labs()), 47)
+        self.assertEqual(len(all_labs()), 48)
         self.assertTrue(labs_for_service('iam'))
         self.assertTrue(issubclass(Lab, dict))
         self.assertTrue(issubclass(LabStep, dict))
@@ -97,9 +110,21 @@ class LabsPageTests(SimpleTestCase):
         self.assertContains(response, 'Steps complete')
         self.assertContains(response, 'Checking...')
         self.assertContains(response, 'Reset completed labs')
-        self.assertContains(response, 'disabled>Reset completed labs</button>')
+        self.assertContains(response, 'disabled hidden>Reset completed labs</button>')
         self.assertContains(response, 'dashboard/labs-directory.js')
         status_mock.assert_not_called()
+
+    def test_labs_directory_reset_uses_styled_confirmation_modal(self):
+        script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'labs-directory.js'
+        source = script.read_text()
+
+        self.assertNotIn('window.confirm', source)
+        self.assertIn('function openResetConfirm()', source)
+        self.assertIn('labs-modal-overlay', source)
+        self.assertIn('Reset completed labs?', source)
+        self.assertIn('Keep labs', source)
+        self.assertIn('resetButton.hidden = completedLabCount === 0', source)
+        self.assertIn('resetButton.hidden = true', source)
 
     @patch('dashboard.views.all_labs')
     @patch('dashboard.views.lab_status')
@@ -212,6 +237,18 @@ class LabsPageTests(SimpleTestCase):
         self.assertContains(response, '>Not started</span>')
         self.assertNotContains(response, 'Floci health')
         self.assertContains(response, 'dashboard/labs.js')
+
+    @patch('dashboard.views.lab_status')
+    def test_labs_page_surfaces_status_errors_without_failing(self, status_mock):
+        status_mock.side_effect = access_denied('iam:GetUser')
+
+        response = self.client.get(reverse('dashboard:service-labs', kwargs={'service_key': 'iam'}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '>Status unavailable</span>')
+        self.assertContains(response, 'Lab status is unavailable for the active dashboard identity.')
+        self.assertContains(response, 'User is not authorized to perform: iam:GetUser')
+        self.assertContains(response, 'id="lab-reset" class="secondary-button" type="button" disabled')
 
     @patch('dashboard.views.lab_status')
     def test_iam_labs_page_renders_policy_lab_when_selected(self, status_mock):
@@ -360,6 +397,9 @@ class LabsPageTests(SimpleTestCase):
         self.assertContains(response, 'lab-step-complete')
         self.assertContains(response, 'User Alice exists in local IAM.')
         self.assertContains(response, '&#10003; Done</button>')
+        self.assertContains(response, '<p class="lab-state-verification">User Alice exists in local IAM.</p>', html=True)
+        self.assertContains(response, '<div class="lab-response" hidden>')
+        self.assertNotContains(response, '<span class="lab-response-status">Verified</span>', html=True)
 
     def test_iam_service_page_links_to_labs(self):
         response = self.client.get(reverse('dashboard:service-page', kwargs={'service_key': 'iam'}))
@@ -374,32 +414,40 @@ class LabsPageTests(SimpleTestCase):
         status_mock.return_value = {
             'complete': True,
             'steps': {
+                'create-user': {
+                    'verified': True,
+                    'verification': {'message': 'Charlie exists.'},
+                },
+                'verify-user-denied': {
+                    'verified': True,
+                    'verification': {'message': 'Charlie was denied S3.'},
+                },
                 'create-role': {
                     'verified': True,
                     'verification': {'message': 'Role exists.'},
                 },
-                'create-instance-profile': {
+                'put-role-policy': {
                     'verified': True,
-                    'verification': {'message': 'Profile exists.'},
+                    'verification': {'message': 'Policy exists.'},
                 },
-                'add-role-to-instance-profile': {
+                'assume-role': {
                     'verified': True,
-                    'verification': {'message': 'Role added.'},
+                    'verification': {'message': 'Role assumed.'},
                 },
-                'get-instance-profile': {
+                'verify-role-sqs': {
                     'verified': True,
-                    'verification': {'message': 'Profile inspected.'},
+                    'verification': {'message': 'SQS allowed.'},
                 },
-                'list-instance-profiles-for-role': {
+                'verify-role-s3-denied': {
                     'verified': True,
-                    'verification': {'message': 'Profile listed.'},
+                    'verification': {'message': 'S3 denied.'},
                 },
             },
         }
 
         response = self.client.get(
             reverse('dashboard:service-labs', kwargs={'service_key': 'iam'}),
-            {'lab': 'ec2-instance-profile'},
+            {'lab': 'identity-enforcement-capstone'},
         )
 
         self.assertEqual(response.status_code, 200)
@@ -1085,6 +1133,8 @@ class LabsRunnerTests(SimpleTestCase):
         self.assertEqual(len(labs[7]['steps']), 3)
         self.assertEqual(labs[8]['key'], 'ec2-instance-profile')
         self.assertEqual(len(labs[8]['steps']), 5)
+        self.assertEqual(labs[9]['key'], 'identity-enforcement-capstone')
+        self.assertEqual(len(labs[9]['steps']), 7)
 
     def test_s3_lab_registry_includes_create_bucket_workflow(self):
         labs = labs_for_service('s3')
@@ -7902,6 +7952,35 @@ class LabsRunnerTests(SimpleTestCase):
 
     @patch('dashboard.views.lab_status')
     @patch('dashboard.views.run_lab_step')
+    def test_run_lab_step_endpoint_preserves_step_payload_when_status_check_fails(self, run_mock, status_mock):
+        run_mock.return_value = {
+            'service': 'iam',
+            'lab': 'create-user-alice',
+            'step': 'create-user',
+            'command': 'aws iam create-user --user-name Alice',
+            'exit_code': 0,
+            'stdout': '{}',
+            'stderr': '',
+            'verified': True,
+            'verification': {'status': 'passed', 'message': 'User Alice exists in local IAM.'},
+        }
+        status_mock.side_effect = access_denied('iam:GetUser')
+
+        response = self.client.post(reverse('dashboard:lab-step-run', kwargs={
+            'service_key': 'iam',
+            'lab_key': 'create-user-alice',
+            'step_key': 'create-user',
+        }))
+
+        payload = response.json()
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(payload['verified'])
+        self.assertFalse(payload['lab_complete'])
+        self.assertIsNone(payload['next_batch'])
+        self.assertIn('User is not authorized to perform: iam:GetUser', payload['status_warning'])
+
+    @patch('dashboard.views.lab_status')
+    @patch('dashboard.views.run_lab_step')
     def test_run_lab_step_endpoint_returns_next_batch_when_complete(
         self,
         run_mock,
@@ -7909,16 +7988,16 @@ class LabsRunnerTests(SimpleTestCase):
     ):
         run_mock.return_value = {
             'service': 'iam',
-            'lab': 'ec2-instance-profile',
-            'step': 'list-instance-profiles-for-role',
+            'lab': 'identity-enforcement-capstone',
+            'step': 'verify-role-s3-denied',
             'verified': True,
         }
         status_mock.return_value = {'complete': True, 'steps': {}}
 
         response = self.client.post(reverse('dashboard:lab-step-run', kwargs={
             'service_key': 'iam',
-            'lab_key': 'ec2-instance-profile',
-            'step_key': 'list-instance-profiles-for-role',
+            'lab_key': 'identity-enforcement-capstone',
+            'step_key': 'verify-role-s3-denied',
         }))
 
         payload = response.json()

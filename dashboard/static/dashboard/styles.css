@@ -7,14 +7,14 @@
   --surface-header-alt: #232f3e;
   --surface-hover: #f4f8fb;
   --surface-selected: #f1f8ff;
-  --surface-code: #16191f;
+  --surface-code: #f8fafc;
   --text-primary: #16191f;
   --text-secondary: #414d5c;
   --text-muted: #687078;
   --text-inverse: #ffffff;
   --text-link: #0972d3;
   --text-link-hover: #033160;
-  --text-code: #f2f3f3;
+  --text-code: #16191f;
   --border-subtle: #d5dbdb;
   --border-strong: #879596;
   --border-control: #879596;
@@ -1867,6 +1867,42 @@ a.service-card-active:hover {
   margin: 12px 0 0;
 }
 
+.labs-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(22, 25, 31, 0.58);
+}
+
+.labs-modal {
+  width: min(460px, 100%);
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+}
+
+.labs-modal h3 {
+  margin: 0;
+  font-size: var(--font-size-xl);
+}
+
+.labs-modal-copy {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.labs-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
 .labs-directory-open {
   min-height: 34px;
   padding: 0 11px;
@@ -2061,6 +2097,257 @@ a.service-card-active:hover {
 .activity-empty {
   padding: 18px;
   color: var(--text-muted);
+}
+
+.aws-console-shell {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 18px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-panel);
+  padding: 16px;
+  background: var(--surface-panel);
+  box-shadow: var(--shadow-panel);
+}
+
+.aws-console-form {
+  display: grid;
+  gap: 7px;
+}
+
+.aws-console-command-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.aws-console-input {
+  min-width: 0;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-control);
+  padding: 9px 11px;
+  background: var(--surface-panel);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+}
+
+.aws-console-palette {
+  display: grid;
+  gap: 8px;
+}
+
+.aws-console-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.aws-console-category {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  padding: 5px 10px;
+  background: var(--surface-panel);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.aws-console-category:hover,
+.aws-console-category[aria-pressed="true"] {
+  border-color: var(--border-selected);
+  background: var(--surface-selected);
+  color: var(--text-link-hover);
+}
+
+.aws-console-command-strip {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(180px, 240px);
+  gap: 8px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  padding: 2px 0 8px;
+  cursor: grab;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.aws-console-command-strip-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.aws-console-command-chip,
+.aws-console-history-item {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  padding: 8px 9px;
+  background: var(--surface-panel);
+  color: var(--text-link);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  text-align: left;
+}
+
+.aws-console-command-chip {
+  display: grid;
+  gap: 3px;
+  min-height: 68px;
+  scroll-snap-align: start;
+}
+
+.aws-console-command-chip-label {
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-weight: 760;
+}
+
+.aws-console-command-chip-command {
+  overflow: hidden;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aws-console-command-chip:hover,
+.aws-console-history-item:hover {
+  border-color: var(--border-selected);
+  background: var(--surface-selected);
+}
+
+.aws-console-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.36fr);
+  gap: var(--space-md);
+  align-items: start;
+}
+
+.aws-console-panel {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-panel);
+  padding: 16px;
+  background: var(--surface-panel);
+  box-shadow: var(--shadow-panel);
+}
+
+.aws-console-panel .section-heading {
+  margin-bottom: 0;
+}
+
+.aws-console-result {
+  display: grid;
+  gap: 12px;
+}
+
+.aws-console-output,
+.aws-console-history {
+  display: grid;
+  gap: 8px;
+}
+
+.aws-console-result {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-panel);
+  padding: 12px;
+  background: var(--surface-panel-alt);
+}
+
+.aws-console-result-ok {
+  border-color: color-mix(in srgb, var(--status-success) 32%, var(--border-subtle));
+}
+
+.aws-console-result-error {
+  border-color: color-mix(in srgb, var(--status-danger) 35%, var(--border-subtle));
+}
+
+.aws-console-result-heading {
+  display: grid;
+  gap: 3px;
+}
+
+.aws-console-result-heading strong {
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+}
+
+.aws-console-block {
+  display: grid;
+  gap: 5px;
+}
+
+.aws-console-block h3 {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.aws-console-pre {
+  overflow-x: auto;
+  max-height: 460px;
+  margin: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  padding: 10px;
+  background: var(--surface-code);
+  color: var(--text-code);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  line-height: 1.45;
+}
+
+.aws-console-stderr .aws-console-pre {
+  border-color: color-mix(in srgb, var(--status-danger) 35%, var(--border-subtle));
+}
+
+.aws-console-history-item {
+  width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.aws-console-output .activity-empty,
+.aws-console-history .activity-empty {
+  border-radius: var(--radius-control);
+  padding: 12px;
+  box-shadow: none;
+}
+
+.aws-console-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(22, 25, 31, 0.58);
+}
+
+.aws-console-modal {
+  width: min(480px, 100%);
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+}
+
+.aws-console-modal h3 {
+  margin: 0;
+  font-size: var(--font-size-xl);
+}
+
+.aws-console-modal-copy {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.aws-console-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .settings-grid {
@@ -2565,6 +2852,14 @@ a.service-card-active:hover {
   gap: 8px;
 }
 
+.iam-principal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
 .iam-principal-row,
 .iam-policy-row,
 .iam-access-key-row {
@@ -2951,6 +3246,11 @@ li {
   }
 
   .inspector-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .aws-console-command-row,
+  .aws-console-grid {
     grid-template-columns: 1fr;
   }
 }

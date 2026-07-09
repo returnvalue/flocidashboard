@@ -286,6 +286,30 @@
   line-height: 1.5;
 }
 
+.iam-about-floci ol {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding-left: 22px;
+  line-height: 1.5;
+}
+
+.iam-about-floci li {
+  padding-left: 2px;
+}
+
+.iam-about-floci strong {
+  color: var(--text);
+}
+
+.iam-about-floci code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: #eef2f8;
+  color: var(--text);
+  font-size: 0.84rem;
+}
+
 .iam-readonly-grid {
   margin-top: 14px;
 }

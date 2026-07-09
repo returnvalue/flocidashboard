@@ -101,6 +101,7 @@
     const responseStatus = step.querySelector('.lab-response-status');
     const responseBody = step.querySelector('.lab-response-body');
     const verification = step.querySelector('.lab-verification');
+    const stateVerification = step.querySelector('.lab-state-verification');
 
     button.disabled = true;
     button.textContent = 'Running...';
@@ -109,6 +110,7 @@
     responseStatus.textContent = '';
     responseBody.textContent = '';
     verification.textContent = '';
+    stateVerification?.remove();
 
     try {
       const response = await fetch(`/api/labs/${service}/${lab}/steps/${stepKey}/run/`, {
@@ -124,11 +126,11 @@
 
       responseStatus.textContent = data.verified ? 'Verified' : 'Succeeded';
       responseBody.textContent = data.stdout || JSON.stringify(data.json || data, null, 2);
-      verification.textContent = data.verification?.message || '';
+      verification.textContent = data.status_warning || data.verification?.message || '';
       step.classList.toggle('lab-step-complete', Boolean(data.verified));
       button.disabled = Boolean(data.verified);
       button.textContent = data.verified ? '\u2713 Done' : 'Run';
-      labState.textContent = data.verified ? 'Complete' : 'Needs review';
+      labState.textContent = data.status_warning ? 'Status unavailable' : data.verified ? 'Complete' : 'Needs review';
       if (data.lab_complete) {
         renderNextBatchCard(data.next_batch);
       }

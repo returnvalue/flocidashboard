@@ -11,8 +11,15 @@ from .iam_api import (
     assume_role,
     attach_managed_policy,
     create_access_key,
+    create_group,
+    create_instance_profile,
     create_managed_policy,
     create_policy_version,
+    create_role,
+    create_user,
+    cleanup_group,
+    cleanup_role,
+    cleanup_user,
     delete_access_key,
     delete_inline_policy,
     delete_policy_version,
@@ -22,9 +29,103 @@ from .iam_api import (
     put_inline_policy,
     remove_user_from_group,
     set_default_policy_version,
+    simulate_principal_policy,
+    add_role_to_instance_profile,
     update_role_trust_policy,
     update_access_key,
 )
+
+
+@require_http_methods(['POST'])
+def iam_users_create(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(create_user(
+            body.get('user_name', ''),
+            add_baseline_policy=body.get('add_baseline_policy') is not False,
+        ))
+    except Exception as exc:
+        return handle_action_error(exc, service='iam', operation='create_user')
+
+
+@require_http_methods(['DELETE'])
+def iam_user_detail(request, user_name: str):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(cleanup_user(user_name, force=body.get('force') is True))
+    except Exception as exc:
+        return handle_action_error(exc, service='iam', operation='delete_user')
+
+
+@require_http_methods(['POST'])
+def iam_groups_create(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(create_group(body.get('group_name', '')))
+    except Exception as exc:
+        return handle_action_error(exc, service='iam', operation='create_group')
+
+
+@require_http_methods(['DELETE'])
+def iam_group_detail(request, group_name: str):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(cleanup_group(group_name, force=body.get('force') is True))
+    except Exception as exc:
+        return handle_action_error(exc, service='iam', operation='delete_group')
+
+
+@require_http_methods(['POST'])
+def iam_roles_create(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(create_role(
+            body.get('role_name', ''),
+            trust_template=body.get('trust_template') or 'lambda',
+            trust_policy=body.get('trust_policy') or None,
+        ))
+    except Exception as exc:
+        return handle_action_error(exc, service='iam', operation='create_role')
+
+
+@require_http_methods(['DELETE'])
+def iam_role_detail(request, role_name: str):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(cleanup_role(role_name, force=body.get('force') is True))
+    except Exception as exc:
+        return handle_action_error(exc, service='iam', operation='delete_role')
+
+
+@require_http_methods(['POST'])
+def iam_instance_profiles_create(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(create_instance_profile(body.get('instance_profile_name', '')))
+    except Exception as exc:
+        return handle_action_error(exc, service='iam', operation='create_instance_profile')
+
+
+@require_http_methods(['POST'])
+def iam_instance_profile_roles(request, instance_profile_name: str):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(add_role_to_instance_profile(instance_profile_name, body.get('role_name', '')))
+    except Exception as exc:
+        return handle_action_error(exc, service='iam', operation='add_role_to_instance_profile')
+
+
+@require_http_methods(['POST'])
+def iam_policy_simulation(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(simulate_principal_policy(
+            body.get('principal_arn', ''),
+            body.get('action_names') or body.get('actions') or '',
+            body.get('resource_arns') or body.get('resources') or [],
+        ))
+    except Exception as exc:
+        return handle_action_error(exc, service='iam', operation='simulate_principal_policy')
 
 
 @require_http_methods(['POST'])

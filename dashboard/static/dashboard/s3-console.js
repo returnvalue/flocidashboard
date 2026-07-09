@@ -294,7 +294,7 @@ const S3Console = (() => {
     });
   }
 
-  function showCopyModal(bucket, items) {
+  function showCopyModal(bucket, items, options = {}) {
     const destKey = document.createElement('input');
     const destBucket = document.createElement('input');
     destBucket.value = bucket;
@@ -323,13 +323,16 @@ const S3Console = (() => {
       close();
       toast('Copy complete');
       clearSelection();
+      if (options.afterComplete) {
+        await options.afterComplete();
+        return;
+      }
       await loadObjects(bucket);
       render();
     });
   }
 
-  async function deleteSelected(bucket) {
-    const items = getSelectedItems();
+  async function deleteObjects(bucket, items, options = {}) {
     if (!items.length) {
       return;
     }
@@ -346,9 +349,17 @@ const S3Console = (() => {
       close();
       toast('Deleted');
       clearSelection();
+      if (options.afterComplete) {
+        await options.afterComplete();
+        return;
+      }
       await loadObjects(bucket);
       render();
     });
+  }
+
+  async function deleteSelected(bucket) {
+    await deleteObjects(bucket, getSelectedItems());
   }
 
   function getSelectedItems() {
@@ -545,32 +556,39 @@ const S3Console = (() => {
 
     const selected = getSelectedItems();
     const filesOnly = selected.filter((i) => i.type === 'file' || i.type === 'delete_marker');
+    const selectedCount = el('span', 's3-selection-count', `${selected.length} selected`);
+    const downloadButton = btn('Download', 's3-btn-secondary', () => {
+      if (filesOnly.length !== 1) {
+        toast('Select exactly one file to download', true);
+        return;
+      }
+      const item = filesOnly[0];
+      const params = new URLSearchParams({ key: item.key });
+      if (item.version_id) {
+        params.set('versionId', item.version_id);
+      }
+      window.location.href = `/api/s3/buckets/${encodeURIComponent(bucket)}/objects/download/?${params}`;
+    });
+    downloadButton.disabled = filesOnly.length !== 1;
+    const copyButton = btn('Copy', 's3-btn-secondary', () => {
+      if (!filesOnly.length) {
+        toast('Select objects to copy', true);
+        return;
+      }
+      showCopyModal(bucket, filesOnly);
+    });
+    copyButton.disabled = filesOnly.length === 0;
+    const deleteButton = btn('Delete', 's3-btn-danger', () => deleteSelected(bucket));
+    deleteButton.disabled = selected.length === 0;
 
     const bar = toolbar(
-      [versionToggle],
+      [versionToggle, selectedCount],
       [
         btn('Upload', null, () => showUploadModal(bucket)),
         btn('Create folder', 's3-btn-secondary', () => showCreateFolderModal(bucket)),
-        btn('Download', 's3-btn-secondary', () => {
-          if (filesOnly.length !== 1) {
-            toast('Select exactly one file to download', true);
-            return;
-          }
-          const item = filesOnly[0];
-          const params = new URLSearchParams({ key: item.key });
-          if (item.version_id) {
-            params.set('versionId', item.version_id);
-          }
-          window.location.href = `/api/s3/buckets/${encodeURIComponent(bucket)}/objects/download/?${params}`;
-        }),
-        btn('Copy', 's3-btn-secondary', () => {
-          if (!filesOnly.length) {
-            toast('Select objects to copy', true);
-            return;
-          }
-          showCopyModal(bucket, filesOnly);
-        }),
-        btn('Delete', 's3-btn-danger', () => deleteSelected(bucket)),
+        downloadButton,
+        copyButton,
+        deleteButton,
       ],
     );
     container.append(bar);
@@ -841,11 +859,12 @@ const S3Console = (() => {
 
     const overlay = el('div', 's3-drawer-overlay');
     const drawer = el('div', 's3-drawer');
-    const closeBtn = btn('×', 's3-drawer-close s3-btn-secondary', () => {
+    const closeDrawer = () => {
       overlay.remove();
       drawer.remove();
       navigate({ key: '', versionId: '' }, true);
-    });
+    };
+    const closeBtn = btn('×', 's3-drawer-close s3-btn-secondary', closeDrawer);
     drawer.append(closeBtn, el('h3', null, key.split('/').pop()));
 
     const meta = el('dl');
@@ -870,6 +889,7 @@ const S3Console = (() => {
     tagArea.value = JSON.stringify(tags, null, 2);
     drawer.append(tagArea);
     const actions = el('div', 's3-drawer-actions');
+    const drawerItem = { key, version_id: versionId || undefined, type: 'file' };
     actions.append(
       btn('Save tags', null, async () => {
         const parsed = JSON.parse(tagArea.value);
@@ -878,6 +898,16 @@ const S3Console = (() => {
           body: JSON.stringify({ key, tags: parsed, version_id: versionId || undefined }),
         });
         toast('Tags saved');
+      }),
+    );
+    actions.append(
+      btn('Download', null, () => {
+        window.location.href = `/api/s3/buckets/${encodeURIComponent(bucket)}/objects/download/?${params}`;
+      }),
+    );
+    actions.append(
+      btn('Copy object', 's3-btn-secondary', () => {
+        showCopyModal(bucket, [drawerItem], { afterComplete: closeDrawer });
       }),
     );
     actions.append(
@@ -891,17 +921,13 @@ const S3Console = (() => {
       }),
     );
     actions.append(
-      btn('Download', null, () => {
-        window.location.href = `/api/s3/buckets/${encodeURIComponent(bucket)}/objects/download/?${params}`;
+      btn('Delete object', 's3-btn-danger', () => {
+        deleteObjects(bucket, [drawerItem], { afterComplete: closeDrawer });
       }),
     );
     drawer.append(actions);
 
-    overlay.addEventListener('click', () => {
-      overlay.remove();
-      drawer.remove();
-      navigate({ key: '', versionId: '' }, true);
-    });
+    overlay.addEventListener('click', closeDrawer);
     drawer.addEventListener('click', (e) => e.stopPropagation());
     document.body.append(overlay, drawer);
   }

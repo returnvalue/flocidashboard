@@ -20,8 +20,13 @@ from django.conf import settings
 
 
 RUNTIME_ENDPOINT_SESSION_KEY = 'floci_runtime_endpoint_url'
+RUNTIME_IDENTITY_SESSION_KEY = 'floci_identity'
 _runtime_endpoint_override: ContextVar[str | None] = ContextVar(
     'floci_runtime_endpoint_override',
+    default=None,
+)
+_runtime_identity_override: ContextVar[dict[str, Any] | None] = ContextVar(
+    'floci_runtime_identity',
     default=None,
 )
 
@@ -40,6 +45,18 @@ def reset_runtime_endpoint_override(token) -> None:
 
 def runtime_endpoint_override() -> str | None:
     return _runtime_endpoint_override.get()
+
+
+def set_runtime_identity_override(identity: dict[str, Any] | None):
+    return _runtime_identity_override.set(identity if isinstance(identity, dict) else None)
+
+
+def reset_runtime_identity_override(token) -> None:
+    _runtime_identity_override.reset(token)
+
+
+def runtime_identity_override() -> dict[str, Any] | None:
+    return _runtime_identity_override.get()
 
 
 def default_endpoint_url() -> str:
@@ -64,8 +81,16 @@ class ResourceResult:
 
 
 class FlociClientFactory:
-    def __init__(self, endpoint_url: str | None = None) -> None:
+    def __init__(
+        self,
+        endpoint_url: str | None = None,
+        *,
+        identity: dict[str, Any] | None = None,
+        use_runtime_identity: bool = True,
+    ) -> None:
         override = normalize_endpoint_url(endpoint_url) if endpoint_url else runtime_endpoint_override()
+        runtime_identity = runtime_identity_override() if use_runtime_identity else None
+        session_identity = identity if identity is not None else runtime_identity
         self.endpoint_url = override or default_endpoint_url()
         self.region = os.getenv('AWS_DEFAULT_REGION') or os.getenv(
             'AWS_REGION',
@@ -78,14 +103,29 @@ class FlociClientFactory:
         self.profile = os.getenv('AWS_PROFILE') or os.getenv('FLOCI_AWS_PROFILE')
         self.access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
         self.secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+        self.session_token = os.getenv('AWS_SESSION_TOKEN')
         self.credential_source = 'environment' if self.has_env_credentials else 'default_provider_chain'
         self.profile_source = (
             'AWS_PROFILE' if os.getenv('AWS_PROFILE')
             else 'FLOCI_AWS_PROFILE' if os.getenv('FLOCI_AWS_PROFILE')
             else None
         )
+        self.identity_type = None
+        self.identity_label = None
+        self.identity_expires_at = None
 
-        if self.profile:
+        if session_identity and session_identity.get('access_key_id') and session_identity.get('secret_access_key'):
+            self.profile = None
+            self.profile_source = None
+            self.access_key_id = session_identity.get('access_key_id')
+            self.secret_access_key = session_identity.get('secret_access_key')
+            self.session_token = session_identity.get('session_token') or None
+            self.has_env_credentials = True
+            self.credential_source = 'session_identity'
+            self.identity_type = session_identity.get('type') or 'session'
+            self.identity_label = session_identity.get('label') or self.identity_type
+            self.identity_expires_at = session_identity.get('expires_at')
+        elif self.profile:
             self.credential_source = 'profile'
         elif not self.has_env_credentials:
             settings_profile = self._available_settings_profile()
@@ -152,12 +192,14 @@ class FlociClientFactory:
                 region_name=self.region,
                 aws_access_key_id=self.access_key_id if not self.profile else None,
                 aws_secret_access_key=self.secret_access_key if not self.profile else None,
+                aws_session_token=self.session_token if not self.profile else None,
             )
         except ProfileNotFound:
             session = boto3.Session(
                 region_name=self.region,
                 aws_access_key_id=self.access_key_id,
                 aws_secret_access_key=self.secret_access_key,
+                aws_session_token=self.session_token,
             )
 
         return session.client(
@@ -177,6 +219,9 @@ class FlociClientFactory:
             'credential_source': self.credential_source,
             'endpoint_source': self.endpoint_source,
             'has_env_credentials': self.has_env_credentials,
+            'identity_expires_at': self.identity_expires_at,
+            'identity_label': self.identity_label,
+            'identity_type': self.identity_type,
             'profile': self.profile,
             'profile_source': self.profile_source,
             'region_source': self.region_source,

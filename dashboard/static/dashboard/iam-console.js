@@ -212,6 +212,180 @@ const IAMConsole = (() => {
     });
   }
 
+  function showCreateUserModal() {
+    const form = el('div');
+    const userInput = document.createElement('input');
+    userInput.placeholder = 'charlie';
+    const baselineInput = document.createElement('input');
+    baselineInput.type = 'checkbox';
+    baselineInput.checked = true;
+    form.append(
+      el('label', null, 'User name'),
+      userInput,
+      el('label', null, 'Add sts:GetCallerIdentity baseline policy'),
+      baselineInput,
+    );
+    openModal('Create user', form, 'Create', async (close) => {
+      const data = await apiJson('/api/iam/users/', {
+        method: 'POST',
+        body: JSON.stringify({
+          user_name: userInput.value.trim(),
+          add_baseline_policy: baselineInput.checked,
+        }),
+      });
+      close();
+      state.selectedType = 'user';
+      state.selectedName = data.user_name;
+      state.selectedPolicy = null;
+      toast('User created');
+      await refresh();
+    });
+  }
+
+  function showUseUserIdentityModal(user) {
+    const form = el('div');
+    const note = el('p', 'iam-empty iam-empty-compact', 'Create a session access key for this user without deleting existing keys. If the user already has the maximum number of keys, enter one key ID to replace.');
+    const replaceInput = document.createElement('input');
+    replaceInput.placeholder = 'optional access key ID to replace';
+    form.append(note, el('label', null, 'Replace access key ID'), replaceInput);
+    openModal('Use this user', form, 'Use user', async (close) => {
+      await useUserIdentity(user, replaceInput.value.trim());
+      close();
+    });
+  }
+
+  async function useUserIdentity(user, replaceAccessKeyId = '') {
+    await apiJson('/api/session-identity/use-user/', {
+      method: 'POST',
+      body: JSON.stringify({
+        user_name: user.name,
+        replace_access_key_id: replaceAccessKeyId || null,
+      }),
+    });
+    toast(`Dashboard identity switched to ${user.name}`);
+    window.location.reload();
+  }
+
+  async function useRoleIdentity(role) {
+    await apiJson('/api/session-identity/assume-role/', {
+      method: 'POST',
+      body: JSON.stringify({
+        role_name: role.name,
+        role_arn: role.arn,
+        session_name: 'floci-session',
+      }),
+    });
+    toast(`Dashboard identity switched to ${role.name}`);
+    window.location.reload();
+  }
+
+  function trustTemplateDocument(template) {
+    const service = template === 'ec2' ? 'ec2.amazonaws.com' : 'lambda.amazonaws.com';
+    if (template === 'account-root') {
+      return {
+        Version: '2012-10-17',
+        Statement: [{
+          Effect: 'Allow',
+          Principal: { AWS: 'arn:aws:iam::000000000000:root' },
+          Action: 'sts:AssumeRole',
+        }],
+      };
+    }
+    return {
+      Version: '2012-10-17',
+      Statement: [{
+        Effect: 'Allow',
+        Principal: { Service: service },
+        Action: 'sts:AssumeRole',
+      }],
+    };
+  }
+
+  function option(parent, value, label) {
+    const item = document.createElement('option');
+    item.value = value;
+    item.textContent = label;
+    parent.append(item);
+  }
+
+  function showCreateRoleModal() {
+    const form = el('div');
+    const nameInput = document.createElement('input');
+    nameInput.placeholder = 'local-app-role';
+    const templateSelect = document.createElement('select');
+    option(templateSelect, 'lambda', 'Lambda service');
+    option(templateSelect, 'ec2', 'EC2 service');
+    option(templateSelect, 'account-root', 'Account root / STS testing');
+    option(templateSelect, 'custom', 'Custom JSON');
+    const trustInput = document.createElement('textarea');
+    trustInput.value = JSON.stringify(trustTemplateDocument('lambda'), null, 2);
+    templateSelect.addEventListener('change', () => {
+      if (templateSelect.value !== 'custom') {
+        trustInput.value = JSON.stringify(trustTemplateDocument(templateSelect.value), null, 2);
+      }
+    });
+    form.append(el('label', null, 'Role name'), nameInput, el('label', null, 'Trust template'), templateSelect, el('label', null, 'Trust policy JSON'), trustInput);
+    openModal('Create role', form, 'Create', async (close) => {
+      const data = await apiJson('/api/iam/roles/', {
+        method: 'POST',
+        body: JSON.stringify({
+          role_name: nameInput.value.trim(),
+          trust_template: templateSelect.value,
+          trust_policy: templateSelect.value === 'custom' ? JSON.parse(trustInput.value) : null,
+        }),
+      });
+      close();
+      state.selectedType = 'role';
+      state.selectedName = data.role_name;
+      state.selectedPolicy = null;
+      toast('Role created');
+      await refresh();
+    });
+  }
+
+  function showCreateGroupModal() {
+    const form = el('div');
+    const nameInput = document.createElement('input');
+    nameInput.placeholder = 'local-developers';
+    form.append(el('label', null, 'Group name'), nameInput);
+    openModal('Create group', form, 'Create', async (close) => {
+      const data = await apiJson('/api/iam/groups/', {
+        method: 'POST',
+        body: JSON.stringify({ group_name: nameInput.value.trim() }),
+      });
+      close();
+      state.selectedType = 'group';
+      state.selectedName = data.group_name;
+      state.selectedPolicy = null;
+      toast('Group created');
+      await refresh();
+    });
+  }
+
+  function showCreateInstanceProfileModal() {
+    const form = el('div');
+    const profileInput = document.createElement('input');
+    profileInput.placeholder = 'local-ec2-profile';
+    const roleInput = document.createElement('input');
+    roleInput.placeholder = 'optional role name';
+    form.append(el('label', null, 'Instance profile name'), profileInput, el('label', null, 'Role to add'), roleInput);
+    openModal('Create instance profile', form, 'Create', async (close) => {
+      const data = await apiJson('/api/iam/instance-profiles/', {
+        method: 'POST',
+        body: JSON.stringify({ instance_profile_name: profileInput.value.trim() }),
+      });
+      if (roleInput.value.trim()) {
+        await apiJson(`/api/iam/instance-profiles/${encodeURIComponent(data.instance_profile_name)}/roles/`, {
+          method: 'POST',
+          body: JSON.stringify({ role_name: roleInput.value.trim() }),
+        });
+      }
+      close();
+      toast('Instance profile created');
+      await refresh();
+    });
+  }
+
   function showAssumeRoleModal(role) {
     const form = el('div');
     const sessionInput = document.createElement('input');
@@ -476,6 +650,71 @@ const IAMConsole = (() => {
     });
   }
 
+  function cleanupPath(principal) {
+    if (state.selectedType === 'user') {
+      return `/api/iam/users/${encodeURIComponent(principal.name)}/`;
+    }
+    if (state.selectedType === 'role') {
+      return `/api/iam/roles/${encodeURIComponent(principal.name)}/`;
+    }
+    if (state.selectedType === 'group') {
+      return `/api/iam/groups/${encodeURIComponent(principal.name)}/`;
+    }
+    return null;
+  }
+
+  function confirmCleanupPrincipal(principal) {
+    const path = cleanupPath(principal);
+    if (!path) {
+      return;
+    }
+    const label = state.selectedType;
+    openModal(`Clean up ${label}`, el('p', null, `Delete ${principal.name} and clean up dependent IAM resources first?`), 'Delete', async (close) => {
+      await apiJson(path, {
+        method: 'DELETE',
+        body: JSON.stringify({ force: true }),
+      });
+      close();
+      toast(`${label} deleted`);
+      state.selectedName = '';
+      state.selectedPolicy = null;
+      await refresh();
+    });
+  }
+
+  function renderPermissionTest(principal) {
+    if (!principal || !['user', 'role'].includes(state.selectedType)) {
+      return null;
+    }
+    const wrapper = el('div', 'iam-policy-list-wrap');
+    wrapper.append(el('h3', null, 'Test permission'));
+    const actionInput = document.createElement('input');
+    actionInput.placeholder = 's3:ListAllMyBuckets';
+    const resourceInput = document.createElement('input');
+    resourceInput.placeholder = '*';
+    const result = el('pre', 'iam-policy-json', 'No test run yet.');
+    wrapper.append(el('label', null, 'Action names'), actionInput, el('label', null, 'Resource ARNs'), resourceInput);
+    wrapper.append(btn('Test permission', 'iam-btn-secondary', async () => {
+      try {
+        const data = await apiJson('/api/iam/policy-simulation/', {
+          method: 'POST',
+          body: JSON.stringify({
+            principal_arn: principal.arn,
+            action_names: actionInput.value.trim(),
+            resource_arns: resourceInput.value.trim() || '*',
+          }),
+        });
+        result.textContent = pretty(data);
+        toast(data.supported === false ? 'Policy simulation unavailable' : 'Permission tested', data.supported === false);
+      } catch (error) {
+        result.textContent = error.message;
+        toast(error.message, true);
+      }
+    }));
+    wrapper.append(result);
+    return wrapper;
+  }
+
   function renderPrincipalTypeTabs() {
     const tabs = el('div', 'iam-principal-tabs');
     principalTypes.forEach(([type, label]) => {
@@ -717,7 +956,6 @@ const IAMConsole = (() => {
       }
       wrapper.append(row);
     });
-    wrapper.append(btn('Create version', 'iam-btn-secondary', () => showCreatePolicyVersionModal(policy)));
     return wrapper;
   }
 
@@ -759,6 +997,44 @@ const IAMConsole = (() => {
     return credentials;
   }
 
+  function renderPrincipalActions(principal) {
+    const actions = el('div', 'iam-principal-actions');
+    if (!principal) {
+      return actions;
+    }
+    if (state.selectedType === 'user') {
+      actions.append(
+        btn('Use this user', null, () => showUseUserIdentityModal(principal)),
+        btn('Create access key', 'iam-btn-secondary', () => showCreateAccessKeyModal(principal)),
+        btn('Attach managed policy', 'iam-btn-secondary', () => showAttachManagedPolicyModal(principal)),
+        btn('Add inline policy', 'iam-btn-secondary', () => showInlinePolicyModal(principal)),
+        btn('Clean up user', 'iam-btn-danger', () => confirmCleanupPrincipal(principal)),
+      );
+    } else if (state.selectedType === 'role') {
+      actions.append(
+        btn('Assume in dashboard', null, () => useRoleIdentity(principal).catch((error) => toast(error.message, true))),
+        btn('Get temporary credentials', 'iam-btn-secondary', () => showAssumeRoleModal(principal)),
+        btn('Attach managed policy', 'iam-btn-secondary', () => showAttachManagedPolicyModal(principal)),
+        btn('Add inline policy', 'iam-btn-secondary', () => showInlinePolicyModal(principal)),
+        btn('Edit trust policy', 'iam-btn-secondary', () => showTrustPolicyModal(principal)),
+        btn('Clean up role', 'iam-btn-danger', () => confirmCleanupPrincipal(principal)),
+      );
+    } else if (state.selectedType === 'group') {
+      actions.append(
+        btn('Attach managed policy', 'iam-btn-secondary', () => showAttachManagedPolicyModal(principal)),
+        btn('Add inline policy', 'iam-btn-secondary', () => showInlinePolicyModal(principal)),
+        btn('Add user', 'iam-btn-secondary', () => showAddUserToGroupModal({ groupName: principal.name })),
+        btn('Clean up group', 'iam-btn-danger', () => confirmCleanupPrincipal(principal)),
+      );
+    } else if (state.selectedType === 'policy') {
+      actions.append(
+        btn('Open default version', 'iam-btn-secondary', () => loadManagedPolicy(principal).catch((error) => toast(error.message, true))),
+        btn('Create version', 'iam-btn-secondary', () => showCreatePolicyVersionModal(principal)),
+      );
+    }
+    return actions;
+  }
+
   function renderPrincipalDetail(principal) {
     const panel = el('section', 'iam-panel-console');
     const heading = el('div', 'iam-panel-heading-console');
@@ -770,6 +1046,8 @@ const IAMConsole = (() => {
       panel.append(content);
       return panel;
     }
+
+    content.append(renderPrincipalActions(principal));
 
     const details = document.createElement('dl');
     consoleUi.addField(details, 'ARN', principal.arn);
@@ -787,7 +1065,6 @@ const IAMConsole = (() => {
     content.append(details);
 
     if (state.selectedType === 'policy') {
-      content.append(btn('Open default version', 'iam-btn-secondary', () => loadManagedPolicy(principal).catch((error) => toast(error.message, true))));
       content.append(renderPolicyVersions(principal));
     } else {
       content.append(renderPolicyList(principal));
@@ -795,16 +1072,17 @@ const IAMConsole = (() => {
     if (state.selectedType === 'user') {
       content.append(renderUserGroups(principal));
       content.append(renderAccessKeys(principal));
+      content.append(renderPermissionTest(principal));
     }
     if (state.selectedType === 'group') {
       content.append(renderGroupUsers(principal));
     }
     if (state.selectedType === 'role') {
-      content.append(btn('Edit trust policy', 'iam-btn-secondary', () => showTrustPolicyModal(principal)));
       const assumed = renderAssumeRoleResult();
       if (assumed) {
         content.append(assumed);
       }
+      content.append(renderPermissionTest(principal));
     }
     panel.append(content);
     return panel;
@@ -813,20 +1091,13 @@ const IAMConsole = (() => {
   function renderWorkbench() {
     const principal = selectedPrincipal();
     const container = el('div');
-    const leftButtons = [];
     const rightButtons = [];
-    if (state.selectedType === 'user' && principal) {
-      leftButtons.push(btn('Create access key', null, () => showCreateAccessKeyModal(principal)));
-    }
-    if (state.selectedType === 'role' && principal) {
-      leftButtons.push(btn('Assume role', null, () => showAssumeRoleModal(principal)));
-    }
-    if (state.selectedType !== 'policy' && principal) {
-      leftButtons.push(btn('Attach managed policy', 'iam-btn-secondary', () => showAttachManagedPolicyModal(principal)));
-      leftButtons.push(btn('Add inline policy', 'iam-btn-secondary', () => showInlinePolicyModal(principal)));
-    }
+    rightButtons.push(btn('Create user', 'iam-btn-secondary', showCreateUserModal));
+    rightButtons.push(btn('Create group', 'iam-btn-secondary', showCreateGroupModal));
+    rightButtons.push(btn('Create role', 'iam-btn-secondary', showCreateRoleModal));
+    rightButtons.push(btn('Create instance profile', 'iam-btn-secondary', showCreateInstanceProfileModal));
     rightButtons.push(btn('Create managed policy', 'iam-btn-secondary', showCreateManagedPolicyModal));
-    container.append(toolbar(leftButtons, rightButtons));
+    container.append(toolbar([], rightButtons));
 
     const workbench = el('div', 'iam-workbench');
     const detail = el('div', 'iam-detail-stack');
@@ -848,6 +1119,36 @@ const IAMConsole = (() => {
     }
   }
 
+  async function returnToDefaultIdentity() {
+    await apiJson('/api/session-identity/use-admin/', { method: 'POST' });
+    toast('Dashboard identity returned to admin/default');
+    window.location.reload();
+  }
+
+  function renderIdentityRecovery(error) {
+    if (!root) {
+      return;
+    }
+    renderBreadcrumbs();
+    root.textContent = '';
+    const panel = el('section', 'iam-panel-console');
+    const heading = el('div', 'iam-panel-heading-console');
+    heading.append(
+      el('span', null, 'IAM access denied'),
+      el('span', 'iam-principal-meta', 'Active dashboard identity'),
+    );
+    const content = el('div', 'iam-principal-detail');
+    content.append(
+      el('p', 'iam-empty iam-empty-compact', error.message || 'The active identity cannot load IAM inventory.'),
+      btn('Return to admin/default identity', null, () => returnToDefaultIdentity().catch((resetError) => toast(resetError.message, true))),
+    );
+    panel.append(heading, content);
+    root.append(panel);
+    if (loadedAtEl) {
+      loadedAtEl.textContent = 'IAM inventory blocked by active identity';
+    }
+  }
+
   async function refresh() {
     const data = await apiJson('/api/iam/');
     state.inventory = data;
@@ -863,7 +1164,10 @@ const IAMConsole = (() => {
       return;
     }
     root.append(el('div', 'iam-empty', 'Loading...'));
-    refresh().catch((error) => toast(error.message, true));
+    refresh().catch((error) => {
+      toast(error.message, true);
+      renderIdentityRecovery(error);
+    });
   }
 
   return { init, refresh };

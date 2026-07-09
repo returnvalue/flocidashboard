@@ -98,6 +98,19 @@
   background: var(--danger-bg);
 }
 
+.s3-selection-count {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
 .s3-toolbar button:disabled {
   opacity: 0.45;
   cursor: not-allowed;

@@ -30,6 +30,7 @@ Core architecture files:
 - `dashboard/services.py`: canonical service registry, maturity labels, optional assets, and action metadata.
 - `dashboard/actions.py`: shared action metadata, JSON parsing, and normalized action errors.
 - `dashboard/templates/dashboard/service.html`: common service page shell.
+- `dashboard/console_views.py`, `dashboard/templates/dashboard/console.html`, and `dashboard/static/dashboard/console.js`: AWS-only CLI Console for local Floci commands, with endpoint injection, JSON parsing, browser-local history, and destructive-command confirmation.
 - `dashboard/templates/dashboard/activity.html` and `dashboard/static/dashboard/activity.js`: browser-local recent activity and replay/prefill surface for developer-initiated workbench actions.
 - `dashboard/static/dashboard/service-console.js`: shared frontend helpers for API calls, summary cards, read-only cards, toolbars, modals, formatting, recent activity storage, and lower-right toasts.
 - `dashboard/static/dashboard/console-theme.css`: AWS-adjacent compatibility layer that keeps existing per-service consoles aligned with the shared theme while deeper CSS cleanup happens incrementally.
@@ -43,6 +44,7 @@ Core architecture files:
 - Add shared architecture only after the need is visible in at least one real service page.
 - Make errors clear and actionable.
 - Use destructive confirmations for delete, purge, reset, empty, and cleanup actions.
+- Place actions where their scope is clear: resource-scoped buttons belong with the selected resource, row, detail card, or drawer they affect; global actions belong in the page or workbench toolbar; bulk actions belong near collection selection controls.
 - Keep public roadmap items feasible enough for contributors to pick up.
 - Keep tutorial-style notes close to the UI where they help users understand what to test.
 
@@ -68,7 +70,7 @@ Core architecture files:
 - Registered CloudWatch as an interactive workbench.
 - Built the Step Functions Execution Workbench with state machine selection, JSON execution starts, execution details, recent history timelines, and stop-running-execution actions.
 - Registered Step Functions as an interactive workflow workbench.
-- Built the IAM Identity Workbench with principal exploration, policy document viewing, statement summaries, access key management, assume-role testing, managed policy attachment, inline policy editing, and managed policy creation.
+- Built the IAM Identity Workbench with principal exploration, policy document viewing, statement summaries, access key management, assume-role testing, managed policy attachment, inline policy editing, group membership, role trust editing, managed policy versioning, role/group/instance-profile creation, cleanup helpers, policy simulation, and non-destructive session identity switching.
 - Registered IAM as an interactive identity workbench.
 - Built the EventBridge Event Sender with event bus selection, rule and target context, JSON event detail submission, PutEvents result rendering, and EventBridge tutorial notes.
 - Registered EventBridge as an interactive event workbench.
@@ -188,7 +190,7 @@ Core architecture files:
 - Added local AWS workflow labs with shared routes, UI, live-state verification, reset behavior, and breadcrumb navigation.
 - Added a top-level Labs directory that automatically lists services with registered labs and links it from the homepage between Environment and Service Matrix.
 - Added completion-only next-batch recommendations so the final lab in each service batch points learners toward the next practical batch without turning the labs directory into a separate path system.
-- Completed nine IAM labs covering users, managed and inline policies, access keys, groups, roles, STS session policies, and EC2 instance profiles.
+- Completed ten IAM labs covering users, managed and inline policies, access keys, groups, roles, STS session policies, EC2 instance profiles, switched dashboard identities, and local IAM enforcement checks.
 - Completed twelve S3 labs covering bucket/object fundamentals, prefixes, metadata and tags, version recovery, presigned URLs, bucket security, default encryption, lifecycle retention, CORS, S3-to-SQS notifications, and multipart upload.
 - Built the SQS lab foundation with queue creation, URL resolution, full attribute inspection, account queue listing, live-state completion, and queue-owned reset.
 - Added the SQS message lifecycle lab with a known JSON event, message attributes, reload-safe receive verification, live receipt-handle discovery, delete verification, and message-only reset behavior.
@@ -218,9 +220,12 @@ Core architecture files:
 - Migrated the default visual system to an AWS-adjacent console theme with semantic CSS tokens, consistent top navigation across primary pages, tightened console page headers, shared empty-state polish, and the new README screenshot.
 - Reviewed Floci 1.5.31, added a Cloud Control read-only resource-discovery page, added a CloudWatch Logs Insights query path to the CloudWatch workbench, surfaced EC2 snapshots, refreshed release-aware notes for RDS Data API PostgreSQL support, RDS mock mode, Cloud Control/read-only APIs, Lambda persistence and cold starts, Elastic Beanstalk persistence, API Gateway API key tags/GetApiKey, EventBridge-to-Firehose delivery, Scheduler ECS targets, CloudFormation S3 CORS, Step Functions ItemReader and qualified Lambda ARNs, Secrets Manager BatchGetSecretValue, EC2 catalogs, and Firehose delivery targets.
 - Added the Activity page at `/activity/` with browser-local recent activity for API Gateway requests, EventBridge events, Lambda invokes, and SQS sends/receives; added workbench links, safe replay/prefill hooks, and shared `ServiceConsole` activity helpers.
+- Added the AWS CLI Console at `/console/` for running AWS-only commands against the active Floci endpoint, including local endpoint injection, stdout/stderr capture, parsed JSON rendering, a draggable curated command palette, browser-local command history, and destructive-command confirmation.
 - Scoped lab-progress caching to the active Floci endpoint/profile context so browser sessions pointed at different local endpoints do not share cached lab progress.
 - Fixed API Gateway HTTP API request testing so AWS-shaped `execute-api` endpoints fall back to Floci's local execute-plane URL.
 - Added console navigation polish with a persistent service rail, global `Cmd/Ctrl+K` service search, local favorites, recently visited services, and a shared collection filtering/count helper used by the homepage service grid.
+- Expanded the IAM workbench with user/group/role/instance-profile creation, dependency-aware cleanup, policy simulation, trust-policy templates, a tutorial-style About Floci IAM guide, and safer user identity switching that creates a session key without deleting existing keys.
+- Added the IAM enforcement capstone lab that creates a user, verifies denied S3 access, creates an assumable SQS-read role, assumes it, confirms the allowed SQS path, and confirms S3 remains denied.
 
 ## Near-Term Priorities
 
@@ -237,7 +242,8 @@ Recently completed from the previous build order:
 - Environment Details page.
 - Completed action audit baseline cleanup across all historical route/test gaps.
 - Cloud Map shared action loader migration.
-- IAM policy version, group membership, and trust policy follow-ups.
+- IAM policy version, group membership, trust policy, create, cleanup, simulation, identity switching, and role/profile follow-ups.
+- IAM enforcement capstone lab.
 - Activity page and replay/prefill support for API Gateway, EventBridge, Lambda, and SQS.
 - Endpoint-scoped lab-progress caching.
 - API Gateway HTTP API local execute-plane fallback.
@@ -274,7 +280,25 @@ Why it matters:
 - Action buttons become registry-driven instead of duplicated per workbench.
 - Future service migrations get smaller and less error-prone.
 
-### 3. Cloud Control And Unified Resource Discovery
+### 3. Review Workbench Action Placement
+
+Revisit existing service workbenches against the resource-scoped action placement rule.
+
+Feasible first version:
+
+- Audit each interactive workbench for buttons that act on a selected resource but still live in a global toolbar.
+- Move resource-scoped actions into the selected resource detail panel, row, drawer, or card where practical.
+- Keep global actions such as refresh, create, import, filters, and broad page utilities in the page or workbench toolbar.
+- Keep bulk actions near collection selection controls.
+- Start with high-traffic or high-risk workbenches such as S3, SQS, Lambda, Secrets Manager, CloudFormation, EC2, and IAM.
+
+Why it matters:
+
+- Users can see exactly which resource a button will affect before they click.
+- Destructive and identity-changing actions become less ambiguous.
+- The dashboard gains a consistent interaction model across services instead of service-by-service button drift.
+
+### 4. Cloud Control And Unified Resource Discovery
 
 Floci 1.5.31 adds Cloud Control `list_resources` plus broader read-only describe/list APIs. The dashboard now has a first read-only Cloud Control page; the next pass should make it easier to compare unified discovery with the service-specific pages.
 
@@ -290,7 +314,7 @@ Why it matters:
 - Cloud Control is a useful bridge for Steampipe, IaC, and generic AWS resource explorers.
 - The new dashboard view can become the comparison point between unified discovery and service-specific workbenches.
 
-### 4. Step Functions Follow-Ups
+### 5. Step Functions Follow-Ups
 
 Keep improving the Step Functions execution and version workbench.
 
@@ -306,23 +330,23 @@ Why it matters:
 
 - Step Functions is a natural workflow debugger for local Lambda and service-integration testing.
 
-### 5. IAM Polish
+### 6. IAM Polish
 
-Keep improving the new IAM workbench.
+Keep improving the IAM workbench where it makes local permission failures easier to understand.
 
 Feasible follow-ups:
 
-- Add optional principal search/filtering inside the IAM workbench.
+- Add optional principal search/filtering inside the IAM workbench once inventories grow large enough to make browsing slow.
 - Add better affordances for copying access key and assumed-role credential exports after refresh.
 - Add templates or validation hints for AssumeRole session policies and managed session policy ARNs.
-- Add richer managed policy version document diffs if Floci exposes enough version metadata.
+- Add richer policy simulation results or managed policy version document diffs if Floci exposes enough evaluation/version metadata.
 
 Why it matters:
 
 - IAM is central to local AWS debugging.
-- The current workbench is already useful, and a few focused additions would make it a stronger identity debugger.
+- The workbench should stay focused on identity debugging, not on cloning every IAM console screen.
 
-### 6. S3 Follow-Ups
+### 7. S3 Follow-Ups
 
 Keep improving the existing S3 workbench.
 
@@ -340,7 +364,7 @@ Why it matters:
 - S3 is the reference workbench and likely a high-traffic page.
 - The completed S3 lab sequence now provides a repeatable regression and learning surface for these workflows.
 
-### 7. Workflow Lab Framework
+### 8. Workflow Lab Framework
 
 Continue the local AWS workflow lab system beyond the completed IAM, S3, SQS, SNS, Scheduler, CloudFormation, EC2, Lambda, API Gateway, DynamoDB, KMS, SSM, and Secrets Manager foundations.
 
@@ -359,7 +383,7 @@ Why it matters:
 - The curated runner model keeps command execution safe and repeatable.
 - Multi-service labs can turn the dashboard into a practical local integration-learning environment.
 
-### 8. EC2 Follow-Ups
+### 9. EC2 Follow-Ups
 
 Keep improving the new EC2 instance workbench.
 
@@ -376,7 +400,7 @@ Why it matters:
 - EC2 is now a real local compute workflow in Floci.
 - Launch, lifecycle, key import, IMDS, and networking hints make the dashboard a better local debugger than raw inventory alone.
 
-### 9. EventBridge Follow-Ups
+### 10. EventBridge Follow-Ups
 
 Keep improving the new EventBridge event sender.
 
@@ -393,7 +417,7 @@ Why it matters:
 - EventBridge sits between many existing interactive workbenches.
 - Better cross-service links would turn it into a practical event-routing debugger.
 
-### 10. API Gateway Follow-Ups
+### 11. API Gateway Follow-Ups
 
 Keep improving the new API Gateway request workbench.
 
@@ -409,7 +433,7 @@ Why it matters:
 - API Gateway is now the local HTTP front door for Lambda and HTTP proxy workflows.
 - Replay and cross-service links would make it a stronger request debugger.
 
-### 11. Kinesis Follow-Ups
+### 12. Kinesis Follow-Ups
 
 Keep improving the new Kinesis stream workbench.
 
@@ -425,7 +449,7 @@ Why it matters:
 
 - Kinesis now completes the event/data-stream testing loop alongside SQS, SNS, EventBridge, Lambda, and CloudWatch.
 
-### 12. Secrets Manager And SSM Follow-Ups
+### 13. Secrets Manager And SSM Follow-Ups
 
 Keep improving local configuration and secret debugging.
 
@@ -462,16 +486,17 @@ This order is intentionally modest and can change:
 
 1. Keep action audit baseline at zero.
 2. Finish shared action loader migration.
-3. Iterate on the Cloud Control and unified resource discovery surface.
-4. Step Functions follow-ups.
-5. IAM polish.
-6. S3 follow-ups.
-7. Split and extend the workflow lab framework beyond the completed foundational sequences.
-8. EC2 follow-ups.
-9. EventBridge follow-ups.
-10. API Gateway follow-ups.
-11. Kinesis follow-ups.
-12. Secrets Manager and SSM follow-ups.
+3. Review workbench action placement against the resource-scoped action rule.
+4. Iterate on the Cloud Control and unified resource discovery surface.
+5. Step Functions follow-ups.
+6. IAM polish.
+7. S3 follow-ups.
+8. Split and extend the workflow lab framework beyond the completed foundational sequences.
+9. EC2 follow-ups.
+10. EventBridge follow-ups.
+11. API Gateway follow-ups.
+12. Kinesis follow-ups.
+13. Secrets Manager and SSM follow-ups.
 
 ## Contributor Checklist
 
@@ -483,6 +508,7 @@ When adding or improving a service page:
 - [ ] Use `dashboard/actions.py` for JSON parsing and normalized errors.
 - [ ] Use shared lower-right toasts through `ServiceConsole.toast()`.
 - [ ] Keep service-specific JS focused on service behavior.
+- [ ] Place resource-scoped buttons with the resource/detail they act on; keep only global page/workbench actions in the toolbar.
 - [ ] Add destructive confirmations for risky actions.
 - [ ] Add tests for registry metadata, service page rendering, and action endpoints.
 - [ ] Run `python3 manage.py test dashboard`.

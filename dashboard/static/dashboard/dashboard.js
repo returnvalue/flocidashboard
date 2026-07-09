@@ -6946,6 +6946,7 @@ function renderGlobalNavigation(serviceMetadata = []) {
   [
     ['Environment', '/environment/'],
     ['Labs', '/labs/'],
+    ['Console', '/console/'],
     ['Inspector', '/inspector/'],
     ['Matrix', '/services/'],
     ['Settings', '/settings/'],
@@ -7580,6 +7581,11 @@ function isMissingCredentialsError(message = '') {
 }
 
 function credentialLabel(data = {}) {
+  if (data.credential_source === 'session_identity') {
+    return data.identity_label
+      ? `${data.identity_label} (${data.identity_type || 'session identity'})`
+      : 'Session identity';
+  }
   if (data.credential_source === 'environment') {
     return 'Environment credentials';
   }

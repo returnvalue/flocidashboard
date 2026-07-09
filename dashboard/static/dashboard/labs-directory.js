@@ -18,6 +18,72 @@
 
   const pluralize = (count, noun) => `${count} ${noun}${count === 1 ? '' : 's'}`;
 
+  function makeEl(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) {
+      node.className = className;
+    }
+    if (text != null) {
+      node.textContent = text;
+    }
+    return node;
+  }
+
+  function openResetConfirm() {
+    return new Promise((resolve) => {
+      const previousFocus = document.activeElement;
+      const overlay = makeEl('div', 'labs-modal-overlay');
+      const modal = makeEl('div', 'labs-modal');
+      const title = makeEl('h3', null, 'Reset completed labs?');
+      const description = makeEl(
+        'p',
+        'labs-modal-copy',
+        `This will reset ${pluralize(completedLabCount, 'completed lab')} and remove the lab-owned resources for those workflows.`,
+      );
+      const actions = makeEl('div', 'labs-modal-actions');
+      const cancel = makeEl('button', 'secondary-button', 'Keep labs');
+      const confirm = makeEl('button', 'secondary-button destructive-action', 'Reset completed labs');
+      const titleId = 'labs-reset-confirm-title';
+
+      overlay.setAttribute('role', 'presentation');
+      modal.setAttribute('role', 'dialog');
+      modal.setAttribute('aria-modal', 'true');
+      modal.setAttribute('aria-labelledby', titleId);
+      title.id = titleId;
+      cancel.type = 'button';
+      confirm.type = 'button';
+
+      const close = (confirmed) => {
+        document.removeEventListener('keydown', onKeydown);
+        overlay.remove();
+        if (previousFocus && typeof previousFocus.focus === 'function') {
+          previousFocus.focus();
+        }
+        resolve(confirmed);
+      };
+      function onKeydown(event) {
+        if (event.key === 'Escape') {
+          close(false);
+        }
+      }
+
+      cancel.addEventListener('click', () => close(false));
+      confirm.addEventListener('click', () => close(true));
+      overlay.addEventListener('click', (event) => {
+        if (event.target === overlay) {
+          close(false);
+        }
+      });
+      document.addEventListener('keydown', onKeydown);
+
+      actions.append(cancel, confirm);
+      modal.append(title, description, actions);
+      overlay.append(modal);
+      document.body.append(overlay);
+      confirm.focus();
+    });
+  }
+
   const applyProgress = (data) => {
     completedLabCount = data.completed_lab_count || 0;
     if (stepCount) {
@@ -42,6 +108,7 @@
     } else {
       status.textContent = `${data.completed_lab_count} of ${data.total_lab_count} labs complete.`;
     }
+    resetButton.hidden = completedLabCount === 0;
     resetButton.disabled = completedLabCount === 0;
   };
 
@@ -61,6 +128,7 @@
       if (labCount) {
         labCount.textContent = 'Unavailable';
       }
+      resetButton.hidden = true;
       resetButton.disabled = true;
     }
   };
@@ -69,7 +137,8 @@
     if (completedLabCount === 0) {
       return;
     }
-    if (!window.confirm('Reset every lab currently marked complete?')) {
+    const confirmed = await openResetConfirm();
+    if (!confirmed) {
       return;
     }
 

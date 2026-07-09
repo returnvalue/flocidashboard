@@ -4,7 +4,7 @@
 
 The current curriculum is complete through the first messaging, infrastructure, networking, serverless compute, data, encryption, and application configuration sequences:
 
-- nine IAM labs,
+- ten IAM labs,
 - twelve S3 labs,
 - nine SQS labs,
 - two SNS labs,
@@ -639,9 +639,9 @@ Build IAM labs in this order:
 7. Create role with trust policy
 8. Assume a role with an STS session policy
 9. Create instance profile and add role
-10. Simulate policy decision
+10. Switch identities and verify IAM enforcement
 
-The first lab proves the core one-step pattern. The second lab proves the multi-step pattern and the core IAM permissions story. The third lab proves credential creation, metadata listing, and live-state cleanup for generated IDs. The fourth lab proves group membership and relationship verification. The fifth lab proves group-based permission assignment. The sixth proves inline user policies. The seventh separates role trust from role permissions. The eighth proves STS session policies on assumed-role credentials. The ninth proves EC2 instance-profile wiring.
+The first lab proves the core one-step pattern. The second lab proves the multi-step pattern and the core IAM permissions story. The third lab proves credential creation, metadata listing, and live-state cleanup for generated IDs. The fourth lab proves group membership and relationship verification. The fifth lab proves group-based permission assignment. The sixth proves inline user policies. The seventh separates role trust from role permissions. The eighth proves STS session policies on assumed-role credentials. The ninth proves EC2 instance-profile wiring. The tenth proves that switched dashboard credentials experience real allow and deny outcomes.
 
 Implemented second lab:
 
@@ -819,6 +819,28 @@ This lab teaches that an instance profile is the IAM container EC2 uses to expos
 
 Reset removes the role from the profile, deletes the profile, then deletes `FlociEc2Role`.
 
+Implemented tenth lab:
+
+```text
+Switch identities and verify IAM enforcement
+```
+
+Steps:
+
+```bash
+aws iam create-user --user-name Charlie
+aws s3 ls
+aws iam create-role --role-name CharlieSqsReadRole --assume-role-policy-document file://charlie-sqs-read-role-trust-policy.json
+aws iam put-role-policy --role-name CharlieSqsReadRole --policy-name CharlieSqsRead --policy-document file://charlie-sqs-read-policy.json
+aws sts assume-role --role-arn arn:aws:iam::000000000000:role/CharlieSqsReadRole --role-session-name floci-enforcement-lab
+aws sqs list-queues
+aws s3 ls
+```
+
+This lab teaches the practical debugging loop IAM is meant to support: create a low-privilege user, verify an unrelated service call is denied, create a role with a narrow SQS permission, assume that role as the user, verify SQS succeeds, and verify S3 still fails. It ties together identity switching, trust policy evaluation, role permissions, and the difference between an expected denial and a broken workflow.
+
+Reset deletes `CharlieSqsReadRole`, its inline policy, Charlie's access keys, Charlie's baseline identity policy, the Charlie user, and the recorded enforcement markers.
+
 ## IAM Coverage
 
 The IAM lab collection now covers most practical core workflows supported by Floci:
@@ -834,10 +856,12 @@ The IAM lab collection now covers most practical core workflows supported by Flo
 - inline role permissions,
 - STS AssumeRole with session policies,
 - EC2 instance profiles,
+- switched user and assumed-role credentials,
+- positive and negative IAM enforcement checks,
 - live resource verification,
 - dependency-aware cleanup.
 
-The primary remaining certification-relevant scenario is policy simulation:
+The workbench exposes a policy simulation panel for users and roles. Keep policy simulation as a workbench diagnostic unless local Floci supports enough evaluation detail to make a lab truly useful:
 
 ```bash
 aws iam simulate-principal-policy --policy-source-arn arn:aws:iam::000000000000:role/FlociApplicationRole --action-names s3:ListAllMyBuckets
@@ -849,7 +873,7 @@ As of July 5, 2026, local Floci still returns:
 UnsupportedOperation: Operation SimulatePrincipalPolicy is not supported.
 ```
 
-`SimulateCustomPolicy` is also unsupported. Do not add a policy-simulation lab until one of these APIs works end to end. When support lands, add one lab that demonstrates both an allowed action and an implicitly denied action.
+`SimulateCustomPolicy` is also unsupported. Do not add a policy-simulation lab until one of these APIs works end to end and can teach more than the existing enforcement capstone. When support lands, add one lab that demonstrates both an allowed action and an implicitly denied action with clear evaluation output.
 
 With that exception, the IAM lab set has covered most everyday IAM use cases that Floci currently supports. Future IAM labs should be driven by newly supported APIs or a clearly valuable certification scenario, not by adding more variations of the same resource operations.
 

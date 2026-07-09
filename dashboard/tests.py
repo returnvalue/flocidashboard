@@ -12,7 +12,17 @@ from django.test import SimpleTestCase, TestCase
 from django.urls import Resolver404, resolve, reverse
 
 from .actions import error_payload, error_status, handle_action_error, json_error
-from .aws import FlociClientFactory, ResourceResult, cloudformation_inventory, ec2_inventory, list_resources as aws_list_resources, rds_inventory
+from .aws import (
+    FlociClientFactory,
+    RUNTIME_IDENTITY_SESSION_KEY,
+    ResourceResult,
+    cloudformation_inventory,
+    ec2_inventory,
+    list_resources as aws_list_resources,
+    rds_inventory,
+    reset_runtime_identity_override,
+    set_runtime_identity_override,
+)
 from .services import SERVICE_PAGES, SERVICE_REGISTRY, SERVICES
 
 
@@ -62,6 +72,21 @@ class StaticJavaScriptTests(SimpleTestCase):
         self.assertIn("activity.href = '/activity/'", source)
         self.assertIn("activity.textContent = 'Activity'", source)
         self.assertIn("navActions.className = 'global-nav-actions'", source)
+        self.assertIn("['Console', '/console/']", source)
+
+    def test_aws_cli_console_exposes_draggable_command_palette(self):
+        script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'console.js'
+        source = script.read_text()
+
+        self.assertIn('const COMMANDS = [', source)
+        self.assertIn("category: 'Identity'", source)
+        self.assertIn("command: 'aws sts get-caller-identity'", source)
+        self.assertIn("command: 'aws cloudformation list-stacks'", source)
+        self.assertIn('function renderCommandStrip()', source)
+        self.assertIn('function enableCommandSelection()', source)
+        self.assertIn("commandStrip.addEventListener('click'", source)
+        self.assertNotIn('stripDragged', source)
+        self.assertIn("commandStrip.addEventListener('pointerdown'", source)
 
     def test_s3_console_bootstraps_global_navigation(self):
         script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'dashboard.js'
@@ -71,6 +96,28 @@ class StaticJavaScriptTests(SimpleTestCase):
         self.assertIn('if (s3ConsoleRoot) {', source)
         self.assertIn('loadServiceMetadata(),', source)
         self.assertIn('renderGlobalNavigationForCurrentPage(serviceMetadata)', source)
+
+    def test_iam_console_exposes_session_identity_actions(self):
+        script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'iam-console.js'
+        source = script.read_text()
+
+        self.assertIn("apiJson('/api/session-identity/use-user/'", source)
+        self.assertIn("apiJson('/api/session-identity/assume-role/'", source)
+        self.assertIn('function renderPrincipalActions(principal)', source)
+        self.assertIn("btn('Use this user'", source)
+        self.assertIn("btn('Assume in dashboard'", source)
+        self.assertIn("btn('Get temporary credentials'", source)
+        self.assertIn('function renderIdentityRecovery(error)', source)
+        self.assertIn("apiJson('/api/session-identity/use-admin/'", source)
+        self.assertIn("btn('Return to admin/default identity'", source)
+        self.assertIn('window.location.reload()', source)
+
+    def test_dashboard_credential_label_names_session_identity(self):
+        script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'dashboard.js'
+        source = script.read_text()
+
+        self.assertIn("data.credential_source === 'session_identity'", source)
+        self.assertIn("`${data.identity_label} (${data.identity_type || 'session identity'})`", source)
 
     def test_static_pages_load_health_before_global_navigation(self):
         script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'dashboard.js'
@@ -340,6 +387,21 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertContains(response, 'id="activity-clear"')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/activity.js')
+        self.assertSharedShell(response)
+
+    def test_console_page_renders_aws_cli_console_shell(self):
+        response = self.client.get(reverse('dashboard:console'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '<title>AWS CLI Console - Floci Dashboard</title>', html=True)
+        self.assertContains(response, '<h1 class="console-title">AWS CLI Console</h1>', html=True)
+        self.assertContains(response, 'id="aws-console-command"')
+        self.assertContains(response, 'id="aws-console-run"')
+        self.assertContains(response, 'id="aws-console-categories"')
+        self.assertContains(response, 'id="aws-console-command-strip"')
+        self.assertContains(response, 'id="aws-console-output"')
+        self.assertContains(response, 'id="aws-console-history"')
+        self.assertContains(response, 'dashboard/console.js')
         self.assertSharedShell(response)
 
     def test_service_matrix_renders_registry_coverage(self):
@@ -742,6 +804,346 @@ class DashboardSettingsApiTests(TestCase):
         self.assertEqual(payload['identity']['account'], '000000000000')
 
 
+class RuntimeIdentityFactoryTests(TestCase):
+    def test_runtime_identity_takes_precedence_over_environment_credentials(self):
+        token = set_runtime_identity_override({
+            'type': 'user',
+            'label': 'charlie',
+            'access_key_id': 'AKIASESSION',
+            'secret_access_key': 'session-secret',
+            'session_token': 'session-token',
+            'expires_at': '2026-07-09T00:00:00+00:00',
+        })
+        try:
+            with patch.dict(os.environ, {
+                'AWS_ACCESS_KEY_ID': 'env-key',
+                'AWS_SECRET_ACCESS_KEY': 'env-secret',
+                'AWS_ENDPOINT_URL': 'http://localhost:4566',
+            }, clear=False):
+                factory = FlociClientFactory()
+        finally:
+            reset_runtime_identity_override(token)
+
+        self.assertEqual(factory.credential_source, 'session_identity')
+        self.assertEqual(factory.access_key_id, 'AKIASESSION')
+        self.assertEqual(factory.secret_access_key, 'session-secret')
+        self.assertEqual(factory.session_token, 'session-token')
+        self.assertEqual(factory.identity_type, 'user')
+        self.assertEqual(factory.identity_label, 'charlie')
+        self.assertEqual(factory.credential_context()['identity_expires_at'], '2026-07-09T00:00:00+00:00')
+
+
+class DashboardIdentityApiTests(TestCase):
+    def identity_factory(self):
+        factory = MagicMock(spec=FlociClientFactory)
+        factory.endpoint_url = 'http://localhost:4566'
+        factory.region = 'us-east-1'
+        factory.credential_context.return_value = {
+            'credential_source': 'session_identity',
+            'endpoint_source': 'settings',
+            'has_env_credentials': True,
+            'identity_expires_at': None,
+            'identity_label': 'charlie',
+            'identity_type': 'user',
+            'profile': None,
+            'profile_source': None,
+            'region_source': 'settings',
+        }
+        factory.identity.return_value = {
+            'account': '000000000000',
+            'arn': 'arn:aws:iam::000000000000:user/charlie',
+            'user_id': 'charlie',
+        }
+        factory.local_identity_hint.return_value = None
+        return factory
+
+    @patch('dashboard.identity_views.FlociClientFactory')
+    def test_identity_use_user_stores_session_credentials(self, factory_mock):
+        factory = self.identity_factory()
+        iam = MagicMock()
+        iam.list_access_keys.return_value = {'AccessKeyMetadata': [{'AccessKeyId': 'OLDKEY'}]}
+        iam.create_access_key.return_value = {
+            'AccessKey': {
+                'AccessKeyId': 'AKIACHARLIE',
+                'SecretAccessKey': 'charlie-secret',
+            },
+        }
+        factory.client.return_value = iam
+        factory_mock.return_value = factory
+
+        response = self.client.post(
+            reverse('dashboard:session-identity-use-user'),
+            data=json.dumps({'user_name': 'charlie'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        identity = self.client.session[RUNTIME_IDENTITY_SESSION_KEY]
+        self.assertEqual(identity['type'], 'user')
+        self.assertEqual(identity['label'], 'charlie')
+        self.assertEqual(identity['access_key_id'], 'AKIACHARLIE')
+        self.assertEqual(identity['secret_access_key'], 'charlie-secret')
+        iam.put_user_policy.assert_called_once()
+        iam.delete_access_key.assert_not_called()
+        iam.create_access_key.assert_called_once_with(UserName='charlie')
+
+    @patch('dashboard.identity_views.FlociClientFactory')
+    def test_identity_use_user_can_replace_explicit_access_key(self, factory_mock):
+        factory = self.identity_factory()
+        iam = MagicMock()
+        iam.create_access_key.return_value = {
+            'AccessKey': {
+                'AccessKeyId': 'AKIACHARLIE',
+                'SecretAccessKey': 'charlie-secret',
+            },
+        }
+        factory.client.return_value = iam
+        factory_mock.return_value = factory
+
+        response = self.client.post(
+            reverse('dashboard:session-identity-use-user'),
+            data=json.dumps({'user_name': 'charlie', 'replace_access_key_id': 'OLDKEY'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        iam.delete_access_key.assert_called_once_with(UserName='charlie', AccessKeyId='OLDKEY')
+        iam.create_access_key.assert_called_once_with(UserName='charlie')
+
+    @patch('dashboard.identity_views.FlociClientFactory')
+    def test_identity_assume_role_stores_session_token(self, factory_mock):
+        session = self.client.session
+        session[RUNTIME_IDENTITY_SESSION_KEY] = {
+            'type': 'user',
+            'label': 'charlie',
+            'access_key_id': 'AKIACHARLIE',
+            'secret_access_key': 'charlie-secret',
+        }
+        session.save()
+        factory = self.identity_factory()
+        sts = MagicMock()
+        sts.assume_role.return_value = {
+            'Credentials': {
+                'AccessKeyId': 'ASIAROLE',
+                'SecretAccessKey': 'role-secret',
+                'SessionToken': 'role-token',
+                'Expiration': '2026-07-09T00:00:00+00:00',
+            },
+            'AssumedRoleUser': {
+                'Arn': 'arn:aws:sts::000000000000:assumed-role/CharlieSqsReadRole/floci-session',
+            },
+        }
+        factory.client.return_value = sts
+        factory_mock.return_value = factory
+
+        response = self.client.post(
+            reverse('dashboard:session-identity-assume-role'),
+            data=json.dumps({'role_name': 'CharlieSqsReadRole', 'session_name': 'floci-session'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        identity = self.client.session[RUNTIME_IDENTITY_SESSION_KEY]
+        self.assertEqual(identity['type'], 'assumed_role')
+        self.assertEqual(identity['label'], 'CharlieSqsReadRole/floci-session')
+        self.assertEqual(identity['access_key_id'], 'ASIAROLE')
+        self.assertEqual(identity['session_token'], 'role-token')
+        sts.assume_role.assert_called_once_with(
+            RoleArn='arn:aws:iam::000000000000:role/CharlieSqsReadRole',
+            RoleSessionName='floci-session',
+        )
+
+    def test_identity_clear_removes_session_identity(self):
+        session = self.client.session
+        session[RUNTIME_IDENTITY_SESSION_KEY] = {
+            'type': 'user',
+            'label': 'charlie',
+            'access_key_id': 'AKIACHARLIE',
+            'secret_access_key': 'charlie-secret',
+        }
+        session.save()
+
+        response = self.client.post(reverse('dashboard:session-identity-clear'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(RUNTIME_IDENTITY_SESSION_KEY, self.client.session)
+
+
+class AwsCliConsoleApiTests(TestCase):
+    def factory(self):
+        factory = MagicMock(spec=FlociClientFactory)
+        factory.endpoint_url = 'http://localhost:4566'
+        factory.region = 'us-east-1'
+        factory.profile = None
+        factory.access_key_id = 'test'
+        factory.secret_access_key = 'test'
+        factory.session_token = None
+        factory.credential_source = 'local_default'
+        factory.identity_expires_at = None
+        factory.identity_label = None
+        factory.identity_type = None
+        return factory
+
+    @patch('dashboard.console_views.subprocess.run')
+    @patch('dashboard.console_views.shutil.which')
+    @patch('dashboard.console_views.FlociClientFactory')
+    def test_console_run_executes_aws_command_with_local_endpoint(
+        self,
+        factory_mock,
+        which_mock,
+        run_mock,
+    ):
+        factory_mock.return_value = self.factory()
+        which_mock.return_value = '/usr/local/bin/aws'
+        run_mock.return_value = subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout='{"UserId":"test"}\n',
+            stderr='',
+        )
+
+        response = self.client.post(
+            reverse('dashboard:console-run'),
+            data=json.dumps({'command': 'aws sts get-caller-identity'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload['ok'])
+        self.assertEqual(payload['json'], {'UserId': 'test'})
+        args = run_mock.call_args.args[0]
+        self.assertEqual(args[:3], ['/usr/local/bin/aws', '--endpoint-url', 'http://localhost:4566'])
+        self.assertIn('sts', args)
+        env = run_mock.call_args.kwargs['env']
+        self.assertEqual(env['AWS_ACCESS_KEY_ID'], 'test')
+        self.assertEqual(env['AWS_SECRET_ACCESS_KEY'], 'test')
+        self.assertEqual(env['AWS_ENDPOINT_URL'], 'http://localhost:4566')
+
+    @patch('dashboard.console_views.subprocess.run')
+    @patch('dashboard.console_views.shutil.which')
+    @patch('dashboard.console_views.FlociClientFactory')
+    def test_console_run_allows_submitted_local_endpoint(
+        self,
+        factory_mock,
+        which_mock,
+        run_mock,
+    ):
+        factory_mock.return_value = self.factory()
+        which_mock.return_value = '/usr/local/bin/aws'
+        run_mock.return_value = subprocess.CompletedProcess(args=[], returncode=0, stdout='', stderr='')
+
+        response = self.client.post(
+            reverse('dashboard:console-run'),
+            data=json.dumps({'command': 'aws --endpoint-url http://127.0.0.1:4566 s3 ls'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        args = run_mock.call_args.args[0]
+        self.assertEqual(args[:4], ['/usr/local/bin/aws', '--endpoint-url', 'http://127.0.0.1:4566', 's3'])
+
+    @patch('dashboard.console_views.subprocess.run')
+    @patch('dashboard.console_views.shutil.which')
+    @patch('dashboard.console_views.FlociClientFactory')
+    def test_console_run_uses_session_token_credentials(
+        self,
+        factory_mock,
+        which_mock,
+        run_mock,
+    ):
+        factory = self.factory()
+        factory.access_key_id = 'ASIAROLE'
+        factory.secret_access_key = 'role-secret'
+        factory.session_token = 'role-token'
+        factory.credential_source = 'session_identity'
+        factory.identity_label = 'CharlieSqsReadRole/floci-session'
+        factory.identity_type = 'assumed_role'
+        factory_mock.return_value = factory
+        which_mock.return_value = '/usr/local/bin/aws'
+        run_mock.return_value = subprocess.CompletedProcess(args=[], returncode=0, stdout='', stderr='')
+
+        response = self.client.post(
+            reverse('dashboard:console-run'),
+            data=json.dumps({'command': 'aws sqs list-queues'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        env = run_mock.call_args.kwargs['env']
+        self.assertEqual(env['AWS_ACCESS_KEY_ID'], 'ASIAROLE')
+        self.assertEqual(env['AWS_SECRET_ACCESS_KEY'], 'role-secret')
+        self.assertEqual(env['AWS_SESSION_TOKEN'], 'role-token')
+        payload = response.json()
+        self.assertEqual(payload['identity_label'], 'CharlieSqsReadRole/floci-session')
+        self.assertEqual(payload['identity_type'], 'assumed_role')
+
+    def test_console_run_rejects_non_aws_commands(self):
+        response = self.client.post(
+            reverse('dashboard:console-run'),
+            data=json.dumps({'command': 'ls -la'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Only commands starting with aws', response.json()['error'])
+
+    def test_console_run_rejects_shell_operators(self):
+        response = self.client.post(
+            reverse('dashboard:console-run'),
+            data=json.dumps({'command': 'aws s3 ls; rm -rf /'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Shell operators', response.json()['error'])
+
+    def test_console_run_rejects_file_inputs(self):
+        response = self.client.post(
+            reverse('dashboard:console-run'),
+            data=json.dumps({'command': 'aws iam create-policy --policy-document file://policy.json'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('file://', response.json()['error'])
+
+    def test_console_run_rejects_profile_switches(self):
+        response = self.client.post(
+            reverse('dashboard:console-run'),
+            data=json.dumps({'command': 'aws --profile floci-admin s3 ls'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('--profile is not supported', response.json()['error'])
+
+    @patch('dashboard.console_views.FlociClientFactory')
+    def test_console_run_requires_confirmation_for_destructive_commands(self, factory_mock):
+        factory_mock.return_value = self.factory()
+
+        response = self.client.post(
+            reverse('dashboard:console-run'),
+            data=json.dumps({'command': 'aws s3 rb s3://demo-bucket'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 409)
+        payload = response.json()
+        self.assertTrue(payload['requires_confirmation'])
+        self.assertTrue(payload['destructive'])
+
+    def test_console_run_rejects_external_endpoint(self):
+        response = self.client.post(
+            reverse('dashboard:console-run'),
+            data=json.dumps({'command': 'aws --endpoint-url https://example.com s3 ls'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Only local AWS endpoint', response.json()['error'])
+
+
 class ServiceRegistryApiTests(SimpleTestCase):
     def test_services_api_exposes_registry_metadata(self):
         response = self.client.get(reverse('dashboard:services'))
@@ -778,6 +1180,11 @@ class ServiceRegistryApiTests(SimpleTestCase):
         self.assertEqual(services['iam']['maturity'], 'interactive_workbench')
         self.assertEqual(services['iam']['console_js'], 'dashboard/iam-console.js')
         iam_actions = {action['name']: action for action in services['iam']['actions']}
+        self.assertEqual(iam_actions['create_user']['kind'], 'create')
+        self.assertEqual(iam_actions['create_user']['path'], '/api/iam/users/')
+        self.assertEqual(iam_actions['create_role']['path'], '/api/iam/roles/')
+        self.assertEqual(iam_actions['delete_user']['safety'], 'destructive')
+        self.assertEqual(iam_actions['simulate_principal_policy']['safety'], 'safe')
         self.assertEqual(iam_actions['create_access_key']['kind'], 'create')
         self.assertEqual(iam_actions['assume_role']['kind'], 'execute')
         self.assertEqual(iam_actions['delete_access_key']['safety'], 'destructive')
@@ -1037,6 +1444,9 @@ class FlociClientFactoryTests(SimpleTestCase):
                 'credential_source': 'environment',
                 'endpoint_source': 'settings',
                 'has_env_credentials': True,
+                'identity_expires_at': None,
+                'identity_label': None,
+                'identity_type': None,
                 'profile': None,
                 'profile_source': None,
                 'region_source': 'settings',
@@ -1050,6 +1460,9 @@ class FlociClientFactoryTests(SimpleTestCase):
                 'credential_source': 'profile',
                 'endpoint_source': 'settings',
                 'has_env_credentials': False,
+                'identity_expires_at': None,
+                'identity_label': None,
+                'identity_type': None,
                 'profile': 'developer',
                 'profile_source': 'AWS_PROFILE',
                 'region_source': 'settings',
@@ -2323,6 +2736,203 @@ class EC2ActionTests(SimpleTestCase):
 
 
 class IAMActionTests(SimpleTestCase):
+    @patch('dashboard.iam_api.FlociClientFactory')
+    def test_create_user_helper_adds_get_caller_identity_baseline_policy(self, factory_mock):
+        from .iam_api import create_user
+
+        iam = MagicMock()
+        iam.create_user.return_value = {
+            'User': {
+                'UserName': 'charlie',
+                'Arn': 'arn:aws:iam::000000000000:user/charlie',
+                'UserId': 'AIDACHARLIE',
+            },
+        }
+        factory_mock.return_value.client.return_value = iam
+
+        result = create_user('charlie')
+
+        self.assertEqual(result['user_name'], 'charlie')
+        self.assertEqual(result['baseline_policy'], 'FlociDashboardGetCallerIdentity')
+        iam.create_user.assert_called_once_with(UserName='charlie')
+        iam.put_user_policy.assert_called_once()
+        kwargs = iam.put_user_policy.call_args.kwargs
+        self.assertEqual(kwargs['UserName'], 'charlie')
+        self.assertEqual(kwargs['PolicyName'], 'FlociDashboardGetCallerIdentity')
+        self.assertIn('sts:GetCallerIdentity', kwargs['PolicyDocument'])
+
+    @patch('dashboard.iam_api.FlociClientFactory')
+    def test_create_user_helper_can_skip_baseline_policy(self, factory_mock):
+        from .iam_api import create_user
+
+        iam = MagicMock()
+        iam.create_user.return_value = {'User': {'UserName': 'charlie'}}
+        factory_mock.return_value.client.return_value = iam
+
+        result = create_user('charlie', add_baseline_policy=False)
+
+        self.assertEqual(result['baseline_policy'], None)
+        iam.create_user.assert_called_once_with(UserName='charlie')
+        iam.put_user_policy.assert_not_called()
+
+    @patch('dashboard.iam_views.create_user')
+    def test_create_user_endpoint_uses_action_helper(self, create_user):
+        create_user.return_value = {
+            'user_name': 'charlie',
+            'arn': 'arn:aws:iam::000000000000:user/charlie',
+            'baseline_policy': 'FlociDashboardGetCallerIdentity',
+        }
+
+        response = self.client.post(
+            reverse('dashboard:iam-users'),
+            data=json.dumps({
+                'user_name': 'charlie',
+                'add_baseline_policy': True,
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['user_name'], 'charlie')
+        create_user.assert_called_once_with('charlie', add_baseline_policy=True)
+
+    @patch('dashboard.iam_views.create_user')
+    def test_create_user_endpoint_can_skip_baseline_policy(self, create_user):
+        create_user.return_value = {
+            'user_name': 'charlie',
+            'baseline_policy': None,
+        }
+
+        response = self.client.post(
+            reverse('dashboard:iam-users'),
+            data=json.dumps({
+                'user_name': 'charlie',
+                'add_baseline_policy': False,
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        create_user.assert_called_once_with('charlie', add_baseline_policy=False)
+
+    @patch('dashboard.iam_views.cleanup_user')
+    def test_delete_user_endpoint_uses_cleanup_helper(self, cleanup_user):
+        cleanup_user.return_value = {'user_name': 'charlie', 'deleted': True}
+
+        response = self.client.delete(
+            reverse('dashboard:iam-user-detail', kwargs={'user_name': 'charlie'}),
+            data=json.dumps({'force': True}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['deleted'])
+        cleanup_user.assert_called_once_with('charlie', force=True)
+
+    @patch('dashboard.iam_views.create_group')
+    def test_create_group_endpoint_uses_action_helper(self, create_group):
+        create_group.return_value = {'group_name': 'developers'}
+
+        response = self.client.post(
+            reverse('dashboard:iam-groups'),
+            data=json.dumps({'group_name': 'developers'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        create_group.assert_called_once_with('developers')
+
+    @patch('dashboard.iam_views.cleanup_group')
+    def test_delete_group_endpoint_uses_cleanup_helper(self, cleanup_group):
+        cleanup_group.return_value = {'group_name': 'developers', 'deleted': True}
+
+        response = self.client.delete(
+            reverse('dashboard:iam-group-detail', kwargs={'group_name': 'developers'}),
+            data=json.dumps({'force': True}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        cleanup_group.assert_called_once_with('developers', force=True)
+
+    @patch('dashboard.iam_views.create_role')
+    def test_create_role_endpoint_uses_action_helper(self, create_role):
+        document = {'Version': '2012-10-17', 'Statement': []}
+        create_role.return_value = {'role_name': 'app'}
+
+        response = self.client.post(
+            reverse('dashboard:iam-roles'),
+            data=json.dumps({
+                'role_name': 'app',
+                'trust_template': 'custom',
+                'trust_policy': document,
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        create_role.assert_called_once_with('app', trust_template='custom', trust_policy=document)
+
+    @patch('dashboard.iam_views.cleanup_role')
+    def test_delete_role_endpoint_uses_cleanup_helper(self, cleanup_role):
+        cleanup_role.return_value = {'role_name': 'app', 'deleted': True}
+
+        response = self.client.delete(
+            reverse('dashboard:iam-role-detail', kwargs={'role_name': 'app'}),
+            data=json.dumps({'force': True}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        cleanup_role.assert_called_once_with('app', force=True)
+
+    @patch('dashboard.iam_views.create_instance_profile')
+    def test_create_instance_profile_endpoint_uses_action_helper(self, create_instance_profile):
+        create_instance_profile.return_value = {'instance_profile_name': 'profile'}
+
+        response = self.client.post(
+            reverse('dashboard:iam-instance-profiles'),
+            data=json.dumps({'instance_profile_name': 'profile'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        create_instance_profile.assert_called_once_with('profile')
+
+    @patch('dashboard.iam_views.add_role_to_instance_profile')
+    def test_add_role_to_instance_profile_endpoint_uses_action_helper(self, add_role_to_instance_profile):
+        add_role_to_instance_profile.return_value = {'instance_profile_name': 'profile', 'role_name': 'app'}
+
+        response = self.client.post(
+            reverse('dashboard:iam-instance-profile-roles', kwargs={'instance_profile_name': 'profile'}),
+            data=json.dumps({'role_name': 'app'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        add_role_to_instance_profile.assert_called_once_with('profile', 'app')
+
+    @patch('dashboard.iam_views.simulate_principal_policy')
+    def test_policy_simulation_endpoint_uses_action_helper(self, simulate_principal_policy):
+        simulate_principal_policy.return_value = {'supported': True, 'evaluations': []}
+
+        response = self.client.post(
+            reverse('dashboard:iam-policy-simulation'),
+            data=json.dumps({
+                'principal_arn': 'arn:aws:iam::000000000000:user/charlie',
+                'action_names': 's3:ListAllMyBuckets',
+                'resource_arns': '*',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        simulate_principal_policy.assert_called_once_with(
+            'arn:aws:iam::000000000000:user/charlie',
+            's3:ListAllMyBuckets',
+            '*',
+        )
+
     @patch('dashboard.iam_views.create_access_key')
     def test_create_access_key_endpoint_uses_action_helper(self, create_access_key):
         create_access_key.return_value = {

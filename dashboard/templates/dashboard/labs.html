@@ -58,10 +58,16 @@
           <h2>{{ active_lab.title }}</h2>
         </div>
         <div class="labs-actions">
-          <span id="lab-state" class="lab-state">{% if lab_complete %}Complete{% else %}Not started{% endif %}</span>
-          <button id="lab-reset" class="secondary-button" type="button">Reset</button>
+          <span id="lab-state" class="lab-state">{% if lab_status_error %}Status unavailable{% elif lab_complete %}Complete{% else %}Not started{% endif %}</span>
+          <button id="lab-reset" class="secondary-button" type="button"{% if lab_status_error %} disabled{% endif %}>Reset</button>
         </div>
       </div>
+      {% if lab_status_error %}
+        <div class="lab-status-warning" role="status">
+          <strong>Lab status is unavailable for the active dashboard identity.</strong>
+          <p>{{ lab_status_error }}</p>
+        </div>
+      {% endif %}
       <p class="labs-description">{{ active_lab.description }}</p>
 
       {% for step in active_lab.steps %}
@@ -90,13 +96,16 @@
               <pre><code>{{ step.secondary_artifact }}</code></pre>
             </details>
           {% endif %}
-          <div class="lab-response"{% if not step.status.verified %} hidden{% endif %}>
+          {% if step.status.verified and step.status.verification.message %}
+            <p class="lab-state-verification">{{ step.status.verification.message }}</p>
+          {% endif %}
+          <div class="lab-response" hidden>
             <div class="lab-response-heading">
               <strong>Response</strong>
-              <span class="lab-response-status">{% if step.status.verified %}Verified{% endif %}</span>
+              <span class="lab-response-status"></span>
             </div>
             <pre><code class="lab-response-body"></code></pre>
-            <p class="lab-verification">{% if step.status.verified %}{{ step.status.verification.message }}{% endif %}</p>
+            <p class="lab-verification"></p>
           </div>
         </section>
       {% endfor %}

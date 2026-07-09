@@ -790,6 +790,44 @@ FLOCI_STS_SESSION_POLICY = {
     ],
 }
 FLOCI_STS_ASSUME_CACHE_KEY = 'floci-lab:iam:sts-session-policy:assumed'
+IAM_ENFORCEMENT_USER_NAME = 'Charlie'
+IAM_ENFORCEMENT_ROLE_NAME = 'CharlieSqsReadRole'
+IAM_ENFORCEMENT_ROLE_POLICY_NAME = 'CharlieSqsRead'
+IAM_ENFORCEMENT_SESSION_NAME = 'floci-enforcement-lab'
+IAM_ENFORCEMENT_USER_ARN = f'arn:aws:iam::{AWS_ACCOUNT_ID}:user/{IAM_ENFORCEMENT_USER_NAME}'
+IAM_ENFORCEMENT_ROLE_ARN = f'arn:aws:iam::{AWS_ACCOUNT_ID}:role/{IAM_ENFORCEMENT_ROLE_NAME}'
+IAM_ENFORCEMENT_USER_KEY_CACHE_KEY = 'floci-lab:iam:enforcement:user-key'
+IAM_ENFORCEMENT_USER_SECRET_CACHE_KEY = 'floci-lab:iam:enforcement:user-secret'
+IAM_ENFORCEMENT_USER_DENY_CACHE_KEY = 'floci-lab:iam:enforcement:user-s3-denied'
+IAM_ENFORCEMENT_ROLE_CREDENTIALS_CACHE_KEY = 'floci-lab:iam:enforcement:role-credentials'
+IAM_ENFORCEMENT_ROLE_SQS_CACHE_KEY = 'floci-lab:iam:enforcement:role-sqs-allowed'
+IAM_ENFORCEMENT_ROLE_S3_DENY_CACHE_KEY = 'floci-lab:iam:enforcement:role-s3-denied'
+IAM_ENFORCEMENT_SELF_POLICY = {
+    'Version': '2012-10-17',
+    'Statement': [{
+        'Effect': 'Allow',
+        'Action': 'sts:GetCallerIdentity',
+        'Resource': '*',
+    }],
+}
+IAM_ENFORCEMENT_ROLE_TRUST_POLICY = {
+    'Version': '2012-10-17',
+    'Statement': [{
+        'Effect': 'Allow',
+        'Principal': {'AWS': IAM_ENFORCEMENT_USER_ARN},
+        'Action': 'sts:AssumeRole',
+    }],
+}
+IAM_ENFORCEMENT_ROLE_POLICY = {
+    'Version': '2012-10-17',
+    'Statement': [
+        {
+            'Effect': 'Allow',
+            'Action': ['sqs:ListQueues', 'sts:GetCallerIdentity'],
+            'Resource': '*',
+        },
+    ],
+}
 FLOCI_EC2_TRUST_POLICY = {
     'Version': '2012-10-17',
     'Statement': [
@@ -1767,6 +1805,61 @@ IAM_INSTANCE_PROFILE_LAB = {
             'title': 'List profiles for the role',
             'command': f'aws iam list-instance-profiles-for-role --role-name {FLOCI_EC2_ROLE_NAME}',
             'explanation': 'Reads the relationship from the role side and verifies the same association.',
+        },
+    ],
+}
+
+IAM_ENFORCEMENT_CAPSTONE_LAB = {
+    'service': 'iam',
+    'key': 'identity-enforcement-capstone',
+    'title': 'Switch identities and verify IAM enforcement',
+    'description': 'Create Charlie, prove direct S3 access is denied, assume an SQS-scoped role, then verify SQS succeeds while S3 remains denied.',
+    'steps': [
+        {
+            'key': 'create-user',
+            'title': 'Create user Charlie',
+            'command': f'aws iam create-user --user-name {IAM_ENFORCEMENT_USER_NAME}',
+            'explanation': 'Creates the IAM user that will become the restricted dashboard identity.',
+        },
+        {
+            'key': 'verify-user-denied',
+            'title': 'Verify Charlie cannot list S3 buckets',
+            'command': f'aws s3 ls  # using {IAM_ENFORCEMENT_USER_NAME} credentials',
+            'explanation': 'Uses Charlie credentials and expects S3 ListBuckets to fail because Charlie has no S3 permissions.',
+        },
+        {
+            'key': 'create-role',
+            'title': 'Create the SQS read role',
+            'command': f'aws iam create-role --role-name {IAM_ENFORCEMENT_ROLE_NAME} --assume-role-policy-document file://charlie-sqs-role-trust-policy.json',
+            'explanation': 'Creates a role that Charlie is allowed to assume.',
+            'artifact_label': 'charlie-sqs-role-trust-policy.json',
+            'artifact': json.dumps(IAM_ENFORCEMENT_ROLE_TRUST_POLICY, indent=2),
+        },
+        {
+            'key': 'put-role-policy',
+            'title': 'Allow SQS listing on the role',
+            'command': f'aws iam put-role-policy --role-name {IAM_ENFORCEMENT_ROLE_NAME} --policy-name {IAM_ENFORCEMENT_ROLE_POLICY_NAME} --policy-document file://charlie-sqs-read-policy.json',
+            'explanation': 'Adds only SQS ListQueues and STS identity permissions to the role.',
+            'artifact_label': 'charlie-sqs-read-policy.json',
+            'artifact': json.dumps(IAM_ENFORCEMENT_ROLE_POLICY, indent=2),
+        },
+        {
+            'key': 'assume-role',
+            'title': 'Assume the SQS role as Charlie',
+            'command': f'aws sts assume-role --role-arn {IAM_ENFORCEMENT_ROLE_ARN} --role-session-name {IAM_ENFORCEMENT_SESSION_NAME}',
+            'explanation': 'Requests temporary role credentials using Charlie as the caller.',
+        },
+        {
+            'key': 'verify-role-sqs',
+            'title': 'Verify the role can list SQS queues',
+            'command': 'aws sqs list-queues  # using assumed-role credentials',
+            'explanation': 'Uses the assumed-role credentials and expects SQS ListQueues to succeed.',
+        },
+        {
+            'key': 'verify-role-s3-denied',
+            'title': 'Verify the role still cannot list S3 buckets',
+            'command': 'aws s3 ls  # using assumed-role credentials',
+            'explanation': 'Uses the same assumed-role credentials and expects S3 ListBuckets to remain denied.',
         },
     ],
 }
@@ -3416,6 +3509,7 @@ def labs_for_service(service_key: str) -> list[dict[str, Any]]:
             IAM_ROLE_TRUST_LAB,
             IAM_STS_SESSION_POLICY_LAB,
             IAM_INSTANCE_PROFILE_LAB,
+            IAM_ENFORCEMENT_CAPSTONE_LAB,
         ]
     if service_key == 's3':
         return [
@@ -3903,7 +3997,10 @@ def _verify_role(role_name: str, trusted_service: str) -> dict[str, Any]:
     trusted = any(
         statement.get('Effect') == 'Allow'
         and statement.get('Action') == 'sts:AssumeRole'
-        and statement.get('Principal', {}).get('Service') == trusted_service
+        and (
+            statement.get('Principal', {}).get('Service') == trusted_service
+            or statement.get('Principal', {}).get('AWS') == trusted_service
+        )
         for statement in statements
     )
     if role.get('RoleName') == role_name and trusted:
@@ -4002,6 +4099,38 @@ def _verify_sts_assumed_role_session() -> dict[str, Any]:
     return {
         'status': 'failed',
         'message': 'No successful STS AssumeRole session has been recorded for this lab run.',
+    }
+
+
+def _verify_cached_marker(cache_key: str, message: str) -> dict[str, Any]:
+    cached = cache.get(cache_key)
+    if cached:
+        return {
+            'status': 'passed',
+            'message': message,
+            'resource': cached if isinstance(cached, dict) else {'value': cached},
+        }
+    return {'status': 'failed', 'message': message}
+
+
+def _verify_iam_enforcement_role_policy() -> dict[str, Any]:
+    try:
+        response = _iam_client().get_role_policy(
+            RoleName=IAM_ENFORCEMENT_ROLE_NAME,
+            PolicyName=IAM_ENFORCEMENT_ROLE_POLICY_NAME,
+        )
+    except ClientError as exc:
+        return {'status': 'failed', 'message': str(exc)}
+
+    if response.get('PolicyName') == IAM_ENFORCEMENT_ROLE_POLICY_NAME:
+        return {
+            'status': 'passed',
+            'message': f'Inline policy {IAM_ENFORCEMENT_ROLE_POLICY_NAME} is embedded in {IAM_ENFORCEMENT_ROLE_NAME}.',
+            'resource': _clean_response(response),
+        }
+    return {
+        'status': 'failed',
+        'message': f'Inline policy {IAM_ENFORCEMENT_ROLE_POLICY_NAME} was not returned.',
     }
 
 
@@ -8433,6 +8562,19 @@ def run_lab_step(service_key: str, lab_key: str, step_key: str) -> dict[str, Any
         if step_key in runners:
             return runners[step_key]()
 
+    if service_key == 'iam' and lab_key == 'identity-enforcement-capstone':
+        runners = {
+            'create-user': _run_iam_enforcement_create_user,
+            'verify-user-denied': _run_iam_enforcement_verify_user_s3_denied,
+            'create-role': _run_iam_enforcement_create_role,
+            'put-role-policy': _run_iam_enforcement_put_role_policy,
+            'assume-role': _run_iam_enforcement_assume_role,
+            'verify-role-sqs': _run_iam_enforcement_verify_role_sqs_allowed,
+            'verify-role-s3-denied': _run_iam_enforcement_verify_role_s3_denied,
+        }
+        if step_key in runners:
+            return runners[step_key]()
+
     if service_key == 'lambda' and lab_key == 'create-invoke-logs':
         runners = {
             'create-role': _run_lambda_create_role,
@@ -9249,6 +9391,34 @@ def lab_status(service_key: str, lab_key: str) -> dict[str, Any]:
                 'add-role-to-instance-profile': {'verified': association_verified, 'verification': association_verification if association_verified else None},
                 'get-instance-profile': {'verified': association_verified, 'verification': association_verification if association_verified else None},
                 'list-instance-profiles-for-role': {'verified': association_verified, 'verification': association_verification if association_verified else None},
+            },
+        }
+
+    if service_key == 'iam' and lab_key == 'identity-enforcement-capstone':
+        user_verification = _verify_iam_user(IAM_ENFORCEMENT_USER_NAME)
+        user_denied = _verify_cached_marker(IAM_ENFORCEMENT_USER_DENY_CACHE_KEY, 'Charlie was denied S3 ListBuckets.')
+        role_verification = _verify_role(IAM_ENFORCEMENT_ROLE_NAME, IAM_ENFORCEMENT_USER_ARN)
+        policy_verification = _verify_iam_enforcement_role_policy()
+        assumed = _verify_cached_marker(IAM_ENFORCEMENT_ROLE_SQS_CACHE_KEY, 'The assumed role listed SQS queues.')
+        role_s3_denied = _verify_cached_marker(IAM_ENFORCEMENT_ROLE_S3_DENY_CACHE_KEY, 'The assumed role was denied S3 ListBuckets.')
+        user_verified = user_verification.get('status') == 'passed'
+        user_denied_verified = user_denied.get('status') == 'passed'
+        role_verified = role_verification.get('status') == 'passed'
+        policy_verified = policy_verification.get('status') == 'passed'
+        assumed_verified = assumed.get('status') == 'passed'
+        role_s3_denied_verified = role_s3_denied.get('status') == 'passed'
+        return {
+            'service': service_key,
+            'lab': lab_key,
+            'complete': user_verified and user_denied_verified and role_verified and policy_verified and assumed_verified and role_s3_denied_verified,
+            'steps': {
+                'create-user': {'verified': user_verified, 'verification': user_verification if user_verified else None},
+                'verify-user-denied': {'verified': user_denied_verified, 'verification': user_denied if user_denied_verified else None},
+                'create-role': {'verified': role_verified, 'verification': role_verification if role_verified else None},
+                'put-role-policy': {'verified': policy_verified, 'verification': policy_verification if policy_verified else None},
+                'assume-role': {'verified': assumed_verified, 'verification': assumed if assumed_verified else None},
+                'verify-role-sqs': {'verified': assumed_verified, 'verification': assumed if assumed_verified else None},
+                'verify-role-s3-denied': {'verified': role_s3_denied_verified, 'verification': role_s3_denied if role_s3_denied_verified else None},
             },
         }
 
@@ -11342,6 +11512,9 @@ def reset_lab(service_key: str, lab_key: str) -> dict[str, Any]:
     if service_key == 'iam' and lab_key == 'ec2-instance-profile':
         return _reset_iam_ec2_instance_profile()
 
+    if service_key == 'iam' and lab_key == 'identity-enforcement-capstone':
+        return _reset_iam_enforcement_capstone()
+
     if service_key == 'lambda' and lab_key == 'create-invoke-logs':
         return _reset_lambda_create_invoke_logs()
 
@@ -12085,6 +12258,159 @@ def _run_sts_assume_session_policy_role() -> dict[str, Any]:
         'verified': verification.get('status') == 'passed',
         'verification': verification,
     }
+
+
+def _lab_step_result(lab_key: str, step_key: str, command: str, stdout: str, verification: dict[str, Any], started: float, json_value: Any = None) -> dict[str, Any]:
+    return {
+        'service': 'iam',
+        'lab': lab_key,
+        'step': step_key,
+        'command': command,
+        'exit_code': 0,
+        'stdout': stdout,
+        'stderr': '',
+        'json': _clean_response(json_value if json_value is not None else {}),
+        'duration_ms': round((time.perf_counter() - started) * 1000),
+        'verified': verification.get('status') == 'passed',
+        'verification': verification,
+    }
+
+
+def _iam_enforcement_user_identity() -> dict[str, Any]:
+    access_key_id = cache.get(IAM_ENFORCEMENT_USER_KEY_CACHE_KEY)
+    secret_access_key = cache.get(IAM_ENFORCEMENT_USER_SECRET_CACHE_KEY)
+    if not access_key_id or not secret_access_key:
+        key = _iam_client().create_access_key(UserName=IAM_ENFORCEMENT_USER_NAME).get('AccessKey', {})
+        access_key_id = key.get('AccessKeyId')
+        secret_access_key = key.get('SecretAccessKey')
+        cache.set(IAM_ENFORCEMENT_USER_KEY_CACHE_KEY, access_key_id, timeout=3600)
+        cache.set(IAM_ENFORCEMENT_USER_SECRET_CACHE_KEY, secret_access_key, timeout=3600)
+    return {
+        'type': 'user',
+        'label': IAM_ENFORCEMENT_USER_NAME,
+        'access_key_id': access_key_id,
+        'secret_access_key': secret_access_key,
+    }
+
+
+def _iam_enforcement_role_identity() -> dict[str, Any]:
+    credentials = cache.get(IAM_ENFORCEMENT_ROLE_CREDENTIALS_CACHE_KEY) or {}
+    if not credentials.get('AccessKeyId'):
+        response = FlociClientFactory(identity=_iam_enforcement_user_identity()).client('sts').assume_role(
+            RoleArn=IAM_ENFORCEMENT_ROLE_ARN,
+            RoleSessionName=IAM_ENFORCEMENT_SESSION_NAME,
+        )
+        credentials = response.get('Credentials', {})
+        cache.set(IAM_ENFORCEMENT_ROLE_CREDENTIALS_CACHE_KEY, credentials, timeout=3600)
+    return {
+        'type': 'assumed_role',
+        'label': f'{IAM_ENFORCEMENT_ROLE_NAME}/{IAM_ENFORCEMENT_SESSION_NAME}',
+        'access_key_id': credentials.get('AccessKeyId'),
+        'secret_access_key': credentials.get('SecretAccessKey'),
+        'session_token': credentials.get('SessionToken'),
+    }
+
+
+def _run_iam_enforcement_create_user() -> dict[str, Any]:
+    command = f'aws iam create-user --user-name {IAM_ENFORCEMENT_USER_NAME}'
+    started = time.perf_counter()
+    try:
+        response = _iam_client().create_user(UserName=IAM_ENFORCEMENT_USER_NAME)
+    except ClientError as exc:
+        if _error_code(exc) != 'EntityAlreadyExists':
+            raise
+        response = _iam_client().get_user(UserName=IAM_ENFORCEMENT_USER_NAME)
+    _iam_client().put_user_policy(
+        UserName=IAM_ENFORCEMENT_USER_NAME,
+        PolicyName='CharlieSelfIdentity',
+        PolicyDocument=json.dumps(IAM_ENFORCEMENT_SELF_POLICY),
+    )
+    if not cache.get(IAM_ENFORCEMENT_USER_KEY_CACHE_KEY) or not cache.get(IAM_ENFORCEMENT_USER_SECRET_CACHE_KEY):
+        key = _iam_client().create_access_key(UserName=IAM_ENFORCEMENT_USER_NAME).get('AccessKey', {})
+        cache.set(IAM_ENFORCEMENT_USER_KEY_CACHE_KEY, key.get('AccessKeyId'), timeout=3600)
+        cache.set(IAM_ENFORCEMENT_USER_SECRET_CACHE_KEY, key.get('SecretAccessKey'), timeout=3600)
+    verification = _verify_iam_user(IAM_ENFORCEMENT_USER_NAME)
+    return _lab_step_result('identity-enforcement-capstone', 'create-user', command, _json_text(response), verification, started, response)
+
+
+def _run_iam_enforcement_verify_user_s3_denied() -> dict[str, Any]:
+    command = f'aws s3 ls  # using {IAM_ENFORCEMENT_USER_NAME} credentials'
+    started = time.perf_counter()
+    try:
+        FlociClientFactory(identity=_iam_enforcement_user_identity()).client('s3').list_buckets()
+        verification = {'status': 'failed', 'message': 'Charlie unexpectedly listed S3 buckets.'}
+        stdout = _json_text({'unexpected': 's3 list succeeded'})
+    except ClientError as exc:
+        verification = {'status': 'passed', 'message': 'Charlie was denied S3 ListBuckets.', 'resource': {'code': _error_code(exc)}}
+        cache.set(IAM_ENFORCEMENT_USER_DENY_CACHE_KEY, verification['resource'], timeout=3600)
+        stdout = _json_text({'denied': True, 'code': _error_code(exc)})
+    return _lab_step_result('identity-enforcement-capstone', 'verify-user-denied', command, stdout, verification, started)
+
+
+def _run_iam_enforcement_create_role() -> dict[str, Any]:
+    return _run_iam_create_role(
+        lab_key='identity-enforcement-capstone',
+        role_name=IAM_ENFORCEMENT_ROLE_NAME,
+        trust_policy=IAM_ENFORCEMENT_ROLE_TRUST_POLICY,
+        artifact_name='charlie-sqs-role-trust-policy.json',
+        trusted_service=IAM_ENFORCEMENT_USER_ARN,
+    )
+
+
+def _run_iam_enforcement_put_role_policy() -> dict[str, Any]:
+    command = (
+        f'aws iam put-role-policy --role-name {IAM_ENFORCEMENT_ROLE_NAME} '
+        f'--policy-name {IAM_ENFORCEMENT_ROLE_POLICY_NAME} '
+        '--policy-document file://charlie-sqs-read-policy.json'
+    )
+    started = time.perf_counter()
+    _iam_client().put_role_policy(
+        RoleName=IAM_ENFORCEMENT_ROLE_NAME,
+        PolicyName=IAM_ENFORCEMENT_ROLE_POLICY_NAME,
+        PolicyDocument=json.dumps(IAM_ENFORCEMENT_ROLE_POLICY),
+    )
+    verification = _verify_iam_enforcement_role_policy()
+    return _lab_step_result('identity-enforcement-capstone', 'put-role-policy', command, _json_text({}), verification, started)
+
+
+def _run_iam_enforcement_assume_role() -> dict[str, Any]:
+    command = f'aws sts assume-role --role-arn {IAM_ENFORCEMENT_ROLE_ARN} --role-session-name {IAM_ENFORCEMENT_SESSION_NAME}'
+    started = time.perf_counter()
+    response = FlociClientFactory(identity=_iam_enforcement_user_identity()).client('sts').assume_role(
+        RoleArn=IAM_ENFORCEMENT_ROLE_ARN,
+        RoleSessionName=IAM_ENFORCEMENT_SESSION_NAME,
+    )
+    credentials = response.get('Credentials', {})
+    cache.set(IAM_ENFORCEMENT_ROLE_CREDENTIALS_CACHE_KEY, credentials, timeout=3600)
+    verification = {
+        'status': 'passed' if credentials.get('SessionToken') else 'failed',
+        'message': f'{IAM_ENFORCEMENT_USER_NAME} assumed {IAM_ENFORCEMENT_ROLE_NAME}.',
+        'resource': {'access_key_id': credentials.get('AccessKeyId'), 'assumed_role_user': _clean_response(response.get('AssumedRoleUser'))},
+    }
+    return _lab_step_result('identity-enforcement-capstone', 'assume-role', command, _json_text(response), verification, started)
+
+
+def _run_iam_enforcement_verify_role_sqs_allowed() -> dict[str, Any]:
+    command = 'aws sqs list-queues  # using assumed-role credentials'
+    started = time.perf_counter()
+    response = FlociClientFactory(identity=_iam_enforcement_role_identity()).client('sqs').list_queues()
+    verification = {'status': 'passed', 'message': 'The assumed role listed SQS queues.', 'resource': _clean_response(response)}
+    cache.set(IAM_ENFORCEMENT_ROLE_SQS_CACHE_KEY, verification['resource'], timeout=3600)
+    return _lab_step_result('identity-enforcement-capstone', 'verify-role-sqs', command, _json_text(response), verification, started)
+
+
+def _run_iam_enforcement_verify_role_s3_denied() -> dict[str, Any]:
+    command = 'aws s3 ls  # using assumed-role credentials'
+    started = time.perf_counter()
+    try:
+        FlociClientFactory(identity=_iam_enforcement_role_identity()).client('s3').list_buckets()
+        verification = {'status': 'failed', 'message': 'The assumed role unexpectedly listed S3 buckets.'}
+        stdout = _json_text({'unexpected': 's3 list succeeded'})
+    except ClientError as exc:
+        verification = {'status': 'passed', 'message': 'The assumed role was denied S3 ListBuckets.', 'resource': {'code': _error_code(exc)}}
+        cache.set(IAM_ENFORCEMENT_ROLE_S3_DENY_CACHE_KEY, verification['resource'], timeout=3600)
+        stdout = _json_text({'denied': True, 'code': _error_code(exc)})
+    return _lab_step_result('identity-enforcement-capstone', 'verify-role-s3-denied', command, stdout, verification, started)
 
 
 def _run_iam_create_ec2_role() -> dict[str, Any]:
@@ -19298,6 +19624,69 @@ def _reset_iam_ec2_instance_profile() -> dict[str, Any]:
         'verification': {
             'status': 'passed',
             'message': f'Instance profile {FLOCI_EC2_INSTANCE_PROFILE_NAME} and role {FLOCI_EC2_ROLE_NAME} were removed.',
+        },
+    }
+
+
+def _reset_iam_enforcement_capstone() -> dict[str, Any]:
+    command = (
+        f'aws iam delete-role-policy --role-name {IAM_ENFORCEMENT_ROLE_NAME} '
+        f'--policy-name {IAM_ENFORCEMENT_ROLE_POLICY_NAME}\n'
+        f'aws iam delete-role --role-name {IAM_ENFORCEMENT_ROLE_NAME}\n'
+        f'aws iam delete-access-key --user-name {IAM_ENFORCEMENT_USER_NAME} --access-key-id <CharlieAccessKeyId>\n'
+        f'aws iam delete-user-policy --user-name {IAM_ENFORCEMENT_USER_NAME} --policy-name CharlieSelfIdentity\n'
+        f'aws iam delete-user --user-name {IAM_ENFORCEMENT_USER_NAME}'
+    )
+    started = time.perf_counter()
+    iam = _iam_client()
+    deleted_role_policy = _ignore_missing(lambda: iam.delete_role_policy(
+        RoleName=IAM_ENFORCEMENT_ROLE_NAME,
+        PolicyName=IAM_ENFORCEMENT_ROLE_POLICY_NAME,
+    ))
+    deleted_role = _ignore_missing(lambda: iam.delete_role(RoleName=IAM_ENFORCEMENT_ROLE_NAME))
+    deleted_keys = []
+    try:
+        for key in iam.list_access_keys(UserName=IAM_ENFORCEMENT_USER_NAME).get('AccessKeyMetadata', []):
+            key_id = key.get('AccessKeyId')
+            if key_id and _ignore_missing(lambda key_id=key_id: iam.delete_access_key(UserName=IAM_ENFORCEMENT_USER_NAME, AccessKeyId=key_id)):
+                deleted_keys.append(key_id)
+    except ClientError as exc:
+        if _error_code(exc) != 'NoSuchEntity':
+            raise
+    deleted_user_policy = _ignore_missing(lambda: iam.delete_user_policy(
+        UserName=IAM_ENFORCEMENT_USER_NAME,
+        PolicyName='CharlieSelfIdentity',
+    ))
+    deleted_user = _ignore_missing(lambda: iam.delete_user(UserName=IAM_ENFORCEMENT_USER_NAME))
+    for cache_key in [
+        IAM_ENFORCEMENT_USER_KEY_CACHE_KEY,
+        IAM_ENFORCEMENT_USER_SECRET_CACHE_KEY,
+        IAM_ENFORCEMENT_USER_DENY_CACHE_KEY,
+        IAM_ENFORCEMENT_ROLE_CREDENTIALS_CACHE_KEY,
+        IAM_ENFORCEMENT_ROLE_SQS_CACHE_KEY,
+        IAM_ENFORCEMENT_ROLE_S3_DENY_CACHE_KEY,
+    ]:
+        cache.delete(cache_key)
+    result = {
+        'deleted_role_policy': deleted_role_policy,
+        'deleted_role': deleted_role,
+        'deleted_keys': deleted_keys,
+        'deleted_user_policy': deleted_user_policy,
+        'deleted_user': deleted_user,
+    }
+    return {
+        'service': 'iam',
+        'lab': 'identity-enforcement-capstone',
+        'command': command,
+        'exit_code': 0,
+        'stdout': _json_text(result),
+        'stderr': '',
+        'json': result,
+        'duration_ms': round((time.perf_counter() - started) * 1000),
+        'reset': True,
+        'verification': {
+            'status': 'passed',
+            'message': 'Charlie, the SQS read role, and recorded enforcement checks were removed.',
         },
     }
 

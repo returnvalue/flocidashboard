@@ -355,7 +355,12 @@ def service_labs(request, service_key: str):
         (lab for lab in labs if lab.get('key') == requested_lab_key),
         labs[0],
     )
-    status = lab_status(service_key, active_lab['key'])
+    lab_status_error = None
+    try:
+        status = lab_status(service_key, active_lab['key'])
+    except (BotoCoreError, ClientError, ValueError) as exc:
+        lab_status_error = str(exc)
+        status = {'complete': False, 'steps': {}}
     next_batch = _next_batch_context(
         service_key,
         active_lab['key'],
@@ -381,6 +386,7 @@ def service_labs(request, service_key: str):
             'labs': labs,
             'active_lab': active_lab,
             'lab_status': status,
+            'lab_status_error': lab_status_error,
             'lab_complete': status.get('complete'),
             'next_batch': next_batch,
         },
@@ -395,13 +401,18 @@ def lab_step_run(request, service_key: str, lab_key: str, step_key: str):
     try:
         result = run_lab_step(service_key, lab_key, step_key)
         cache.delete(_labs_progress_cache_key())
-        status = lab_status(service_key, lab_key)
-        result['lab_complete'] = status.get('complete')
-        result['next_batch'] = _next_batch_context(
-            service_key,
-            lab_key,
-            status.get('complete'),
-        )
+        try:
+            status = lab_status(service_key, lab_key)
+            result['lab_complete'] = status.get('complete')
+            result['next_batch'] = _next_batch_context(
+                service_key,
+                lab_key,
+                status.get('complete'),
+            )
+        except (BotoCoreError, ClientError, ValueError) as exc:
+            result['lab_complete'] = False
+            result['next_batch'] = None
+            result['status_warning'] = str(exc)
         return JsonResponse(result)
     except (BotoCoreError, ClientError, ValueError) as exc:
         return JsonResponse({'error': str(exc)}, status=400)

@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import acm_views, apigateway_views, appconfig_views, appsync_views, athena_views, autoscaling_views, backup_views, bedrockruntime_views, cloudformation_views, cloudfront_views, cloudmap_views, cloudwatch_logs_views, codebuild_views, codedeploy_views, cognito_views, config_views, dynamodb_views, ec2_views, ecr_views, ecs_views, eks_views, elasticache_views, elasticloadbalancing_views, eventbridge_views, firehose_views, glue_views, iam_views, inspector_views, kafka_views, kinesis_views, kms_views, lambda_views, neptune_views, opensearch_views, pipes_views, rds_views, resourcegroupstagging_views, route53_views, s3_views, scheduler_views, secretsmanager_views, ses_views, settings_views, sns_views, sqs_views, ssm_views, stepfunctions_views, textract_views, transcribe_views, transfer_views, views
+from . import acm_views, apigateway_views, appconfig_views, appsync_views, athena_views, autoscaling_views, backup_views, bedrockruntime_views, cloudformation_views, cloudfront_views, cloudmap_views, cloudwatch_logs_views, codebuild_views, codedeploy_views, cognito_views, config_views, console_views, dynamodb_views, ec2_views, ecr_views, ecs_views, eks_views, elasticache_views, elasticloadbalancing_views, eventbridge_views, firehose_views, glue_views, iam_views, identity_views, inspector_views, kafka_views, kinesis_views, kms_views, lambda_views, neptune_views, opensearch_views, pipes_views, rds_views, resourcegroupstagging_views, route53_views, s3_views, scheduler_views, secretsmanager_views, ses_views, settings_views, sns_views, sqs_views, ssm_views, stepfunctions_views, textract_views, transcribe_views, transfer_views, views
 
 app_name = 'dashboard'
 
@@ -8,6 +8,7 @@ urlpatterns = [
     path('', views.index, name='index'),
     path('environment/', views.environment, name='environment'),
     path('activity/', views.activity, name='activity'),
+    path('console/', console_views.console_page, name='console'),
     path('settings/', views.settings_page, name='settings'),
     path('inspector/', inspector_views.inspector_page, name='inspector'),
     path('labs/', views.labs_directory, name='labs-directory'),
@@ -22,6 +23,12 @@ urlpatterns = [
     path('api/settings/endpoint/', settings_views.settings_endpoint_save, name='settings-endpoint'),
     path('api/settings/endpoint/reset/', settings_views.settings_endpoint_reset, name='settings-endpoint-reset'),
     path('api/settings/test-connection/', settings_views.settings_test_connection, name='settings-test-connection'),
+    path('api/session-identity/', identity_views.identity_detail, name='session-identity-detail'),
+    path('api/session-identity/use-admin/', identity_views.identity_use_admin, name='session-identity-use-admin'),
+    path('api/session-identity/use-user/', identity_views.identity_use_user, name='session-identity-use-user'),
+    path('api/session-identity/assume-role/', identity_views.identity_assume_role, name='session-identity-assume-role'),
+    path('api/session-identity/clear/', identity_views.identity_clear, name='session-identity-clear'),
+    path('api/console/run/', console_views.console_run, name='console-run'),
     path('api/inspector/sqs/queues/', inspector_views.inspector_sqs_queues, name='inspector-sqs-queues'),
     path('api/inspector/sqs/messages/', inspector_views.inspector_sqs_messages, name='inspector-sqs-messages'),
     path('api/inspector/ses/messages/', inspector_views.inspector_ses_messages, name='inspector-ses-messages'),
@@ -263,10 +270,19 @@ urlpatterns = [
     path('api/firehose/delivery-streams/<str:stream_name>/records/', firehose_views.firehose_records_put, name='firehose-records-put'),
     path('api/firehose/delivery-streams/<str:stream_name>/records/batch/', firehose_views.firehose_records_batch, name='firehose-records-batch'),
     path('api/iam/', views.iam, name='iam'),
+    path('api/iam/users/', iam_views.iam_users_create, name='iam-users'),
+    path('api/iam/users/<str:user_name>/', iam_views.iam_user_detail, name='iam-user-detail'),
     path('api/iam/users/<str:user_name>/access-keys/', iam_views.iam_user_access_keys_create, name='iam-user-access-keys'),
     path('api/iam/users/<str:user_name>/access-keys/<str:access_key_id>/', iam_views.iam_user_access_key_detail, name='iam-user-access-key-detail'),
+    path('api/iam/groups/', iam_views.iam_groups_create, name='iam-groups'),
+    path('api/iam/groups/<str:group_name>/', iam_views.iam_group_detail, name='iam-group-detail'),
+    path('api/iam/roles/', iam_views.iam_roles_create, name='iam-roles'),
+    path('api/iam/roles/<str:role_name>/', iam_views.iam_role_detail, name='iam-role-detail'),
     path('api/iam/roles/<str:role_name>/assume/', iam_views.iam_role_assume, name='iam-role-assume'),
     path('api/iam/roles/<str:role_name>/trust-policy/', iam_views.iam_role_trust_policy, name='iam-role-trust-policy'),
+    path('api/iam/instance-profiles/', iam_views.iam_instance_profiles_create, name='iam-instance-profiles'),
+    path('api/iam/instance-profiles/<str:instance_profile_name>/roles/', iam_views.iam_instance_profile_roles, name='iam-instance-profile-roles'),
+    path('api/iam/policy-simulation/', iam_views.iam_policy_simulation, name='iam-policy-simulation'),
     path('api/iam/groups/<str:group_name>/members/', iam_views.iam_group_membership, name='iam-group-membership'),
     path('api/iam/principals/<str:principal_type>/<str:principal_name>/attached-policies/', iam_views.iam_attached_policies, name='iam-attached-policies'),
     path('api/iam/principals/<str:principal_type>/<str:principal_name>/inline-policies/<str:policy_name>/', iam_views.iam_inline_policy_detail, name='iam-inline-policy-detail'),
