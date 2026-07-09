@@ -225,6 +225,8 @@ aws --endpoint-url http://127.0.0.1:4566 iam create-user --user-name Alice
 
 The endpoint belongs to the local Floci/dashboard configuration. The lab page should teach the command shape, not distract with environment plumbing.
 
+In the Docker-first runtime, the dashboard container talks to Floci at `http://floci:4566`; when Django is run directly on the host, the equivalent endpoint is usually `http://localhost:4566`. Lab copy should avoid naming either endpoint unless the lesson is specifically about endpoint behavior.
+
 ## Interaction Model
 
 Each lab contains steps.
@@ -589,7 +591,7 @@ Keep these guardrails:
 - Do not run pipes, redirects, command separators, or subshells.
 - Only run registered service/lab/step combinations.
 - Reuse `FlociClientFactory` endpoint validation.
-- Refuse non-local endpoints.
+- Refuse non-local endpoints while allowing both host-local Floci URLs and the Compose service URL.
 - Prefer boto3-backed actions until there is a strong reason to run AWS CLI subprocesses.
 - Cleanup only lab-owned resources.
 

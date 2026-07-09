@@ -172,7 +172,7 @@ class FlociClientFactory:
     def _validate_local_endpoint(self) -> None:
         parsed = urlparse(self.endpoint_url)
         hostname = (parsed.hostname or '').rstrip('.').lower()
-        allowed_hosts = {'localhost', '127.0.0.1', '::1'}
+        allowed_hosts = {'localhost', '127.0.0.1', '::1', 'floci'}
         allowed_suffixes = ('.localhost.floci.io', '.localhost.localstack.cloud')
 
         if (

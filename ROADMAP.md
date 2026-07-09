@@ -27,6 +27,7 @@ Recent service workbenches established the shared pattern for future service pag
 
 Core architecture files:
 
+- `Dockerfile`, `docker-compose.yml`, `.dockerignore`, and `.env.example`: Docker-first local runtime. The default developer path launches Floci and Django together, points the dashboard container at `http://floci:4566`, and keeps exposed host ports configurable.
 - `dashboard/services.py`: canonical service registry, maturity labels, optional assets, and action metadata.
 - `dashboard/actions.py`: shared action metadata, JSON parsing, and normalized action errors.
 - `dashboard/templates/dashboard/service.html`: common service page shell.
@@ -41,6 +42,7 @@ Core architecture files:
 - Prefer useful local workflows over raw inventory alone.
 - Keep interactive workbenches additive.
 - Keep backend behavior close to boto3 and Floci's public AWS-compatible APIs.
+- Treat Docker Compose as the primary local runtime; host Python remains a contributor convenience, not the default user path.
 - Add shared architecture only after the need is visible in at least one real service page.
 - Make errors clear and actionable.
 - Use destructive confirmations for delete, purge, reset, empty, and cleanup actions.
@@ -226,6 +228,7 @@ Core architecture files:
 - Added console navigation polish with a persistent service rail, global `Cmd/Ctrl+K` service search, local favorites, recently visited services, and a shared collection filtering/count helper used by the homepage service grid.
 - Expanded the IAM workbench with user/group/role/instance-profile creation, dependency-aware cleanup, policy simulation, trust-policy templates, a tutorial-style About Floci IAM guide, and safer user identity switching that creates a session key without deleting existing keys.
 - Added the IAM enforcement capstone lab that creates a user, verifies denied S3 access, creates an assumable SQS-read role, assumes it, confirms the allowed SQS path, and confirms S3 remains denied.
+- Made the repo Docker-first: `docker compose up -d` now starts Floci and the dashboard together, with env-driven Django settings, persistent local volumes, the shared `floci_default` network, and local endpoint validation that accepts the Compose service host.
 
 ## Near-Term Priorities
 

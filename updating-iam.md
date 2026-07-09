@@ -16,6 +16,8 @@ The shell helpers now model real IAM behavior well:
 
 The dashboard now matches that model for browser-session identities. Django can construct request-aware Floci clients from `request.session["floci_identity"]`, service actions can run under the selected identity, and the AWS CLI Console still blocks `--profile` while using the browser session identity as the source of truth.
 
+The default runtime is now Docker-first. In Compose, the dashboard uses explicit local credentials and talks to Floci at `http://floci:4566`; host Python development uses the same identity model against `http://localhost:4566`. The endpoint validator treats both forms as local Floci endpoints.
+
 The IAM workbench is the primary control surface:
 
 - user details expose `Use this user`,
@@ -225,6 +227,7 @@ Use neutral warning states when the active identity cannot call `sts:GetCallerId
 This is a local development dashboard, but still keep the edges sane:
 
 - Only allow local Floci endpoints.
+- Treat the Compose service endpoint `http://floci:4566` as local, alongside host-local endpoints such as `http://localhost:4566`.
 - Do not allow arbitrary external AWS endpoints.
 - Do not persist session credentials outside the Django session store.
 - Do not log secret access keys or session tokens.

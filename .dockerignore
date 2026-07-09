@@ -1,0 +1,12 @@
+.git
+.idea
+.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+.venv/
+venv/
+data/
+db.sqlite3
+*.sqlite3

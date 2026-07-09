@@ -4,127 +4,15 @@ A small Django UI for inspecting, testing, and learning against a local [Floci](
 
 ![Floci Dashboard UI](./flocidashboard.png)
 
-## What It Shows
-
-- Local Floci health and version
-- Environment diagnostics for AWS endpoint, region, profile, credential source, caller identity, and local-endpoint warnings
-- Clickable service cards for supported local services, with a top-24 default home view, persisted home-page service filtering, and a Tracked Resources view that shows only services with discovered resources
-- Service Matrix coverage page showing registry maturity, API paths, shared console status, action counts, tags, and linked service pages
-- Labs directory at `/labs/` showing every service with active workflow labs, current lab counts, runnable step counts, and direct links
-- Activity page at `/activity/` with browser-local recent API Gateway requests, EventBridge events, Lambda invokes, and SQS sends/receives, plus links back to activity-enabled workbenches for safe replay or prefill
-- AWS CLI Console at `/console/` for running AWS-only CLI commands against the active local Floci endpoint, with endpoint injection, JSON parsing, a draggable curated command palette, command history, and destructive-command confirmation
-- AWS-adjacent console shell with shared Environment, Labs, Service Matrix, and Refresh navigation across primary pages
-- Global service navigation with `Cmd/Ctrl+K` search, local favorites, recently visited services, and filtered service collections
-- Local AWS workflow labs for IAM, S3, SQS, SNS, EventBridge Scheduler, CloudFormation, EC2 networking, Lambda, API Gateway, DynamoDB, KMS, SSM Parameter Store, and Secrets Manager, with exact AWS CLI commands, approved one-click execution, live-state verification, reset actions, next-batch recommendations after a service batch is complete, and breadcrumb navigation back to the service or homepage
-- Interactive workbenches for S3, IAM, EC2, SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, EventBridge, EventBridge Pipes, EventBridge Scheduler, API Gateway, AppSync, Kinesis, KMS, Secrets Manager, SSM Parameter Store, CloudFormation, Cognito, AWS Config, RDS, Auto Scaling, ELB v2, CloudFront, AWS Cloud Map, Route 53, ACM, ECS, ECR, EKS, ElastiCache, OpenSearch, Athena, Backup, Firehose, Glue, Kafka, Neptune, SES, Transfer Family, Textract, Transcribe, CodeDeploy, CodeBuild, Bedrock Runtime, AppConfig, and Resource Groups Tagging
-- IAM-focused identity tooling with user, group, role, managed policy, inline policy, access key, role trust, instance profile, cleanup, policy simulation, session identity switching, assumed-role credential, and tutorial/lab workflows
-- Inventory pages for newer Floci services including Amazon MQ, EMR, WAF v2, AWS Batch, RDS Data API, Amazon DocumentDB, MemoryDB, CodePipeline, S3 Vectors, IoT Core, and Elastic Beanstalk
-- Inventory pages for read-only or newly surfaced services such as CloudTrail and Cloud Control
-- Detail pages for services such as Cost Explorer, Cost and Usage Reports, BCM Data Exports, Pricing, and more
-- Expanded inventory for EC2 VPC endpoints, EC2 Network ACLs, EC2 VPC Flow Logs, CloudFormation StackSets, SES v2 contact lists, and SSM default patch baselines, plus KMS key enable/disable actions and richer S3 object metadata
-- Release-aware service notes refreshed through Floci 1.5.31, including a Cloud Control resource-discovery page, CloudWatch Logs Insights, RDS Data API for PostgreSQL, RDS mock mode, read-only resource APIs, Lambda cold-start and persistence improvements, EC2 image/snapshot catalogs, EventBridge-to-Firehose delivery, Scheduler ECS targets, Step Functions S3 ItemReader and qualified Lambda ARN support, Secrets Manager BatchGetSecretValue filtering, API Gateway API key persistence, and Elastic Beanstalk persistence
-- Loading state with the Floci cloud image while service data is fetched
-
-## Local AWS Workflow Labs
-
-IAM, S3, SQS, SNS, EventBridge Scheduler, CloudFormation, EC2, Lambda, API Gateway, DynamoDB, KMS, SSM Parameter Store, and Secrets Manager service pages link to curated labs at:
-
-```text
-/labs/
-/service/iam/labs/
-/service/s3/labs/
-/service/sqs/labs/
-/service/sns/labs/
-/service/scheduler/labs/
-/service/cloudformation/labs/
-/service/ec2/labs/
-/service/lambda/labs/
-/service/apigateway/labs/
-/service/dynamodb/labs/
-/service/kms/labs/
-/service/ssm/labs/
-/service/secretsmanager/labs/
-```
-
-Labs show the AWS CLI command shape without local endpoint plumbing. Each Run button invokes a registered boto3-backed action, displays the response, and independently verifies the result against live Floci state. Reset removes only the resources owned by that lab. When the final lab in a service batch is complete, the lab page recommends the next batch in the practical learning order: IAM, S3, SQS, SNS, EventBridge Scheduler, CloudFormation, EC2 networking, Lambda, API Gateway, DynamoDB, KMS, SSM Parameter Store, and Secrets Manager.
-
-The curriculum includes ten IAM labs, twelve S3 labs, nine SQS labs, two SNS labs, one EventBridge Scheduler lab, one CloudFormation lab, four EC2 networking labs, three Lambda labs, one API Gateway lab, two DynamoDB labs, one KMS lab, one SSM Parameter Store lab, and one Secrets Manager lab. It covers IAM users, policies, access keys, groups, roles, STS session policies, instance profiles, switched dashboard identities, and permission-enforcement checks; S3 buckets, objects, prefixes, metadata, tags, versioning, presigned URLs, security, encryption, lifecycle retention, CORS, S3-to-SQS notifications, and multipart uploads; SQS queue inspection, message lifecycle, visibility timeout behavior, delayed delivery, batch operations, queue configuration, dead-letter queues, managed redrive, FIFO ordering, duplicate suppression, purge, and queue deletion; SNS-to-SQS fan-out, resource policies, raw delivery, and subscription filtering; scheduled SQS delivery through a scoped IAM execution role; infrastructure-as-code ownership of S3 and SQS resources; public/private VPC routing; stateful security-group traffic controls; private S3 connectivity through a gateway endpoint; private SQS connectivity through an HTTPS-only interface endpoint with private DNS; Lambda creation, invocation, runtime SSM and Secrets Manager reads, SQS event source mappings, and CloudWatch Logs inspection; API Gateway HTTP API routing to Lambda; DynamoDB table CRUD, query, and Lambda-write workflows; KMS key, alias, encrypt, and decrypt round trips; hierarchical SSM application configuration; and Secrets Manager secret creation, reads, and value updates.
-
-Lab definitions and implementation notes live in [`buildinglabs.md`](./buildinglabs.md).
-
 ## Quickstart
 
-These steps launch a local Floci environment and start the dashboard against it. They are written for macOS. The dashboard will likely work fine on Windows as well, but Windows has not been tested yet.
+These steps launch Floci and the dashboard together from this repository. They are written for macOS. The dashboard will likely work fine on Windows as well, but Windows has not been tested yet.
 
 Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) if you have not already.
 
-Make sure Docker Desktop is running. You will also need `git`, `python3`, and `pip3` available in your shell.
+Make sure Docker Desktop is running. You will also need `git` available in your shell.
 
 Paste the following commands into your terminal one at a time, pressing Enter after each one.
-
-Create a directory for your local Floci files:
-
-```bash
-mkdir -p floci
-```
-
-Change into that directory:
-
-```bash
-cd floci
-```
-
-Create the Docker Compose file:
-
-```bash
-cat <<EOF > docker-compose.yml
-services:
-  floci:
-    image: floci/floci:latest
-    pull_policy: always
-    container_name: floci
-    ports:
-      # Main API Gateway port (All AWS API calls go here)
-      - "4566:4566"
-      # Port range for ElastiCache proxy (Redis/Valkey)
-      - "6379-6399:6379-6399"
-      # Port range for RDS proxy (PostgreSQL & MySQL)
-      - "7001-7099:7001-7099"
-    environment:
-      # --- IAM ENFORCEMENT ENGINE ---
-      # Evaluates inbound requests against identity policies, session policies,
-      # permission boundaries, and opt-in AssumeRole trust policy enforcement.
-      # Enforces Explicit Deny > Explicit Allow > Implicit Deny.
-      - FLOCI_SERVICES_IAM_ENFORCEMENT_ENABLED=true
-      - FLOCI_AUTH_VALIDATE_SIGNATURES=true
-
-      # Tells Floci to use this hostname in returned URLs (e.g., SQS queue URLs).
-      # Crucial if you add other app containers to this compose file later.
-      - FLOCI_HOSTNAME=floci
-
-      # Tells Floci which Docker network to attach spawned Lambdas/DBs to.
-      # By default, Docker Compose names the network <directory-name>_default.
-      - FLOCI_SERVICES_DOCKER_NETWORK=floci_default
-
-      - FLOCI_SERVICES_LAMBDA_HOT_RELOAD_ENABLED=true
-
-    volumes:
-      # PERSISTENCE: This saves your IAM users so they survive 'floci down'
-      - ./data:/app/data
-      # Gives Floci access to spawn underlying containers (Lambda, RDS, etc.)
-      - /var/run/docker.sock:/var/run/docker.sock
-
-networks:
-  default:
-    name: floci_default
-EOF
-```
-
-Launch the Compose file in detached mode:
-
-```bash
-docker compose up -d
-```
 
 Clone the dashboard repository:
 
@@ -138,11 +26,44 @@ Change into the dashboard directory:
 cd flocidashboard
 ```
 
-Run the remaining commands from the `flocidashboard` directory.
+Start Floci and the dashboard:
 
-### Option 1: Use A Virtual Environment
+```bash
+docker compose up -d
+```
 
-This keeps the Python packages isolated to this project.
+Open `http://127.0.0.1:8000` in your browser.
+
+The repo-owned `docker-compose.yml` starts:
+
+- `floci` on `http://127.0.0.1:4566`
+- `dashboard` on `http://127.0.0.1:8000`
+- a shared `floci_default` Docker network for Floci-spawned containers
+- persistent Docker volumes for Floci state and the dashboard SQLite session database
+
+Follow logs while the services start:
+
+```bash
+docker compose logs -f
+```
+
+Stop everything:
+
+```bash
+docker compose down
+```
+
+Stop everything and remove local Floci/dashboard state:
+
+```bash
+docker compose down -v
+```
+
+Copy `.env.example` to `.env` before starting if you want to change exposed ports or local defaults.
+
+### Local Python Development
+
+Docker Compose is the primary path. You can still run Django directly on your host when you want the fastest edit/test loop against an already running Floci container.
 
 Create the virtual environment:
 
@@ -167,22 +88,6 @@ Install the dashboard requirements:
 ```bash
 pip3 install -r requirements.txt
 ```
-
-### Option 2: Install Without A Virtual Environment
-
-This installs the packages into your current Python 3 environment.
-
-Install the dashboard requirements:
-
-```bash
-pip3 install -r requirements.txt
-```
-
-The requirements install the latest available Django and boto3 releases.
-
-Before starting Django, choose one local AWS credential setup.
-
-For a fresh Floci clone, local `test/test` credentials are enough:
 
 Set the Floci endpoint URL:
 
@@ -236,11 +141,43 @@ Start the Django dev server:
 python3 manage.py runserver 127.0.0.1:8000
 ```
 
-Open `http://127.0.0.1:8000` in your browser.
+When Django runs on your host, use `http://localhost:4566`. When Django runs inside Compose, the dashboard container uses `http://floci:4566`.
+
+
+## What It Shows
+
+- Local Floci health and version
+- Environment diagnostics for AWS endpoint, region, profile, credential source, caller identity, and local-endpoint warnings
+- Clickable service cards for supported local services, with a top-24 default home view, persisted home-page service filtering, and a Tracked Resources view that shows only services with discovered resources
+- Service Matrix coverage page showing registry maturity, API paths, shared console status, action counts, tags, and linked service pages
+- Labs directory at `/labs/` showing every service with active workflow labs, current lab counts, runnable step counts, and direct links
+- Activity page at `/activity/` with browser-local recent API Gateway requests, EventBridge events, Lambda invokes, and SQS sends/receives, plus links back to activity-enabled workbenches for safe replay or prefill
+- AWS CLI Console at `/console/` for running AWS-only CLI commands against the active local Floci endpoint, with endpoint injection, JSON parsing, a draggable curated command palette, command history, and destructive-command confirmation
+- AWS-adjacent console shell with shared Environment, Labs, Service Matrix, and Refresh navigation across primary pages
+- Global service navigation with `Cmd/Ctrl+K` search, local favorites, recently visited services, and filtered service collections
+- Local AWS workflow labs for IAM, S3, SQS, SNS, EventBridge Scheduler, CloudFormation, EC2 networking, Lambda, API Gateway, DynamoDB, KMS, SSM Parameter Store, and Secrets Manager, with exact AWS CLI commands, approved one-click execution, live-state verification, reset actions, next-batch recommendations after a service batch is complete, and breadcrumb navigation back to the service or homepage
+- Interactive workbenches for S3, IAM, EC2, SQS, SNS, Lambda, DynamoDB, CloudWatch Logs, Step Functions, EventBridge, EventBridge Pipes, EventBridge Scheduler, API Gateway, AppSync, Kinesis, KMS, Secrets Manager, SSM Parameter Store, CloudFormation, Cognito, AWS Config, RDS, Auto Scaling, ELB v2, CloudFront, AWS Cloud Map, Route 53, ACM, ECS, ECR, EKS, ElastiCache, OpenSearch, Athena, Backup, Firehose, Glue, Kafka, Neptune, SES, Transfer Family, Textract, Transcribe, CodeDeploy, CodeBuild, Bedrock Runtime, AppConfig, and Resource Groups Tagging
+- IAM-focused identity tooling with user, group, role, managed policy, inline policy, access key, role trust, instance profile, cleanup, policy simulation, session identity switching, assumed-role credential, and tutorial/lab workflows
+- Inventory pages for newer Floci services including Amazon MQ, EMR, WAF v2, AWS Batch, RDS Data API, Amazon DocumentDB, MemoryDB, CodePipeline, S3 Vectors, IoT Core, and Elastic Beanstalk
+- Inventory pages for read-only or newly surfaced services such as CloudTrail and Cloud Control
+- Detail pages for services such as Cost Explorer, Cost and Usage Reports, BCM Data Exports, Pricing, and more
+- Expanded inventory for EC2 VPC endpoints, EC2 Network ACLs, EC2 VPC Flow Logs, CloudFormation StackSets, SES v2 contact lists, and SSM default patch baselines, plus KMS key enable/disable actions and richer S3 object metadata
+- Release-aware service notes refreshed through Floci 1.5.31, including a Cloud Control resource-discovery page, CloudWatch Logs Insights, RDS Data API for PostgreSQL, RDS mock mode, read-only resource APIs, Lambda cold-start and persistence improvements, EC2 image/snapshot catalogs, EventBridge-to-Firehose delivery, Scheduler ECS targets, Step Functions S3 ItemReader and qualified Lambda ARN support, Secrets Manager BatchGetSecretValue filtering, API Gateway API key persistence, and Elastic Beanstalk persistence
+- Loading state with the Floci cloud image while service data is fetched
+
+## Local AWS Workflow Labs
+
+The Labs directory at `/labs/` lists every service with curated labs. Individual service pages also link to their own lab batches when labs are available.
+
+Labs show the AWS CLI command shape without local endpoint plumbing. Each Run button invokes a registered boto3-backed action, displays the response, and independently verifies the result against live Floci state. Reset removes only the resources owned by that lab. When the final lab in a service batch is complete, the lab page recommends the next batch in the practical learning order: IAM, S3, SQS, SNS, EventBridge Scheduler, CloudFormation, EC2 networking, Lambda, API Gateway, DynamoDB, KMS, SSM Parameter Store, and Secrets Manager.
+
+The curriculum includes ten IAM labs, twelve S3 labs, nine SQS labs, two SNS labs, one EventBridge Scheduler lab, one CloudFormation lab, four EC2 networking labs, three Lambda labs, one API Gateway lab, two DynamoDB labs, one KMS lab, one SSM Parameter Store lab, and one Secrets Manager lab. It covers IAM users, policies, access keys, groups, roles, STS session policies, instance profiles, switched dashboard identities, and permission-enforcement checks; S3 buckets, objects, prefixes, metadata, tags, versioning, presigned URLs, security, encryption, lifecycle retention, CORS, S3-to-SQS notifications, and multipart uploads; SQS queue inspection, message lifecycle, visibility timeout behavior, delayed delivery, batch operations, queue configuration, dead-letter queues, managed redrive, FIFO ordering, duplicate suppression, purge, and queue deletion; SNS-to-SQS fan-out, resource policies, raw delivery, and subscription filtering; scheduled SQS delivery through a scoped IAM execution role; infrastructure-as-code ownership of S3 and SQS resources; public/private VPC routing; stateful security-group traffic controls; private S3 connectivity through a gateway endpoint; private SQS connectivity through an HTTPS-only interface endpoint with private DNS; Lambda creation, invocation, runtime SSM and Secrets Manager reads, SQS event source mappings, and CloudWatch Logs inspection; API Gateway HTTP API routing to Lambda; DynamoDB table CRUD, query, and Lambda-write workflows; KMS key, alias, encrypt, and decrypt round trips; hierarchical SSM application configuration; and Secrets Manager secret creation, reads, and value updates.
+
+Lab definitions and implementation notes live in [`buildinglabs.md`](./buildinglabs.md).
 
 ## Configuration
 
-Defaults live in `flocidashboard/settings.py`:
+Host-development defaults live in `flocidashboard/settings.py`:
 
 - `FLOCI_AWS_ENDPOINT_URL`: `http://localhost:4566`
 - `FLOCI_AWS_REGION`: `us-east-1`
@@ -248,13 +185,21 @@ Defaults live in `flocidashboard/settings.py`:
 
 Environment variables override those defaults. If `floci-admin` is not configured locally, the dashboard uses local `test/test` credentials instead of failing the homepage with missing-credential cards.
 
+The Docker Compose quickstart overrides the endpoint to `http://floci:4566` inside the dashboard container and uses local `test/test` credentials by default. Compose defaults can be overridden in `.env`; see `.env.example` for the supported ports, credentials, and Floci runtime toggles.
+
 ## Quick Check
+
+```bash
+docker compose exec dashboard python manage.py check
+```
+
+Then refresh the browser. Service cards should appear once Floci responds.
+
+For host Python development, run the same check from your activated virtual environment:
 
 ```bash
 python3 manage.py check
 ```
-
-Then refresh the browser. Service cards should appear once Floci responds.
 
 ## Contributor Architecture Notes
 
@@ -270,6 +215,7 @@ Core files:
 - `dashboard/settings_views.py`: Settings API for endpoint/profile details, endpoint overrides, reset behavior, and connection testing.
 - `dashboard/inspector_api.py` and `dashboard/inspector_views.py`: shared local payload inspector for SQS messages, SES mailbox messages, and Lambda logs.
 - `dashboard/console_views.py`, `dashboard/templates/dashboard/console.html`, and `dashboard/static/dashboard/console.js`: AWS-only CLI Console for local Floci commands. It accepts `aws ...` commands, rejects shell operators and server file reads, injects the active local endpoint, and confirms destructive operations.
+- `Dockerfile`, `docker-compose.yml`, `.dockerignore`, and `.env.example`: Docker-first local runtime. Compose starts Floci and Django together, puts the dashboard on the shared `floci_default` network, points the containerized dashboard at `http://floci:4566`, and keeps host Python development available as an optional fast loop.
 - `dashboard/templates/dashboard/base.html`: global shell with shared CSS/JS, CSRF metadata, and the collapsible global service navigation mount.
 - `dashboard/templates/dashboard/service.html`: common service page shell. Interactive workbenches should be layered into this page while keeping the original read-only inventory visible.
 - `dashboard/templates/dashboard/activity.html` and `dashboard/static/dashboard/activity.js`: browser-local recent activity view for replayable developer actions from activity-enabled service workbenches.
@@ -323,81 +269,14 @@ node --check dashboard/static/dashboard/service-console.js
 node --check dashboard/static/dashboard/<service>-console.js
 ```
 
-Use the service page in the browser as a final sanity check, for example:
-
-```text
-http://127.0.0.1:8000/service/s3/
-http://127.0.0.1:8000/service/iam/
-http://127.0.0.1:8000/service/ec2/
-http://127.0.0.1:8000/service/sqs/
-http://127.0.0.1:8000/service/stepfunctions/
-http://127.0.0.1:8000/service/eventbridge/
-http://127.0.0.1:8000/service/pipes/
-http://127.0.0.1:8000/service/scheduler/
-http://127.0.0.1:8000/service/apigateway/
-http://127.0.0.1:8000/service/kinesis/
-http://127.0.0.1:8000/service/kms/
-http://127.0.0.1:8000/service/secretsmanager/
-http://127.0.0.1:8000/service/ssm/
-http://127.0.0.1:8000/service/cloudformation/
-http://127.0.0.1:8000/service/cognito/
-http://127.0.0.1:8000/service/config/
-http://127.0.0.1:8000/service/rds/
-http://127.0.0.1:8000/service/autoscaling/
-http://127.0.0.1:8000/service/elasticloadbalancing/
-http://127.0.0.1:8000/service/cloudfront/
-http://127.0.0.1:8000/service/route53/
-http://127.0.0.1:8000/service/acm/
-http://127.0.0.1:8000/service/ecs/
-http://127.0.0.1:8000/service/ecr/
-http://127.0.0.1:8000/service/eks/
-http://127.0.0.1:8000/service/elasticache/
-http://127.0.0.1:8000/service/opensearch/
-http://127.0.0.1:8000/service/athena/
-http://127.0.0.1:8000/service/backup/
-http://127.0.0.1:8000/service/firehose/
-http://127.0.0.1:8000/service/glue/
-http://127.0.0.1:8000/service/kafka/
-http://127.0.0.1:8000/service/neptune/
-http://127.0.0.1:8000/service/ses/
-http://127.0.0.1:8000/service/transfer/
-http://127.0.0.1:8000/service/textract/
-http://127.0.0.1:8000/service/transcribe/
-http://127.0.0.1:8000/service/codedeploy/
-http://127.0.0.1:8000/service/codebuild/
-http://127.0.0.1:8000/service/bedrockruntime/
-http://127.0.0.1:8000/service/appconfig/
-http://127.0.0.1:8000/service/appsync/
-http://127.0.0.1:8000/service/resourcegroupstagging/
-http://127.0.0.1:8000/service/amazonmq/
-http://127.0.0.1:8000/service/docdb/
-http://127.0.0.1:8000/service/memorydb/
-http://127.0.0.1:8000/service/codepipeline/
-http://127.0.0.1:8000/service/s3vectors/
-http://127.0.0.1:8000/service/iot/
-http://127.0.0.1:8000/service/elasticbeanstalk/
-http://127.0.0.1:8000/service/cloudtrail/
-http://127.0.0.1:8000/service/iam/labs/
-http://127.0.0.1:8000/service/s3/labs/
-http://127.0.0.1:8000/service/sqs/labs/
-http://127.0.0.1:8000/service/sns/labs/
-http://127.0.0.1:8000/service/scheduler/labs/
-http://127.0.0.1:8000/service/cloudformation/labs/
-http://127.0.0.1:8000/service/ec2/labs/
-http://127.0.0.1:8000/service/lambda/labs/
-http://127.0.0.1:8000/service/apigateway/labs/
-http://127.0.0.1:8000/service/dynamodb/labs/
-http://127.0.0.1:8000/service/kms/labs/
-http://127.0.0.1:8000/service/ssm/labs/
-http://127.0.0.1:8000/service/secretsmanager/labs/
-```
+Use the changed service page, Labs, Service Matrix, and homepage in the browser as final sanity checks when the change affects those surfaces.
 
 ## Prompt For AI-Assisted Contributors
 
 If you are using Codex, Claude, or another local coding assistant to add a dashboard feature, start with a prompt like this:
 
 ```text
-You are contributing to the Floci Dashboard Django app. Before editing, read README.md, ROADMAP.md, dashboard/services.py, dashboard/actions.py, dashboard/aws.py, dashboard/views.py, dashboard/templates/dashboard/base.html, dashboard/templates/dashboard/service.html, dashboard/static/dashboard/dashboard.js, dashboard/static/dashboard/service-console.js, dashboard/static/dashboard/styles.css, and the closest existing workbench implementation. If your change touches labs, also read dashboard/labs/registry.py, dashboard/labs/runner.py, dashboard/labs/types.py, dashboard/labs/monolith.py, dashboard/templates/dashboard/labs.html, dashboard/templates/dashboard/labs_directory.html, dashboard/static/dashboard/labs.js, and dashboard/static/dashboard/labs-directory.js. If your change touches runtime configuration or inspection tools, also read dashboard/settings_views.py, dashboard/static/dashboard/settings.js, dashboard/inspector_api.py, dashboard/inspector_views.py, dashboard/templates/dashboard/inspector.html, and dashboard/static/dashboard/inspector.js.
+You are contributing to the Floci Dashboard Django app. Before editing, read README.md, ROADMAP.md, dashboard/services.py, dashboard/actions.py, dashboard/aws.py, dashboard/views.py, dashboard/templates/dashboard/base.html, dashboard/templates/dashboard/service.html, dashboard/static/dashboard/dashboard.js, dashboard/static/dashboard/service-console.js, dashboard/static/dashboard/styles.css, and the closest existing workbench implementation. If your change touches labs, also read dashboard/labs/registry.py, dashboard/labs/runner.py, dashboard/labs/types.py, dashboard/labs/monolith.py, dashboard/templates/dashboard/labs.html, dashboard/templates/dashboard/labs_directory.html, dashboard/static/dashboard/labs.js, and dashboard/static/dashboard/labs-directory.js. If your change touches runtime configuration, Docker-first startup, endpoint validation, or inspection tools, also read Dockerfile, docker-compose.yml, .env.example, flocidashboard/settings.py, dashboard/settings_views.py, dashboard/static/dashboard/settings.js, dashboard/inspector_api.py, dashboard/inspector_views.py, dashboard/templates/dashboard/inspector.html, and dashboard/static/dashboard/inspector.js.
 
 Good service references are S3 for object browsing, IAM for identity and policy workflows, EC2 for local compute and networking workflows, SQS/SNS for messaging, Lambda for invoke/test workflows, DynamoDB for table and item workflows, CloudWatch Logs for recent event viewing and Logs Insights, Cloud Control for unified resource discovery, Step Functions for execution workflows, EventBridge for event routing tests, EventBridge Pipes and Scheduler for event routing lifecycle workflows, API Gateway for request testing, AppSync for GraphQL management workflows, Kinesis for stream records, KMS for key workflows, Secrets Manager for secret value workflows, SSM for Parameter Store workflows, CloudFormation for stack workflows, Cognito for local auth workflows, AWS Config for compliance setup workflows, RDS for database lifecycle workflows, Auto Scaling for capacity workflows, ELB v2 for load-balancing topology workflows, CloudFront for CDN management workflows, AWS Cloud Map for service discovery workflows, Route 53 for DNS management workflows, ACM for certificate workflows, ECS for container orchestration workflows, ECR for image registry workflows, EKS for Kubernetes cluster and node group workflows, ElastiCache for cache/user/IAM auth workflows, OpenSearch for search domain workflows, Athena for SQL query workflows, Backup for plan/job workflows, Firehose for stream delivery, Glue for database/table catalog and schema registry workflows, Kafka for cluster bootstrap and broker endpoints, Neptune for graph cluster and instance lifecycle, SES for email identities and templates, Transfer Family for SFTP server and user management workflows, Textract and Transcribe for stub AI workflows, CodeDeploy and CodeBuild for local delivery workflows, Bedrock Runtime for stub model requests, AppConfig for configuration deployment and retrieval, Resource Groups Tagging for centralized tag discovery, CloudTrail for read-only audit trail inventory, and the Inspector page for cross-service local payload inspection.
 
@@ -414,8 +293,9 @@ Architecture rules:
 - Treat labs as registered workflows, not browser shell access. The browser sends service/lab/step identifiers only; runners stay allowlisted; verification reads live Floci state; reset ownership stays explicit; expensive all-lab progress checks stay async from /labs/.
 - Keep runtime configuration changes inside Settings surfaces and APIs. Endpoint/profile overrides, reset, and connection tests belong in dashboard/settings_views.py and dashboard/static/dashboard/settings.js.
 - Keep cross-service payload browsing inside Inspector surfaces and APIs. SQS messages, SES mailbox messages, and Lambda logs belong in dashboard/inspector_api.py, dashboard/inspector_views.py, and dashboard/static/dashboard/inspector.js unless a service-specific workflow truly needs local behavior.
-- Preserve fresh local startup behavior. The dashboard must work with AWS_ENDPOINT_URL, AWS_DEFAULT_REGION, AWS_ACCESS_KEY_ID=test, and AWS_SECRET_ACCESS_KEY=test, and must not assume a floci-admin profile exists.
+- Preserve fresh local startup behavior. The Docker quickstart must work with FLOCI_AWS_ENDPOINT_URL/AWS_ENDPOINT_URL set to `http://floci:4566`; host Python development must still work with `http://localhost:4566`; neither path may assume a floci-admin profile exists.
 - If changing auth, identity, health, or homepage loading behavior, keep missing Floci and missing/partial AWS credentials graceful: show helpful status messages and display any inventory that can still be loaded.
+- Preserve the Docker-first quickstart. The cloned repo should launch Floci and the dashboard together with `docker compose up -d`; host `runserver` instructions are secondary development notes.
 - Add focused tests for registry metadata, service page rendering, action endpoints, and any touched shared surfaces such as Labs, Settings, Inspector, global navigation, or static JavaScript.
 
 Implementation request:
@@ -423,6 +303,6 @@ Implementation request:
 2. Propose the smallest useful interactive workbench for common local development workflows.
 3. Implement it in the shared architecture.
 4. Keep the original read-only cards visible under the new workbench.
-5. Run python3 manage.py test dashboard, python3 manage.py check, and node --check for any changed console, dashboard, labs, settings, or inspector JavaScript.
+5. Run python3 manage.py test dashboard, docker compose exec dashboard python manage.py check, and node --check for any changed console, dashboard, labs, settings, or inspector JavaScript. If the change touches Docker or runtime configuration, also run docker compose config.
 6. Summarize changed files, behavior, tests run, and any known follow-ups.
 ```

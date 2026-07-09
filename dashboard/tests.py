@@ -1508,6 +1508,7 @@ class FlociClientFactoryTests(SimpleTestCase):
 
     def test_localhost_floci_dns_endpoints_are_allowed(self):
         endpoints = [
+            'http://floci:4566',
             'http://localhost.floci.io:4566',
             'http://s3.localhost.floci.io:4566',
             'http://bucket.s3.localhost.floci.io:4566',

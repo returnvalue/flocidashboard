@@ -115,9 +115,17 @@
       <div id="s3-console-root" class="s3-console-root" aria-live="polite"></div>
       <details class="s3-about-floci">
         <summary>About Floci S3</summary>
-        <p>Local S3 emulator. Bucket policies and lifecycle rules are stored but not enforced at access time. Replication, access logging, and inventory are not available. Floci 1.5.25 makes conditional puts atomic and rejects dot-dot paths with BadRequest.</p>
-        <p>S3 is most often used as durable object storage for uploads, generated files, backups, static assets, data lake inputs, and service-to-service handoffs. In Floci, a good learning flow is to create a bucket, upload a file, organize objects with folder-style prefixes, inspect metadata and tags, then generate a presigned URL to test temporary access.</p>
-        <p>Common local test cases include upload and download paths, overwrite behavior, empty bucket cleanup, versioning changes, object tagging, copy operations, prefix browsing, and app behavior when a bucket or object does not exist.</p>
+        <p>S3 is the object storage layer for local AWS work: buckets hold durable objects, keys give those objects names, metadata and tags describe them, and URLs or SDK calls move bytes in and out. Floci S3 gives you a fast local place to build that storage model before your app points at AWS.</p>
+        <ol>
+          <li><strong>Start with a bucket.</strong> Create a bucket for one app or workflow, then select it in the browser to inspect object counts, versioning state, encryption settings, tags, and policy-related configuration.</li>
+          <li><strong>Upload a real object.</strong> Use the workbench upload flow to send a small file or JSON payload. Open the object detail drawer to confirm the key, size, ETag, content type, metadata, tags, and last-modified time your app will later depend on.</li>
+          <li><strong>Practice key design.</strong> Organize objects with folder-style prefixes such as <code>uploads/</code>, <code>exports/</code>, or <code>customers/123/</code>. Prefixes are just key names, so test list, copy, rename-style copy/delete, and delete behavior with the same shapes your app uses.</li>
+          <li><strong>Test access patterns.</strong> Download objects, overwrite them, copy them, generate presigned URLs, and try missing-bucket or missing-key cases. These are the paths most apps hit in normal use and during cleanup or retry logic.</li>
+          <li><strong>Add storage controls intentionally.</strong> Turn on versioning, default encryption, CORS, lifecycle rules, bucket policies, object tags, and metadata when the workflow needs them. Use the read-only inventory below the workbench to confirm Floci stored the configuration you expected.</li>
+          <li><strong>Clean up like production code would.</strong> Empty buckets before deleting them, remove test prefixes after a workflow, and verify your app handles empty lists, duplicate uploads, overwritten objects, and object-not-found responses cleanly.</li>
+        </ol>
+        <p>The S3 labs turn this into a guided sequence: create a bucket, upload and retrieve objects, organize prefixes, work with metadata and tags, recover versions, generate presigned URLs, configure security and encryption, set lifecycle and CORS rules, send S3 notifications to SQS, and complete a multipart upload. Use this workbench when you want to explore freely; use the labs when you want the shortest proven path through the concepts.</p>
+        <p>Useful local test cases include upload and download paths, overwrite behavior, empty bucket cleanup, versioning changes, object tagging, copy operations, prefix browsing, presigned URL flows, and app behavior when a bucket or object does not exist. Floci stores bucket policies and lifecycle rules but does not enforce them at access time; replication, access logging, and inventory are not available. Floci 1.5.25 makes conditional puts atomic and rejects dot-dot paths with BadRequest.</p>
       </details>
       <div id="s3-readonly-grid" class="iam-grid s3-readonly-grid"></div>
     {% elif service.key == 'iam' %}

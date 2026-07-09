@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -20,12 +21,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-83*e5+#k1s&f#xi439gk^3*47a&(_)-p+1i!(%%5v+b=-s%%8k'
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-83*e5+#k1s&f#xi439gk^3*47a&(_)-p+1i!(%%5v+b=-s%%8k')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DJANGO_DEBUG', 'true').lower() not in {'0', 'false', 'no'}
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver']
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,testserver').split(',')
+    if host.strip()
+]
 
 
 # Application definition
@@ -79,7 +84,7 @@ WSGI_APPLICATION = 'flocidashboard.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': os.getenv('FLOCI_DASHBOARD_DB', str(BASE_DIR / 'db.sqlite3')),
     }
 }
 
@@ -120,9 +125,9 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
-FLOCI_AWS_ENDPOINT_URL = 'http://localhost:4566'
-FLOCI_AWS_REGION = 'us-east-1'
-FLOCI_AWS_PROFILE = 'floci-admin'
+FLOCI_AWS_ENDPOINT_URL = os.getenv('FLOCI_AWS_ENDPOINT_URL', 'http://localhost:4566')
+FLOCI_AWS_REGION = os.getenv('FLOCI_AWS_REGION', 'us-east-1')
+FLOCI_AWS_PROFILE = os.getenv('FLOCI_AWS_PROFILE', 'floci-admin')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
