@@ -1724,6 +1724,15 @@ def ec2_inventory() -> dict[str, Any]:
     internet_gateways = _clean_response(_safe_value(lambda: ec2.describe_internet_gateways().get('InternetGateways', []), []))
     route_tables = _clean_response(_safe_value(lambda: ec2.describe_route_tables().get('RouteTables', []), []))
     network_acls = _clean_response(_safe_value(lambda: ec2.describe_network_acls().get('NetworkAcls', []), []))
+    nat_gateways = _clean_response(_safe_value(
+        lambda: _paginate(ec2, 'describe_nat_gateways', 'NatGateways'),
+        [],
+    ))
+    network_interfaces = _clean_response(_safe_value(
+        lambda: _paginate(ec2, 'describe_network_interfaces', 'NetworkInterfaces'),
+        [],
+    ))
+    prefix_lists = _clean_response(_safe_value(lambda: ec2.describe_prefix_lists().get('PrefixLists', []), []))
     vpc_endpoints = _clean_response(_safe_value(lambda: _paginate(ec2, 'describe_vpc_endpoints', 'VpcEndpoints'), []))
     addresses = _clean_response(_safe_value(lambda: ec2.describe_addresses().get('Addresses', []), []))
     iam_instance_profile_associations = _clean_response(_safe_value(
@@ -1742,6 +1751,119 @@ def ec2_inventory() -> dict[str, Any]:
         lambda: _paginate(ec2, 'describe_snapshots', 'Snapshots'),
         [],
     )) if 'DescribeSnapshots' in operations else []
+    volumes = _clean_response(_safe_value(lambda: _paginate(ec2, 'describe_volumes', 'Volumes'), []))
+    launch_templates = _clean_response(_safe_value(
+        lambda: _paginate(ec2, 'describe_launch_templates', 'LaunchTemplates'),
+        [],
+    ))
+    launch_template_versions = []
+    for template in launch_templates:
+        template_id = template.get('LaunchTemplateId')
+        if not template_id:
+            continue
+        versions = _safe_value(
+            lambda template_id=template_id: _paginate(
+                ec2,
+                'describe_launch_template_versions',
+                'LaunchTemplateVersions',
+                LaunchTemplateId=template_id,
+                Versions=[
+                    str(number)
+                    for number in range(1, int(template.get('LatestVersionNumber') or 1) + 1)
+                ],
+            ),
+            [],
+        )
+        launch_template_versions.extend(_clean_response(versions))
+    spot_instance_requests = _clean_response(_safe_value(
+        lambda: _paginate(ec2, 'describe_spot_instance_requests', 'SpotInstanceRequests'),
+        [],
+    ))
+
+    diagnostics = []
+    vpc_ids = {vpc.get('VpcId') for vpc in vpcs if vpc.get('VpcId')}
+    attached_igws = {
+        attachment.get('VpcId')
+        for gateway in internet_gateways
+        for attachment in gateway.get('Attachments', [])
+        if attachment.get('VpcId')
+    }
+    routed_subnets = {
+        association.get('SubnetId')
+        for table in route_tables
+        for association in table.get('Associations', [])
+        if association.get('SubnetId')
+    }
+    vpcs_with_main_routes = {
+        table.get('VpcId')
+        for table in route_tables
+        if any(association.get('Main') for association in table.get('Associations', []))
+    }
+    acl_subnets = {
+        association.get('SubnetId')
+        for acl in network_acls
+        for association in acl.get('Associations', [])
+        if association.get('SubnetId')
+    }
+    for vpc in vpcs:
+        if vpc.get('VpcId') not in attached_igws:
+            diagnostics.append({
+                'severity': 'warning',
+                'resource_type': 'vpc',
+                'resource_id': vpc.get('VpcId'),
+                'title': 'No internet gateway attached',
+                'detail': 'Instances in this VPC do not have an internet-gateway path.',
+            })
+    for subnet_item in subnets:
+        subnet_id = subnet_item.get('SubnetId')
+        vpc_id = subnet_item.get('VpcId')
+        if subnet_id not in routed_subnets and vpc_id not in vpcs_with_main_routes:
+            diagnostics.append({
+                'severity': 'error',
+                'resource_type': 'subnet',
+                'resource_id': subnet_id,
+                'title': 'No route table association',
+                'detail': 'Associate this subnet with a route table or create a main route table for its VPC.',
+            })
+        if subnet_id not in acl_subnets:
+            diagnostics.append({
+                'severity': 'warning',
+                'resource_type': 'subnet',
+                'resource_id': subnet_id,
+                'title': 'No network ACL association',
+                'detail': 'The subnet is not represented in any current network ACL association.',
+            })
+    for group in security_groups:
+        if group.get('GroupName') != 'default' and not group.get('IpPermissions'):
+            diagnostics.append({
+                'severity': 'info',
+                'resource_type': 'security_group',
+                'resource_id': group.get('GroupId'),
+                'title': 'No inbound rules',
+                'detail': 'Instances using this security group cannot publish CIDR-sourced TCP application ports.',
+            })
+    for address in addresses:
+        if not address.get('AssociationId') and not address.get('InstanceId'):
+            diagnostics.append({
+                'severity': 'info',
+                'resource_type': 'elastic_ip',
+                'resource_id': address.get('AllocationId') or address.get('PublicIp'),
+                'title': 'Elastic IP is unassociated',
+                'detail': 'Associate it with an instance or release it when it is no longer needed.',
+            })
+    for resource_type, resource_id, vpc_id in [
+        *[('security_group', group.get('GroupId'), group.get('VpcId')) for group in security_groups],
+        *[('route_table', table.get('RouteTableId'), table.get('VpcId')) for table in route_tables],
+        *[('network_acl', acl.get('NetworkAclId'), acl.get('VpcId')) for acl in network_acls],
+    ]:
+        if vpc_id and vpc_id not in vpc_ids:
+            diagnostics.append({
+                'severity': 'warning',
+                'resource_type': resource_type,
+                'resource_id': resource_id,
+                'title': 'Resource references a missing VPC',
+                'detail': f'{resource_id} still references deleted VPC {vpc_id}. This can indicate an emulator cleanup gap.',
+            })
 
     return {
         'summary': {
@@ -1752,12 +1874,17 @@ def ec2_inventory() -> dict[str, Any]:
             'internet_gateways': len(internet_gateways),
             'route_tables': len(route_tables),
             'network_acls': len(network_acls),
+            'nat_gateways': len(nat_gateways),
+            'network_interfaces': len(network_interfaces),
             'vpc_endpoints': len(vpc_endpoints),
             'elastic_ips': len(addresses),
             'key_pairs': len(key_pairs),
             'iam_instance_profile_associations': len(iam_instance_profile_associations),
             'flow_logs': len(flow_logs),
             'snapshots': len(snapshots),
+            'volumes': len(volumes),
+            'launch_templates': len(launch_templates),
+            'spot_requests': len(spot_instance_requests),
         },
         'instances': instances,
         'vpcs': vpcs,
@@ -1770,6 +1897,9 @@ def ec2_inventory() -> dict[str, Any]:
         'internet_gateways': internet_gateways,
         'route_tables': route_tables,
         'network_acls': network_acls,
+        'nat_gateways': nat_gateways,
+        'network_interfaces': network_interfaces,
+        'prefix_lists': prefix_lists,
         'vpc_endpoints': vpc_endpoints,
         'addresses': addresses,
         'iam_instance_profile_associations': iam_instance_profile_associations,
@@ -1779,6 +1909,11 @@ def ec2_inventory() -> dict[str, Any]:
         'instance_types': instance_types,
         'flow_logs': flow_logs,
         'snapshots': snapshots,
+        'volumes': volumes,
+        'launch_templates': launch_templates,
+        'launch_template_versions': launch_template_versions,
+        'spot_instance_requests': spot_instance_requests,
+        'diagnostics': diagnostics,
         'supported_from_sdk': [
             operation
             for operation in [

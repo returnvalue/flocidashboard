@@ -52,6 +52,11 @@ Core architecture files:
 
 ## Completed Recently
 
+- Rebuilt the EC2 Phase 1 experience around an Overview, Instances, and Run Command navigation shell with a searchable instance table, URL-addressable detail selection, state-aware single and bulk lifecycle actions, transition polling, a richer launch wizard, launch-time and editable tags, and AWS-native SSM command execution with invocation history and output polling.
+- Added the EC2 Phase 2 network control plane with VPC and subnet lifecycle management, security group creation and ingress/egress rule editing, internet gateway attachment, route table and route workflows, Elastic IPs, NAT gateways, VPC endpoints, relationship topology, and live connectivity diagnostics.
+- Added the EC2 Phase 3 advanced workbench with a network ACL editor, S3-backed VPC flow-log configuration and decoded record viewing, volume lifecycle plus snapshot inspection, AMI registration, launch template version/default management, and Spot request lifecycle controls.
+- Added the EC2 Phase 4 guided local workflows for guest IMDS inspection, UserData verification, IAM instance roles, security-group-published web servers, broken-route diagnosis, private S3 gateway endpoints, and SSM command execution, all with progress tracking and cleanup.
+
 - Merged the S3 object browser contribution and preserved the original read-only S3 inventory underneath it.
 - Restored S3 summary cards, anchor-link behavior, and read-only cards after adding the new interactive browser.
 - Added shared `service-console.js` primitives for summary cards, detail cards, modals, toolbars, API calls, formatting, and toasts.

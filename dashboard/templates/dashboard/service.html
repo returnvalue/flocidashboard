@@ -250,8 +250,12 @@
       <details class="ec2-about-floci">
         <summary>About Floci EC2</summary>
         <p>Local EC2 can launch Docker-backed instances, manage lifecycle state, inject imported SSH public keys, run UserData, and expose IMDS-compatible metadata for local compute workflows.</p>
-        <p>EC2 is most often used to test software that expects an instance-like runtime, VPC placement, security group metadata, or IAM instance profile credentials. In Floci, a good learning flow is to import a key, launch an instance from a built-in AMI, inspect its network placement, then stop, start, reboot, or terminate it from the workbench. Floci 1.5.25 loads the embedded image catalog lazily.</p>
-        <p>Common local test cases include UserData bootstrapping, instance metadata calls, IAM instance profile credential wiring, security group inventory, and app behavior across stop/start or termination.</p>
+        <p>EC2 is most often used to test software that expects an instance-like runtime, VPC placement, security group metadata, or IAM instance profile credentials. Start from Overview, launch an instance from a built-in AMI, inspect its network placement and tags, then follow lifecycle state from the Instances view.</p>
+        <p>Use Run Command for AWS-native shell execution through Systems Manager. Floci executes <code>AWS-RunShellScript</code> asynchronously inside a running Docker-backed instance and returns standard output, standard error, and exit status without giving the dashboard direct Docker access.</p>
+        <p>The Network view maps VPCs to subnets, instances, internet gateways, route tables, NAT gateways, and VPC endpoints. Connectivity diagnostics call out missing edge paths, missing associations, empty inbound policies, unassociated Elastic IPs, and resources that still reference a deleted VPC.</p>
+        <p>The Security view manages security groups and their inbound and outbound rules. CIDR-sourced TCP ingress rules are especially useful locally because Floci publishes eligible application ports through forwarding sidecars.</p>
+        <p>The Advanced view covers network ACL entries and subnet association moves, S3-delivered VPC flow logs with decoded record viewing, EBS-style volumes and snapshot inventory, registered AMIs, versioned launch templates, and one-time Spot requests. Snapshot creation/deletion and AMI deregistration are not currently exposed by Floci, so those inventories remain intentionally non-destructive.</p>
+        <p>Common local test cases include UserData bootstrapping, IMDSv1 and IMDSv2 calls, IAM instance profile credential wiring, SSM commands, tag-based discovery, VPC routing, endpoint placement, security group ingress, and app behavior across stop/start or termination.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid ec2-readonly-grid"></div>
     {% elif service.key == 'ecr' %}

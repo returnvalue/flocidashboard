@@ -1111,7 +1111,7 @@ function renderS3(data) {
     ['S3 SelectObjectContent', 'select_object_content'],
     ['Not implemented', 'not_implemented'],
   ]);
-  const notesPanel = renderDetailList('Floci S3 release notes', (data.notes || []).map((note, index) => ({
+  const notesPanel = renderDetailList('Floci S3 source findings', (data.notes || []).map((note, index) => ({
     name: `Note ${index + 1}`,
     note,
   })), [

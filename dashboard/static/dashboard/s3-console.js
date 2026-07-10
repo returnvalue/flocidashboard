@@ -142,7 +142,7 @@ const S3Console = (() => {
       ['Objects', 'objects'],
       ['Object versions', 'object_versions'],
     ]);
-    const notesPanel = renderDetailList('Floci S3 release notes', (state.inventory.notes || []).map((note, index) => ({
+    const notesPanel = renderDetailList('Floci S3 source findings', (state.inventory.notes || []).map((note, index) => ({
       name: `Note ${index + 1}`,
       note,
     })), [

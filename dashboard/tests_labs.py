@@ -94,7 +94,7 @@ class LabsRegistryAuditTests(SimpleTestCase):
 class LabsPageTests(SimpleTestCase):
     def test_labs_package_facades_preserve_public_api(self):
         self.assertIs(facade_run_lab_step, run_lab_step)
-        self.assertEqual(len(all_labs()), 49)
+        self.assertEqual(len(all_labs()), 56)
         self.assertTrue(labs_for_service('iam'))
         self.assertTrue(issubclass(Lab, dict))
         self.assertTrue(issubclass(LabStep, dict))
@@ -1405,7 +1405,7 @@ class LabsRunnerTests(SimpleTestCase):
     def test_ec2_lab_registry_includes_public_private_vpc_workflow(self):
         labs = labs_for_service('ec2')
 
-        self.assertEqual(len(labs), 4)
+        self.assertEqual(len(labs), 11)
         self.assertEqual(labs[0]['key'], 'vpc-public-private')
         self.assertEqual(
             [step['key'] for step in labs[0]['steps']],

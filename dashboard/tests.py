@@ -2702,6 +2702,7 @@ class EC2ActionTests(SimpleTestCase):
             key_name='floci-key',
             user_data='#!/bin/sh\necho hello',
             iam_instance_profile_arn='arn:aws:iam::000000000000:instance-profile/app',
+            tags=None,
         )
 
     def test_run_instances_endpoint_rejects_missing_image_id(self):
@@ -2770,6 +2771,256 @@ class EC2ActionTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['key_name'], 'floci-key')
         import_key_pair.assert_called_once_with('floci-key', 'ssh-rsa AAAA user@host')
+
+    @patch('dashboard.ec2_views.update_instance_tags')
+    def test_update_instance_tags_endpoint_uses_action_helper(self, update_instance_tags):
+        update_instance_tags.return_value = {
+            'instance_id': 'i-123',
+            'tags': [{'Key': 'Name', 'Value': 'web'}],
+            'removed': [],
+        }
+
+        response = self.client.put(
+            reverse('dashboard:ec2-instance-tags', kwargs={'instance_id': 'i-123'}),
+            data=json.dumps({'tags': {'Name': 'web'}}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['tags'][0]['Value'], 'web')
+        update_instance_tags.assert_called_once_with('i-123', {'Name': 'web'})
+
+    @patch('dashboard.ec2_views.run_instance_command')
+    def test_run_instance_command_endpoint_uses_ssm_helper(self, run_instance_command):
+        run_instance_command.return_value = {
+            'instance_id': 'i-123',
+            'command_id': 'cmd-123',
+            'status': 'InProgress',
+        }
+
+        response = self.client.post(
+            reverse('dashboard:ec2-instance-commands', kwargs={'instance_id': 'i-123'}),
+            data=json.dumps({'command': 'uname -a', 'timeout_seconds': 60}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['command_id'], 'cmd-123')
+        run_instance_command.assert_called_once_with('i-123', 'uname -a', timeout_seconds=60)
+
+    @patch('dashboard.ec2_views.list_instance_commands')
+    def test_list_instance_commands_endpoint_uses_ssm_helper(self, list_instance_commands):
+        list_instance_commands.return_value = {'instance_id': 'i-123', 'commands': []}
+
+        response = self.client.get(
+            reverse('dashboard:ec2-instance-commands', kwargs={'instance_id': 'i-123'}),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['commands'], [])
+        list_instance_commands.assert_called_once_with('i-123')
+
+    @patch('dashboard.ec2_views.instance_command_detail')
+    def test_instance_command_detail_endpoint_uses_ssm_helper(self, instance_command_detail):
+        instance_command_detail.return_value = {
+            'instance_id': 'i-123',
+            'command_id': 'cmd-123',
+            'status': 'Success',
+            'stdout': 'Linux',
+            'stderr': '',
+        }
+
+        response = self.client.get(reverse(
+            'dashboard:ec2-instance-command-detail',
+            kwargs={'instance_id': 'i-123', 'command_id': 'cmd-123'},
+        ))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['stdout'], 'Linux')
+        instance_command_detail.assert_called_once_with('i-123', 'cmd-123')
+
+    @patch('dashboard.ec2_api.FlociClientFactory')
+    def test_update_instance_tags_replaces_removed_keys(self, factory_mock):
+        from .ec2_api import update_instance_tags
+
+        ec2 = MagicMock()
+        ec2.describe_instances.return_value = {
+            'Reservations': [{'Instances': [{'InstanceId': 'i-123', 'Tags': [
+                {'Key': 'Name', 'Value': 'old'},
+                {'Key': 'RemoveMe', 'Value': 'yes'},
+            ]}]}],
+        }
+        factory_mock.return_value.client.return_value = ec2
+
+        result = update_instance_tags('i-123', {'Name': 'web', 'Environment': 'dev'})
+
+        ec2.delete_tags.assert_called_once_with(
+            Resources=['i-123'],
+            Tags=[{'Key': 'RemoveMe', 'Value': 'yes'}],
+        )
+        ec2.create_tags.assert_called_once_with(
+            Resources=['i-123'],
+            Tags=[{'Key': 'Name', 'Value': 'web'}, {'Key': 'Environment', 'Value': 'dev'}],
+        )
+        self.assertEqual(result['removed'], ['RemoveMe'])
+
+    @patch('dashboard.ec2_api.FlociClientFactory')
+    def test_run_instance_command_uses_aws_run_shell_script(self, factory_mock):
+        from .ec2_api import run_instance_command
+
+        ssm = MagicMock()
+        ssm.send_command.return_value = {
+            'Command': {'CommandId': 'cmd-123', 'Status': 'InProgress'},
+        }
+        factory_mock.return_value.client.return_value = ssm
+
+        result = run_instance_command('i-123', 'uname -a', timeout_seconds=60)
+
+        self.assertEqual(result['command_id'], 'cmd-123')
+        ssm.send_command.assert_called_once_with(
+            InstanceIds=['i-123'],
+            DocumentName='AWS-RunShellScript',
+            Parameters={'commands': ['uname -a']},
+            TimeoutSeconds=60,
+            Comment='Floci Dashboard EC2 command runner',
+        )
+
+    def test_vpc_and_subnet_network_endpoints(self):
+        with patch('dashboard.ec2_views.create_vpc', return_value={'vpc_id': 'vpc-123'}) as create_vpc:
+            response = self.client.post(
+                reverse('dashboard:ec2-vpcs-create'),
+                data=json.dumps({'cidr_block': '10.0.0.0/16', 'name': 'app'}),
+                content_type='application/json',
+            )
+            self.assertEqual(response.status_code, 200)
+            create_vpc.assert_called_once_with('10.0.0.0/16', name='app')
+        with patch('dashboard.ec2_views.delete_vpc', return_value={'vpc_id': 'vpc-123', 'deleted': True}):
+            self.assertEqual(self.client.delete(reverse('dashboard:ec2-vpc-delete', kwargs={'vpc_id': 'vpc-123'})).status_code, 200)
+        with patch('dashboard.ec2_views.create_subnet', return_value={'subnet_id': 'subnet-123'}) as create_subnet:
+            response = self.client.post(
+                reverse('dashboard:ec2-subnets-create'),
+                data=json.dumps({'vpc_id': 'vpc-123', 'cidr_block': '10.0.1.0/24', 'availability_zone': 'us-east-1a', 'name': 'app-a'}),
+                content_type='application/json',
+            )
+            self.assertEqual(response.status_code, 200)
+            create_subnet.assert_called_once_with('vpc-123', '10.0.1.0/24', availability_zone='us-east-1a', name='app-a')
+        with patch('dashboard.ec2_views.delete_subnet', return_value={'subnet_id': 'subnet-123', 'deleted': True}):
+            self.assertEqual(self.client.delete(reverse('dashboard:ec2-subnet-delete', kwargs={'subnet_id': 'subnet-123'})).status_code, 200)
+
+    def test_security_group_network_endpoints(self):
+        with patch('dashboard.ec2_views.create_security_group', return_value={'group_id': 'sg-123'}) as create_group:
+            response = self.client.post(
+                reverse('dashboard:ec2-security-groups-create'),
+                data=json.dumps({'name': 'web', 'description': 'web access', 'vpc_id': 'vpc-123'}),
+                content_type='application/json',
+            )
+            self.assertEqual(response.status_code, 200)
+            create_group.assert_called_once_with('web', 'web access', 'vpc-123')
+        with patch('dashboard.ec2_views.change_security_group_rule', return_value={'group_id': 'sg-123'}):
+            route = reverse('dashboard:ec2-security-group-rules', kwargs={'group_id': 'sg-123'})
+            payload = json.dumps({'direction': 'ingress', 'rule': {'protocol': 'tcp', 'from_port': 80, 'to_port': 80, 'cidr': '0.0.0.0/0'}})
+            self.assertEqual(self.client.post(route, data=payload, content_type='application/json').status_code, 200)
+            self.assertEqual(self.client.delete(route, data=payload, content_type='application/json').status_code, 200)
+        with patch('dashboard.ec2_views.delete_security_group', return_value={'group_id': 'sg-123', 'deleted': True}):
+            self.assertEqual(self.client.delete(reverse('dashboard:ec2-security-group-delete', kwargs={'group_id': 'sg-123'})).status_code, 200)
+
+    def test_internet_gateway_network_endpoints(self):
+        with patch('dashboard.ec2_views.create_internet_gateway', return_value={'internet_gateway_id': 'igw-123'}):
+            self.assertEqual(self.client.post(reverse('dashboard:ec2-internet-gateways-create')).status_code, 200)
+        attachment_route = reverse('dashboard:ec2-internet-gateway-attachment', kwargs={'gateway_id': 'igw-123'})
+        with patch('dashboard.ec2_views.set_internet_gateway_attachment', return_value={'internet_gateway_id': 'igw-123'}):
+            payload = json.dumps({'vpc_id': 'vpc-123'})
+            self.assertEqual(self.client.put(attachment_route, data=payload, content_type='application/json').status_code, 200)
+            self.assertEqual(self.client.delete(attachment_route, data=payload, content_type='application/json').status_code, 200)
+        with patch('dashboard.ec2_views.delete_internet_gateway', return_value={'internet_gateway_id': 'igw-123', 'deleted': True}):
+            self.assertEqual(self.client.delete(reverse('dashboard:ec2-internet-gateway-delete', kwargs={'gateway_id': 'igw-123'})).status_code, 200)
+
+    def test_route_table_network_endpoints(self):
+        with patch('dashboard.ec2_views.create_route_table', return_value={'route_table_id': 'rtb-123'}):
+            response = self.client.post(reverse('dashboard:ec2-route-tables-create'), data=json.dumps({'vpc_id': 'vpc-123'}), content_type='application/json')
+            self.assertEqual(response.status_code, 200)
+        association_route = reverse('dashboard:ec2-route-table-associations', kwargs={'route_table_id': 'rtb-123'})
+        with patch('dashboard.ec2_views.change_route_table_association', return_value={'route_table_id': 'rtb-123'}):
+            self.assertEqual(self.client.post(association_route, data=json.dumps({'subnet_id': 'subnet-123'}), content_type='application/json').status_code, 200)
+            self.assertEqual(self.client.delete(association_route, data=json.dumps({'association_id': 'rtbassoc-123'}), content_type='application/json').status_code, 200)
+        routes_route = reverse('dashboard:ec2-routes', kwargs={'route_table_id': 'rtb-123'})
+        with patch('dashboard.ec2_views.change_route', return_value={'route_table_id': 'rtb-123'}):
+            payload = json.dumps({'destination_cidr': '0.0.0.0/0', 'gateway_id': 'igw-123'})
+            self.assertEqual(self.client.post(routes_route, data=payload, content_type='application/json').status_code, 200)
+            self.assertEqual(self.client.delete(routes_route, data=payload, content_type='application/json').status_code, 200)
+        with patch('dashboard.ec2_views.delete_route_table', return_value={'route_table_id': 'rtb-123', 'deleted': True}):
+            self.assertEqual(self.client.delete(reverse('dashboard:ec2-route-table-delete', kwargs={'route_table_id': 'rtb-123'})).status_code, 200)
+
+    def test_elastic_ip_network_endpoints(self):
+        with patch('dashboard.ec2_views.allocate_elastic_ip', return_value={'allocation_id': 'eipalloc-123'}):
+            self.assertEqual(self.client.post(reverse('dashboard:ec2-elastic-ips-allocate')).status_code, 200)
+        association_route = reverse('dashboard:ec2-elastic-ip-association', kwargs={'allocation_id': 'eipalloc-123'})
+        with patch('dashboard.ec2_views.set_elastic_ip_association', return_value={'allocation_id': 'eipalloc-123'}):
+            self.assertEqual(self.client.put(association_route, data=json.dumps({'instance_id': 'i-123'}), content_type='application/json').status_code, 200)
+            self.assertEqual(self.client.delete(association_route, data=json.dumps({'association_id': 'eipassoc-123'}), content_type='application/json').status_code, 200)
+        with patch('dashboard.ec2_views.release_elastic_ip', return_value={'allocation_id': 'eipalloc-123', 'released': True}):
+            self.assertEqual(self.client.delete(reverse('dashboard:ec2-elastic-ip-release', kwargs={'allocation_id': 'eipalloc-123'})).status_code, 200)
+
+    def test_nat_gateway_and_vpc_endpoint_network_endpoints(self):
+        with patch('dashboard.ec2_views.create_nat_gateway', return_value={'nat_gateway_id': 'nat-123'}):
+            response = self.client.post(reverse('dashboard:ec2-nat-gateways-create'), data=json.dumps({'subnet_id': 'subnet-123', 'allocation_id': 'eipalloc-123'}), content_type='application/json')
+            self.assertEqual(response.status_code, 200)
+        with patch('dashboard.ec2_views.delete_nat_gateway', return_value={'nat_gateway_id': 'nat-123', 'deleted': True}):
+            self.assertEqual(self.client.delete(reverse('dashboard:ec2-nat-gateway-delete', kwargs={'nat_gateway_id': 'nat-123'})).status_code, 200)
+        with patch('dashboard.ec2_views.create_vpc_endpoint', return_value={'vpc_endpoint_id': 'vpce-123'}):
+            response = self.client.post(reverse('dashboard:ec2-vpc-endpoints-create'), data=json.dumps({'vpc_id': 'vpc-123', 'service_name': 'com.amazonaws.us-east-1.s3', 'endpoint_type': 'Gateway', 'route_table_ids': ['rtb-123']}), content_type='application/json')
+            self.assertEqual(response.status_code, 200)
+        with patch('dashboard.ec2_views.delete_vpc_endpoint', return_value={'vpc_endpoint_id': 'vpce-123', 'deleted': True}):
+            self.assertEqual(self.client.delete(reverse('dashboard:ec2-vpc-endpoint-delete', kwargs={'endpoint_id': 'vpce-123'})).status_code, 200)
+
+    def test_network_acl_advanced_endpoints(self):
+        with patch('dashboard.ec2_views.create_network_acl', return_value={'network_acl_id': 'acl-123'}):
+            self.assertEqual(self.client.post(reverse('dashboard:ec2-network-acls-create'), data=json.dumps({'vpc_id': 'vpc-123'}), content_type='application/json').status_code, 200)
+        entries_route = reverse('dashboard:ec2-network-acl-entries', kwargs={'network_acl_id': 'acl-123'})
+        with patch('dashboard.ec2_views.put_network_acl_entry', return_value={'network_acl_id': 'acl-123'}):
+            self.assertEqual(self.client.put(entries_route, data=json.dumps({'entry': {'rule_number': 100}}), content_type='application/json').status_code, 200)
+        with patch('dashboard.ec2_views.delete_network_acl_entry', return_value={'network_acl_id': 'acl-123', 'deleted': True}):
+            self.assertEqual(self.client.delete(entries_route, data=json.dumps({'rule_number': 100, 'egress': False}), content_type='application/json').status_code, 200)
+        with patch('dashboard.ec2_views.replace_network_acl_association', return_value={'network_acl_id': 'acl-123'}):
+            self.assertEqual(self.client.put(reverse('dashboard:ec2-network-acl-associations', kwargs={'network_acl_id': 'acl-123'}), data=json.dumps({'association_id': 'aclassoc-123'}), content_type='application/json').status_code, 200)
+        with patch('dashboard.ec2_views.delete_network_acl', return_value={'network_acl_id': 'acl-123', 'deleted': True}):
+            self.assertEqual(self.client.delete(reverse('dashboard:ec2-network-acl-delete', kwargs={'network_acl_id': 'acl-123'})).status_code, 200)
+
+    def test_flow_log_advanced_endpoints(self):
+        with patch('dashboard.ec2_views.create_flow_log', return_value={'flow_log_id': 'fl-123'}):
+            response = self.client.post(reverse('dashboard:ec2-flow-logs-create'), data=json.dumps({'resource_id': 'vpc-default', 'resource_type': 'VPC', 'traffic_type': 'ALL', 'destination': 'arn:aws:s3:::logs'}), content_type='application/json')
+            self.assertEqual(response.status_code, 200)
+        with patch('dashboard.ec2_views.view_flow_log', return_value={'flow_log_id': 'fl-123', 'records': []}):
+            self.assertEqual(self.client.get(reverse('dashboard:ec2-flow-log-view', kwargs={'flow_log_id': 'fl-123'})).status_code, 200)
+        with patch('dashboard.ec2_views.delete_flow_log', return_value={'flow_log_id': 'fl-123', 'deleted': True}):
+            self.assertEqual(self.client.delete(reverse('dashboard:ec2-flow-log-delete', kwargs={'flow_log_id': 'fl-123'})).status_code, 200)
+
+    def test_volume_and_image_advanced_endpoints(self):
+        with patch('dashboard.ec2_views.create_volume', return_value={'volume_id': 'vol-123'}):
+            response = self.client.post(reverse('dashboard:ec2-volumes-create'), data=json.dumps({'availability_zone': 'us-east-1a', 'size': 8, 'volume_type': 'gp3'}), content_type='application/json')
+            self.assertEqual(response.status_code, 200)
+        with patch('dashboard.ec2_views.delete_volume', return_value={'volume_id': 'vol-123', 'deleted': True}):
+            self.assertEqual(self.client.delete(reverse('dashboard:ec2-volume-delete', kwargs={'volume_id': 'vol-123'})).status_code, 200)
+        with patch('dashboard.ec2_views.register_image', return_value={'image_id': 'ami-123'}):
+            response = self.client.post(reverse('dashboard:ec2-images-register'), data=json.dumps({'name': 'app', 'description': 'App image', 'architecture': 'x86_64', 'root_device_name': '/dev/xvda'}), content_type='application/json')
+            self.assertEqual(response.status_code, 200)
+
+    def test_launch_template_advanced_endpoints(self):
+        with patch('dashboard.ec2_views.create_launch_template', return_value={'launch_template_id': 'lt-123'}):
+            self.assertEqual(self.client.post(reverse('dashboard:ec2-launch-templates-create'), data=json.dumps({'name': 'app', 'data': {'image_id': 'ami-123'}}), content_type='application/json').status_code, 200)
+        with patch('dashboard.ec2_views.create_launch_template_version', return_value={'launch_template_id': 'lt-123', 'version_number': 2}):
+            self.assertEqual(self.client.post(reverse('dashboard:ec2-launch-template-versions-create', kwargs={'launch_template_id': 'lt-123'}), data=json.dumps({'source_version': '1', 'data': {'instance_type': 't3.micro'}}), content_type='application/json').status_code, 200)
+        with patch('dashboard.ec2_views.set_launch_template_default_version', return_value={'launch_template_id': 'lt-123', 'default_version': '2'}):
+            self.assertEqual(self.client.put(reverse('dashboard:ec2-launch-template-default-version', kwargs={'launch_template_id': 'lt-123'}), data=json.dumps({'version': 2}), content_type='application/json').status_code, 200)
+        with patch('dashboard.ec2_views.delete_launch_template', return_value={'launch_template_id': 'lt-123', 'deleted': True}):
+            self.assertEqual(self.client.delete(reverse('dashboard:ec2-launch-template-delete', kwargs={'launch_template_id': 'lt-123'})).status_code, 200)
+
+    def test_spot_request_advanced_endpoints(self):
+        with patch('dashboard.ec2_views.request_spot_instances', return_value={'spot_request_ids': ['sir-123']}):
+            response = self.client.post(reverse('dashboard:ec2-spot-requests-create'), data=json.dumps({'image_id': 'ami-123', 'instance_type': 't3.micro', 'instance_count': 1}), content_type='application/json')
+            self.assertEqual(response.status_code, 200)
+        with patch('dashboard.ec2_views.cancel_spot_request', return_value={'spot_request_id': 'sir-123', 'cancelled': []}):
+            self.assertEqual(self.client.post(reverse('dashboard:ec2-spot-request-cancel', kwargs={'spot_request_id': 'sir-123'})).status_code, 200)
 
 
 class IAMActionTests(SimpleTestCase):
@@ -3369,3 +3620,71 @@ class IAMActionTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()['deleted'])
         delete_policy_version.assert_called_once_with('arn:aws:iam::000000000000:policy/Local', 'v1')
+
+
+class GuidedEC2LabTests(TestCase):
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+
+    def test_ec2_lab_catalog_includes_all_guided_workflows(self):
+        from dashboard.labs import labs_for_service
+
+        labs = {lab['key']: lab for lab in labs_for_service('ec2')}
+        expected = {
+            'guided-imds', 'guided-userdata', 'guided-instance-role',
+            'guided-web-server', 'guided-broken-route',
+            'guided-private-s3', 'guided-ssm-command',
+        }
+
+        self.assertTrue(expected.issubset(labs))
+        self.assertTrue(all(labs[key]['guided'] for key in expected))
+        self.assertTrue(all(labs[key]['steps'][0]['key'] == 'run-workflow' for key in expected))
+
+    @patch('dashboard.labs.ec2_guided.RUNNERS')
+    def test_guided_lab_step_uses_runner_and_tracks_duration(self, runners):
+        from dashboard.labs.ec2_guided import run_guided_step
+
+        runners.__contains__.return_value = True
+        runners.__getitem__.return_value = lambda: {
+            'service': 'ec2', 'lab': 'guided-imds', 'verified': True,
+        }
+
+        result = run_guided_step('guided-imds', 'run-workflow')
+
+        self.assertTrue(result['verified'])
+        self.assertGreaterEqual(result['duration_ms'], 0)
+
+    def test_guided_status_reflects_cached_completion(self):
+        from django.core.cache import cache
+        from dashboard.labs.ec2_guided import guided_status
+
+        pending = guided_status('guided-ssm-command')
+        cache.set('floci-lab:ec2:guided:guided-ssm-command:complete', True)
+        complete = guided_status('guided-ssm-command')
+
+        self.assertFalse(pending['complete'])
+        self.assertTrue(complete['complete'])
+        self.assertTrue(complete['steps']['run-workflow']['verified'])
+
+    @patch('dashboard.labs.ec2_guided._ec2')
+    def test_reset_clears_progress_without_resources(self, ec2_client):
+        from django.core.cache import cache
+        from dashboard.labs.ec2_guided import reset_guided_lab
+
+        cache.set('floci-lab:ec2:guided:guided-ssm-command:complete', True)
+        result = reset_guided_lab('guided-ssm-command')
+
+        self.assertTrue(result['reset'])
+        self.assertIsNone(cache.get('floci-lab:ec2:guided:guided-ssm-command:complete'))
+        ec2_client.assert_called_once_with()
+
+    def test_guided_lab_page_exposes_workflow(self):
+        response = self.client.get(
+            reverse('dashboard:service-labs', kwargs={'service_key': 'ec2'}),
+            {'lab': 'guided-imds'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Launch an instance and inspect IMDS')
+        self.assertContains(response, 'data-step-key="run-workflow"')

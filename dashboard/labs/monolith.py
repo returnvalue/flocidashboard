@@ -3603,11 +3603,13 @@ def labs_for_service(service_key: str) -> list[dict[str, Any]]:
     if service_key == 'cloudformation':
         return [CLOUDFORMATION_S3_SQS_LAB]
     if service_key == 'ec2':
+        from .ec2_guided import GUIDED_EC2_LABS
         return [
             EC2_VPC_NETWORKING_LAB,
             EC2_SECURITY_CONTROLS_LAB,
             EC2_S3_GATEWAY_ENDPOINT_LAB,
             EC2_SQS_INTERFACE_ENDPOINT_LAB,
+            *GUIDED_EC2_LABS,
         ]
     if service_key == 'lambda':
         return [
@@ -8536,6 +8538,28 @@ def run_lab_step(service_key: str, lab_key: str, step_key: str) -> dict[str, Any
     if not lab:
         raise ValueError('Lab not found')
 
+    if service_key == 'ec2' and lab_key == 'guided-imds':
+        from .ec2_guided import run_guided_step
+        if step_key == 'run-workflow': return run_guided_step(lab_key, step_key)
+    if service_key == 'ec2' and lab_key == 'guided-userdata':
+        from .ec2_guided import run_guided_step
+        if step_key == 'run-workflow': return run_guided_step(lab_key, step_key)
+    if service_key == 'ec2' and lab_key == 'guided-instance-role':
+        from .ec2_guided import run_guided_step
+        if step_key == 'run-workflow': return run_guided_step(lab_key, step_key)
+    if service_key == 'ec2' and lab_key == 'guided-web-server':
+        from .ec2_guided import run_guided_step
+        if step_key == 'run-workflow': return run_guided_step(lab_key, step_key)
+    if service_key == 'ec2' and lab_key == 'guided-broken-route':
+        from .ec2_guided import run_guided_step
+        if step_key == 'run-workflow': return run_guided_step(lab_key, step_key)
+    if service_key == 'ec2' and lab_key == 'guided-private-s3':
+        from .ec2_guided import run_guided_step
+        if step_key == 'run-workflow': return run_guided_step(lab_key, step_key)
+    if service_key == 'ec2' and lab_key == 'guided-ssm-command':
+        from .ec2_guided import run_guided_step
+        if step_key == 'run-workflow': return run_guided_step(lab_key, step_key)
+
     if service_key == 'iam' and lab_key == 'create-user-alice' and step_key == 'create-user':
         return _run_iam_create_user_alice()
 
@@ -9232,6 +9256,28 @@ def lab_status(service_key: str, lab_key: str) -> dict[str, Any]:
     lab = get_lab(service_key, lab_key)
     if not lab:
         raise ValueError('Lab not found')
+
+    if service_key == 'ec2' and lab_key == 'guided-imds':
+        from .ec2_guided import guided_status
+        step_keys = {'run-workflow': True}; status = guided_status(lab_key); status['steps'].setdefault(next(iter(step_keys)), {}); return status
+    if service_key == 'ec2' and lab_key == 'guided-userdata':
+        from .ec2_guided import guided_status
+        step_keys = {'run-workflow': True}; status = guided_status(lab_key); status['steps'].setdefault(next(iter(step_keys)), {}); return status
+    if service_key == 'ec2' and lab_key == 'guided-instance-role':
+        from .ec2_guided import guided_status
+        step_keys = {'run-workflow': True}; status = guided_status(lab_key); status['steps'].setdefault(next(iter(step_keys)), {}); return status
+    if service_key == 'ec2' and lab_key == 'guided-web-server':
+        from .ec2_guided import guided_status
+        step_keys = {'run-workflow': True}; status = guided_status(lab_key); status['steps'].setdefault(next(iter(step_keys)), {}); return status
+    if service_key == 'ec2' and lab_key == 'guided-broken-route':
+        from .ec2_guided import guided_status
+        step_keys = {'run-workflow': True}; status = guided_status(lab_key); status['steps'].setdefault(next(iter(step_keys)), {}); return status
+    if service_key == 'ec2' and lab_key == 'guided-private-s3':
+        from .ec2_guided import guided_status
+        step_keys = {'run-workflow': True}; status = guided_status(lab_key); status['steps'].setdefault(next(iter(step_keys)), {}); return status
+    if service_key == 'ec2' and lab_key == 'guided-ssm-command':
+        from .ec2_guided import guided_status
+        step_keys = {'run-workflow': True}; status = guided_status(lab_key); status['steps'].setdefault(next(iter(step_keys)), {}); return status
 
     if service_key == 'iam' and lab_key == 'create-user-alice':
         verification = _verify_iam_user('Alice')
@@ -11585,6 +11631,28 @@ def reset_lab(service_key: str, lab_key: str) -> dict[str, Any]:
     lab = get_lab(service_key, lab_key)
     if not lab:
         raise ValueError('Lab not found')
+
+    if service_key == 'ec2' and lab_key == 'guided-imds':
+        from .ec2_guided import reset_guided_lab
+        return reset_guided_lab(lab_key)
+    if service_key == 'ec2' and lab_key == 'guided-userdata':
+        from .ec2_guided import reset_guided_lab
+        return reset_guided_lab(lab_key)
+    if service_key == 'ec2' and lab_key == 'guided-instance-role':
+        from .ec2_guided import reset_guided_lab
+        return reset_guided_lab(lab_key)
+    if service_key == 'ec2' and lab_key == 'guided-web-server':
+        from .ec2_guided import reset_guided_lab
+        return reset_guided_lab(lab_key)
+    if service_key == 'ec2' and lab_key == 'guided-broken-route':
+        from .ec2_guided import reset_guided_lab
+        return reset_guided_lab(lab_key)
+    if service_key == 'ec2' and lab_key == 'guided-private-s3':
+        from .ec2_guided import reset_guided_lab
+        return reset_guided_lab(lab_key)
+    if service_key == 'ec2' and lab_key == 'guided-ssm-command':
+        from .ec2_guided import reset_guided_lab
+        return reset_guided_lab(lab_key)
 
     if service_key == 'iam' and lab_key == 'create-user-alice':
         return _reset_iam_create_user_alice()
