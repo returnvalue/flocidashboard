@@ -25,7 +25,7 @@ def _lab(key: str, title: str, description: str, command: str, explanation: str)
 
 GUIDED_EC2_LABS = [
     _lab('guided-imds', 'Launch an instance and inspect IMDS', 'Launch a disposable Ubuntu instance, query its identity and networking metadata from inside the guest, and retain the evidence.', 'aws ec2 run-instances --image-id ami-ubuntu2204 --instance-type t2.micro\naws ssm send-command --instance-ids <instance-id> --parameters commands="curl -s http://169.254.169.254/latest/meta-data/instance-id"', 'The metadata request runs inside the instance through SSM, not on the dashboard host.'),
-    _lab('guided-userdata', 'Run UserData and verify its output', 'Boot an instance with deterministic UserData and read the generated artifact back through SSM.', "aws ec2 run-instances --image-id ami-alpine --user-data '#!/bin/sh\necho floci-userdata-ok >/tmp/floci-userdata.txt'\naws ssm send-command --instance-ids <instance-id> --parameters commands='cat /tmp/floci-userdata.txt'", 'UserData runs during guest startup; the second command verifies its observable filesystem effect.'),
+    _lab('guided-userdata', 'Run UserData and verify its output', 'Boot an instance with deterministic UserData and read the generated artifact back through SSM.', "aws ec2 run-instances --image-id ami-ubuntu2204 --user-data '#!/bin/sh\necho floci-userdata-ok >/tmp/floci-userdata.txt'\naws ssm send-command --instance-ids <instance-id> --parameters commands='cat /tmp/floci-userdata.txt'", 'UserData runs asynchronously during guest startup; the dashboard waits for its observable filesystem effect before completing the lab.'),
     _lab('guided-instance-role', 'Use an IAM role from inside an instance', 'Create an EC2-trusted role and instance profile, launch with the profile, then inspect its temporary credential document through IMDS.', 'aws iam create-role --role-name FlociGuidedEc2Role --assume-role-policy-document file://trust.json\naws iam create-instance-profile --instance-profile-name FlociGuidedEc2Profile\naws ec2 run-instances --iam-instance-profile Name=FlociGuidedEc2Profile', 'This proves the role-to-profile-to-instance chain while redacting credential values from the response.'),
     _lab('guided-web-server', 'Publish a web server through a security group', 'Allow TCP/8080, start a local web server with UserData, and verify its page from inside the guest.', 'aws ec2 create-security-group --group-name floci-guided-web --vpc-id vpc-default\naws ec2 authorize-security-group-ingress --group-id <group-id> --protocol tcp --port 8080 --cidr 0.0.0.0/0\naws ec2 run-instances --security-group-ids <group-id>', 'Floci publishes allowed TCP ingress ports on the host; the lab verifies the rule and guest web process.'),
     _lab('guided-broken-route', 'Diagnose a broken route', 'Build an isolated subnet whose route table has no default route and run relationship diagnostics.', 'aws ec2 create-vpc --cidr-block 10.47.0.0/16\naws ec2 create-subnet --vpc-id <vpc-id> --cidr-block 10.47.1.0/24\naws ec2 create-route-table --vpc-id <vpc-id>\naws ec2 describe-route-tables --route-table-ids <route-table-id>', 'A table with only its local VPC route cannot reach external destinations; the result identifies the missing route.'),
@@ -73,6 +73,29 @@ def _require_success(invocation: dict[str, Any], expected: str | None = None) ->
     return invocation
 
 
+def _http_get_command(host: str, port: int, path: str) -> str:
+    clean_path = '/' + path.strip().lstrip('/')
+    return (
+        f"bash -c 'exec 3<>/dev/tcp/{host}/{port}; "
+        f'printf "GET {clean_path} HTTP/1.0\\r\\nHost: {host}\\r\\nConnection: close\\r\\n\\r\\n" >&3; '
+        "awk \"f{print} /^\\r?$/{f=1}\" <&3'"
+    )
+
+
+def _imds_get_command(path: str) -> str:
+    return _http_get_command('169.254.169.254', 80, path)
+
+
+def _wait_for_output(instance_id: str, command: str, expected: str, *, attempts: int = 30) -> dict[str, Any]:
+    last: dict[str, Any] = {}
+    for _attempt in range(attempts):
+        last = _execute(instance_id, command)
+        if last.get('status') == 'Success' and expected in last.get('stdout', ''):
+            return last
+        time.sleep(0.5)
+    return _require_success(last, expected)
+
+
 def _result(lab: dict[str, Any], evidence: dict[str, Any], message: str) -> dict[str, Any]:
     _remember(lab['key'], 'complete', True)
     return {'service': 'ec2', 'lab': lab['key'], 'step': 'run-workflow', 'command': lab['steps'][0]['command'], 'exit_code': 0, 'stdout': str(evidence), 'stderr': '', 'json': evidence, 'duration_ms': 0, 'verified': True, 'verification': {'status': 'passed', 'message': message, 'resource': evidence}}
@@ -80,13 +103,14 @@ def _result(lab: dict[str, Any], evidence: dict[str, Any], message: str) -> dict
 
 def _run_imds() -> dict[str, Any]:
     lab = GUIDED_EC2_LABS[0]; instance_id = _launch(lab['key'])
-    invocation = _require_success(_execute(instance_id, "printf 'instance-id='; curl -s http://169.254.169.254/latest/meta-data/instance-id; printf '\nlocal-ipv4='; curl -s http://169.254.169.254/latest/meta-data/local-ipv4"), 'instance-id=')
-    return _result(lab, {'instance_id': instance_id, 'invocation': invocation}, 'The guest queried its own identity and address through IMDS.')
+    instance = _require_success(_execute(instance_id, _imds_get_command('/latest/meta-data/instance-id')), instance_id)
+    address = _require_success(_execute(instance_id, _imds_get_command('/latest/meta-data/local-ipv4')))
+    return _result(lab, {'instance_id': instance_id, 'instance_id_invocation': instance, 'local_ipv4_invocation': address}, 'The guest queried its own identity and address through IMDS without requiring curl.')
 
 
 def _run_userdata() -> dict[str, Any]:
     lab = GUIDED_EC2_LABS[1]; instance_id = _launch(lab['key'], user_data='#!/bin/sh\necho floci-userdata-ok > /tmp/floci-userdata.txt\n')
-    invocation = _require_success(_execute(instance_id, 'cat /tmp/floci-userdata.txt'), 'floci-userdata-ok')
+    invocation = _wait_for_output(instance_id, 'cat /tmp/floci-userdata.txt', 'floci-userdata-ok')
     return _result(lab, {'instance_id': instance_id, 'invocation': invocation}, 'UserData created the expected artifact and SSM read it back.')
 
 
@@ -101,18 +125,42 @@ def _run_role() -> dict[str, Any]:
     except Exception as exc:
         if 'already' not in str(exc).lower() and 'limit' not in str(exc).lower(): raise
     instance_id = _launch(lab['key'], profile_arn=response['InstanceProfile']['Arn'])
-    invocation = _require_success(_execute(instance_id, f"curl -s http://169.254.169.254/latest/meta-data/iam/security-credentials/{role}"))
+    invocation = _require_success(_execute(instance_id, _imds_get_command(f'/latest/meta-data/iam/security-credentials/{role}')))
     _remember(lab['key'], 'role', role); _remember(lab['key'], 'profile', profile)
     return _result(lab, {'instance_id': instance_id, 'role': role, 'profile': profile, 'credential_source': 'IMDS', 'command_id': invocation.get('command_id')}, 'The profile was attached and guest IMDS exposed role credentials; secret values were omitted.')
 
 
 def _run_web() -> dict[str, Any]:
     lab = GUIDED_EC2_LABS[3]; ec2 = _ec2()
-    group_id = ec2.create_security_group(GroupName='floci-guided-web', Description='Guided local web server', VpcId=DEFAULT_VPC)['GroupId']
-    ec2.authorize_security_group_ingress(GroupId=group_id, IpPermissions=[{'IpProtocol': 'tcp', 'FromPort': 8080, 'ToPort': 8080, 'IpRanges': [{'CidrIp': '0.0.0.0/0', 'Description': 'Guided web lab'}]}]); _remember(lab['key'], 'group-id', group_id)
-    user_data = '#!/bin/sh\nmkdir -p /tmp/www\necho floci-web-ok >/tmp/www/index.html\nbusybox httpd -p 8080 -h /tmp/www\n'
+    groups = ec2.describe_security_groups(Filters=[
+        {'Name': 'vpc-id', 'Values': [DEFAULT_VPC]},
+        {'Name': 'group-name', 'Values': ['floci-guided-web']},
+    ]).get('SecurityGroups', [])
+    group = groups[0] if groups else None
+    group_id = group['GroupId'] if group else ec2.create_security_group(GroupName='floci-guided-web', Description='Guided local web server', VpcId=DEFAULT_VPC)['GroupId']
+    has_ingress = any(
+        permission.get('IpProtocol') == 'tcp'
+        and permission.get('FromPort') == 8080
+        and permission.get('ToPort') == 8080
+        for permission in (group or {}).get('IpPermissions', [])
+    )
+    if not has_ingress:
+        ec2.authorize_security_group_ingress(GroupId=group_id, IpPermissions=[{'IpProtocol': 'tcp', 'FromPort': 8080, 'ToPort': 8080, 'IpRanges': [{'CidrIp': '0.0.0.0/0', 'Description': 'Guided web lab'}]}])
+    _remember(lab['key'], 'group-id', group_id)
+    user_data = r'''#!/bin/sh
+cat > /tmp/floci-web-server.pl <<'PERL'
+use IO::Socket::INET;
+my $server = IO::Socket::INET->new(LocalPort => 8080, Listen => 5, Reuse => 1) or die $!;
+while (my $client = $server->accept()) {
+  while (<$client>) { last if /^\r?$/; }
+  print $client "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 13\r\n\r\nfloci-web-ok\n";
+  close $client;
+}
+PERL
+nohup perl /tmp/floci-web-server.pl >/tmp/floci-web-server.log 2>&1 &
+'''
     instance_id = _launch(lab['key'], user_data=user_data, groups=[group_id])
-    invocation = _require_success(_execute(instance_id, 'curl -fsS http://127.0.0.1:8080/'), 'floci-web-ok')
+    invocation = _wait_for_output(instance_id, _http_get_command('127.0.0.1', 8080, '/'), 'floci-web-ok')
     return _result(lab, {'instance_id': instance_id, 'security_group_id': group_id, 'port': 8080, 'invocation': invocation}, 'TCP/8080 is allowed and the guest returned its expected page.')
 
 

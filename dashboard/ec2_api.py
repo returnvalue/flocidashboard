@@ -90,9 +90,11 @@ def run_instances(
         request['SecurityGroupIds'] = security_group_ids
     if key_name:
         request['KeyName'] = key_name
-    encoded_user_data = _encoded_user_data(user_data)
-    if encoded_user_data:
-        request['UserData'] = encoded_user_data
+    # RunInstances models UserData as a blob, so botocore performs the wire-level
+    # base64 encoding. Pre-encoding here would encode it twice and leave Floci
+    # trying to execute base64 text instead of the script.
+    if user_data:
+        request['UserData'] = user_data
     if iam_instance_profile_arn:
         request['IamInstanceProfile'] = {'Arn': iam_instance_profile_arn}
     instance_tags = _tag_list(tags)

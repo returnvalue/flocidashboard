@@ -3688,3 +3688,53 @@ class GuidedEC2LabTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Launch an instance and inspect IMDS')
         self.assertContains(response, 'data-step-key="run-workflow"')
+
+    def test_imds_command_uses_bash_tcp_instead_of_curl(self):
+        from dashboard.labs.ec2_guided import _imds_get_command
+
+        command = _imds_get_command('/latest/meta-data/instance-id')
+
+        self.assertIn('/dev/tcp/169.254.169.254/80', command)
+        self.assertIn('GET /latest/meta-data/instance-id HTTP/1.0', command)
+        self.assertNotIn('curl', command)
+
+    def test_http_command_supports_guest_web_server(self):
+        from dashboard.labs.ec2_guided import _http_get_command
+
+        command = _http_get_command('127.0.0.1', 8080, '/')
+
+        self.assertIn('/dev/tcp/127.0.0.1/8080', command)
+        self.assertIn('GET / HTTP/1.0', command)
+
+    @patch('dashboard.labs.ec2_guided.time.sleep')
+    @patch('dashboard.labs.ec2_guided._execute')
+    def test_userdata_output_waits_for_async_guest_execution(self, execute, sleep):
+        from dashboard.labs.ec2_guided import _wait_for_output
+
+        execute.side_effect = [
+            {'status': 'Failed', 'stdout': '', 'stderr': 'not found'},
+            {'status': 'Success', 'stdout': 'floci-userdata-ok\n', 'stderr': ''},
+        ]
+
+        result = _wait_for_output('i-123', 'cat /tmp/floci-userdata.txt', 'floci-userdata-ok')
+
+        self.assertEqual(result['status'], 'Success')
+        self.assertEqual(execute.call_count, 2)
+        sleep.assert_called_once_with(0.5)
+
+    @patch('dashboard.ec2_api._ec2_client')
+    def test_run_instances_leaves_userdata_encoding_to_botocore(self, ec2_client):
+        from dashboard.ec2_api import run_instances
+
+        ec2_client.return_value.run_instances.return_value = {
+            'ReservationId': 'r-123',
+            'Instances': [{'InstanceId': 'i-123'}],
+        }
+        script = '#!/bin/sh\necho floci-userdata-ok\n'
+
+        run_instances('ami-ubuntu2204', 't2.micro', user_data=script)
+
+        self.assertEqual(
+            ec2_client.return_value.run_instances.call_args.kwargs['UserData'],
+            script,
+        )
