@@ -20,8 +20,10 @@ from .cognito_api import (
     delete_user_pool,
     delete_user_pool_client,
     initiate_auth,
+    global_sign_out,
     oauth_client_credentials,
     remove_user_from_group,
+    revoke_token,
 )
 
 
@@ -180,3 +182,23 @@ def cognito_oauth_token(request):
         ))
     except Exception as exc:
         return handle_action_error(exc, service='cognito', operation='oauth_client_credentials')
+
+
+@require_http_methods(['POST'])
+def cognito_global_sign_out(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(global_sign_out(body.get('access_token') or ''))
+    except Exception as exc:
+        return handle_action_error(exc, service='cognito', operation='global_sign_out')
+
+
+@require_http_methods(['POST'])
+def cognito_revoke_token(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(revoke_token(
+            body.get('client_id') or '', body.get('token') or '', client_secret=body.get('client_secret') or '',
+        ))
+    except Exception as exc:
+        return handle_action_error(exc, service='cognito', operation='revoke_token')

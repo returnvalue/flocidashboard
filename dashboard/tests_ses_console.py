@@ -31,9 +31,49 @@ class SESPageTemplateTests(SimpleTestCase):
         self.assertTrue(any(action.name == 'send_email' for action in service.actions))
         self.assertTrue(any(action.name == 'create_template' for action in service.actions))
         self.assertTrue(any(action.name == 'clear_mailbox' for action in service.actions))
+        self.assertTrue(any(action.name == 'create_contact' for action in service.actions))
+        self.assertTrue(any(action.name == 'update_contact' for action in service.actions))
+        self.assertTrue(any(action.name == 'delete_contact' for action in service.actions))
 
 
 class SESActionsApiTests(SimpleTestCase):
+    @patch('dashboard.ses_views.create_contact')
+    def test_create_contact_success(self, create_mock):
+        create_mock.return_value = {'email_address': 'person@example.com'}
+        response = self.client.post(
+            reverse('dashboard:ses-contacts'),
+            data=json.dumps({'contact_list_name': 'customers', 'email_address': 'person@example.com'}),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        create_mock.assert_called_once_with(
+            'customers', 'person@example.com', topic_preferences=None, unsubscribe_all=None,
+        )
+
+    @patch('dashboard.ses_views.update_contact')
+    def test_update_contact_success(self, update_mock):
+        update_mock.return_value = {'email_address': 'person@example.com'}
+        response = self.client.patch(
+            reverse('dashboard:ses-contact-detail', kwargs={
+                'contact_list_name': 'customers', 'email_address': 'person@example.com',
+            }),
+            data=json.dumps({'unsubscribe_all': True, 'topic_preferences': []}),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        update_mock.assert_called_once_with(
+            'customers', 'person@example.com', topic_preferences=[], unsubscribe_all=True,
+        )
+
+    @patch('dashboard.ses_views.delete_contact')
+    def test_delete_contact_success(self, delete_mock):
+        delete_mock.return_value = {'deleted': True}
+        response = self.client.delete(reverse('dashboard:ses-contact-detail', kwargs={
+            'contact_list_name': 'customers', 'email_address': 'person@example.com',
+        }))
+        self.assertEqual(response.status_code, 200)
+        delete_mock.assert_called_once_with('customers', 'person@example.com')
+
     @patch('dashboard.ses_views.verify_email_identity')
     def test_verify_email_identity_success(self, verify_mock):
         verify_mock.return_value = {'identity': 'sender@example.com'}

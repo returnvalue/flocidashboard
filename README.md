@@ -147,7 +147,7 @@ When Django runs on your host, use `http://localhost:4566`. When Django runs ins
 ## What It Shows
 
 - Local Floci health and version
-- Environment diagnostics for AWS endpoint, region, profile, credential source, caller identity, and local-endpoint warnings
+- Environment diagnostics for AWS endpoint, region, profile, credential source, caller identity, S3 authorization mode, and local-endpoint warnings
 - Clickable service cards for supported local services, with a top-24 default home view, persisted home-page service filtering, and a Tracked Resources view that shows only services with discovered resources
 - Service Matrix coverage page showing registry maturity, API paths, shared console status, action counts, tags, and linked service pages
 - Labs directory at `/labs/` showing every service with active workflow labs, current lab counts, runnable step counts, and direct links
@@ -161,9 +161,9 @@ When Django runs on your host, use `http://localhost:4566`. When Django runs ins
 - Inventory pages for newer Floci services including Amazon MQ, EMR, WAF v2, AWS Batch, RDS Data API, Amazon DocumentDB, MemoryDB, CodePipeline, S3 Vectors, IoT Core, and Elastic Beanstalk
 - Inventory pages for read-only or newly surfaced services such as CloudTrail and Cloud Control
 - Detail pages for services such as Cost Explorer, Cost and Usage Reports, BCM Data Exports, Pricing, and more
-- Expanded inventory for EC2 VPC endpoints, EC2 Network ACLs, EC2 VPC Flow Logs, CloudFormation StackSets, SES v2 contact lists, and SSM default patch baselines, plus KMS key enable/disable actions and richer S3 object metadata
+- Expanded inventory for EC2 VPC endpoints, EC2 Network ACLs, EC2 VPC Flow Logs, CloudFormation StackSets, SES v2 contact lists and contact CRUD, and SSM default patch baselines, plus KMS key enable/disable actions, filtered aliases, and richer S3 object metadata
 - A first-class EC2 workbench spanning instance launch and lifecycle actions, tags, SSM commands, VPC networking, security groups, routes, endpoints, NACLs, flow logs, volumes, snapshots, AMIs, launch templates, Spot requests, relationship diagnostics, and guided local compute workflows
-- Release-aware service notes refreshed through Floci 1.5.31, including a Cloud Control resource-discovery page, CloudWatch Logs Insights, RDS Data API for PostgreSQL, RDS mock mode, read-only resource APIs, Lambda cold-start and persistence improvements, EC2 image/snapshot catalogs, EventBridge-to-Firehose delivery, Scheduler ECS targets, Step Functions S3 ItemReader and qualified Lambda ARN support, Secrets Manager BatchGetSecretValue filtering, API Gateway API key persistence, and Elastic Beanstalk persistence
+- Release-aware service notes refreshed through Floci 1.5.32, including optional S3 authorization enforcement and default SSE-S3 behavior, Lambda failure destinations and code downloads, Cognito session revocation, SES contact CRUD, KMS alias filtering, Step Functions JSONata variables, and the earlier 1.5.31 resource-discovery and persistence improvements
 - Loading state with the Floci cloud image while service data is fetched
 
 ## Local AWS Workflow Labs
@@ -185,6 +185,8 @@ Host-development defaults live in `flocidashboard/settings.py`:
 - `FLOCI_AWS_PROFILE`: `floci-admin`
 
 Environment variables override those defaults. If `floci-admin` is not configured locally, the dashboard uses local `test/test` credentials instead of failing the homepage with missing-credential cards.
+
+Set `FLOCI_SERVICES_S3_ENFORCE_AUTH=true` to make Floci enforce S3 ACL and bucket-policy public/private reads and reject unknown signed access keys. The Compose default remains `false` for compatibility; Environment Details reports whether enforcement is active.
 
 The Docker Compose quickstart overrides the endpoint to `http://floci:4566` inside the dashboard container and uses local `test/test` credentials by default. Compose defaults can be overridden in `.env`; see `.env.example` for the supported ports, credentials, and Floci runtime toggles.
 

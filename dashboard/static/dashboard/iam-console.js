@@ -40,6 +40,7 @@ const IAMConsole = (() => {
     ['role', 'Roles', 'roles'],
     ['group', 'Groups', 'groups'],
     ['policy', 'Customer policies', 'policies'],
+    ['profile', 'Instance profiles', 'instance_profiles'],
   ];
 
   function principals(type = state.selectedType) {
@@ -62,6 +63,20 @@ const IAMConsole = (() => {
         customer_policies: 'Customer policies',
         instance_profiles: 'Instance profiles',
       },
+    });
+    const summaryTypes = ['user', 'group', 'role', 'policy', 'profile'];
+    summaryEl?.querySelectorAll('a').forEach((card, index) => {
+      card.href = '#iam-console-root';
+      if (summaryTypes[index]) {
+        card.addEventListener('click', () => {
+          state.selectedType = summaryTypes[index];
+          state.selectedName = '';
+          state.selectedPolicy = null;
+          state.principalFilterText = '';
+          state.selectedPrincipals.clear();
+          render();
+        });
+      }
     });
   }
 
@@ -388,6 +403,22 @@ const IAMConsole = (() => {
       }
       close();
       toast('Instance profile created');
+      await refresh();
+    });
+  }
+
+  function showAddRoleToInstanceProfileModal(profile) {
+    const form = el('div');
+    const roleInput = document.createElement('input');
+    roleInput.placeholder = 'FlociEc2Role';
+    form.append(el('label', null, 'Role name'), roleInput);
+    openModal('Add role to instance profile', form, 'Add role', async (close) => {
+      await apiJson(`/api/iam/instance-profiles/${encodeURIComponent(profile.name)}/roles/`, {
+        method: 'POST',
+        body: JSON.stringify({ role_name: roleInput.value.trim() }),
+      });
+      close();
+      toast('Role added to instance profile');
       await refresh();
     });
   }
@@ -797,12 +828,18 @@ const IAMConsole = (() => {
     if (type === 'role') {
       return `${(principal.instance_profiles || []).length} instance profiles`;
     }
+    if (type === 'profile') {
+      return 'Available';
+    }
     return `Default ${principal.default_version || 'unknown'}`;
   }
 
   function principalPolicyCount(type, principal) {
     if (type === 'policy') {
       return principal.attachment_count || 0;
+    }
+    if (type === 'profile') {
+      return (principal.roles || []).length;
     }
     return (principal.attached_policies || []).length + (principal.inline_policies || []).length;
   }
@@ -842,7 +879,7 @@ const IAMConsole = (() => {
     });
     selectHead.append(selectAll);
     headRow.append(selectHead);
-    ['Name', 'Type', 'ARN', 'Status', 'Policies'].forEach((label) => {
+    ['Name', 'Type', 'ARN', 'Status', type === 'profile' ? 'Roles' : 'Policies'].forEach((label) => {
       const th = document.createElement('th');
       th.textContent = label;
       headRow.append(th);
@@ -1240,6 +1277,8 @@ const IAMConsole = (() => {
         btn('Open default version', 'iam-btn-secondary', () => loadManagedPolicy(principal).catch((error) => toast(error.message, true))),
         btn('Create version', 'iam-btn-secondary', () => showCreatePolicyVersionModal(principal)),
       );
+    } else if (state.selectedType === 'profile') {
+      actions.append(btn('Add role', 'iam-btn-secondary', () => showAddRoleToInstanceProfileModal(principal)));
     }
     return actions;
   }
@@ -1267,15 +1306,24 @@ const IAMConsole = (() => {
     if (state.selectedType === 'group') {
       consoleUi.addField(details, 'Users', principal.users);
     }
-    consoleUi.addField(details, 'Permission boundary', principal.permissions_boundary);
-    consoleUi.addField(details, 'Instance profiles', principal.instance_profiles);
-    consoleUi.addField(details, 'Default version', principal.default_version);
-    consoleUi.addField(details, 'Attachment count', principal.attachment_count);
+    if (['user', 'role'].includes(state.selectedType)) {
+      consoleUi.addField(details, 'Permission boundary', principal.permissions_boundary);
+    }
+    if (state.selectedType === 'role') {
+      consoleUi.addField(details, 'Instance profiles', principal.instance_profiles);
+    }
+    if (state.selectedType === 'policy') {
+      consoleUi.addField(details, 'Default version', principal.default_version);
+      consoleUi.addField(details, 'Attachment count', principal.attachment_count);
+    }
+    if (state.selectedType === 'profile') {
+      consoleUi.addField(details, 'Roles', (principal.roles || []).map((role) => role.name || role.RoleName || role));
+    }
     content.append(details);
 
     if (state.selectedType === 'policy') {
       content.append(renderPolicyVersions(principal));
-    } else {
+    } else if (state.selectedType !== 'profile') {
       content.append(renderPolicyList(principal));
     }
     if (state.selectedType === 'user') {
@@ -1310,13 +1358,16 @@ const IAMConsole = (() => {
 
     const workbench = el('div', 'iam-workbench');
     const detail = el('div', 'iam-detail-stack');
-    detail.append(renderPrincipalDetail(principal), renderPolicyViewer());
+    detail.append(renderPrincipalDetail(principal));
+    if (state.selectedType !== 'profile') {
+      detail.append(renderPolicyViewer());
+    }
     workbench.append(renderPrincipalList(), detail);
     const users = state.inventory?.users || [];
     if (!users.length) {
       container.append(renderAdminFirstCallout());
     }
-    container.append(renderResourceOverview(), workbench);
+    container.append(workbench);
     return container;
   }
 

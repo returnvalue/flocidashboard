@@ -1991,7 +1991,10 @@ def kms_inventory() -> dict[str, Any]:
             'key_id': key_id,
             'key_arn': key.get('KeyArn'),
             'metadata': metadata,
-            'aliases': aliases_by_key.get(key_id, []),
+            'aliases': _kms_optional(
+                lambda: _paginate(kms, 'list_aliases', 'Aliases', KeyId=key_id),
+                {'NotFoundException'},
+            ),
             'tags': _kms_optional(
                 lambda: _paginate(kms, 'list_resource_tags', 'Tags', KeyId=key_id),
                 {'NotFoundException'},

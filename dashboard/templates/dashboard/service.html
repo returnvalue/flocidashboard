@@ -125,9 +125,8 @@
           <li><strong>Clean up like production code would.</strong> Empty buckets before deleting them, remove test prefixes after a workflow, and verify your app handles empty lists, duplicate uploads, overwritten objects, and object-not-found responses cleanly.</li>
         </ol>
         <p>The S3 labs turn this into a guided sequence: create a bucket, upload and retrieve objects, organize prefixes, work with metadata and tags, recover versions, generate presigned URLs, configure security and encryption, set lifecycle and CORS rules, send S3 notifications to SQS, and complete a multipart upload. Use this workbench when you want to explore freely; use the labs when you want the shortest proven path through the concepts.</p>
-        <p>Useful local test cases include upload and download paths, overwrite behavior, empty bucket cleanup, versioning changes, object tagging, copy operations, prefix browsing, presigned URL flows, and app behavior when a bucket or object does not exist. Floci stores bucket policies and lifecycle rules but does not enforce them at access time; replication, access logging, and inventory are not available. Floci 1.5.25 makes conditional puts atomic and rejects dot-dot paths with BadRequest.</p>
+        <p>Useful local test cases include upload and download paths, overwrite behavior, empty bucket cleanup, versioning changes, object tagging, copy operations, prefix browsing, presigned URL flows, and app behavior when a bucket or object does not exist. Bucket policy and ACL authorization is optional: set <code>FLOCI_SERVICES_S3_ENFORCE_AUTH=true</code> to enforce public/private reads and reject unknown signed access keys. Replication execution, access logging, and inventory are not available. Floci 1.5.32 also returns the AWS-compatible default SSE-S3 configuration for buckets without an explicit encryption rule.</p>
       </details>
-      <div id="s3-readonly-grid" class="iam-grid s3-readonly-grid"></div>
     {% elif service.key == 'iam' %}
       <div id="iam-console-root" class="iam-console-root" aria-live="polite"></div>
       <details class="iam-about-floci">
@@ -145,7 +144,6 @@
         <p>The IAM labs turn this into a guided sequence: create a local admin user first, create regular users, attach managed and inline policies, use access keys, work with groups, create roles, constrain STS sessions, wire instance profiles, and verify real IAM enforcement with switched identities. Use this workbench when you want to explore freely; use the labs when you want the shortest proven path through the concepts.</p>
         <p>Useful local test cases include missing permissions, explicit deny behavior, incorrect trust policies, inactive access keys, group policy inheritance, session-policy constraints, permission boundaries, and role-session credential wiring. Floci 1.5.29 routes assumed-role credentials to the target account.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid iam-readonly-grid"></div>
     {% elif service.key == 'sqs' %}
       <div id="sqs-console-root" class="sqs-console-root" aria-live="polite"></div>
       <details class="sqs-about-floci">
@@ -215,6 +213,7 @@
         <summary>About Floci Step Functions</summary>
         <p>Local Step Functions runs state machine workflows through the AWS-compatible Amazon States API. This workbench focuses on starting executions and inspecting their status, input, output, and recent history.</p>
         <p>Step Functions is most often used to coordinate Lambda functions, service integrations, retries, waits, and branching workflows. In Floci, a good learning flow is to select a state machine, start an execution with representative JSON, inspect the event history, then stop a running execution when testing cancellation behavior.</p>
+        <p>Floci 1.5.32 supports JSONata state machines, including workflow variables declared with <code>Assign</code>. Set <code>QueryLanguage</code> to <code>JSONata</code> in the definition and test variable assignments alongside the execution history before moving the workflow to AWS.</p>
         <p>Common local test cases include input shape, Choice state routing, Lambda task payloads, retry and catch paths, timeout behavior, failure output, and task-token callback flows.</p>
       </details>
       <div id="{{ service.key }}-grid" class="iam-grid stepfunctions-readonly-grid"></div>

@@ -7812,6 +7812,7 @@ function renderEnvironmentDetails(statusResult = {}) {
   setText('environment-region-source', identityData.region_source);
   setText('environment-credential-source', credentialLabel(identityData));
   setText('environment-profile', sourceLabel(identityData.profile, identityData.profile_source));
+  setText('environment-s3-auth', identityData.service_auth?.s3_enforce_auth ? 'Enforced' : 'Compatibility mode');
   setText('environment-identity-resolved', identityOk || identityData.identity_resolved === false ? String(identityOk) : 'Unknown');
   setText('environment-identity-arn', identityPayload.arn);
   setText('environment-identity-user', identityPayload.user_id);

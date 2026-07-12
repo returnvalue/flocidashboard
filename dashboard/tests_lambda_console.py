@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from unittest.mock import patch
 
 from django.test import SimpleTestCase
@@ -6,6 +7,11 @@ from django.urls import reverse
 
 
 class LambdaPageTemplateTests(SimpleTestCase):
+    def test_lambda_console_surfaces_failure_destinations_and_code_download(self):
+        source = (Path(__file__).resolve().parent / 'static' / 'dashboard' / 'lambda-console.js').read_text()
+        self.assertIn('mapping.DestinationConfig?.OnFailure?.Destination', source)
+        self.assertIn("codeLink.textContent = 'Download function package'", source)
+
     def test_lambda_service_page_keeps_readonly_inventory_and_embeds_console(self):
         response = self.client.get(reverse('dashboard:service-page', kwargs={'service_key': 'lambda'}))
 

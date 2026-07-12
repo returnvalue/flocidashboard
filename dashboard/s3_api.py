@@ -22,6 +22,15 @@ MULTIPART_THRESHOLD = 5 * 1024 * 1024
 MULTIPART_PART_SIZE = 5 * 1024 * 1024
 
 
+def _bucket_encryption(s3, bucket: str) -> dict[str, Any]:
+    configuration = s3.get_bucket_encryption(Bucket=bucket).get('ServerSideEncryptionConfiguration') or {}
+    rules = configuration.get('Rules') or []
+    algorithm = None
+    if rules:
+        algorithm = (rules[0].get('ApplyServerSideEncryptionByDefault') or {}).get('SSEAlgorithm')
+    return {**configuration, 'IsDefaultSseS3': algorithm == 'AES256'}
+
+
 def _s3_client():
     return FlociClientFactory().client('s3')
 
@@ -106,7 +115,7 @@ def get_s3_bucket(name: str) -> dict[str, Any]:
             {'NoSuchBucket'},
         ),
         'encryption': _s3_optional(
-            lambda: s3.get_bucket_encryption(Bucket=name).get('ServerSideEncryptionConfiguration'),
+            lambda: _bucket_encryption(s3, name),
             {'ServerSideEncryptionConfigurationNotFoundError', 'NoSuchBucket'},
         ),
         'notification': _s3_optional(
@@ -543,7 +552,7 @@ def delete_s3_lifecycle(bucket: str) -> dict[str, bool]:
 
 def get_s3_encryption(bucket: str) -> dict[str, Any] | None:
     return _s3_optional(
-        lambda: _s3_client().get_bucket_encryption(Bucket=bucket).get('ServerSideEncryptionConfiguration'),
+        lambda: _bucket_encryption(_s3_client(), bucket),
         {'ServerSideEncryptionConfigurationNotFoundError', 'NoSuchBucket'},
     )
 

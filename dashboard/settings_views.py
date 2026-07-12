@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from urllib.parse import urlparse
 
 from botocore.exceptions import BotoCoreError, ClientError
@@ -46,6 +47,11 @@ def _settings_payload(request) -> dict:
         'runtime_endpoint_url': override,
         'default_endpoint_url': default_endpoint_url(),
         'region': factory.region,
+        'service_auth': {
+            's3_enforce_auth': os.getenv('FLOCI_SERVICES_S3_ENFORCE_AUTH', 'false').lower() == 'true',
+            'iam_enforcement': os.getenv('FLOCI_SERVICES_IAM_ENFORCEMENT_ENABLED', 'false').lower() == 'true',
+            'validate_signatures': os.getenv('FLOCI_AUTH_VALIDATE_SIGNATURES', 'false').lower() == 'true',
+        },
         **factory.credential_context(),
     }
 

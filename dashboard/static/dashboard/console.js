@@ -388,6 +388,15 @@ const AwsCliConsole = (() => {
     return block;
   }
 
+  function renderRawOutput(text) {
+    const disclosure = el('details', 'aws-console-raw-output');
+    disclosure.append(
+      el('summary', null, 'View raw output'),
+      el('pre', 'aws-console-pre', text || ''),
+    );
+    return disclosure;
+  }
+
   function renderResult(data) {
     output.textContent = '';
     const card = el('article', `aws-console-result ${data.ok ? 'aws-console-result-ok' : 'aws-console-result-error'}`);
@@ -398,9 +407,13 @@ const AwsCliConsole = (() => {
     );
     card.append(heading);
     if (data.json != null) {
-      card.append(renderPre('Parsed JSON', JSON.stringify(data.json, null, 2)));
+      card.append(
+        renderPre('Output', JSON.stringify(data.json, null, 2)),
+        renderRawOutput(data.stdout || ''),
+      );
+    } else {
+      card.append(renderPre('Output', data.stdout || ''));
     }
-    card.append(renderPre('stdout', data.stdout || ''));
     if (data.stderr) {
       card.append(renderPre('stderr', data.stderr, 'aws-console-stderr'));
     }
