@@ -244,6 +244,38 @@ def delete_event_destination(configuration_set_name: str, event_destination_name
     }
 
 
+def create_contact(contact_list_name: str, email_address: str, *, topic_preferences: Any = None, unsubscribe_all: Any = False) -> dict[str, Any]:
+    kwargs = {
+        'ContactListName': _required(contact_list_name, 'Contact list name'),
+        'EmailAddress': _required(email_address, 'Email address'),
+        'UnsubscribeAll': bool(unsubscribe_all),
+    }
+    preferences = _list_value(topic_preferences, 'Topic preferences')
+    if preferences:
+        kwargs['TopicPreferences'] = preferences
+    response = _sesv2_client().create_contact(**kwargs)
+    return {'contact_list_name': kwargs['ContactListName'], 'email_address': kwargs['EmailAddress'], 'response': _clean_response(response)}
+
+
+def update_contact(contact_list_name: str, email_address: str, *, topic_preferences: Any = None, unsubscribe_all: Any = False) -> dict[str, Any]:
+    kwargs = {
+        'ContactListName': _required(contact_list_name, 'Contact list name'),
+        'EmailAddress': _required(email_address, 'Email address'),
+        'UnsubscribeAll': bool(unsubscribe_all),
+        'TopicPreferences': _list_value(topic_preferences, 'Topic preferences'),
+    }
+    response = _sesv2_client().update_contact(**kwargs)
+    return {'contact_list_name': kwargs['ContactListName'], 'email_address': kwargs['EmailAddress'], 'response': _clean_response(response)}
+
+
+def delete_contact(contact_list_name: str, email_address: str) -> dict[str, Any]:
+    response = _sesv2_client().delete_contact(
+        ContactListName=_required(contact_list_name, 'Contact list name'),
+        EmailAddress=_required(email_address, 'Email address'),
+    )
+    return {'contact_list_name': contact_list_name, 'email_address': email_address, 'deleted': True, 'response': _clean_response(response)}
+
+
 def clear_mailbox() -> dict[str, Any]:
     factory = FlociClientFactory()
     mailbox_url = f'{factory.endpoint_url.rstrip("/")}/_aws/ses'

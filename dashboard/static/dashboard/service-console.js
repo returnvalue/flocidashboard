@@ -220,13 +220,14 @@ const ServiceConsole = (() => {
     const targets = options.targets || {};
     const entries = Object.entries(summary || {});
     container.textContent = '';
+    container.classList.toggle('summary-grid-dense', entries.length > 8);
 
     if (entries.length === 0) {
       container.append(el('div', 'summary-empty', 'No summary metrics yet.'));
       return;
     }
 
-    entries.forEach(([label, value]) => {
+    const renderCard = ([label, value]) => {
       const displayLabel = label.replaceAll('_', ' ');
       const card = document.createElement('a');
       const number = document.createElement('strong');
@@ -237,8 +238,10 @@ const ServiceConsole = (() => {
       number.textContent = value ?? 0;
       caption.textContent = displayLabel;
       card.append(number, caption);
-      container.append(card);
-    });
+      return card;
+    };
+
+    entries.forEach((entry) => container.append(renderCard(entry)));
   }
 
   function parsedJsonString(value) {

@@ -506,6 +506,26 @@ SES_ACTIONS = (
         confirm='Clear all captured SES messages?',
         success_message='Mailbox cleared',
     ),
+    action(
+        'create_contact', 'Create contact', 'POST', '/api/ses/contacts/', 'create',
+        fields=(
+            action_field('contact_list_name', 'Contact list name', required=True),
+            action_field('email_address', 'Email address', required=True),
+            action_field('topic_preferences', 'Topic preferences JSON', field_type='array'),
+            action_field('unsubscribe_all', 'Unsubscribe from all', field_type='boolean'),
+        ), success_message='Contact created',
+    ),
+    action(
+        'update_contact', 'Update contact', 'PATCH', '/api/ses/contact-lists/{contact_list}/contacts/{email_address}/', 'update',
+        fields=(
+            action_field('topic_preferences', 'Topic preferences JSON', field_type='array'),
+            action_field('unsubscribe_all', 'Unsubscribe from all', field_type='boolean'),
+        ), success_message='Contact updated',
+    ),
+    action(
+        'delete_contact', 'Delete contact', 'DELETE', '/api/ses/contact-lists/{contact_list}/contacts/{email_address}/', 'delete',
+        safety='destructive', confirm='Delete this SES contact?', success_message='Contact deleted',
+    ),
 )
 
 
@@ -2684,6 +2704,20 @@ COGNITO_ACTIONS = (
             action_field('scope', 'Scope'),
         ),
         success_message='OAuth token loaded',
+    ),
+    action(
+        'global_sign_out', 'Global sign out', 'POST', '/api/cognito/auth/sign-out/', 'execute',
+        fields=(action_field('access_token', 'Access token', required=True, field_type='textarea'),),
+        success_message='User sessions signed out',
+    ),
+    action(
+        'revoke_token', 'Revoke refresh token', 'POST', '/api/cognito/auth/revoke/', 'execute',
+        fields=(
+            action_field('client_id', 'Client ID', required=True),
+            action_field('client_secret', 'Client secret'),
+            action_field('token', 'Refresh token', required=True, field_type='textarea'),
+        ),
+        success_message='Refresh token revoked',
     ),
 )
 

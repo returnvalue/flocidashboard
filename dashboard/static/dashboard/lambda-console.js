@@ -222,8 +222,24 @@ const LambdaConsole = (() => {
     consoleUi.addField(details, 'Memory', fn.memory_size);
     consoleUi.addField(details, 'Timeout', fn.timeout);
     consoleUi.addField(details, 'Role', fn.role);
-    consoleUi.addField(details, 'Event source mappings', fn.event_source_mappings || []);
+    consoleUi.addField(details, 'Event source mappings', (fn.event_source_mappings || []).map((mapping) => ({
+      uuid: mapping.UUID,
+      source: mapping.EventSourceArn,
+      state: mapping.State,
+      last_result: mapping.LastProcessingResult,
+      maximum_retry_attempts: mapping.MaximumRetryAttempts,
+      maximum_record_age_seconds: mapping.MaximumRecordAgeInSeconds,
+      on_failure_destination: mapping.DestinationConfig?.OnFailure?.Destination,
+    })));
     content.append(details);
+    if (fn.code?.Location) {
+      const codeLink = document.createElement('a');
+      codeLink.className = 'lambda-log-link';
+      codeLink.href = fn.code.Location;
+      codeLink.textContent = 'Download function package';
+      codeLink.rel = 'noopener';
+      content.append(codeLink);
+    }
     const logLink = document.createElement('a');
     logLink.className = 'lambda-log-link';
     logLink.href = `/service/cloudwatch/?logGroup=${encodeURIComponent(logGroupName(fn))}`;

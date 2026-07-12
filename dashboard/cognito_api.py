@@ -252,6 +252,22 @@ def initiate_auth(client_id: str, username: str, password: str, *, auth_flow: st
     return _clean_response(response)
 
 
+def global_sign_out(access_token: str) -> dict[str, Any]:
+    response = _client().global_sign_out(AccessToken=_required(access_token, 'Access token'))
+    return {'signed_out': True, 'response': _clean_response(response)}
+
+
+def revoke_token(client_id: str, token: str, *, client_secret: str = '') -> dict[str, Any]:
+    kwargs = {
+        'ClientId': _required(client_id, 'Client ID'),
+        'Token': _required(token, 'Refresh token'),
+    }
+    if client_secret:
+        kwargs['ClientSecret'] = client_secret
+    response = _client().revoke_token(**kwargs)
+    return {'revoked': True, 'response': _clean_response(response)}
+
+
 def oauth_client_credentials(client_id: str, client_secret: str, *, scope: str = '') -> dict[str, Any]:
     factory = FlociClientFactory()
     data = {

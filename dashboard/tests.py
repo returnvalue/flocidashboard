@@ -86,6 +86,14 @@ class StaticJavaScriptTests(SimpleTestCase):
         self.assertIn("link.className = 'collection-primary-link'", source)
         self.assertIn("collection-selected-bar", source)
 
+    def test_service_summaries_support_dense_inventory(self):
+        shared_script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'service-console.js'
+        shared_source = shared_script.read_text()
+
+        self.assertIn("entries.length > 8", shared_source)
+        self.assertIn("'summary-grid-dense'", shared_source)
+        self.assertIn("entries.forEach((entry) => container.append(renderCard(entry)))", shared_source)
+
     def test_aws_cli_console_exposes_draggable_command_palette(self):
         script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'console.js'
         source = script.read_text()
@@ -100,6 +108,16 @@ class StaticJavaScriptTests(SimpleTestCase):
         self.assertNotIn('stripDragged', source)
         self.assertIn("commandStrip.addEventListener('pointerdown'", source)
 
+    def test_aws_cli_console_uses_one_primary_output_panel(self):
+        script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'console.js'
+        source = script.read_text()
+
+        self.assertIn("el('summary', null, 'View raw output')", source)
+        self.assertIn("renderPre('Output', JSON.stringify(data.json, null, 2))", source)
+        self.assertIn("renderRawOutput(data.stdout || '')", source)
+        self.assertIn("renderPre('Output', data.stdout || '')", source)
+        self.assertNotIn("renderPre('stdout'", source)
+
     def test_s3_console_bootstraps_global_navigation(self):
         script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'dashboard.js'
         source = script.read_text()
@@ -108,6 +126,16 @@ class StaticJavaScriptTests(SimpleTestCase):
         self.assertIn('if (s3ConsoleRoot) {', source)
         self.assertIn('loadServiceMetadata(),', source)
         self.assertIn('renderGlobalNavigationForCurrentPage(serviceMetadata)', source)
+
+    def test_s3_console_prioritizes_the_interactive_inventory(self):
+        script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 's3-console.js'
+        source = script.read_text()
+
+        self.assertIn("card.href = '#s3-console-root'", source)
+        self.assertIn('value.textContent = formatBytes(summary.total_bytes || 0)', source)
+        self.assertNotIn("{ label: 'ARN', render: (r)", source)
+        self.assertNotIn("{ label: 'URL', render: (r)", source)
+        self.assertNotIn('function renderReadOnlyInventory()', source)
 
     def test_iam_console_exposes_session_identity_actions(self):
         script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'iam-console.js'
@@ -143,6 +171,14 @@ class StaticJavaScriptTests(SimpleTestCase):
         self.assertIn("link.className = 'iam-principal-primary-link'", source)
         self.assertIn("'iam-selected-action-bar'", source)
         self.assertIn('Last refreshed ${refreshedAt}', source)
+        self.assertNotIn('container.append(renderResourceOverview(), workbench)', source)
+        self.assertIn("card.href = '#iam-console-root'", source)
+        self.assertIn("const summaryTypes = ['user', 'group', 'role', 'policy', 'profile']", source)
+        self.assertIn("['profile', 'Instance profiles', 'instance_profiles']", source)
+        self.assertIn('function showAddRoleToInstanceProfileModal(profile)', source)
+        self.assertIn("type === 'profile' ? 'Roles' : 'Policies'", source)
+        self.assertIn("consoleUi.addField(details, 'Roles'", source)
+        self.assertIn("if (state.selectedType !== 'profile')", source)
 
     def test_dashboard_credential_label_names_session_identity(self):
         script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'dashboard.js'
@@ -582,14 +618,12 @@ class DashboardTemplateTests(SimpleTestCase):
                     self.assertContains(response, 'id="s3-loaded-at"')
                     self.assertContains(response, 'id="s3-summary"')
                     self.assertContains(response, 'id="s3-console-root"')
-                    self.assertContains(response, 'id="s3-readonly-grid"')
                     self.assertContains(response, 'dashboard/service-console.js')
                     self.assertContains(response, 'dashboard/s3-console.js')
                 elif key == 'iam':
                     self.assertContains(response, 'id="iam-loaded-at"')
                     self.assertContains(response, 'id="iam-summary"')
                     self.assertContains(response, 'id="iam-console-root"')
-                    self.assertContains(response, 'id="iam-grid"')
                     self.assertContains(response, 'dashboard/service-console.js')
                     self.assertContains(response, 'dashboard/iam-console.js')
                 elif key == 'stepfunctions':

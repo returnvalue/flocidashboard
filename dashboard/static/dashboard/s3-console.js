@@ -6,14 +6,11 @@ const S3Console = (() => {
   const breadcrumbsEl = document.getElementById('s3-breadcrumbs');
   const loadedAtEl = document.getElementById('s3-loaded-at');
   const summaryEl = document.getElementById('s3-summary');
-  const readOnlyGrid = document.getElementById('s3-readonly-grid');
 
   const state = {
     buckets: [],
     bucketDetail: null,
     objects: null,
-    inventory: null,
-    bucketDetails: [],
     selected: new Set(),
     showVersions: false,
     continuationToken: null,
@@ -86,70 +83,16 @@ const S3Console = (() => {
         versioned_buckets: 'Buckets',
       },
     });
-  }
-
-  function renderDetailList(title, items, fields) {
-    return consoleUi.renderDetailList('s3', title, items, fields);
-  }
-
-  function renderReadOnlyInventory() {
-    if (!readOnlyGrid || !state.inventory) {
-      return;
-    }
-    readOnlyGrid.textContent = '';
-    const supported = state.inventory.supported || {};
-    const supportPanel = renderDetailList('Floci S3 support notes', [
-      {
-        name: 'Supported locally',
-        bucket_configuration: supported.bucket_configuration || [],
-        objects: supported.objects || [],
-        select_object_content: supported.select_object_content || [],
-        not_implemented: supported.not_implemented || [],
-      },
-    ], [
-      ['Bucket configuration', 'bucket_configuration'],
-      ['Object operations', 'objects'],
-      ['S3 SelectObjectContent', 'select_object_content'],
-      ['Not implemented', 'not_implemented'],
-    ]);
-
-    const objectPanel = renderDetailList('Object operations', [
-      {
-        name: 'Console and API operations',
-        operations: supported.objects || [],
-      },
-    ], [
-      ['Supported operations', 'operations'],
-    ]);
-
-    const bucketPanel = renderDetailList('Buckets', state.bucketDetails, [
-      ['ARN', 'arn'],
-      ['Path-style URL', 'path_style_url'],
-      ['Location', 'location'],
-      ['Created', 'created'],
-      ['Versioning', 'versioning'],
-      ['Tags', 'tagging'],
-      ['Bucket policy', 'policy'],
-      ['CORS', 'cors'],
-      ['Lifecycle', 'lifecycle'],
-      ['ACL', 'acl'],
-      ['Encryption', 'encryption'],
-      ['Notifications', 'notification'],
-      ['Public access block', 'public_access_block'],
-      ['Object lock', 'object_lock'],
-      ['Object count', 'object_count'],
-      ['Total bytes', 'total_bytes'],
-      ['Objects', 'objects'],
-      ['Object versions', 'object_versions'],
-    ]);
-    const notesPanel = renderDetailList('Floci S3 source findings', (state.inventory.notes || []).map((note, index) => ({
-      name: `Note ${index + 1}`,
-      note,
-    })), [
-      ['Note', 'note'],
-    ]);
-
-    readOnlyGrid.append(supportPanel, objectPanel, bucketPanel, notesPanel);
+    summaryEl?.querySelectorAll('a').forEach((card) => {
+      card.href = '#s3-console-root';
+      const label = card.querySelector('span')?.textContent;
+      if (label === 'total bytes') {
+        const value = card.querySelector('strong');
+        if (value) {
+          value.textContent = formatBytes(summary.total_bytes || 0);
+        }
+      }
+    });
   }
 
   function selectionKey(item) {
@@ -490,11 +433,8 @@ const S3Console = (() => {
             primary: true,
             render: (r) => primaryLink(r.name, () => navigate({ bucket: r.name, prefix: '', tab: 'objects', key: '', versionId: '' })),
           },
-          { label: 'ARN', render: (r) => r.arn || `arn:aws:s3:::${r.name}` },
-          { label: 'URL', render: (r) => r.path_style_url || `s3://${r.name}` },
           { label: 'Region', render: (r) => r.region || '—' },
           { label: 'Creation date', render: (r) => formatDate(r.created) },
-          { label: 'Status', render: () => 'Available' },
           {
             label: 'Actions',
             render: (r) => {
@@ -1096,10 +1036,7 @@ const S3Console = (() => {
       apiJson('/api/s3/'),
     ]);
     state.buckets = bucketData.buckets || [];
-    state.inventory = inventoryData;
-    state.bucketDetails = inventoryData.buckets || [];
     renderSummary(inventoryData.summary || {});
-    renderReadOnlyInventory();
     if (route.bucket) {
       state.bucketDetail = await apiJson(`/api/s3/buckets/${encodeURIComponent(route.bucket)}/`);
       if (route.tab === 'objects' || !route.tab) {

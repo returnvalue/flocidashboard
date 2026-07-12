@@ -16,7 +16,6 @@ class S3PageTemplateTests(SimpleTestCase):
         self.assertContains(response, 'id="s3-loaded-at"')
         self.assertContains(response, 'id="s3-summary"')
         self.assertContains(response, 'id="s3-console-root"')
-        self.assertContains(response, 'id="s3-readonly-grid"')
         self.assertContains(response, 'dashboard/s3-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/s3-console.js')

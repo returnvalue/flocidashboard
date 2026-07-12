@@ -9,8 +9,10 @@ from .actions import handle_action_error, parse_json_body
 from .ses_api import (
     clear_mailbox,
     create_configuration_set,
+    create_contact,
     create_template,
     delete_configuration_set,
+    delete_contact,
     delete_event_destination,
     delete_identity,
     delete_template,
@@ -20,6 +22,7 @@ from .ses_api import (
     send_raw_email,
     send_templated_email,
     update_configuration_set_sending_enabled,
+    update_contact,
     update_sending_enabled,
     update_template,
     verify_domain_identity,
@@ -201,3 +204,30 @@ def ses_mailbox_clear(request):
         return JsonResponse(clear_mailbox())
     except Exception as exc:
         return handle_action_error(exc, service='ses', operation='clear_mailbox')
+
+
+@require_http_methods(['POST'])
+def ses_contacts_create(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(create_contact(
+            body.get('contact_list_name') or '', body.get('email_address') or '',
+            topic_preferences=body.get('topic_preferences'), unsubscribe_all=body.get('unsubscribe_all'),
+        ))
+    except Exception as exc:
+        return handle_action_error(exc, service='ses', operation='create_contact')
+
+
+@require_http_methods(['PATCH', 'DELETE'])
+def ses_contact_detail(request, contact_list_name: str, email_address: str):
+    try:
+        if request.method == 'DELETE':
+            return JsonResponse(delete_contact(contact_list_name, email_address))
+        body = parse_json_body(request)
+        return JsonResponse(update_contact(
+            contact_list_name, email_address, topic_preferences=body.get('topic_preferences'),
+            unsubscribe_all=body.get('unsubscribe_all'),
+        ))
+    except Exception as exc:
+        operation = 'delete_contact' if request.method == 'DELETE' else 'update_contact'
+        return handle_action_error(exc, service='ses', operation=operation)

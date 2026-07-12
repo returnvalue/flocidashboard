@@ -2473,6 +2473,21 @@ a.service-card-active:hover {
   border-color: color-mix(in srgb, var(--status-danger) 35%, var(--border-subtle));
 }
 
+.aws-console-raw-output {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.aws-console-raw-output summary {
+  width: fit-content;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.aws-console-raw-output[open] summary {
+  margin-bottom: 6px;
+}
+
 .aws-console-history-item {
   width: 100%;
   overflow-wrap: anywhere;
@@ -2784,6 +2799,28 @@ a.service-card-active:hover {
   font-size: 0.76rem;
   font-weight: 780;
   text-transform: uppercase;
+}
+
+.summary-grid.summary-grid-dense {
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 8px;
+}
+
+.summary-grid-dense > :is(a, div) {
+  min-height: 62px;
+  border-radius: var(--radius-control);
+  padding: 8px 10px;
+  box-shadow: none;
+}
+
+.summary-grid-dense strong {
+  font-size: 1.2rem;
+}
+
+.summary-grid-dense span {
+  margin-top: 5px;
+  font-size: 0.68rem;
+  line-height: 1.2;
 }
 
 .summary-empty {
