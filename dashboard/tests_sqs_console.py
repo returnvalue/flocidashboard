@@ -15,7 +15,7 @@ class SQSPageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>SQS inventory</h2>', html=True)
         self.assertContains(response, 'id="sqs-summary"')
         self.assertContains(response, 'id="sqs-console-root"')
-        self.assertContains(response, 'id="sqs-grid"')
+        self.assertNotContains(response, 'id="sqs-grid"')
         self.assertContains(response, 'dashboard/sqs-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/sqs-console.js')

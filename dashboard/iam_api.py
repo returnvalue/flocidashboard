@@ -173,6 +173,32 @@ def create_group(group_name: str) -> dict[str, Any]:
     }
 
 
+def update_user(user_name: str, *, new_name: str = '', new_path: str = '') -> dict[str, Any]:
+    name = validate_name(user_name, 'User name')
+    kwargs: dict[str, Any] = {'UserName': name}
+    if new_name:
+        kwargs['NewUserName'] = validate_name(new_name, 'New user name')
+    if new_path:
+        kwargs['NewPath'] = str(new_path).strip()
+    if len(kwargs) == 1:
+        raise ValueError('A new user name or path is required')
+    _iam_client().update_user(**kwargs)
+    return {'user_name': name, 'new_user_name': kwargs.get('NewUserName'), 'new_path': kwargs.get('NewPath'), 'updated': True}
+
+
+def update_role(role_name: str, *, description: str | None = None, max_session_duration: Any = None) -> dict[str, Any]:
+    name = validate_name(role_name, 'Role name')
+    kwargs: dict[str, Any] = {'RoleName': name}
+    if description is not None:
+        kwargs['Description'] = str(description)
+    if max_session_duration not in (None, ''):
+        kwargs['MaxSessionDuration'] = int(max_session_duration)
+    if len(kwargs) == 1:
+        raise ValueError('A description or maximum session duration is required')
+    _iam_client().update_role(**kwargs)
+    return {'role_name': name, 'description': kwargs.get('Description'), 'max_session_duration': kwargs.get('MaxSessionDuration'), 'updated': True}
+
+
 def trust_policy_from_template(template: str, document: Any = None) -> dict[str, Any]:
     if document:
         return policy_document(document)
@@ -215,6 +241,19 @@ def add_role_to_instance_profile(profile_name: str, role_name: str) -> dict[str,
     return {'instance_profile_name': profile, 'role_name': role, 'added': True}
 
 
+def remove_role_from_instance_profile(profile_name: str, role_name: str) -> dict[str, Any]:
+    profile = validate_name(profile_name, 'Instance profile name')
+    role = validate_name(role_name, 'Role name')
+    _iam_client().remove_role_from_instance_profile(InstanceProfileName=profile, RoleName=role)
+    return {'instance_profile_name': profile, 'role_name': role, 'removed': True}
+
+
+def delete_instance_profile(profile_name: str) -> dict[str, Any]:
+    name = validate_name(profile_name, 'Instance profile name')
+    _iam_client().delete_instance_profile(InstanceProfileName=name)
+    return {'instance_profile_name': name, 'deleted': True}
+
+
 def update_access_key(user_name: str, access_key_id: str, status: str) -> dict[str, Any]:
     name = validate_name(user_name, 'User name')
     key_id = validate_name(access_key_id, 'Access key ID')
@@ -230,6 +269,28 @@ def delete_access_key(user_name: str, access_key_id: str) -> dict[str, Any]:
     key_id = validate_name(access_key_id, 'Access key ID')
     _iam_client().delete_access_key(UserName=name, AccessKeyId=key_id)
     return {'user_name': name, 'access_key_id': key_id, 'deleted': True}
+
+
+def get_access_key_last_used(access_key_id: str) -> dict[str, Any]:
+    key_id = validate_name(access_key_id, 'Access key ID')
+    response = _iam_client().get_access_key_last_used(AccessKeyId=key_id)
+    return {'access_key_id': key_id, 'user_name': response.get('UserName'), 'last_used': response.get('AccessKeyLastUsed', {})}
+
+
+def save_login_profile(user_name: str, password: str, *, reset_required: bool = False, update: bool = False) -> dict[str, Any]:
+    name = validate_name(user_name, 'User name')
+    clean_password = validate_name(password, 'Password')
+    kwargs = {'UserName': name, 'Password': clean_password, 'PasswordResetRequired': bool(reset_required)}
+    client = _iam_client()
+    response = client.update_login_profile(**kwargs) if update else client.create_login_profile(**kwargs)
+    profile = response.get('LoginProfile', {}) if isinstance(response, dict) else {}
+    return {'user_name': name, 'created': profile.get('CreateDate'), 'password_reset_required': bool(reset_required), 'updated': update}
+
+
+def delete_login_profile(user_name: str) -> dict[str, Any]:
+    name = validate_name(user_name, 'User name')
+    _iam_client().delete_login_profile(UserName=name)
+    return {'user_name': name, 'deleted': True}
 
 
 def _client_error_code(exc: Exception) -> str:
@@ -260,6 +321,7 @@ def cleanup_user(user_name: str, *, force: bool = False) -> dict[str, Any]:
     groups = _safe_iam(lambda: iam.list_groups_for_user(UserName=name).get('Groups', [])) or []
     attached = _policy_arn_list(iam, 'list_attached_user_policies', 'AttachedPolicies', UserName=name)
     inline = _safe_iam(lambda: iam.list_user_policies(UserName=name).get('PolicyNames', [])) or []
+    login_profile = _safe_iam(lambda: iam.get_login_profile(UserName=name).get('LoginProfile'))
     blockers = []
     if keys:
         blockers.append(f'{len(keys)} access keys')
@@ -269,6 +331,8 @@ def cleanup_user(user_name: str, *, force: bool = False) -> dict[str, Any]:
         blockers.append(f'{len(attached)} managed policies')
     if inline:
         blockers.append(f'{len(inline)} inline policies')
+    if login_profile:
+        blockers.append('a login profile')
     if blockers and not force:
         raise ValueError(f'User {name} has dependencies: {", ".join(blockers)}. Confirm cleanup to delete them first.')
     for key in keys:
@@ -282,8 +346,10 @@ def cleanup_user(user_name: str, *, force: bool = False) -> dict[str, Any]:
             _safe_iam(lambda policy=policy: iam.detach_user_policy(UserName=name, PolicyArn=policy['PolicyArn']))
     for policy_name in inline:
         _safe_iam(lambda policy_name=policy_name: iam.delete_user_policy(UserName=name, PolicyName=policy_name))
+    if login_profile:
+        _safe_iam(lambda: iam.delete_login_profile(UserName=name))
     _safe_iam(lambda: iam.delete_user(UserName=name))
-    return {'user_name': name, 'deleted': True, 'cleaned': {'access_keys': len(keys), 'groups': len(groups), 'attached_policies': len(attached), 'inline_policies': len(inline)}}
+    return {'user_name': name, 'deleted': True, 'cleaned': {'access_keys': len(keys), 'groups': len(groups), 'attached_policies': len(attached), 'inline_policies': len(inline), 'login_profile': bool(login_profile)}}
 
 
 def cleanup_group(group_name: str, *, force: bool = False) -> dict[str, Any]:
@@ -571,6 +637,33 @@ def create_managed_policy(name: str, document: Any, description: str | None = No
         'arn': policy.get('Arn'),
         'default_version': policy.get('DefaultVersionId'),
     }
+
+
+def delete_managed_policy(policy_arn: str) -> dict[str, Any]:
+    arn = validate_name(policy_arn, 'Policy ARN')
+    _iam_client().delete_policy(PolicyArn=arn)
+    return {'policy_arn': arn, 'deleted': True}
+
+
+def update_tags(resource_type: str, resource_name: str, tags: Any = None, *, remove: Any = None) -> dict[str, Any]:
+    if resource_type not in {'user', 'role', 'policy'}:
+        raise ValueError('Resource type must be user, role, or policy')
+    name = validate_name(resource_name, 'Resource name or ARN')
+    client = _iam_client()
+    if remove not in (None, '', []):
+        keys = remove if isinstance(remove, list) else [item.strip() for item in str(remove).split(',') if item.strip()]
+        if not keys:
+            raise ValueError('At least one tag key is required')
+        method = getattr(client, f'untag_{resource_type}')
+        argument = 'PolicyArn' if resource_type == 'policy' else f'{resource_type.title()}Name'
+        method(**{argument: name, 'TagKeys': keys})
+        return {'resource_type': resource_type, 'resource_name': name, 'removed': keys}
+    document = policy_document(tags)
+    clean_tags = [{'Key': str(key), 'Value': str(value)} for key, value in document.items()]
+    method = getattr(client, f'tag_{resource_type}')
+    argument = 'PolicyArn' if resource_type == 'policy' else f'{resource_type.title()}Name'
+    method(**{argument: name, 'Tags': clean_tags})
+    return {'resource_type': resource_type, 'resource_name': name, 'tags': clean_tags}
 
 
 def create_policy_version(policy_arn: str, document: Any, set_as_default: bool = True) -> dict[str, Any]:

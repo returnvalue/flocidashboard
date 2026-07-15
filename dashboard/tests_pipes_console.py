@@ -15,7 +15,7 @@ class PipesPageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>EventBridge Pipes inventory</h2>', html=True)
         self.assertContains(response, 'id="pipes-summary"')
         self.assertContains(response, 'id="pipes-console-root"')
-        self.assertContains(response, 'id="pipes-grid"')
+        self.assertNotContains(response, 'id="pipes-grid"')
         self.assertContains(response, 'dashboard/pipes-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/pipes-console.js')

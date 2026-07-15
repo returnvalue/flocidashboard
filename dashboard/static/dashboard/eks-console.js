@@ -10,6 +10,10 @@ const EKSConsole = (() => {
   const state = {
     inventory: null,
     selectedClusterName: '',
+    activeView: 'overview',
+    selectedNodegroupName: '',
+    selectedFargateProfileName: '',
+    resourceQuery: '',
     lastResult: null,
   };
 
@@ -52,6 +56,15 @@ const EKSConsole = (() => {
     return (cluster?.nodegroups || []).map((nodegroup) => (typeof nodegroup === 'string' ? { name: nodegroup, cluster_name: name } : nodegroup));
   }
 
+  function fargateProfilesForCluster(cluster) {
+    const name = clusterName(cluster);
+    const detailed = (state.inventory?.fargate_profiles || []).filter((profile) => profile.cluster_name === name);
+    if (detailed.length) {
+      return detailed;
+    }
+    return (cluster?.fargate_profiles || []).map((profile) => (typeof profile === 'string' ? { name: profile, cluster_name: name } : profile));
+  }
+
   function parseJson(value, fallback, label) {
     const trimmed = String(value || '').trim();
     if (!trimmed) {
@@ -71,6 +84,26 @@ const EKSConsole = (() => {
       .filter(Boolean);
   }
 
+  function matchesQuery(...values) {
+    const query = state.resourceQuery.trim().toLowerCase();
+    return !query || values.some((value) => JSON.stringify(value ?? '').toLowerCase().includes(query));
+  }
+
+  function resourceLink(label, href) {
+    const link = el('a', 'eks-resource-link', label);
+    link.href = href;
+    return link;
+  }
+
+  async function copyText(value, message = 'Copied') {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast(message);
+    } catch (error) {
+      toast('Clipboard access is unavailable', true);
+    }
+  }
+
   function renderSummary(summary) {
     consoleUi.renderSummary(summary, summaryEl, {
       serviceKey: 'eks',
@@ -78,9 +111,6 @@ const EKSConsole = (() => {
         clusters: 'Clusters',
         nodegroups: 'Node groups',
         fargate_profiles: 'Fargate profiles',
-        addons: 'Add-ons',
-        identity_provider_configs: 'Identity provider configs',
-        access_entries: 'Access entries',
       },
     });
   }
@@ -288,6 +318,49 @@ const EKSConsole = (() => {
     });
   }
 
+  function showCreateFargateProfileModal(cluster = selectedCluster()) {
+    if (!cluster) {
+      toast('Create or select a cluster first', true);
+      return;
+    }
+    const form = el('div', 'eks-modal-form');
+    const nameInput = document.createElement('input');
+    nameInput.placeholder = 'default-workloads';
+    const roleInput = document.createElement('input');
+    roleInput.value = 'arn:aws:iam::000000000000:role/eks-fargate-pod-execution-role';
+    const subnetsInput = document.createElement('input');
+    const clusterSubnets = cluster.resources_vpc_config?.subnetIds || cluster.resources_vpc_config?.subnet_ids || [];
+    subnetsInput.value = Array.isArray(clusterSubnets) ? clusterSubnets.join(',') : '';
+    subnetsInput.placeholder = 'subnet-123,subnet-456';
+    const selectorsInput = document.createElement('textarea');
+    selectorsInput.value = '[{"namespace":"default","labels":{}}]';
+    const tagsInput = document.createElement('textarea');
+    tagsInput.placeholder = '{"env":"local"}';
+    form.append(
+      el('label', null, 'Fargate profile name'), nameInput,
+      el('label', null, 'Pod execution role ARN'), roleInput,
+      el('label', null, 'Subnet IDs'), subnetsInput,
+      el('label', null, 'Selectors JSON'), selectorsInput,
+      el('label', null, 'Tags JSON'), tagsInput,
+    );
+    openModal('Create Fargate profile', form, 'Create', async (close) => {
+      const data = await apiJson(`/api/eks/clusters/${encodeURIComponent(clusterName(cluster))}/fargate-profiles/`, {
+        method: 'POST',
+        body: JSON.stringify({
+          profile_name: nameInput.value.trim(),
+          pod_execution_role_arn: roleInput.value.trim(),
+          subnets: parseList(subnetsInput.value),
+          selectors: parseJson(selectorsInput.value, [], 'Selectors'),
+          tags: parseJson(tagsInput.value, {}, 'Tags'),
+        }),
+      });
+      state.lastResult = data;
+      close();
+      toast('Fargate profile created');
+      await refresh();
+    });
+  }
+
   async function deleteCluster(cluster) {
     if (!window.confirm('Delete this EKS cluster?')) {
       return;
@@ -312,6 +385,19 @@ const EKSConsole = (() => {
     });
     state.lastResult = data;
     toast('Node group deleted');
+    await refresh();
+  }
+
+  async function deleteFargateProfile(cluster, profile) {
+    if (!window.confirm('Delete this EKS Fargate profile?')) {
+      return;
+    }
+    const name = profile.name || profile.fargateProfileName;
+    const data = await apiJson(`/api/eks/clusters/${encodeURIComponent(clusterName(cluster))}/fargate-profiles/${encodeURIComponent(name)}/`, {
+      method: 'DELETE',
+    });
+    state.lastResult = data;
+    toast('Fargate profile deleted');
     await refresh();
   }
 
@@ -354,11 +440,15 @@ const EKSConsole = (() => {
     consoleUi.addField(facts, 'Created at', cluster.created_at);
     consoleUi.addField(facts, 'VPC config', cluster.resources_vpc_config);
     consoleUi.addField(facts, 'Certificate authority', cluster.certificate_authority);
+    consoleUi.addField(facts, 'Platform version', cluster.platform_version);
+    consoleUi.addField(facts, 'Kubernetes network', cluster.kubernetes_network_config);
     consoleUi.addField(facts, 'Tags', cluster.tags);
     body.append(facts);
+    if (cluster.role_arn) body.append(resourceLink('Open cluster role in IAM', `/service/iam/?resource=${encodeURIComponent(cluster.role_arn)}`));
     const actions = el('div', 'eks-action-row');
     actions.append(
       btn('Create node group', null, () => showCreateNodeGroupModal(cluster)),
+      btn('Create Fargate profile', 'eks-btn-secondary', () => showCreateFargateProfileModal(cluster)),
       btn('Tags', 'eks-btn-secondary', () => showTagsModal(clusterArn(cluster))),
       btn('Delete cluster', 'eks-btn-danger', () => deleteCluster(cluster).catch((error) => toast(error.message, true))),
     );
@@ -372,12 +462,19 @@ const EKSConsole = (() => {
     const heading = el('div', 'eks-panel-heading');
     heading.append(el('span', null, 'Managed node groups'), btn('Create node group', 'eks-btn-secondary', () => showCreateNodeGroupModal(cluster)));
     panel.append(heading);
-    const body = el('div', 'eks-card-list');
-    const nodegroups = nodegroupsForCluster(cluster);
+    const body = el('div', 'eks-resource-layout');
+    const list = el('div', 'eks-resource-list');
+    const detail = el('div', 'eks-resource-detail');
+    const nodegroups = nodegroupsForCluster(cluster).filter((nodegroup) => matchesQuery(nodegroup.name, nodegroup.arn, nodegroup.status, nodegroup.labels));
     if (!nodegroups.length) {
-      body.append(el('div', 'eks-empty', 'No managed node groups found for this cluster.'));
+      detail.append(el('div', 'eks-empty', 'No managed node groups match the current filter.'));
     }
     nodegroups.forEach((nodegroup) => {
+      const name = nodegroup.name || nodegroup.nodegroupName || 'Node group';
+      list.append(btn(`${name} · ${nodegroup.status || 'Unknown'}`, name === (state.selectedNodegroupName || nodegroups[0]?.name) ? 'eks-btn-active' : 'eks-btn-secondary', () => { state.selectedNodegroupName = name; render(); }));
+    });
+    const nodegroup = nodegroups.find((item) => (item.name || item.nodegroupName) === state.selectedNodegroupName) || nodegroups[0];
+    if (nodegroup) {
       const card = el('article', 'eks-card');
       const name = nodegroup.name || nodegroup.nodegroupName || 'Node group';
       card.append(el('h3', null, name));
@@ -387,37 +484,103 @@ const EKSConsole = (() => {
       consoleUi.addField(facts, 'Capacity type', nodegroup.capacity_type);
       consoleUi.addField(facts, 'Scaling config', nodegroup.scaling_config);
       consoleUi.addField(facts, 'Instance types', nodegroup.instance_types);
+      consoleUi.addField(facts, 'AMI type', nodegroup.ami_type);
+      consoleUi.addField(facts, 'Disk size', nodegroup.disk_size);
+      consoleUi.addField(facts, 'Version', nodegroup.version);
       consoleUi.addField(facts, 'Subnets', nodegroup.subnets);
       consoleUi.addField(facts, 'Node role', nodegroup.node_role);
       consoleUi.addField(facts, 'Labels', nodegroup.labels);
       consoleUi.addField(facts, 'Tags', nodegroup.tags);
       consoleUi.addField(facts, 'Health', nodegroup.health);
+      consoleUi.addField(facts, 'Created', nodegroup.created_at);
+      consoleUi.addField(facts, 'Modified', nodegroup.modified_at);
       card.append(facts);
+      if (nodegroup.node_role) card.append(resourceLink('Open node role in IAM', `/service/iam/?resource=${encodeURIComponent(nodegroup.node_role)}`));
       const actions = el('div', 'eks-action-row');
-      if (nodegroup.arn) {
-        actions.append(btn('Tags', 'eks-btn-secondary', () => showTagsModal(nodegroup.arn)));
-      }
       actions.append(btn('Delete node group', 'eks-btn-danger', () => deleteNodeGroup(cluster, nodegroup).catch((error) => toast(error.message, true))));
       card.append(actions);
-      body.append(card);
-    });
+      detail.append(card);
+    }
+    body.append(list, detail);
     panel.append(body);
     return panel;
   }
 
-  function renderRelatedPanel(cluster) {
+  function renderFargateProfilesPanel(cluster) {
     const panel = el('section', 'eks-panel');
-    panel.append(el('div', 'eks-panel-heading', 'Related resources'));
-    const body = el('div', 'eks-card-list');
-    const facts = el('dl', 'eks-facts');
-    consoleUi.addField(facts, 'Node groups', cluster.nodegroups || []);
-    consoleUi.addField(facts, 'Fargate profiles', cluster.fargate_profiles || []);
-    consoleUi.addField(facts, 'Add-ons', cluster.addons || []);
-    consoleUi.addField(facts, 'Identity providers', cluster.identity_provider_configs || []);
-    consoleUi.addField(facts, 'Access entries', cluster.access_entries || []);
-    body.append(facts);
+    const heading = el('div', 'eks-panel-heading');
+    heading.append(el('span', null, 'Fargate profiles'), btn('Create Fargate profile', 'eks-btn-secondary', () => showCreateFargateProfileModal(cluster)));
+    panel.append(heading);
+    const body = el('div', 'eks-resource-layout');
+    const list = el('div', 'eks-resource-list');
+    const detail = el('div', 'eks-resource-detail');
+    const profiles = fargateProfilesForCluster(cluster).filter((profile) => matchesQuery(profile.name, profile.arn, profile.status, profile.selectors));
+    if (!profiles.length) {
+      detail.append(el('div', 'eks-empty', 'No Fargate profiles match the current filter.'));
+    }
+    profiles.forEach((profile) => {
+      const name = profile.name || profile.fargateProfileName || 'Fargate profile';
+      list.append(btn(`${name} · ${profile.status || 'Unknown'}`, name === (state.selectedFargateProfileName || profiles[0]?.name) ? 'eks-btn-active' : 'eks-btn-secondary', () => { state.selectedFargateProfileName = name; render(); }));
+    });
+    const profile = profiles.find((item) => (item.name || item.fargateProfileName) === state.selectedFargateProfileName) || profiles[0];
+    if (profile) {
+      const card = el('article', 'eks-card');
+      const name = profile.name || profile.fargateProfileName || 'Fargate profile';
+      card.append(el('h3', null, name));
+      const facts = el('dl', 'eks-facts');
+      consoleUi.addField(facts, 'ARN', profile.arn);
+      consoleUi.addField(facts, 'Status', profile.status);
+      consoleUi.addField(facts, 'Pod execution role', profile.pod_execution_role_arn);
+      consoleUi.addField(facts, 'Subnets', profile.subnets);
+      consoleUi.addField(facts, 'Selectors', profile.selectors);
+      consoleUi.addField(facts, 'Tags', profile.tags);
+      consoleUi.addField(facts, 'Health', profile.health);
+      consoleUi.addField(facts, 'Created', profile.created_at);
+      card.append(facts);
+      if (profile.pod_execution_role_arn) card.append(resourceLink('Open pod execution role in IAM', `/service/iam/?resource=${encodeURIComponent(profile.pod_execution_role_arn)}`));
+      const actions = el('div', 'eks-action-row');
+      actions.append(btn('Delete Fargate profile', 'eks-btn-danger', () => deleteFargateProfile(cluster, profile).catch((error) => toast(error.message, true))));
+      card.append(actions);
+      detail.append(card);
+    }
+    body.append(list, detail);
     panel.append(body);
     return panel;
+  }
+
+  function renderResourceTabs() {
+    const tabs = el('div', 'eks-resource-tabs');
+    const navigation = el('div', 'eks-resource-tab-buttons');
+    [['overview', 'Overview'], ['nodegroups', 'Node groups'], ['fargate', 'Fargate profiles'], ['connection', 'Connection']].forEach(([key, label]) => {
+      navigation.append(btn(label, state.activeView === key ? 'eks-btn-active' : 'eks-btn-secondary', () => { state.activeView = key; render(); }));
+    });
+    const search = document.createElement('input');
+    search.type = 'search'; search.placeholder = 'Filter current resources'; search.value = state.resourceQuery;
+    search.setAttribute('aria-label', 'Filter current EKS resources');
+    search.addEventListener('input', () => { state.resourceQuery = search.value; });
+    search.addEventListener('change', render);
+    search.addEventListener('keydown', (event) => { if (event.key === 'Enter') render(); });
+    tabs.append(navigation, search);
+    return tabs;
+  }
+
+  function renderConnectionPanel(cluster) {
+    const panel = el('section', 'eks-panel');
+    panel.append(el('div', 'eks-panel-heading', 'Connect to the local Kubernetes control plane'));
+    const body = el('div', 'eks-detail');
+    const facts = el('dl', 'eks-facts');
+    consoleUi.addField(facts, 'Endpoint', cluster.endpoint);
+    consoleUi.addField(facts, 'Certificate authority data', cluster.certificate_authority?.data);
+    body.append(facts);
+    const updateCommand = `aws eks update-kubeconfig --name ${clusterName(cluster)}`;
+    const kubectlCommand = 'kubectl get nodes';
+    [[updateCommand, 'Copy update-kubeconfig command'], [kubectlCommand, 'Copy kubectl command']].forEach(([command, label]) => {
+      const row = el('div', 'eks-command-row');
+      row.append(el('code', null, command), btn(label, 'eks-btn-secondary', () => copyText(command, 'Command copied')));
+      body.append(row);
+    });
+    body.append(el('p', 'eks-empty', 'Floci real mode runs k3s and supports the native AWS update-kubeconfig and token-authentication flow. Mock mode provides metadata only.'));
+    panel.append(body); return panel;
   }
 
   function renderResult() {
@@ -437,10 +600,14 @@ const EKSConsole = (() => {
     const cluster = selectedCluster();
     workbench.append(renderClusterList());
     const detail = el('div', 'eks-detail-stack');
+    detail.append(renderResourceTabs());
     if (!cluster) {
       detail.append(el('section', 'eks-panel eks-empty-panel', 'Create a cluster to start testing local EKS metadata and k3s-backed control planes.'));
     } else {
-      detail.append(renderClusterDetail(cluster), renderNodeGroupsPanel(cluster), renderRelatedPanel(cluster));
+      if (state.activeView === 'overview') detail.append(renderClusterDetail(cluster));
+      if (state.activeView === 'nodegroups') detail.append(renderNodeGroupsPanel(cluster));
+      if (state.activeView === 'fargate') detail.append(renderFargateProfilesPanel(cluster));
+      if (state.activeView === 'connection') detail.append(renderConnectionPanel(cluster));
     }
     const result = renderResult();
     if (result) {
@@ -458,8 +625,8 @@ const EKSConsole = (() => {
     renderBreadcrumbs();
     renderSummary(state.inventory?.summary || {});
     root.append(toolbar(
-      [btn('Create cluster', null, showCreateClusterModal), btn('Create node group', 'eks-btn-secondary', () => showCreateNodeGroupModal())],
-      [el('span', 'eks-toolbar-note', 'Cluster and managed node group lifecycle')],
+      [btn('Create cluster', null, showCreateClusterModal), btn('Create node group', 'eks-btn-secondary', () => showCreateNodeGroupModal()), btn('Create Fargate profile', 'eks-btn-secondary', () => showCreateFargateProfileModal())],
+      [el('span', 'eks-toolbar-note', 'Cluster, managed node group, and Fargate profile lifecycle')],
     ));
     root.append(renderWorkbench());
     if (loadedAtEl) {

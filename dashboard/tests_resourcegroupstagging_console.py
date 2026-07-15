@@ -13,7 +13,7 @@ class ResourceGroupsTaggingPageTemplateTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<h2>Resource Groups Tagging inventory</h2>', html=True)
         self.assertContains(response, 'id="resourcegroupstagging-console-root"')
-        self.assertContains(response, 'id="resourcegroupstagging-grid"')
+        self.assertNotContains(response, 'id="resourcegroupstagging-grid"')
         self.assertContains(response, 'dashboard/resourcegroupstagging-console.css')
         self.assertContains(response, 'dashboard/resourcegroupstagging-console.js')
 

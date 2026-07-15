@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.3 — 2026-07-12
+## 0.1.3 — 2026-07-15
 
 ### Floci 1.5.32 compatibility
 
@@ -14,8 +14,20 @@
 ### Console polish
 
 - Simplified S3 and IAM workbenches by removing duplicated read-only detail panels and making summary cards navigate into the interactive inventory.
-- Added first-class IAM instance-profile browsing and role attachment from the principal workbench.
+- Removed the redundant upper-left service filter, renamed command search to Search, and removed duplicated supported-operation/read-only panels from first-class workbenches.
+- Expanded Lambda into a first-class function console with lifecycle, configuration, code, versions, aliases, triggers, URLs, concurrency, permissions, tags, and relationship views.
+- Expanded IAM with richer user, role, policy, access-key, login-profile, instance-profile, tag, and permission-management workflows.
+- Expanded ECS with resource tabs, service/task relationships, task-definition revision lifecycle, deployments, infrastructure, task protection, container-instance draining, and Floci-supported service updates.
+- Expanded EKS with searchable cluster, managed node group, Fargate profile, IAM relationship, and k3s connection views while removing unsupported API probes.
+- Expanded ECR with searchable repository/image views, manifest inspection, stored policy management, local Docker commands, and registry garbage collection.
+- Added EKS Fargate profile support introduced by the latest compatible Floci release.
 - Consolidated AWS CLI parsed and raw output, added compact summary grids for large inventories, and expanded regression coverage.
+
+### Compatibility and quality
+
+- Audited ECS, EKS, and ECR controls against Floci's implemented handlers so the dashboard does not advertise ignored or unsupported mutations.
+- Parallelized independent IAM, Lambda, ECS, EKS, and ECR inventory enrichment to reduce large-console load times.
+- Added focused compatibility coverage for the latest Floci health/version response and expanded the dashboard suite to 1,000 tests.
 
 ## 0.1.2 — 2026-07-10
 

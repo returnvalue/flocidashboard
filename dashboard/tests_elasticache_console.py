@@ -15,7 +15,7 @@ class ElastiCachePageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>ElastiCache inventory</h2>', html=True)
         self.assertContains(response, 'id="elasticache-summary"')
         self.assertContains(response, 'id="elasticache-console-root"')
-        self.assertContains(response, 'id="elasticache-grid"')
+        self.assertNotContains(response, 'id="elasticache-grid"')
         self.assertContains(response, 'dashboard/elasticache-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/elasticache-console.js')

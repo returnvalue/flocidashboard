@@ -17,7 +17,7 @@ class GluePageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>Glue inventory</h2>', html=True)
         self.assertContains(response, 'id="glue-summary"')
         self.assertContains(response, 'id="glue-console-root"')
-        self.assertContains(response, 'id="glue-grid"')
+        self.assertNotContains(response, 'id="glue-grid"')
         self.assertContains(response, 'dashboard/glue-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/glue-console.js')

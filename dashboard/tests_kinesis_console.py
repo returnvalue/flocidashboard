@@ -13,7 +13,7 @@ class KinesisPageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>Kinesis inventory</h2>', html=True)
         self.assertContains(response, 'id="kinesis-summary"')
         self.assertContains(response, 'id="kinesis-console-root"')
-        self.assertContains(response, 'id="kinesis-grid"')
+        self.assertNotContains(response, 'id="kinesis-grid"')
         self.assertContains(response, 'dashboard/kinesis-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/kinesis-console.js')

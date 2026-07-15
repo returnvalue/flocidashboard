@@ -13,7 +13,7 @@ class TranscribePageTemplateTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<h2>Transcribe inventory</h2>', html=True)
         self.assertContains(response, 'id="transcribe-console-root"')
-        self.assertContains(response, 'id="transcribe-grid"')
+        self.assertNotContains(response, 'id="transcribe-grid"')
         self.assertContains(response, 'dashboard/transcribe-console.js')
 
     def test_transcribe_registry_marks_service_interactive(self):

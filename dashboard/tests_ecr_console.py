@@ -4,6 +4,7 @@ from unittest.mock import patch
 from django.test import SimpleTestCase
 from django.urls import reverse
 
+from .ecr_api import batch_get_image
 from .services import get_service
 
 
@@ -15,7 +16,7 @@ class ECRPageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>ECR inventory</h2>', html=True)
         self.assertContains(response, 'id="ecr-summary"')
         self.assertContains(response, 'id="ecr-console-root"')
-        self.assertContains(response, 'id="ecr-grid"')
+        self.assertNotContains(response, 'id="ecr-grid"')
         self.assertContains(response, 'dashboard/ecr-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/ecr-console.js')
@@ -101,6 +102,17 @@ class ECRActionsApiTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['repository_name'], 'floci-it/app')
         delete_mock.assert_called_once_with('floci-it/app', ['v1'])
+
+    @patch('dashboard.ecr_views.batch_get_image')
+    def test_batch_get_image_success(self, get_mock):
+        get_mock.return_value = {'repository_name': 'floci-it/app', 'images': [{'imageManifest': '{}'}], 'failures': []}
+        response = self.client.post(
+            reverse('dashboard:ecr-images-get'),
+            data=json.dumps({'repository_name': 'floci-it/app', 'image_ids': ['v1'], 'accepted_media_types': ['application/vnd.oci.image.manifest.v1+json']}),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        get_mock.assert_called_once_with('floci-it/app', ['v1'], ['application/vnd.oci.image.manifest.v1+json'])
 
     @patch('dashboard.ecr_views.put_image_tag_mutability')
     def test_put_image_tag_mutability_success(self, mutability_mock):
@@ -206,3 +218,15 @@ class ECRActionsApiTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()['result']['ok'])
         gc_mock.assert_called_once_with()
+
+
+class ECRApiHelperTests(SimpleTestCase):
+    @patch('dashboard.ecr_api._client')
+    def test_batch_get_image_requests_supported_manifest_type(self, client_mock):
+        client_mock.return_value.batch_get_image.return_value = {'images': [{'imageManifest': '{}'}], 'failures': []}
+        result = batch_get_image('floci-it/app', ['v1'], ['application/vnd.oci.image.manifest.v1+json'])
+        client_mock.return_value.batch_get_image.assert_called_once_with(
+            repositoryName='floci-it/app', imageIds=[{'imageTag': 'v1'}],
+            acceptedMediaTypes=['application/vnd.oci.image.manifest.v1+json'],
+        )
+        self.assertEqual(result['images'][0]['imageManifest'], '{}')

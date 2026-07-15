@@ -117,12 +117,14 @@ def register_task_definition(
     execution_role_arn: str = '',
     volumes: Any = None,
     tags: Any = None,
+    options: Any = None,
 ) -> dict[str, Any]:
     containers = _list(container_definitions, 'Container definitions')
     if not containers:
         raise ValueError('At least one container definition is required')
 
     kwargs: dict[str, Any] = {
+        **_dict(options, 'Task definition options'),
         'family': _required(family, 'Task family'),
         'containerDefinitions': containers,
     }
@@ -153,6 +155,25 @@ def register_task_definition(
         'revision': task_definition.get('revision'),
         'task_definition_arn': task_definition.get('taskDefinitionArn'),
         'status': task_definition.get('status'),
+        'response': _clean_response(response),
+    }
+
+
+def deregister_task_definition(task_definition: str) -> dict[str, Any]:
+    arn = _required(task_definition, 'Task definition')
+    response = _client().deregister_task_definition(taskDefinition=arn)
+    definition = response.get('taskDefinition', {})
+    return {'task_definition_arn': definition.get('taskDefinitionArn') or arn, 'status': definition.get('status'), 'response': _clean_response(response)}
+
+
+def delete_task_definitions(task_definitions: Any) -> dict[str, Any]:
+    arns = _list(task_definitions, 'Task definitions')
+    if not arns:
+        raise ValueError('At least one task definition is required')
+    response = _client().delete_task_definitions(taskDefinitions=arns)
+    return {
+        'deleted': [item.get('taskDefinitionArn') for item in response.get('taskDefinitions', [])],
+        'failures': response.get('failures', []),
         'response': _clean_response(response),
     }
 
@@ -215,6 +236,46 @@ def stop_task(cluster: str, task: str, *, reason: str = '') -> dict[str, Any]:
     }
 
 
+def update_task_protection(
+    cluster: str,
+    tasks: Any,
+    *,
+    protection_enabled: bool,
+    expires_in_minutes: Any = None,
+) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {
+        'cluster': _required(cluster, 'Cluster'),
+        'tasks': _list(tasks, 'Tasks'),
+        'protectionEnabled': bool(protection_enabled),
+    }
+    if not kwargs['tasks']:
+        raise ValueError('At least one task is required')
+    if protection_enabled and expires_in_minutes not in (None, ''):
+        kwargs['expiresInMinutes'] = _int_value(expires_in_minutes, 'Protection expiration')
+    response = _client().update_task_protection(**kwargs)
+    return {
+        'protected_tasks': _clean_response(response.get('protectedTasks', [])),
+        'failures': _clean_response(response.get('failures', [])),
+        'response': _clean_response(response),
+    }
+
+
+def update_container_instances_state(cluster: str, container_instances: Any, status: str) -> dict[str, Any]:
+    instances = _list(container_instances, 'Container instances')
+    if not instances:
+        raise ValueError('At least one container instance is required')
+    response = _client().update_container_instances_state(
+        cluster=_required(cluster, 'Cluster'),
+        containerInstances=instances,
+        status=_required(status, 'Container instance status').upper(),
+    )
+    return {
+        'container_instances': _clean_response(response.get('containerInstances', [])),
+        'failures': _clean_response(response.get('failures', [])),
+        'response': _clean_response(response),
+    }
+
+
 def create_service(
     *,
     cluster: str,
@@ -258,7 +319,7 @@ def update_service(
     service: str,
     desired_count: Any = None,
     task_definition: str = '',
-    force_new_deployment: bool = False,
+    network_configuration: Any = None,
 ) -> dict[str, Any]:
     kwargs: dict[str, Any] = {
         'cluster': _required(cluster, 'Cluster'),
@@ -268,9 +329,10 @@ def update_service(
         kwargs['desiredCount'] = _int_value(desired_count, 'Desired count')
     if task_definition:
         kwargs['taskDefinition'] = task_definition
-    if force_new_deployment:
-        kwargs['forceNewDeployment'] = True
-    if len(kwargs) == 2:
+    config = _dict(network_configuration, 'Network configuration')
+    if config:
+        kwargs['networkConfiguration'] = config
+    if set(kwargs) == {'cluster', 'service'}:
         raise ValueError('At least one service setting must be changed')
     response = _client().update_service(**kwargs)
     updated = response.get('service', {})

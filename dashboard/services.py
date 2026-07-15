@@ -778,6 +778,10 @@ CODEBUILD_ACTIONS = (
 
 
 LAMBDA_ACTIONS = (
+    action('create_function', 'Create function', 'POST', '/api/lambda/functions/', 'create', fields=(action_field('name', 'Function name', required=True), action_field('role', 'Execution role ARN', required=True), action_field('code', 'Code JSON', required=True, field_type='object'), action_field('configuration', 'Configuration JSON', required=True, field_type='object'), action_field('tags', 'Tags', field_type='object')), success_message='Function created'),
+    action('update_function_configuration', 'Update configuration', 'PATCH', '/api/lambda/functions/{function}/', 'update', fields=(action_field('configuration', 'Configuration JSON', required=True, field_type='object'),), success_message='Configuration updated'),
+    action('update_function_code', 'Update code', 'PUT', '/api/lambda/functions/{function}/code/', 'update', fields=(action_field('code', 'Code JSON', required=True, field_type='object'), action_field('publish', 'Publish version', field_type='boolean')), success_message='Code updated'),
+    action('delete_function', 'Delete function', 'DELETE', '/api/lambda/functions/{function}/', 'delete', safety='destructive', confirm='Delete this Lambda function?', success_message='Function deleted'),
     action(
         'invoke_function',
         'Invoke function',
@@ -790,6 +794,13 @@ LAMBDA_ACTIONS = (
         ),
         success_message='Function invoked',
     ),
+    action('publish_version', 'Publish version', 'POST', '/api/lambda/functions/{function}/versions/', 'create', fields=(action_field('description', 'Description'),), success_message='Version published'),
+    action('create_alias', 'Create alias', 'POST', '/api/lambda/functions/{function}/aliases/', 'create', fields=(action_field('name', 'Alias name', required=True), action_field('function_version', 'Function version', required=True), action_field('description', 'Description')), success_message='Alias created'),
+    action('create_event_source_mapping', 'Create trigger', 'POST', '/api/lambda/functions/{function}/event-source-mappings/', 'create', fields=(action_field('options', 'Mapping JSON', required=True, field_type='object'),), success_message='Trigger created'),
+    action('create_function_url_config', 'Create function URL', 'POST', '/api/lambda/functions/{function}/url/', 'create', fields=(action_field('options', 'URL configuration JSON', required=True, field_type='object'),), success_message='Function URL created'),
+    action('put_function_concurrency', 'Set concurrency', 'PUT', '/api/lambda/functions/{function}/concurrency/', 'update', fields=(action_field('reserved_concurrency', 'Reserved concurrency', required=True, field_type='number'),), success_message='Concurrency updated'),
+    action('add_permission', 'Add permission', 'POST', '/api/lambda/functions/{function}/permissions/', 'update', fields=(action_field('statement', 'Permission JSON', required=True, field_type='object'),), success_message='Permission added'),
+    action('tag_resource', 'Tag function', 'POST', '/api/lambda/functions/{function}/tags/', 'update', fields=(action_field('resource_arn', 'Function ARN', required=True), action_field('tags', 'Tags', required=True, field_type='object')), success_message='Function tagged'),
 )
 
 
@@ -1360,6 +1371,8 @@ TRANSFER_ACTIONS = (
         confirm='Delete this Transfer user?',
         success_message='User deleted',
     ),
+    action('update_user', 'Update user', 'PATCH', '/api/iam/users/{user}/', 'update', fields=(action_field('new_name', 'New user name'), action_field('new_path', 'New path')), success_message='User updated'),
+    action('create_login_profile', 'Create login profile', 'POST', '/api/iam/users/{user}/login-profile/', 'create', fields=(action_field('password', 'Password', required=True), action_field('password_reset_required', 'Require password reset', field_type='boolean')), success_message='Login profile created'),
     action(
         'import_ssh_public_key',
         'Import SSH public key',
@@ -2090,6 +2103,7 @@ IAM_ACTIONS = (
         fields=(action_field('force', 'Confirm dependency cleanup', field_type='boolean'),),
         success_message='Role deleted',
     ),
+    action('update_role', 'Update role', 'PATCH', '/api/iam/roles/{role}/', 'update', fields=(action_field('description', 'Description'), action_field('max_session_duration', 'Maximum session duration', field_type='number')), success_message='Role updated'),
     action(
         'create_instance_profile',
         'Create instance profile',
@@ -2108,6 +2122,8 @@ IAM_ACTIONS = (
         fields=(action_field('role_name', 'Role name', required=True),),
         success_message='Role added to instance profile',
     ),
+    action('remove_role_from_instance_profile', 'Remove role from instance profile', 'DELETE', '/api/iam/instance-profiles/{instance_profile}/roles/', 'update', fields=(action_field('role_name', 'Role name', required=True),), success_message='Role removed'),
+    action('delete_instance_profile', 'Delete instance profile', 'DELETE', '/api/iam/instance-profiles/{instance_profile}/', 'delete', safety='destructive', confirm='Delete this instance profile?', success_message='Instance profile deleted'),
     action(
         'simulate_principal_policy',
         'Test permission',
@@ -2154,6 +2170,7 @@ IAM_ACTIONS = (
         fields=(action_field('access_key_id', 'Access key ID', required=True),),
         success_message='Access key deleted',
     ),
+    action('get_access_key_last_used', 'Get access key usage', 'GET', '/api/iam/access-keys/{access_key}/last-used/', 'read', safety='safe'),
     action(
         'assume_role',
         'Assume role',
@@ -2273,6 +2290,8 @@ IAM_ACTIONS = (
         ),
         success_message='Managed policy created',
     ),
+    action('delete_managed_policy', 'Delete managed policy', 'DELETE', '/api/iam/policies/', 'delete', safety='destructive', fields=(action_field('policy_arn', 'Policy ARN', required=True),), confirm='Delete this managed policy?', success_message='Managed policy deleted'),
+    action('tag_resource', 'Tag IAM resource', 'POST', '/api/iam/tags/{resource_type}/{resource_name}/', 'update', fields=(action_field('tags', 'Tags', required=True, field_type='object'),), success_message='Tags updated'),
     action(
         'create_policy_version',
         'Create policy version',
@@ -2872,9 +2891,12 @@ ECS_ACTIONS = (
             action_field('memory', 'Memory'),
             action_field('volumes', 'Volumes', field_type='array'),
             action_field('tags', 'Tags', field_type='array'),
+            action_field('options', 'Advanced options', field_type='object'),
         ),
         success_message='Task definition registered',
     ),
+    action('deregister_task_definition', 'Deregister task definition', 'POST', '/api/ecs/task-definitions/detail/', 'update', fields=(action_field('task_definition', 'Task definition', required=True),), success_message='Task definition deregistered'),
+    action('delete_task_definitions', 'Delete task definitions', 'DELETE', '/api/ecs/task-definitions/detail/', 'delete', safety='destructive', fields=(action_field('task_definitions', 'Task definitions', required=True, field_type='array'),), confirm='Permanently delete these inactive task definitions?', success_message='Task definitions deleted'),
     action(
         'run_task',
         'Run task',
@@ -2906,6 +2928,8 @@ ECS_ACTIONS = (
         ),
         success_message='Task stopped',
     ),
+    action('update_task_protection', 'Update task protection', 'POST', '/api/ecs/tasks/protection/', 'update', fields=(action_field('cluster', 'Cluster', required=True), action_field('tasks', 'Tasks', required=True, field_type='array'), action_field('protection_enabled', 'Protection enabled', field_type='boolean'), action_field('expires_in_minutes', 'Expires in minutes', field_type='number')), success_message='Task protection updated'),
+    action('update_container_instances_state', 'Update container instance state', 'POST', '/api/ecs/container-instances/state/', 'update', fields=(action_field('cluster', 'Cluster', required=True), action_field('container_instances', 'Container instances', required=True, field_type='array'), action_field('status', 'Status', required=True)), success_message='Container instance state updated'),
     action(
         'create_service',
         'Create service',
@@ -2933,7 +2957,7 @@ ECS_ACTIONS = (
             action_field('service', 'Service', required=True),
             action_field('desired_count', 'Desired count', field_type='number'),
             action_field('task_definition', 'Task definition'),
-            action_field('force_new_deployment', 'Force new deployment', field_type='boolean'),
+            action_field('network_configuration', 'Network configuration', field_type='object'),
         ),
         success_message='Service updated',
     ),
@@ -3049,6 +3073,31 @@ EKS_ACTIONS = (
         safety='destructive',
         confirm='Delete this EKS managed node group?',
         success_message='Node group deleted',
+    ),
+    action(
+        'create_fargate_profile',
+        'Create Fargate profile',
+        'POST',
+        '/api/eks/clusters/{cluster_name}/fargate-profiles/',
+        'create',
+        fields=(
+            action_field('profile_name', 'Fargate profile name', required=True),
+            action_field('pod_execution_role_arn', 'Pod execution role ARN', required=True),
+            action_field('subnets', 'Subnets', field_type='array'),
+            action_field('selectors', 'Selectors', required=True, field_type='array'),
+            action_field('tags', 'Tags', field_type='object'),
+        ),
+        success_message='Fargate profile created',
+    ),
+    action(
+        'delete_fargate_profile',
+        'Delete Fargate profile',
+        'DELETE',
+        '/api/eks/clusters/{cluster_name}/fargate-profiles/{profile_name}/',
+        'delete',
+        safety='destructive',
+        confirm='Delete this EKS Fargate profile?',
+        success_message='Fargate profile deleted',
     ),
     action(
         'tag_resource',
@@ -3576,6 +3625,7 @@ ECR_ACTIONS = (
         ),
         success_message='Images deleted',
     ),
+    action('batch_get_image', 'Get image manifest', 'POST', '/api/ecr/images/get/', 'read', safety='safe', fields=(action_field('repository_name', 'Repository name', required=True), action_field('image_ids', 'Image IDs', required=True, field_type='array'), action_field('accepted_media_types', 'Accepted media types', field_type='array')), success_message='Image manifest loaded'),
     action(
         'put_image_tag_mutability',
         'Set tag mutability',

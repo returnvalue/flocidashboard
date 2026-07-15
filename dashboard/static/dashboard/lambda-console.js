@@ -81,6 +81,102 @@ const LambdaConsole = (() => {
     return `/api/lambda/functions/${encodeURIComponent(functionName)}/invoke/`;
   }
 
+  async function mutate(path, method, body, message) {
+    const data = await apiJson(path, {
+      method,
+      body: body === null ? undefined : JSON.stringify(body),
+    });
+    toast(message);
+    await refresh();
+    return data;
+  }
+
+  function showJsonModal(title, fields, confirmLabel, onSubmit) {
+    const form = el('div', 'lambda-modal-form');
+    const inputs = {};
+    fields.forEach((field) => {
+      const input = document.createElement(field.multiline ? 'textarea' : 'input');
+      input.value = field.value || '';
+      input.placeholder = field.placeholder || '';
+      if (field.type) input.type = field.type;
+      inputs[field.name] = input;
+      form.append(el('label', null, field.label), input);
+    });
+    openModal(title, form, confirmLabel, async (close) => {
+      await onSubmit(inputs);
+      close();
+    });
+  }
+
+  function jsonInput(input, label) {
+    try {
+      return JSON.parse(input.value || '{}');
+    } catch (error) {
+      throw new Error(`${label} must be valid JSON`);
+    }
+  }
+
+  function showCreateFunctionModal() {
+    showJsonModal('Create Lambda function', [
+      { name: 'name', label: 'Function name', placeholder: 'worker' },
+      { name: 'role', label: 'Execution role ARN', value: 'arn:aws:iam::000000000000:role/lambda-role' },
+      { name: 'configuration', label: 'Configuration JSON', multiline: true, value: '{\n  "Runtime": "python3.13",\n  "Handler": "lambda_function.lambda_handler",\n  "Timeout": 10,\n  "MemorySize": 128\n}' },
+      { name: 'code', label: 'Code JSON', multiline: true, value: '{\n  "S3Bucket": "hot-reload",\n  "S3Key": "/absolute/host/path"\n}' },
+      { name: 'tags', label: 'Tags JSON', multiline: true, value: '{}' },
+    ], 'Create', async (inputs) => {
+      state.selectedFunctionName = inputs.name.value.trim();
+      await mutate('/api/lambda/functions/', 'POST', {
+        name: inputs.name.value.trim(), role: inputs.role.value.trim(),
+        configuration: jsonInput(inputs.configuration, 'Configuration'),
+        code: jsonInput(inputs.code, 'Code'), tags: jsonInput(inputs.tags, 'Tags'),
+      }, 'Function created');
+    });
+  }
+
+  function showConfigurationModal(fn) {
+    const config = fn.configuration && !fn.configuration.error ? fn.configuration : {};
+    const editable = ['Runtime', 'Role', 'Handler', 'Description', 'Timeout', 'MemorySize', 'Environment', 'TracingConfig', 'Layers', 'Architectures', 'EphemeralStorage', 'SnapStart', 'LoggingConfig']
+      .reduce((result, key) => (config[key] !== undefined ? { ...result, [key]: config[key] } : result), {});
+    showJsonModal('Update function configuration', [{ name: 'configuration', label: 'Configuration JSON', multiline: true, value: JSON.stringify(editable, null, 2) }], 'Update', async (inputs) => {
+      await mutate(`/api/lambda/functions/${encodeURIComponent(fn.name)}/`, 'PATCH', { configuration: jsonInput(inputs.configuration, 'Configuration') }, 'Configuration updated');
+    });
+  }
+
+  function showCodeModal(fn) {
+    showJsonModal('Update function code', [
+      { name: 'code', label: 'Code JSON', multiline: true, value: '{\n  "S3Bucket": "deployment-bucket",\n  "S3Key": "function.zip"\n}' },
+      { name: 'publish', label: 'Publish immediately (true/false)', value: 'false' },
+    ], 'Update', async (inputs) => {
+      await mutate(`/api/lambda/functions/${encodeURIComponent(fn.name)}/code/`, 'PUT', { code: jsonInput(inputs.code, 'Code'), publish: inputs.publish.value.trim().toLowerCase() === 'true' }, 'Function code updated');
+    });
+  }
+
+  function showAliasModal(fn, alias = null) {
+    showJsonModal(alias ? 'Update alias' : 'Create alias', [
+      { name: 'name', label: 'Alias name', value: alias?.Name || '' },
+      { name: 'version', label: 'Function version', value: alias?.FunctionVersion || '' },
+      { name: 'description', label: 'Description', value: alias?.Description || '' },
+    ], alias ? 'Update' : 'Create', async (inputs) => {
+      const name = inputs.name.value.trim();
+      const path = `/api/lambda/functions/${encodeURIComponent(fn.name)}/aliases/${alias ? `${encodeURIComponent(alias.Name)}/` : ''}`;
+      await mutate(path, alias ? 'PUT' : 'POST', { name, function_version: inputs.version.value.trim(), description: inputs.description.value }, alias ? 'Alias updated' : 'Alias created');
+    });
+  }
+
+  function showMappingModal(fn, mapping = null) {
+    const options = mapping ? {
+      Enabled: mapping.State !== 'Disabled', BatchSize: mapping.BatchSize,
+      MaximumBatchingWindowInSeconds: mapping.MaximumBatchingWindowInSeconds,
+      MaximumRecordAgeInSeconds: mapping.MaximumRecordAgeInSeconds,
+      MaximumRetryAttempts: mapping.MaximumRetryAttempts,
+      DestinationConfig: mapping.DestinationConfig, ScalingConfig: mapping.ScalingConfig,
+    } : { EventSourceArn: 'arn:aws:sqs:us-east-1:000000000000:queue-name', Enabled: true, BatchSize: 10 };
+    showJsonModal(mapping ? 'Update trigger' : 'Create trigger', [{ name: 'options', label: 'Event source mapping JSON', multiline: true, value: JSON.stringify(options, null, 2) }], mapping ? 'Update' : 'Create', async (inputs) => {
+      const path = mapping ? `/api/lambda/event-source-mappings/${encodeURIComponent(mapping.UUID)}/` : `/api/lambda/functions/${encodeURIComponent(fn.name)}/event-source-mappings/`;
+      await mutate(path, mapping ? 'PUT' : 'POST', { options: jsonInput(inputs.options, 'Event source mapping') }, mapping ? 'Trigger updated' : 'Trigger created');
+    });
+  }
+
   async function invokeFunction(fn, payload) {
     const data = await apiJson(invokePath(fn.name), {
       method: 'POST',
@@ -122,6 +218,15 @@ const LambdaConsole = (() => {
     const qualifierInput = document.createElement('input');
     qualifierInput.placeholder = 'optional version or alias';
     qualifierInput.value = replay?.qualifier || '';
+    const qualifierList = document.createElement('datalist');
+    qualifierList.id = 'lambda-qualifiers';
+    [...(fn.aliases || []).map((alias) => alias.Name), ...(fn.versions || []).map((version) => version.Version)].forEach((value) => qualifierList.append(el('option', null, value)));
+    qualifierInput.setAttribute('list', qualifierList.id);
+    const typeInput = document.createElement('select');
+    [['RequestResponse', 'Synchronous'], ['Event', 'Asynchronous'], ['DryRun', 'Validate only']].forEach(([value, label]) => {
+      const option = el('option', null, label); option.value = value; typeInput.append(option);
+    });
+    typeInput.value = replay?.invocation_type || 'RequestResponse';
 
     form.append(
       el('label', null, 'Function'),
@@ -130,12 +235,16 @@ const LambdaConsole = (() => {
       payloadInput,
       el('label', null, 'Qualifier'),
       qualifierInput,
+      qualifierList,
+      el('label', null, 'Invocation type'),
+      typeInput,
     );
 
     openModal('Invoke function', form, 'Invoke', async (close) => {
       const data = await invokeFunction(fn, {
         payload: parsePayload(payloadInput.value),
         qualifier: qualifierInput.value.trim() || null,
+        invocation_type: typeInput.value,
       });
       state.lastInvoke = data;
       close();
@@ -198,6 +307,93 @@ const LambdaConsole = (() => {
     return wrapper;
   }
 
+  function section(title, actions = []) {
+    const wrapper = el('section', 'lambda-detail-section');
+    const heading = el('div', 'lambda-detail-section-heading');
+    heading.append(el('h3', null, title));
+    const controls = el('div', 'lambda-action-row');
+    actions.forEach((action) => controls.append(action));
+    heading.append(controls);
+    wrapper.append(heading);
+    return wrapper;
+  }
+
+  function renderConfiguration(fn) {
+    const wrapper = section('Configuration', [btn('Edit', 'lambda-btn-secondary', () => showConfigurationModal(fn)), btn('Update code', 'lambda-btn-secondary', () => showCodeModal(fn))]);
+    const details = document.createElement('dl');
+    [
+      ['ARN', fn.arn], ['Runtime', fn.runtime], ['Handler', fn.handler], ['Package type', fn.package_type],
+      ['State', fn.state], ['Last modified', fn.last_modified], ['Memory (MB)', fn.memory_size],
+      ['Timeout (seconds)', fn.timeout], ['Role', fn.role], ['Architectures', fn.architectures],
+      ['Environment', fn.environment], ['Tracing', fn.tracing_config], ['Layers', fn.layers], ['Tags', fn.tags],
+    ].forEach(([label, value]) => consoleUi.addField(details, label, value));
+    wrapper.append(details);
+    return wrapper;
+  }
+
+  function renderVersionsAndAliases(fn) {
+    const wrapper = section('Versions and aliases', [
+      btn('Publish version', 'lambda-btn-secondary', () => showJsonModal('Publish version', [{ name: 'description', label: 'Description' }], 'Publish', async (inputs) => mutate(`/api/lambda/functions/${encodeURIComponent(fn.name)}/versions/`, 'POST', { description: inputs.description.value }, 'Version published'))),
+      btn('Create alias', 'lambda-btn-secondary', () => showAliasModal(fn)),
+    ]);
+    const versions = el('div', 'lambda-chip-list');
+    (fn.versions || []).forEach((version) => versions.append(el('span', 'lambda-chip', `v${version.Version} · ${version.Description || 'No description'}`)));
+    wrapper.append(el('h4', null, 'Published versions'), versions.childNodes.length ? versions : el('div', 'lambda-empty lambda-empty-compact', 'No published versions.'));
+    const aliases = el('div', 'lambda-card-list');
+    (fn.aliases || []).forEach((alias) => {
+      const card = el('article', 'lambda-mini-card');
+      card.append(el('strong', null, alias.Name), el('span', null, `Version ${alias.FunctionVersion}`));
+      const controls = el('div', 'lambda-action-row');
+      controls.append(btn('Edit', 'lambda-btn-secondary', () => showAliasModal(fn, alias)), btn('Delete', 'lambda-btn-danger', async () => {
+        if (window.confirm(`Delete alias ${alias.Name}?`)) await mutate(`/api/lambda/functions/${encodeURIComponent(fn.name)}/aliases/${encodeURIComponent(alias.Name)}/`, 'DELETE', null, 'Alias deleted');
+      }));
+      card.append(controls); aliases.append(card);
+    });
+    wrapper.append(el('h4', null, 'Aliases'), aliases.childNodes.length ? aliases : el('div', 'lambda-empty lambda-empty-compact', 'No aliases.'));
+    return wrapper;
+  }
+
+  function renderTriggers(fn) {
+    const wrapper = section('Triggers', [btn('Add trigger', 'lambda-btn-secondary', () => showMappingModal(fn))]);
+    const cards = el('div', 'lambda-card-list');
+    (fn.event_source_mappings || []).forEach((mapping) => {
+      const card = el('article', 'lambda-mini-card');
+      const facts = document.createElement('dl');
+      [['UUID', mapping.UUID], ['Source', mapping.EventSourceArn], ['State', mapping.State], ['Batch size', mapping.BatchSize], ['Batching window', mapping.MaximumBatchingWindowInSeconds], ['Scaling', mapping.ScalingConfig], ['Last result', mapping.LastProcessingResult], ['Failure destination', mapping.DestinationConfig?.OnFailure?.Destination]].forEach(([label, value]) => consoleUi.addField(facts, label, value));
+      const controls = el('div', 'lambda-action-row');
+      controls.append(btn('Edit', 'lambda-btn-secondary', () => showMappingModal(fn, mapping)), btn('Delete', 'lambda-btn-danger', async () => {
+        if (window.confirm('Delete this event source mapping?')) await mutate(`/api/lambda/event-source-mappings/${encodeURIComponent(mapping.UUID)}/`, 'DELETE', null, 'Trigger deleted');
+      }));
+      card.append(facts, controls); cards.append(card);
+    });
+    wrapper.append(cards.childNodes.length ? cards : el('div', 'lambda-empty lambda-empty-compact', 'No event source mappings.'));
+    return wrapper;
+  }
+
+  function renderAccessAndRuntime(fn) {
+    const wrapper = section('Access and runtime controls');
+    const facts = document.createElement('dl');
+    [['Reserved concurrency', fn.concurrency?.ReservedConcurrentExecutions], ['Function URL', fn.function_url], ['Resource policy', fn.policy], ['Code signing', fn.code_signing_config]].forEach(([label, value]) => consoleUi.addField(facts, label, value));
+    wrapper.append(facts);
+    const controls = el('div', 'lambda-action-row');
+    controls.append(
+      btn('Set concurrency', 'lambda-btn-secondary', () => showJsonModal('Reserved concurrency', [{ name: 'value', label: 'Concurrent executions', type: 'number', value: fn.concurrency?.ReservedConcurrentExecutions ?? '' }], 'Save', async (inputs) => mutate(`/api/lambda/functions/${encodeURIComponent(fn.name)}/concurrency/`, 'PUT', { reserved_concurrency: inputs.value.value }, 'Concurrency updated'))),
+      btn(fn.function_url ? 'Edit URL' : 'Create URL', 'lambda-btn-secondary', () => showJsonModal('Function URL configuration', [{ name: 'options', label: 'Configuration JSON', multiline: true, value: JSON.stringify(fn.function_url && !fn.function_url.error ? { AuthType: fn.function_url.AuthType, Cors: fn.function_url.Cors } : { AuthType: 'NONE' }, null, 2) }], 'Save', async (inputs) => mutate(`/api/lambda/functions/${encodeURIComponent(fn.name)}/url/`, fn.function_url ? 'PUT' : 'POST', { options: jsonInput(inputs.options, 'URL configuration') }, 'Function URL saved'))),
+      btn('Add permission', 'lambda-btn-secondary', () => showJsonModal('Add permission', [{ name: 'statement', label: 'Permission JSON', multiline: true, value: '{\n  "StatementId": "allow-local",\n  "Action": "lambda:InvokeFunction",\n  "Principal": "*"\n}' }], 'Add', async (inputs) => mutate(`/api/lambda/functions/${encodeURIComponent(fn.name)}/permissions/`, 'POST', { statement: jsonInput(inputs.statement, 'Permission') }, 'Permission added'))),
+      btn('Edit tags', 'lambda-btn-secondary', () => showJsonModal('Tag function', [{ name: 'tags', label: 'Tags JSON', multiline: true, value: JSON.stringify(fn.tags || {}, null, 2) }], 'Save', async (inputs) => mutate(`/api/lambda/functions/${encodeURIComponent(fn.name)}/tags/`, 'POST', { resource_arn: fn.arn, tags: jsonInput(inputs.tags, 'Tags') }, 'Tags updated'))),
+      btn('Clear concurrency', 'lambda-btn-secondary', async () => mutate(`/api/lambda/functions/${encodeURIComponent(fn.name)}/concurrency/`, 'DELETE', null, 'Reserved concurrency cleared')),
+      btn('Remove permission', 'lambda-btn-secondary', () => showJsonModal('Remove permission', [{ name: 'statement_id', label: 'Statement ID' }], 'Remove', async (inputs) => mutate(`/api/lambda/functions/${encodeURIComponent(fn.name)}/permissions/`, 'DELETE', { statement_id: inputs.statement_id.value.trim() }, 'Permission removed'))),
+      btn('Remove tags', 'lambda-btn-secondary', () => showJsonModal('Remove tags', [{ name: 'tag_keys', label: 'Tag keys (comma-separated)' }], 'Remove', async (inputs) => mutate(`/api/lambda/functions/${encodeURIComponent(fn.name)}/tags/`, 'DELETE', { resource_arn: fn.arn, tag_keys: inputs.tag_keys.value.split(',').map((key) => key.trim()).filter(Boolean) }, 'Tags removed'))),
+    );
+    if (fn.function_url) {
+      controls.append(btn('Delete URL', 'lambda-btn-danger', async () => {
+        if (window.confirm('Delete this function URL?')) await mutate(`/api/lambda/functions/${encodeURIComponent(fn.name)}/url/`, 'DELETE', null, 'Function URL deleted');
+      }));
+    }
+    wrapper.append(controls);
+    return wrapper;
+  }
+
   function renderSelectedFunction(fn) {
     const panel = el('section', 'lambda-panel');
     const heading = el('div', 'lambda-panel-heading');
@@ -214,24 +410,7 @@ const LambdaConsole = (() => {
       return panel;
     }
 
-    const details = document.createElement('dl');
-    consoleUi.addField(details, 'ARN', fn.arn);
-    consoleUi.addField(details, 'Runtime', fn.runtime);
-    consoleUi.addField(details, 'Handler', fn.handler);
-    consoleUi.addField(details, 'Package type', fn.package_type);
-    consoleUi.addField(details, 'Memory', fn.memory_size);
-    consoleUi.addField(details, 'Timeout', fn.timeout);
-    consoleUi.addField(details, 'Role', fn.role);
-    consoleUi.addField(details, 'Event source mappings', (fn.event_source_mappings || []).map((mapping) => ({
-      uuid: mapping.UUID,
-      source: mapping.EventSourceArn,
-      state: mapping.State,
-      last_result: mapping.LastProcessingResult,
-      maximum_retry_attempts: mapping.MaximumRetryAttempts,
-      maximum_record_age_seconds: mapping.MaximumRecordAgeInSeconds,
-      on_failure_destination: mapping.DestinationConfig?.OnFailure?.Destination,
-    })));
-    content.append(details);
+    content.append(renderConfiguration(fn), renderVersionsAndAliases(fn), renderTriggers(fn), renderAccessAndRuntime(fn));
     if (fn.code?.Location) {
       const codeLink = document.createElement('a');
       codeLink.className = 'lambda-log-link';
@@ -245,6 +424,7 @@ const LambdaConsole = (() => {
     logLink.href = `/service/cloudwatch/?logGroup=${encodeURIComponent(logGroupName(fn))}`;
     logLink.textContent = `Open logs: ${logGroupName(fn)}`;
     content.append(logLink);
+    content.append(el('h3', null, 'Test and invoke'));
     content.append(renderInvokeResult(fn));
     content.append(consoleUi.renderActivityPanel({
       service: 'lambda',
@@ -264,15 +444,19 @@ const LambdaConsole = (() => {
     const container = el('div');
     container.append(toolbar(
       [
+        btn('Create function', null, showCreateFunctionModal),
         btn('Invoke function', null, () => fn && showInvokeModal(fn)),
+        btn('Delete function', 'lambda-btn-danger', async () => {
+          if (fn && window.confirm(`Delete Lambda function ${fn.name}?`)) {
+            state.selectedFunctionName = '';
+            await mutate(`/api/lambda/functions/${encodeURIComponent(fn.name)}/`, 'DELETE', null, 'Function deleted');
+          }
+        }),
       ],
       [],
     ));
 
-    const invokeButton = container.querySelector('button');
-    if (invokeButton) {
-      invokeButton.disabled = !fn;
-    }
+    [...container.querySelectorAll('button')].slice(1).forEach((button) => { button.disabled = !fn; });
 
     const workbench = el('div', 'lambda-workbench');
     workbench.append(renderFunctionList(), renderSelectedFunction(fn));

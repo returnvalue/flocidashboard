@@ -15,7 +15,7 @@ class ACMPageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>ACM inventory</h2>', html=True)
         self.assertContains(response, 'id="acm-summary"')
         self.assertContains(response, 'id="acm-console-root"')
-        self.assertContains(response, 'id="acm-grid"')
+        self.assertNotContains(response, 'id="acm-grid"')
         self.assertContains(response, 'dashboard/acm-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/acm-console.js')

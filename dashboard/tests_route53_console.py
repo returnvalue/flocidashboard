@@ -13,7 +13,7 @@ class Route53PageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>Route 53 inventory</h2>', html=True)
         self.assertContains(response, 'id="route53-summary"')
         self.assertContains(response, 'id="route53-console-root"')
-        self.assertContains(response, 'id="route53-grid"')
+        self.assertNotContains(response, 'id="route53-grid"')
         self.assertContains(response, 'dashboard/route53-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/route53-console.js')

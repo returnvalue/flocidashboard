@@ -17,7 +17,7 @@ class KMSPageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>KMS inventory</h2>', html=True)
         self.assertContains(response, 'id="kms-summary"')
         self.assertContains(response, 'id="kms-console-root"')
-        self.assertContains(response, 'id="kms-grid"')
+        self.assertNotContains(response, 'id="kms-grid"')
         self.assertContains(response, 'dashboard/kms-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/kms-console.js')

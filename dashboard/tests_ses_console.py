@@ -16,7 +16,7 @@ class SESPageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>SES inventory</h2>', html=True)
         self.assertContains(response, 'id="ses-summary"')
         self.assertContains(response, 'id="ses-console-root"')
-        self.assertContains(response, 'id="ses-grid"')
+        self.assertNotContains(response, 'id="ses-grid"')
         self.assertContains(response, 'dashboard/ses-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/ses-console.js')

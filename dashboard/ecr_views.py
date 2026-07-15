@@ -8,6 +8,7 @@ from django.views.decorators.http import require_http_methods
 from .actions import handle_action_error, parse_json_body
 from .ecr_api import (
     batch_delete_image,
+    batch_get_image,
     create_repository,
     delete_lifecycle_policy,
     delete_repository,
@@ -73,6 +74,19 @@ def ecr_images_delete(request):
         ))
     except Exception as exc:
         return handle_action_error(exc, service='ecr', operation='batch_delete_image')
+
+
+@require_http_methods(['POST'])
+def ecr_images_get(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(batch_get_image(
+            body.get('repository_name') or '',
+            body.get('image_ids') or [],
+            body.get('accepted_media_types') or [],
+        ))
+    except Exception as exc:
+        return handle_action_error(exc, service='ecr', operation='batch_get_image')
 
 
 @require_http_methods(['POST'])

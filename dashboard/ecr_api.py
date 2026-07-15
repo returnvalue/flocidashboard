@@ -170,6 +170,22 @@ def batch_delete_image(repository_name: str, image_ids: Any) -> dict[str, Any]:
     }
 
 
+def batch_get_image(repository_name: str, image_ids: Any, accepted_media_types: Any = None) -> dict[str, Any]:
+    repo = _required(repository_name, 'Repository name')
+    images = _image_ids(image_ids)
+    kwargs: dict[str, Any] = {'repositoryName': repo, 'imageIds': images}
+    media_types = _list(accepted_media_types, 'Accepted media types')
+    if media_types:
+        kwargs['acceptedMediaTypes'] = media_types
+    response = _client().batch_get_image(**kwargs)
+    return {
+        'repository_name': repo,
+        'images': _clean_response(response.get('images', [])),
+        'failures': _clean_response(response.get('failures', [])),
+        'response': _clean_response(response),
+    }
+
+
 def put_image_tag_mutability(repository_name: str, image_tag_mutability: str) -> dict[str, Any]:
     repo = _required(repository_name, 'Repository name')
     mutability = _required(image_tag_mutability, 'Image tag mutability').upper()

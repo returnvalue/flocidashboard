@@ -210,7 +210,6 @@ body.global-service-nav-collapsed .global-nav-home,
 body.global-service-nav-collapsed .global-nav-title span,
 body.global-service-nav-collapsed #global-status-trigger,
 body.global-service-nav-collapsed .global-nav-actions,
-body.global-service-nav-collapsed .global-nav-service-search-label,
 body.global-service-nav-collapsed .global-nav-links,
 body.global-service-nav-collapsed .global-nav-section {
   display: none;
@@ -299,31 +298,6 @@ body.global-service-nav-collapsed .global-nav-section {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
-}
-
-.global-nav-service-search-label {
-  display: grid;
-  gap: 5px;
-  color: var(--text-secondary);
-  font-size: var(--font-size-xs);
-  font-weight: 800;
-}
-
-.global-nav-service-search {
-  width: 100%;
-  min-height: 34px;
-  border: 1px solid #879596;
-  border-radius: var(--radius-control);
-  padding: 0 10px;
-  background: #ffffff;
-  color: var(--text);
-  font-size: var(--font-size-sm);
-}
-
-.global-nav-service-search:focus {
-  border-color: var(--aws-orange);
-  box-shadow: 0 0 0 2px rgba(255, 153, 0, 0.32);
-  outline: none;
 }
 
 .global-nav-links {
@@ -3510,7 +3484,6 @@ li {
   body.global-service-nav-collapsed .global-nav-title span,
   body.global-service-nav-collapsed #global-status-trigger,
   body.global-service-nav-collapsed #global-search-trigger,
-  body.global-service-nav-collapsed .global-nav-service-search-label,
   body.global-service-nav-collapsed .global-nav-links,
   body.global-service-nav-collapsed .global-nav-section {
     display: revert;

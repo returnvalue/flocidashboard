@@ -65,6 +65,68 @@
   background: #f0f4fc;
 }
 
+.lambda-btn-danger {
+  background: #fff;
+  color: var(--status-error);
+  border-color: color-mix(in srgb, var(--status-error) 45%, var(--panel-border));
+}
+
+.lambda-modal-form,
+.lambda-detail-section,
+.lambda-card-list {
+  display: grid;
+  gap: 12px;
+}
+
+.lambda-modal-form textarea {
+  min-height: 150px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.lambda-detail-section {
+  padding: 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.lambda-detail-section-heading,
+.lambda-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.lambda-detail-section h4 {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+}
+
+.lambda-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lambda-chip {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: var(--surface-panel-alt);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.lambda-mini-card {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--surface-panel-alt);
+}
+
 .lambda-workbench {
   display: grid;
   grid-template-columns: minmax(260px, 0.9fr) minmax(0, 1.5fr);
@@ -219,10 +281,6 @@
 .lambda-about-floci p {
   margin-top: 12px;
   line-height: 1.5;
-}
-
-.lambda-readonly-grid {
-  margin-top: 14px;
 }
 
 .lambda-modal-overlay {

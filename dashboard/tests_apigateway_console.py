@@ -13,7 +13,7 @@ class ApiGatewayPageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>API Gateway inventory</h2>', html=True)
         self.assertContains(response, 'id="apigateway-summary"')
         self.assertContains(response, 'id="apigateway-console-root"')
-        self.assertContains(response, 'id="apigateway-grid"')
+        self.assertNotContains(response, 'id="apigateway-grid"')
         self.assertContains(response, 'dashboard/apigateway-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/apigateway-console.js')

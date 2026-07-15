@@ -110,7 +110,6 @@
         <p>ACM is most often used to test TLS certificate wiring for load balancers, CloudFront, API endpoints, and infrastructure automation. In Floci, a good learning flow is to request a certificate, inspect the issued metadata and validation options, add tags, then export a private certificate when testing workflows that need key material.</p>
         <p>Certificates use real RSA or EC keys and valid X.509 structure. Validation is emulator-friendly, and only PRIVATE certificates can be exported with an encrypted private key.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid acm-readonly-grid"></div>
     {% elif service.key == 's3' %}
       <div id="s3-console-root" class="s3-console-root" aria-live="polite"></div>
       <details class="s3-about-floci">
@@ -152,7 +151,6 @@
         <p>SQS is most often used to decouple producers from background workers, smooth traffic spikes, retry failed work, and connect services without requiring them to run at the same time. In Floci, a good learning flow is to create a queue, send a test message, poll it from the UI, inspect the body and attributes, then delete it after your worker logic succeeds.</p>
         <p>Common local test cases include producer message format, consumer retry behavior, visibility timeout handling, delete-after-success behavior, purge cleanup, FIFO ordering, duplicate handling, and dead-letter queue flows.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid sqs-readonly-grid"></div>
     {% elif service.key == 'ses' %}
       <div id="ses-console-root" class="ses-console-root" aria-live="polite"></div>
       <details class="ses-about-floci">
@@ -161,7 +159,6 @@
         <p>Emails are always captured locally at /_aws/ses, even when SMTP relay is configured. The workbench focuses on verifying identities, sending sample messages, managing templates, and inspecting or clearing the captured mailbox.</p>
         <p>SES v1 and v2 share identity, template, configuration set, and sent-message state in Floci. Floci 1.5.25 preserves SES v2 configuration set inline options and tightens MAIL FROM and identity-notification attribute behavior.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid ses-readonly-grid"></div>
     {% elif service.key == 'sns' %}
       <div id="sns-console-root" class="sns-console-root" aria-live="polite"></div>
       <details class="sns-about-floci">
@@ -170,7 +167,6 @@
         <p>SNS is most often used to fan out events to queues, functions, webhooks, and notification handlers. In Floci, a good learning flow is to create a topic with your app or CLI, subscribe an SQS queue, publish a test event here, then inspect the delivered message in the SQS workbench.</p>
         <p>Common local test cases include message shape, attributes, subject handling, subscription filter policies, FIFO group and deduplication behavior, SNS-to-SQS fanout, and mocked iOS or Android mobile push endpoints added in Floci 1.5.22.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid sns-readonly-grid"></div>
     {% elif service.key == 'lambda' %}
       <div id="lambda-console-root" class="lambda-console-root" aria-live="polite"></div>
       <details class="lambda-about-floci">
@@ -179,7 +175,6 @@
         <p>Lambda is most often used to handle API Gateway requests, consume SQS messages, react to S3 or EventBridge events, and run small background tasks. In Floci, a good learning flow is to select a function, invoke it with representative JSON, inspect the payload and log tail, then follow the related CloudWatch log group.</p>
         <p>Common local test cases include handler payload parsing, environment variables, timeout behavior, function errors, event-source integration payloads, and log output.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid lambda-readonly-grid"></div>
     {% elif service.key == 'kms' %}
       <div id="kms-console-root" class="kms-console-root" aria-live="polite"></div>
       <details class="kms-about-floci">
@@ -188,7 +183,6 @@
         <p>KMS is most often used by apps and services to encrypt data, test alias wiring, generate envelope-encryption data keys, and validate key lifecycle paths. In Floci, a good learning flow is to create a symmetric key, add an alias, encrypt a sample payload, decrypt the ciphertext, then try a generated data key.</p>
         <p>Grant lifecycle APIs are stored and queryable in Floci, but grants are not evaluated for cryptographic authorization. The reserved creation-time tag floci:override-id can make deterministic local key IDs for tests.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid kms-readonly-grid"></div>
     {% elif service.key == 'dynamodb' %}
       <div id="dynamodb-console-root" class="dynamodb-console-root" aria-live="polite"></div>
       <details class="dynamodb-about-floci">
@@ -197,7 +191,6 @@
         <p>DynamoDB is most often used for low-latency application records, counters, job state, idempotency keys, and event projections. In Floci, a good learning flow is to inspect a table schema, scan a bounded set of items, select an item for JSON detail, then try a read-only PartiQL SELECT query.</p>
         <p>Common local test cases include key design, item shape, stream enablement, TTL configuration, index projections, and app behavior when records are missing or malformed.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid dynamodb-readonly-grid"></div>
     {% elif service.key == 'cloudwatch' %}
       <div id="cloudwatch-console-root" class="cloudwatch-console-root" aria-live="polite"></div>
       <details class="cloudwatch-about-floci">
@@ -206,7 +199,6 @@
         <p>A good learning flow is to select a Lambda log group, open the newest stream, refresh recent events, and compare the messages with the request or event that triggered the function.</p>
         <p>Common local test cases include handler errors, async event processing, retry behavior, missing environment configuration, and log messages emitted by background workers.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid cloudwatch-readonly-grid"></div>
     {% elif service.key == 'stepfunctions' %}
       <div id="stepfunctions-console-root" class="stepfunctions-console-root" aria-live="polite"></div>
       <details class="stepfunctions-about-floci">
@@ -216,7 +208,6 @@
         <p>Floci 1.5.32 supports JSONata state machines, including workflow variables declared with <code>Assign</code>. Set <code>QueryLanguage</code> to <code>JSONata</code> in the definition and test variable assignments alongside the execution history before moving the workflow to AWS.</p>
         <p>Common local test cases include input shape, Choice state routing, Lambda task payloads, retry and catch paths, timeout behavior, failure output, and task-token callback flows.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid stepfunctions-readonly-grid"></div>
     {% elif service.key == 'cloudformation' %}
       <div id="cloudformation-console-root" class="cloudformation-console-root" aria-live="polite"></div>
       <details class="cloudformation-about-floci">
@@ -225,7 +216,6 @@
         <p>CloudFormation is most useful when testing whole local application slices. Recent Floci releases provision broader local stacks, including SAM-generated API Gateway resources, ECS cleanup on stack delete, EC2, RDS, EKS, CloudWatch, Auto Scaling, Kinesis, and Firehose resources. A good learning flow is to validate a template, create a stack, watch stack events, inspect generated resources, then update or delete the stack from the workbench.</p>
         <p>Unsupported resource types are accepted and assigned synthetic physical IDs so broader templates can deploy while you focus on the local services that Floci emulates.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid cloudformation-readonly-grid"></div>
     {% elif service.key == 'cognito' %}
       <div id="cognito-console-root" class="cognito-console-root" aria-live="polite"></div>
       <details class="cognito-about-floci">
@@ -234,7 +224,6 @@
         <p>Cognito is most useful when testing sign-in, group claims, client credentials, and app code that validates tokens. In Floci, a good learning flow is to create a pool, create a confidential app client, register resource-server scopes, create a user, set a permanent password, then test auth and token validation.</p>
         <p>The OAuth token endpoint is emulator-friendly: it supports client_credentials without requiring a Cognito domain and returns local RS256-signed access tokens. Floci 1.5.25 also includes USERNAME in SRP PASSWORD_VERIFIER challenges for SDK parity.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid cognito-readonly-grid"></div>
     {% elif service.key == 'eventbridge' %}
       <div id="eventbridge-console-root" class="eventbridge-console-root" aria-live="polite"></div>
       <details class="eventbridge-about-floci">
@@ -243,7 +232,6 @@
         <p>EventBridge is most often used to decouple event producers from downstream workflows. In Floci, a good learning flow is to select an event bus, inspect the matching rules and targets, send a representative JSON event, then follow the delivered message or invocation in the target service workbench.</p>
         <p>Common local test cases include event source naming, detail-type conventions, event pattern matching, disabled rules, target wiring, and app behavior when events are accepted but no rule matches.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid eventbridge-readonly-grid"></div>
     {% elif service.key == 'ec2' %}
       <div id="ec2-console-root" class="ec2-console-root" aria-live="polite"></div>
       <details class="ec2-about-floci">
@@ -256,7 +244,6 @@
         <p>The Advanced view covers network ACL entries and subnet association moves, S3-delivered VPC flow logs with decoded record viewing, EBS-style volumes and snapshot inventory, registered AMIs, versioned launch templates, and one-time Spot requests. Snapshot creation/deletion and AMI deregistration are not currently exposed by Floci, so those inventories remain intentionally non-destructive.</p>
         <p>Common local test cases include UserData bootstrapping, IMDSv1 and IMDSv2 calls, IAM instance profile credential wiring, SSM commands, tag-based discovery, VPC routing, endpoint placement, security group ingress, and app behavior across stop/start or termination.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid ec2-readonly-grid"></div>
     {% elif service.key == 'ecr' %}
       <div id="ecr-console-root" class="ecr-console-root" aria-live="polite"></div>
       <details class="ecr-about-floci">
@@ -265,7 +252,6 @@
         <p>ECR is most useful when testing image-backed Lambda functions, ECS task definitions, CDK Docker assets, and repository automation. In Floci, a good learning flow is to create a repository, copy the docker login command, push an image, inspect image tags and digests, then delete images or the repository when the local scenario is done.</p>
         <p>Lifecycle and repository policies are stored for API compatibility but are not enforced. Deleted image blobs are reclaimed by the local garbage-collection admin endpoint.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid ecr-readonly-grid"></div>
     {% elif service.key == 'ecs' %}
       <div id="ecs-console-root" class="ecs-console-root" aria-live="polite"></div>
       <details class="ecs-about-floci">
@@ -274,7 +260,6 @@
         <p>ECS is most useful when testing containerized local workloads and service orchestration. In Floci, a good learning flow is to create a cluster, register a task definition, run a one-off task, then create a service and adjust its desired count.</p>
         <p>By default tasks launch as real Docker containers and need Docker socket access. Set FLOCI_SERVICES_ECS_MOCK=true when tests or CI should run without Docker. Recent Floci releases honor task hostPort mappings, mount EFS task volumes as shared local volumes, persist ECS resources, and validate Fargate task network mode and resource requirements more closely.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid ecs-readonly-grid"></div>
     {% elif service.key == 'apigateway' %}
       <div id="apigateway-console-root" class="apigateway-console-root" aria-live="polite"></div>
       <details class="apigateway-about-floci">
@@ -283,7 +268,6 @@
         <p>API Gateway is most often used to put an HTTP interface in front of Lambda functions, HTTP_PROXY integrations, and service-backed workflows. In Floci, a good learning flow is to select an API, choose a stage and route, send a representative request, then follow the downstream Lambda logs or queue messages.</p>
         <p>Common local test cases include method and path matching, stage selection, JSON payload parsing, integration status codes, headers, query strings, and behavior when a route is missing.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid apigateway-readonly-grid"></div>
     {% elif service.key == 'kinesis' %}
       <div id="kinesis-console-root" class="kinesis-console-root" aria-live="polite"></div>
       <details class="kinesis-about-floci">
@@ -292,7 +276,6 @@
         <p>Kinesis is most often used for ordered event streams, clickstreams, analytics pipelines, and fan-out consumers. In Floci, a good learning flow is to create a stream, put a representative JSON record, then read records from a shard to verify what a consumer will receive.</p>
         <p>Common local test cases include partition key choice, malformed payloads, consumer checkpointing, sequence-number handling, and downstream Lambda or EventBridge Pipes integrations.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid kinesis-readonly-grid"></div>
     {% elif service.key == 'kafka' %}
       <div id="kafka-console-root" class="kafka-console-root" aria-live="polite"></div>
       <details class="kafka-about-floci">
@@ -301,7 +284,6 @@
         <p>When mock mode is disabled, each created cluster starts a Redpanda container with Kafka port 9092 mapped to a dynamic host port. The cluster becomes ACTIVE after the Redpanda readiness endpoint responds, and Floci 1.5.25 populates currentBrokerSoftwareInfo in cluster describe responses.</p>
         <p>A good learning flow is to create a one-broker cluster, refresh until it becomes ACTIVE, load bootstrap brokers, test a Kafka client against the returned localhost endpoint, then delete the cluster when the scenario is done.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid kafka-readonly-grid"></div>
     {% elif service.key == 'firehose' %}
       <div id="firehose-console-root" class="firehose-console-root" aria-live="polite"></div>
       <details class="firehose-about-floci">
@@ -310,7 +292,6 @@
         <p>Floci flushes buffered records after every five records for quick local feedback. Delivered objects are raw NDJSON in the floci-firehose-results bucket, which makes the S3 workbench a useful next stop after writing test records.</p>
         <p>A good learning flow is to create a delivery stream, put one representative JSON record, send a small batch to trigger a flush, then inspect the destination bucket for newline-delimited output.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid firehose-readonly-grid"></div>
     {% elif service.key == 'secretsmanager' %}
       <div id="secretsmanager-console-root" class="secretsmanager-console-root" aria-live="polite"></div>
       <details class="secretsmanager-about-floci">
@@ -319,7 +300,6 @@
         <p>Secrets Manager is most often used for database credentials, API tokens, webhook secrets, and app configuration that should not live in source code. In Floci, a good learning flow is to create a secret, update its value, reload it from the app, then verify the current version and stages.</p>
         <p>Common local test cases include missing secrets, malformed JSON values, stale credentials, scheduled deletion, KMS key wiring, and application behavior after secret rotation or update.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid secretsmanager-readonly-grid"></div>
     {% elif service.key == 'ssm' %}
       <div id="ssm-console-root" class="ssm-console-root" aria-live="polite"></div>
       <details class="ssm-about-floci">
@@ -328,7 +308,6 @@
         <p>Parameter values stay out of the read-only inventory by default. Use the explicit reveal action when you need to debug what a local app will receive from GetParameter.</p>
         <p>Common local test cases include missing parameters, stale config versions, malformed JSON values, SecureString decryption, overwrite behavior, application reloads after updates, and Floci 1.5.26 SendCommand execution in EC2 containers.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid ssm-readonly-grid"></div>
     {% elif service.key == 'rds' %}
       <div id="rds-console-root" class="rds-console-root" aria-live="polite"></div>
       <details class="rds-about-floci">
@@ -337,7 +316,6 @@
         <p>RDS is most useful when testing application database connection strings, migrations, startup health checks, and IAM database authentication. Floci 1.5.25 adds provisioning lifecycle support and persists STS session secret keys so IAM database tokens validate across requests.</p>
         <p>Each DB instance or cluster gets its own Docker volume. In memory mode volumes are removed on delete; persistent modes retain data for manual recovery unless pruning is enabled.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid rds-readonly-grid"></div>
     {% elif service.key == 'backup' %}
       <div id="backup-console-root" class="backup-console-root" aria-live="polite"></div>
       <details class="backup-about-floci">
@@ -346,7 +324,6 @@
         <p>Backup jobs move from CREATED to RUNNING and then COMPLETED after the configured completion delay. Completed jobs create recovery points in the target vault, but no underlying resource data is read or written.</p>
         <p>A good learning flow is to create a vault, create a plan, add a resource selection, start an on-demand backup job, refresh until it completes, then inspect or delete the generated recovery point.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid backup-readonly-grid"></div>
     {% elif service.key == 'transfer' %}
       <div id="transfer-console-root" class="transfer-console-root" aria-live="polite"></div>
       <details class="transfer-about-floci">
@@ -355,7 +332,6 @@
         <p>Actual SFTP, FTP, FTPS, and AS2 data-plane file transfer is out of scope. Server state is simulated in-process, with StartServer and StopServer moving servers between ONLINE and OFFLINE.</p>
         <p>A good learning flow is to create an SFTP server, create a user with an IAM role and home directory, import an SSH public key, tag the server, then stop and delete the server when testing is complete.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid transfer-readonly-grid"></div>
     {% elif service.key == 'textract' %}
       <div id="textract-console-root" class="textract-console-root" aria-live="polite"></div>
       <details class="textract-about-floci">
@@ -364,7 +340,6 @@
         <p>Every sync response and completed async job returns a synthetic PAGE, LINE, and WORD hierarchy where the extracted text is "Floci" and confidence is 99.9.</p>
         <p>Async StartDocumentTextDetection and StartDocumentAnalysis return in-memory job IDs that are immediately SUCCEEDED. Job IDs are not persisted across restarts.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid textract-readonly-grid"></div>
     {% elif service.key == 'transcribe' %}
       <div id="transcribe-console-root" class="transcribe-console-root" aria-live="polite"></div>
       <details class="transcribe-about-floci">
@@ -373,7 +348,6 @@
         <p>Jobs transition to COMPLETED immediately and return a synthetic transcript file URI. Vocabularies transition to READY immediately, making both flows useful for local SDK and application control-path testing.</p>
         <p>LanguageCode defaults to en-US and MediaFormat defaults to mp4. Floci 1.5.29 persists vocabularies across restart, while transcription job execution remains a control-plane stub.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid transcribe-readonly-grid"></div>
     {% elif service.key == 'bedrockruntime' %}
       <div id="bedrockruntime-console-root" class="bedrockruntime-console-root" aria-live="polite"></div>
       <details class="bedrockruntime-about-floci">
@@ -382,7 +356,6 @@
         <p>Converse requires a non-empty messages array. System prompts, inference configuration, and tool configuration are accepted but ignored; tool-use round-tripping is not implemented.</p>
         <p>InvokeModel accepts the request body as opaque bytes and returns an Anthropic-shaped body for Anthropic model IDs or a generic outputs body otherwise. Streaming and the Bedrock management plane are out of scope.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid bedrockruntime-readonly-grid"></div>
     {% elif service.key == 'appconfig' %}
       <div id="appconfig-console-root" class="appconfig-console-root" aria-live="polite"></div>
       <details class="appconfig-about-floci">
@@ -391,7 +364,6 @@
         <p>AppConfigData provides the retrieval plane used by applications. Start a configuration session for an application, environment, and profile, then use the returned token to fetch the latest deployed configuration.</p>
         <p>A good learning flow is to create an application hierarchy, add a JSON hosted version, create an immediate deployment strategy, deploy the version, then retrieve it through the data plane. Floci 1.5.25 prevents AppConfig routing from hijacking S3 buckets named configuration.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid appconfig-readonly-grid"></div>
     {% elif service.key == 'appsync' %}
       <div id="appsync-console-root" class="appsync-console-root" aria-live="polite"></div>
       <details class="appsync-about-floci">
@@ -400,7 +372,6 @@
         <p>The supported management surface includes GraphQL APIs, schemas, API keys, data sources, resolvers, functions, types, and resource tags.</p>
         <p>The workbench focuses on management-plane resources and resolver configuration so local GraphQL infrastructure can be inspected alongside its backing data sources.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid appsync-readonly-grid"></div>
     {% elif service.key == 'cloudmap' %}
       <div id="cloudmap-console-root" class="cloudmap-console-root" aria-live="polite"></div>
       <details class="cloudmap-about-floci">
@@ -409,7 +380,6 @@
         <p>HTTP namespaces are the simplest local workflow. DNS namespaces can also be modeled, with private DNS requiring a VPC ID.</p>
         <p>Registered instance attributes are the discovery payload your local services can query during integration tests.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid cloudmap-readonly-grid"></div>
     {% elif service.key == 'resourcegroupstagging' %}
       <div id="resourcegroupstagging-console-root" class="resourcegroupstagging-console-root" aria-live="polite"></div>
       <details class="resourcegroupstagging-about-floci">
@@ -418,7 +388,6 @@
         <p>Searches can be restricted by ARN, tag filters, or service and resource type filters such as lambda or ec2:instance. Global ARNs such as S3 buckets remain visible across regions.</p>
         <p>Tags are stored in process and do not persist across Floci restarts. AWS Organizations tag policies and compliance enforcement are out of scope.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid resourcegroupstagging-readonly-grid"></div>
     {% elif service.key == 'neptune' %}
       <div id="neptune-console-root" class="neptune-console-root" aria-live="polite"></div>
       <details class="neptune-about-floci">
@@ -427,7 +396,6 @@
         <p>Each cluster exposes a local Gremlin data-plane endpoint through the configured proxy port range. The first cluster usually claims port 8182, and each additional cluster increments from there.</p>
         <p>A good learning flow is to create a cluster, create an instance in it, copy the Gremlin WebSocket endpoint, add a vertex with gremlin-python, then delete the instance and cluster when the graph scenario is done.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid neptune-readonly-grid"></div>
     {% elif service.key == 'autoscaling' %}
       <div id="autoscaling-console-root" class="autoscaling-console-root" aria-live="polite"></div>
       <details class="autoscaling-about-floci">
@@ -436,7 +404,6 @@
         <p>Auto Scaling is especially useful in Floci because the capacity reconciler launches and terminates local EC2 instances to maintain desired capacity. A good learning flow is to create a launch configuration, create a group with desired capacity, watch instances move toward InService, then scale out or scale in.</p>
         <p>Attached ELB v2 target groups are registered as instances become InService, and scale-in deregisters targets before terminating instances. Floci 1.5.26 adds group reconciliation and refresh behavior plus mixed-instances parity improvements.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid autoscaling-readonly-grid"></div>
     {% elif service.key == 'elasticloadbalancing' %}
       <div id="elasticloadbalancing-console-root" class="elasticloadbalancing-console-root" aria-live="polite"></div>
       <details class="elasticloadbalancing-about-floci">
@@ -445,7 +412,6 @@
         <p>The AWS-compatible CRUD APIs are available, with recent Floci releases enforcing ALB subnet availability-zone rules, improving target persistence, and publishing ALB DNS names that resolve locally.</p>
         <p>A good learning flow is to create a load balancer, create a target group, register local EC2 or IP targets, create a listener with a default forward action, then add a path-based rule.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid elasticloadbalancing-readonly-grid"></div>
     {% elif service.key == 'eks' %}
       <div id="eks-console-root" class="eks-console-root" aria-live="polite"></div>
       <details class="eks-about-floci">
@@ -454,7 +420,6 @@
         <p>In mock mode, clusters become ACTIVE immediately and no Kubernetes API server is started. In real mode, Floci starts a k3s container per cluster and, as of 1.5.22, exposes a host-reachable and authenticable Kubernetes API endpoint.</p>
         <p>Floci 1.5.24 adds managed node group support, so this workbench covers cluster lifecycle, node group lifecycle, endpoint metadata, and resource tags.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid eks-readonly-grid"></div>
     {% elif service.key == 'elasticache' %}
       <div id="elasticache-console-root" class="elasticache-console-root" aria-live="polite"></div>
       <details class="elasticache-about-floci">
@@ -463,7 +428,6 @@
         <p>A good learning flow is to create a replication group, inspect the primary endpoint port, connect with redis-cli or your application, then delete the group when the local cache is no longer needed.</p>
         <p>Floci also supports ElastiCache users and IAM auth token validation. In Floci 1.5.25, persisted STS session secret keys make IAM-authenticated cache tokens validate across requests.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid elasticache-readonly-grid"></div>
     {% elif service.key == 'opensearch' %}
       <div id="opensearch-console-root" class="opensearch-console-root" aria-live="polite"></div>
       <details class="opensearch-about-floci">
@@ -472,7 +436,6 @@
         <p>A good learning flow is to create a domain, inspect its endpoint and health, test config changes, add tags, then delete the domain when the local search cluster is no longer needed.</p>
         <p>Floci validates supported engine versions and exposes instance type details so SDK clients and infrastructure tools can inspect realistic domain metadata while the runtime stays local.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid opensearch-readonly-grid"></div>
     {% elif service.key == 'athena' %}
       <div id="athena-console-root" class="athena-console-root" aria-live="polite"></div>
       <details class="athena-about-floci">
@@ -481,7 +444,6 @@
         <p>A good learning flow is to register S3-backed tables in Glue, start a SQL query here, watch the query state, then fetch the completed result rows from the S3-backed CSV output.</p>
         <p>Mock mode skips DuckDB execution and immediately returns successful empty results, which is useful when tests only need the Athena query state machine. Floci 1.5.25 aligns GetWorkGroup behavior with AWS.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid athena-readonly-grid"></div>
     {% elif service.key == 'glue' %}
       <div id="glue-console-root" class="glue-console-root" aria-live="polite"></div>
       <details class="glue-about-floci">
@@ -490,7 +452,6 @@
         <p>A good learning flow is to create a database, register an S3-backed JSON or Parquet table, add partitions when needed, then query the table from Athena. Floci 1.5.25 adds partition APIs, column statistics, table statistics deletion, and deterministic GetPartitions ordering.</p>
         <p>The Schema Registry flow supports AVRO, JSON, and PROTOBUF definitions with the compatibility modes exposed by Floci, making it useful for testing event producer and consumer schema-version workflows.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid glue-readonly-grid"></div>
     {% elif service.key == 'codebuild' %}
       <div id="codebuild-console-root" class="codebuild-console-root" aria-live="polite"></div>
       <details class="codebuild-about-floci">
@@ -499,7 +460,6 @@
         <p>Buildspec install, pre_build, build, and post_build phases run sequentially. Output is streamed to CloudWatch Logs under /aws/codebuild/&lt;project&gt;, and configured S3 artifacts are copied from the container after the build.</p>
         <p>A good learning flow is to create a NO_SOURCE project with a lightweight image, start a build using an inline buildspec override, poll until buildComplete, then inspect its phases, logs, and artifacts.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid codebuild-readonly-grid"></div>
     {% elif service.key == 'codedeploy' %}
       <div id="codedeploy-console-root" class="codedeploy-console-root" aria-live="polite"></div>
       <details class="codedeploy-about-floci">
@@ -508,7 +468,6 @@
         <p>For Lambda and ECS compute platforms, Floci performs real local deployment execution: Lambda alias traffic shifting or ECS blue/green task-set and ELB listener updates, including lifecycle hook callbacks.</p>
         <p>A good learning flow is to create a Lambda or ECS application, create a deployment group, submit an AppSpecContent revision, then poll the deployment and inspect deployment targets or hook status.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid codedeploy-readonly-grid"></div>
     {% elif service.key == 'cloudfront' %}
       <div id="cloudfront-console-root" class="cloudfront-console-root" aria-live="polite"></div>
       <details class="cloudfront-about-floci">
@@ -517,7 +476,6 @@
         <p>Actual edge delivery is not emulated. This workbench focuses on creating and inspecting CDN configuration so local infrastructure, IaC flows, and SDK calls can be tested without AWS.</p>
         <p>A good learning flow is to create a distribution for an S3-style origin, update its enabled state or comment, create a cache invalidation, then inspect the generated domain name and global ARN.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid cloudfront-readonly-grid"></div>
     {% elif service.key == 'route53' %}
       <div id="route53-console-root" class="route53-console-root" aria-live="polite"></div>
       <details class="route53-about-floci">
@@ -526,7 +484,6 @@
         <p>Actual DNS resolution is not provided. This workbench focuses on creating and inspecting DNS configuration so local infrastructure and SDK flows can be tested without AWS.</p>
         <p>A good learning flow is to create a hosted zone, add an A or CNAME record, inspect the immediate INSYNC change, create a health check, then tag the zone or health check.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid route53-readonly-grid"></div>
     {% elif service.key == 'scheduler' %}
       <div id="scheduler-console-root" class="scheduler-console-root" aria-live="polite"></div>
       <details class="scheduler-about-floci">
@@ -535,7 +492,6 @@
         <p>Scheduler is most often used to trigger Lambda functions, send SQS or SNS messages, or put EventBridge events on a recurring or one-time cadence. In Floci, a good learning flow is to create a group, add a rate or at expression, point the target at a local service, then watch the target service workbench for the fired payload.</p>
         <p>Supported expressions include at, rate, and six-field cron. Retry policy and dead-letter config are stored for compatibility, but failed-invocation retry behavior is not enforced yet.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid scheduler-readonly-grid"></div>
     {% elif service.key == 'pipes' %}
       <div id="pipes-console-root" class="pipes-console-root" aria-live="polite"></div>
       <details class="pipes-about-floci">
@@ -544,7 +500,6 @@
         <p>Pipes are most useful for testing local event handoffs such as SQS to Lambda, Kinesis to Step Functions, or DynamoDB stream records to SNS. In Floci, a good learning flow is to create a pipe with source and target ARNs, start it, then inspect the downstream workbench for delivered events.</p>
         <p>Supported sources include SQS queues, Kinesis streams, DynamoDB streams, and Kafka topics. Supported targets include Lambda, SQS, SNS, Kinesis, and Step Functions.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid pipes-readonly-grid"></div>
     {% elif service.key == 'config' %}
       <div id="config-console-root" class="config-console-root" aria-live="polite"></div>
       <details class="config-about-floci">
@@ -553,7 +508,6 @@
         <p>Config is most useful for testing local compliance setup and infrastructure automation. In Floci, a good learning flow is to create a recorder, add a delivery channel, start recording, create a rule, then trigger a rule evaluation.</p>
         <p>Compliance status always returns INSUFFICIENT_DATA because Floci stores the management-plane resources but does not perform real resource evaluation or configuration recording.</p>
       </details>
-      <div id="{{ service.key }}-grid" class="iam-grid config-readonly-grid"></div>
     {% else %}
       <div id="{{ service.key }}-grid" class="iam-grid"></div>
     {% endif %}

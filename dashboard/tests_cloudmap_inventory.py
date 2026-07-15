@@ -19,7 +19,7 @@ class CloudMapInventoryTests(SimpleTestCase):
         self.assertContains(response, 'id="cloudmap-console-root"')
         self.assertContains(response, 'id="cloudmap-loaded-at"')
         self.assertContains(response, 'id="cloudmap-summary"')
-        self.assertContains(response, 'id="cloudmap-grid"')
+        self.assertNotContains(response, 'id="cloudmap-grid"')
         self.assertContains(response, 'dashboard/cloudmap-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/cloudmap-console.js')

@@ -11,6 +11,8 @@ from .ecs_api import (
     create_service,
     delete_cluster,
     delete_service,
+    deregister_task_definition,
+    delete_task_definitions,
     put_account_setting,
     register_task_definition,
     run_task,
@@ -18,6 +20,8 @@ from .ecs_api import (
     tag_resource,
     untag_resource,
     update_service,
+    update_task_protection,
+    update_container_instances_state,
 )
 
 
@@ -66,9 +70,22 @@ def ecs_task_definitions_register(request):
             execution_role_arn=body.get('execution_role_arn') or '',
             volumes=body.get('volumes') or [],
             tags=body.get('tags') or [],
+            options=body.get('options') or {},
         ))
     except Exception as exc:
         return handle_action_error(exc, service='ecs', operation='register_task_definition')
+
+
+@require_http_methods(['POST', 'DELETE'])
+def ecs_task_definition_detail(request):
+    try:
+        body = parse_json_body(request)
+        if request.method == 'DELETE':
+            return JsonResponse(delete_task_definitions(body.get('task_definitions') or []))
+        return JsonResponse(deregister_task_definition(body.get('task_definition') or ''))
+    except Exception as exc:
+        operation = 'delete_task_definitions' if request.method == 'DELETE' else 'deregister_task_definition'
+        return handle_action_error(exc, service='ecs', operation=operation)
 
 
 @require_http_methods(['POST'])
@@ -103,6 +120,33 @@ def ecs_tasks_stop(request):
 
 
 @require_http_methods(['POST'])
+def ecs_tasks_protection(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(update_task_protection(
+            body.get('cluster') or '',
+            body.get('tasks') or [],
+            protection_enabled=_truthy(body.get('protection_enabled')),
+            expires_in_minutes=body.get('expires_in_minutes'),
+        ))
+    except Exception as exc:
+        return handle_action_error(exc, service='ecs', operation='update_task_protection')
+
+
+@require_http_methods(['POST'])
+def ecs_container_instances_state(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(update_container_instances_state(
+            body.get('cluster') or '',
+            body.get('container_instances') or [],
+            body.get('status') or '',
+        ))
+    except Exception as exc:
+        return handle_action_error(exc, service='ecs', operation='update_container_instances_state')
+
+
+@require_http_methods(['POST'])
 def ecs_services_create(request):
     try:
         body = parse_json_body(request)
@@ -128,7 +172,7 @@ def ecs_services_update(request):
             service=body.get('service') or '',
             desired_count=body.get('desired_count'),
             task_definition=body.get('task_definition') or '',
-            force_new_deployment=_truthy(body.get('force_new_deployment')),
+            network_configuration=body.get('network_configuration') or {},
         ))
     except Exception as exc:
         return handle_action_error(exc, service='ecs', operation='update_service')

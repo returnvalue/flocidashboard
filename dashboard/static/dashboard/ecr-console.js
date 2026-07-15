@@ -10,6 +10,9 @@ const ECRConsole = (() => {
   const state = {
     inventory: null,
     selectedRepositoryName: '',
+    selectedImageId: '',
+    activeView: 'overview',
+    resourceQuery: '',
     lastResult: null,
   };
 
@@ -47,6 +50,7 @@ const ECRConsole = (() => {
         images: 'Repositories',
         tagged_images: 'Repositories',
         auth_endpoints: 'Auth proxy endpoints',
+        storage_bytes: 'Image bytes',
       },
     });
   }
@@ -84,6 +88,22 @@ const ECRConsole = (() => {
       .split(/\r?\n|,/)
       .map((item) => item.trim())
       .filter(Boolean);
+  }
+
+  function matchesQuery(...values) {
+    const query = state.resourceQuery.trim().toLowerCase();
+    return !query || values.some((value) => JSON.stringify(value ?? '').toLowerCase().includes(query));
+  }
+
+  function policyDocument(policy, key) {
+    const value = policy?.[key];
+    if (!value) return {};
+    if (typeof value === 'object') return value;
+    try { return JSON.parse(value); } catch (error) { return value; }
+  }
+
+  function imageIdentity(image) {
+    return image.imageDigest || image.imageTag || image.imageTags?.[0] || '';
   }
 
   function option(select, value, label, selected = false) {
@@ -185,6 +205,22 @@ const ECRConsole = (() => {
     });
   }
 
+  async function deleteImage(repo, image) {
+    const imageId = image.imageDigest || image.imageTags?.[0] || image.imageTag;
+    if (!imageId || !window.confirm(`Delete image ${imageId}?`)) return;
+    const data = await apiJson('/api/ecr/images/delete/', { method: 'POST', body: JSON.stringify({ repository_name: repoName(repo), image_ids: [imageId] }) });
+    state.lastResult = data; state.selectedImageId = ''; toast('Image deleted'); await refresh();
+  }
+
+  async function loadImageManifest(repo, image) {
+    const imageId = image.imageDigest || image.imageTags?.[0] || image.imageTag;
+    const data = await apiJson('/api/ecr/images/get/', {
+      method: 'POST',
+      body: JSON.stringify({ repository_name: repoName(repo), image_ids: [imageId], accepted_media_types: [image.imageManifestMediaType].filter(Boolean) }),
+    });
+    state.lastResult = data; toast('Image manifest loaded'); render();
+  }
+
   function showMutabilityModal(repo) {
     const form = el('div', 'ecr-modal-form');
     const mutabilityInput = document.createElement('select');
@@ -213,7 +249,8 @@ const ECRConsole = (() => {
   function showLifecyclePolicyModal(repo) {
     const form = el('div', 'ecr-modal-form');
     const policyInput = document.createElement('textarea');
-    policyInput.value = JSON.stringify({
+    const existing = policyDocument(repo.lifecycle_policy, 'lifecyclePolicyText');
+    policyInput.value = JSON.stringify(Object.keys(existing || {}).length ? existing : {
       rules: [{
         rulePriority: 1,
         description: 'Keep recent tagged images',
@@ -261,7 +298,8 @@ const ECRConsole = (() => {
   function showRepositoryPolicyModal(repo) {
     const form = el('div', 'ecr-modal-form');
     const policyInput = document.createElement('textarea');
-    policyInput.value = JSON.stringify({
+    const existing = policyDocument(repo.repository_policy, 'policyText');
+    policyInput.value = JSON.stringify(Object.keys(existing || {}).length ? existing : {
       Version: '2012-10-17',
       Statement: [],
     }, null, 2);
@@ -351,10 +389,11 @@ const ECRConsole = (() => {
     const panel = el('section', 'ecr-panel');
     panel.append(el('div', 'ecr-panel-heading', 'Repositories'));
     const list = el('div', 'ecr-repo-list');
-    if (!repositories().length) {
+    const visibleRepositories = repositories().filter((repo) => matchesQuery(repoName(repo), repo.arn, repo.uri, repo.tags));
+    if (!visibleRepositories.length) {
       list.append(el('div', 'ecr-empty', 'No ECR repositories found.'));
     } else {
-      repositories().forEach((repo) => {
+      visibleRepositories.forEach((repo) => {
         const active = repoName(repo) === repoName(selectedRepository());
         const row = el('button', `ecr-repo-row${active ? ' ecr-repo-row-active' : ''}`);
         row.append(
@@ -383,13 +422,10 @@ const ECRConsole = (() => {
     consoleUi.addField(facts, 'Registry ID', repo.registry_id);
     consoleUi.addField(facts, 'Tag mutability', repo.tag_mutability);
     consoleUi.addField(facts, 'Image count', repo.image_count);
+    consoleUi.addField(facts, 'Created', consoleUi.formatDate(repo.created));
+    consoleUi.addField(facts, 'Encryption', repo.encryption_configuration);
     consoleUi.addField(facts, 'Tags', repo.tags);
     body.append(facts);
-    if (repo.uri) {
-      body.append(
-        el('pre', 'ecr-command', `docker pull alpine:3.19\ndocker tag alpine:3.19 ${repo.uri}:v1\ndocker push ${repo.uri}:v1`),
-      );
-    }
     const actions = el('div', 'ecr-action-row');
     actions.append(
       btn('Delete images', null, () => showDeleteImagesModal(repo)),
@@ -407,9 +443,17 @@ const ECRConsole = (() => {
   function renderImagesPanel(repo) {
     const panel = el('section', 'ecr-panel');
     panel.append(el('div', 'ecr-panel-heading', `Images (${repo.image_count || 0})`));
-    const body = el('div', 'ecr-card-list');
-    const images = repo.image_details || repo.images || [];
+    const body = el('div', 'ecr-resource-layout');
+    const list = el('div', 'ecr-resource-list');
+    const detail = el('div', 'ecr-resource-detail');
+    const images = (repo.image_details || repo.images || []).filter((image) => matchesQuery(image.imageDigest, image.imageTag, image.imageTags, image.imageManifestMediaType));
     images.forEach((image) => {
+      const tags = image.imageTags || [image.imageTag].filter(Boolean);
+      const identity = imageIdentity(image);
+      list.append(btn(tags?.length ? tags.join(', ') : identity, identity === (state.selectedImageId || imageIdentity(images[0])) ? 'ecr-btn-active' : 'ecr-btn-secondary', () => { state.selectedImageId = identity; render(); }));
+    });
+    const image = images.find((item) => imageIdentity(item) === state.selectedImageId) || images[0];
+    if (image) {
       const card = el('article', 'ecr-card');
       const tags = image.imageTags || [image.imageTag].filter(Boolean);
       card.append(el('h3', null, tags?.length ? tags.join(', ') : image.imageDigest || 'Image'));
@@ -419,14 +463,58 @@ const ECRConsole = (() => {
       consoleUi.addField(facts, 'Size bytes', image.imageSizeInBytes);
       consoleUi.addField(facts, 'Pushed at', consoleUi.formatDate(image.imagePushedAt));
       consoleUi.addField(facts, 'Manifest media type', image.imageManifestMediaType);
-      card.append(facts);
-      body.append(card);
-    });
-    if (!images.length) {
-      body.append(el('p', 'ecr-empty', 'No images found in this repository.'));
+      consoleUi.addField(facts, 'Artifact media type', image.artifactMediaType);
+      consoleUi.addField(facts, 'Last pull', consoleUi.formatDate(image.lastRecordedPullTime));
+      const actions = el('div', 'ecr-action-row');
+      actions.append(btn('View manifest', null, () => loadImageManifest(repo, image).catch((error) => toast(error.message, true))), btn('Copy pull command', 'ecr-btn-secondary', () => copyText(`docker pull ${repo.uri}:${tags?.[0] || image.imageDigest}`, 'Pull command')), btn('Delete image', 'ecr-btn-danger', () => deleteImage(repo, image).catch((error) => toast(error.message, true))));
+      card.append(facts, actions);
+      detail.append(card);
     }
+    if (!images.length) {
+      detail.append(el('p', 'ecr-empty', 'No images match the current filter.'));
+    }
+    body.append(list, detail);
     panel.append(body);
     return panel;
+  }
+
+  function renderPoliciesPanel(repo) {
+    const panel = el('section', 'ecr-panel');
+    panel.append(el('div', 'ecr-panel-heading', 'Stored policies'));
+    const body = el('div', 'ecr-card-list');
+    [['Lifecycle policy', repo.lifecycle_policy, () => showLifecyclePolicyModal(repo)], ['Repository policy', repo.repository_policy, () => showRepositoryPolicyModal(repo)]].forEach(([label, policy, edit]) => {
+      const card = el('article', 'ecr-card');
+      card.append(el('h3', null, label), el('pre', 'ecr-command', JSON.stringify(consoleUi.displayValue(policy || {}), null, 2)), btn(`Edit ${label.toLowerCase()}`, 'ecr-btn-secondary', edit));
+      body.append(card);
+    });
+    body.append(el('p', 'ecr-empty', 'Floci stores and returns these policies but does not enforce repository permissions or lifecycle expiration.'));
+    panel.append(body); return panel;
+  }
+
+  function renderPushPullPanel(repo) {
+    const panel = el('section', 'ecr-panel');
+    panel.append(el('div', 'ecr-panel-heading', 'Push and pull with Docker'));
+    const body = el('div', 'ecr-detail');
+    const commands = [`aws ecr get-login-password --endpoint-url http://localhost:4566 | docker login --username AWS --password-stdin ${String(repo.uri || '').split('/')[0]}`, 'docker pull alpine:3.19', `docker tag alpine:3.19 ${repo.uri}:v1`, `docker push ${repo.uri}:v1`, `docker pull ${repo.uri}:v1`];
+    commands.forEach((command) => {
+      const row = el('div', 'ecr-command-row');
+      row.append(el('code', null, command), btn('Copy', 'ecr-btn-secondary', () => copyText(command, 'Command')));
+      body.append(row);
+    });
+    body.append(el('p', 'ecr-empty', 'The repository URI points to Floci’s real local OCI registry. EKS clusters created by Floci receive the corresponding containerd mirror automatically.'));
+    panel.append(body); return panel;
+  }
+
+  function renderResourceTabs() {
+    const tabs = el('div', 'ecr-resource-tabs');
+    const navigation = el('div', 'ecr-resource-tab-buttons');
+    [['overview', 'Overview'], ['images', 'Images'], ['policies', 'Policies'], ['pushpull', 'Push / pull']].forEach(([key, label]) => navigation.append(btn(label, state.activeView === key ? 'ecr-btn-active' : 'ecr-btn-secondary', () => { state.activeView = key; render(); })));
+    const search = document.createElement('input');
+    search.type = 'search'; search.placeholder = 'Filter repositories or images'; search.value = state.resourceQuery; search.setAttribute('aria-label', 'Filter ECR resources');
+    search.addEventListener('input', () => { state.resourceQuery = search.value; });
+    search.addEventListener('change', render);
+    search.addEventListener('keydown', (event) => { if (event.key === 'Enter') render(); });
+    tabs.append(navigation, search); return tabs;
   }
 
   function renderResult() {
@@ -450,10 +538,14 @@ const ECRConsole = (() => {
     const repo = selectedRepository();
     workbench.append(renderRepositoryList());
     const detail = el('div', 'ecr-detail-stack');
+    detail.append(renderResourceTabs());
     if (!repo) {
       detail.append(el('section', 'ecr-panel ecr-empty-panel', 'Create a repository to start pushing local container images.'));
     } else {
-      detail.append(renderRepositoryDetail(repo), renderImagesPanel(repo));
+      if (state.activeView === 'overview') detail.append(renderRepositoryDetail(repo));
+      if (state.activeView === 'images') detail.append(renderImagesPanel(repo));
+      if (state.activeView === 'policies') detail.append(renderPoliciesPanel(repo));
+      if (state.activeView === 'pushpull') detail.append(renderPushPullPanel(repo));
     }
     const result = renderResult();
     if (result) {

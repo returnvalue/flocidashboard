@@ -15,7 +15,7 @@ class OpenSearchPageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>OpenSearch inventory</h2>', html=True)
         self.assertContains(response, 'id="opensearch-summary"')
         self.assertContains(response, 'id="opensearch-console-root"')
-        self.assertContains(response, 'id="opensearch-grid"')
+        self.assertNotContains(response, 'id="opensearch-grid"')
         self.assertContains(response, 'dashboard/opensearch-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/opensearch-console.js')

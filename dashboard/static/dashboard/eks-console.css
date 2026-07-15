@@ -67,6 +67,12 @@
   background: #f0f4fc;
 }
 
+.eks-btn-active,
+.eks-btn-active:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
 .eks-btn-danger {
   background: #a93434;
 }
@@ -105,6 +111,77 @@
 .eks-detail-stack,
 .eks-card-list {
   gap: 14px;
+}
+
+.eks-resource-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.eks-resource-tab-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.eks-resource-tabs input[type="search"] {
+  min-width: min(240px, 100%);
+  border: 1px solid #d8deea;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font: inherit;
+}
+
+.eks-resource-layout {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.42fr) minmax(0, 1.58fr);
+  min-height: 260px;
+}
+
+.eks-resource-list {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 12px;
+  border-right: 1px solid #e8ebf1;
+}
+
+.eks-resource-list button {
+  width: 100%;
+  text-align: left;
+}
+
+.eks-resource-detail {
+  min-width: 0;
+  padding: 12px;
+}
+
+.eks-resource-link {
+  color: var(--accent);
+  font-size: 0.86rem;
+  font-weight: 680;
+}
+
+.eks-command-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+  border-radius: 6px;
+  background: #f6f8fb;
+}
+
+.eks-command-row code {
+  overflow-wrap: anywhere;
 }
 
 .eks-cluster-row {
@@ -304,6 +381,20 @@
 @media (max-width: 820px) {
   .eks-workbench {
     grid-template-columns: 1fr;
+  }
+
+  .eks-resource-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .eks-resource-list {
+    border-right: 0;
+    border-bottom: 1px solid #e8ebf1;
+  }
+
+  .eks-command-row {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .eks-facts div {

@@ -43,9 +43,6 @@ const kmsGrid = document.querySelector('#kms-grid');
 const kmsSummary = document.querySelector('#kms-summary');
 const kmsLoadedAt = document.querySelector('#kms-loaded-at');
 const kmsConsoleRoot = document.getElementById('kms-console-root');
-const lambdaGrid = document.querySelector('#lambda-grid');
-const lambdaSummary = document.querySelector('#lambda-summary');
-const lambdaLoadedAt = document.querySelector('#lambda-loaded-at');
 const lambdaConsoleRoot = document.getElementById('lambda-console-root');
 const sqsGrid = document.querySelector('#sqs-grid');
 const sqsSummary = document.querySelector('#sqs-summary');
@@ -1436,77 +1433,6 @@ function renderKMS(data) {
 
   kmsGrid.append(...panels);
   kmsLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
-}
-
-function renderLambda(data) {
-  lambdaGrid.textContent = '';
-  renderSummary(data.summary, lambdaSummary);
-
-  const panels = [
-    renderFilterableDetailList('Functions', data.functions || [], [
-      ['ARN', 'arn'],
-      ['Runtime', 'runtime'],
-      ['Handler', 'handler'],
-      ['Package type', 'package_type'],
-      ['State', 'state'],
-      ['Role', 'role'],
-      ['Memory', 'memory_size'],
-      ['Timeout', 'timeout'],
-      ['Architectures', 'architectures'],
-      ['Environment', 'environment'],
-      ['Tracing', 'tracing_config'],
-      ['Layers', 'layers'],
-      ['Code', 'code'],
-      ['Configuration', 'configuration'],
-      ['Versions', 'versions'],
-      ['Aliases', 'aliases'],
-      ['Event source mappings', 'event_source_mappings'],
-      ['Policy', 'policy'],
-      ['Function URL', 'function_url'],
-      ['Code signing config', 'code_signing_config'],
-      ['Concurrency', 'concurrency'],
-      ['Tags', 'tags'],
-      ['Last modified', 'last_modified'],
-    ], {
-      key: 'lambda-functions',
-      filterPlaceholder: 'Find functions',
-      countLabel: 'functions',
-      onFilterTextChange: () => renderLambda(data),
-    }),
-    renderDetailList('Event source mappings', data.event_source_mappings || [], [
-      ['UUID', 'UUID'],
-      ['Function ARN', 'FunctionArn'],
-      ['Event source ARN', 'EventSourceArn'],
-      ['State', 'State'],
-      ['Batch size', 'BatchSize'],
-      ['Scaling config', 'ScalingConfig'],
-      ['Last modified', 'LastModified'],
-    ]),
-    renderDetailList('Layer versions', data.layer_versions || [], [
-      ['Versions', 'versions'],
-    ]),
-    renderDetailList('Supported operations', (data.supported || []).map((operation) => ({
-      name: operation,
-      operation,
-    })), [
-      ['Operation', 'operation'],
-    ]),
-    renderDetailList('Not implemented', (data.not_implemented || []).map((feature) => ({
-      name: feature,
-      feature,
-    })), [
-      ['Feature', 'feature'],
-    ]),
-    renderDetailList('Floci Lambda notes', (data.notes || []).map((note, index) => ({
-      name: `Note ${index + 1}`,
-      note,
-    })), [
-      ['Note', 'note'],
-    ]),
-  ];
-
-  lambdaGrid.append(...panels);
-  lambdaLoadedAt.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
 }
 
 function renderSQS(data) {
@@ -7029,12 +6955,6 @@ function renderGlobalNavigation(serviceMetadata = []) {
   const recent = recentServiceKeys()
     .map((key) => metadata.get(canonicalServiceKey(key)))
     .filter(Boolean);
-  const existingSearch = globalServiceNav.querySelector('#global-nav-service-search');
-  const navQuery = existingSearch?.value || '';
-  const searchHadFocus = document.activeElement === existingSearch;
-  const searchSelectionStart = existingSearch?.selectionStart || navQuery.length;
-  const searchSelectionEnd = existingSearch?.selectionEnd || navQuery.length;
-
   globalServiceNav.textContent = '';
   globalServiceNav.classList.add('global-service-nav-active');
   document.body.classList.add('has-global-service-nav');
@@ -7059,7 +6979,7 @@ function renderGlobalNavigation(serviceMetadata = []) {
   search.id = 'global-search-trigger';
   search.className = 'global-search-trigger';
   search.type = 'button';
-  search.textContent = 'Command search';
+  search.textContent = 'Search';
   search.title = navigator.platform.startsWith('Mac') ? 'Search services (⌘K)' : 'Search services (Ctrl+K)';
   search.addEventListener('click', openGlobalSearch);
   const activity = document.createElement('a');
@@ -7087,29 +7007,13 @@ function renderGlobalNavigation(serviceMetadata = []) {
     link.textContent = label;
     links.append(link);
   });
-  const serviceSearch = document.createElement('label');
-  serviceSearch.className = 'global-nav-service-search-label';
-  serviceSearch.textContent = 'Search services';
-  const serviceSearchInput = document.createElement('input');
-  serviceSearchInput.id = 'global-nav-service-search';
-  serviceSearchInput.className = 'global-nav-service-search';
-  serviceSearchInput.type = 'search';
-  serviceSearchInput.placeholder = 'Search services';
-  serviceSearchInput.value = navQuery;
-  serviceSearchInput.autocomplete = 'off';
-  serviceSearchInput.addEventListener('input', () => renderGlobalNavigation(serviceMetadataCache || serviceMetadata));
-  serviceSearch.append(serviceSearchInput);
-  header.append(title, serviceSearch, navActions, links);
+  header.append(title, navActions, links);
   globalServiceNav.append(header);
-  if (searchHadFocus) {
-    serviceSearchInput.focus();
-    serviceSearchInput.setSelectionRange(searchSelectionStart, searchSelectionEnd);
-  }
   setGlobalNavCollapsed(isGlobalNavCollapsed());
 
   renderGlobalNavSection(globalServiceNav, 'Favorites', favorites, { compact: true });
   renderGlobalNavSection(globalServiceNav, 'Recently Visited', recent, { compact: true });
-  renderGlobalNavServiceGroups(globalServiceNav, serviceMetadata, navQuery);
+  renderGlobalNavServiceGroups(globalServiceNav, serviceMetadata, '');
 }
 
 function renderGlobalNavigationForCurrentPage(serviceMetadata = []) {
@@ -7987,7 +7891,6 @@ const servicePages = [
   { key: 's3', label: 'S3', grid: s3Grid, apiPath: '/api/s3/', render: renderS3 },
   { key: 'ec2', label: 'EC2', grid: ec2Grid, apiPath: '/api/ec2/', render: renderEC2 },
   { key: 'kms', label: 'KMS', grid: kmsGrid, apiPath: '/api/kms/', render: renderKMS },
-  { key: 'lambda', label: 'Lambda', grid: lambdaGrid, apiPath: '/api/lambda/', render: renderLambda },
   { key: 'sqs', label: 'SQS', grid: sqsGrid, apiPath: '/api/sqs/', render: renderSQS },
   { key: 'secretsmanager', label: 'Secrets Manager', grid: secretsmanagerGrid, apiPath: '/api/secretsmanager/', render: renderSecretsManager },
   { key: 'dynamodb', label: 'DynamoDB', grid: dynamodbGrid, apiPath: '/api/dynamodb/', render: renderDynamoDB },
@@ -8049,9 +7952,27 @@ const servicePages = [
   { key: 'iot', label: 'IoT Core', grid: iotGrid, apiPath: '/api/iot/', render: renderIoT },
 ];
 
+const firstClassConsoleGlobals = {
+  acm: 'ACMConsole', apigateway: 'ApiGatewayConsole', appconfig: 'AppConfigConsole', appsync: 'AppSyncConsole',
+  athena: 'AthenaConsole', autoscaling: 'AutoScalingConsole', backup: 'BackupConsole', bedrockruntime: 'BedrockRuntimeConsole',
+  cloudformation: 'CloudFormationConsole', cloudfront: 'CloudFrontConsole', cloudmap: 'CloudMapConsole', cloudwatch: 'CloudWatchConsole',
+  codebuild: 'CodeBuildConsole', codedeploy: 'CodeDeployConsole', cognito: 'CognitoConsole', config: 'ConfigConsole',
+  dynamodb: 'DynamoDBConsole', ec2: 'EC2Console', ecr: 'ECRConsole', ecs: 'ECSConsole', eks: 'EKSConsole',
+  elasticache: 'ElastiCacheConsole', elasticloadbalancing: 'ElasticLoadBalancingConsole', eventbridge: 'EventBridgeConsole',
+  firehose: 'FirehoseConsole', glue: 'GlueConsole', iam: 'IAMConsole', kafka: 'KafkaConsole', kinesis: 'KinesisConsole',
+  kms: 'KMSConsole', lambda: 'LambdaConsole', neptune: 'NeptuneConsole', opensearch: 'OpenSearchConsole', pipes: 'PipesConsole',
+  rds: 'RDSConsole', resourcegroupstagging: 'ResourceGroupsTaggingConsole', route53: 'Route53Console', s3: 'S3Console',
+  scheduler: 'SchedulerConsole', secretsmanager: 'SecretsManagerConsole', ses: 'SESConsole', sns: 'SNSConsole', sqs: 'SQSConsole',
+  ssm: 'SSMConsole', stepfunctions: 'StepFunctionsConsole', textract: 'TextractConsole', transcribe: 'TranscribeConsole',
+  transfer: 'TransferConsole',
+};
+
 function activeServicePage() {
-  if (s3ConsoleRoot) {
-    return { key: 's3', label: 'S3', isConsole: true };
+  const consoleRoot = document.querySelector('[id$="-console-root"]');
+  if (consoleRoot) {
+    const key = consoleRoot.id.replace(/-console-root$/, '');
+    const service = servicePages.find((candidate) => candidate.key === key);
+    return { key, label: service?.label || key, isConsole: true, root: consoleRoot };
   }
   return servicePages.find((service) => service.grid);
 }
@@ -8071,8 +7992,8 @@ function renderRefreshError(error) {
   }
 
   const service = activeServicePage();
-  if (service?.isConsole && s3ConsoleRoot) {
-    renderInventoryError(s3ConsoleRoot, error.message);
+  if (service?.isConsole && service.root) {
+    renderInventoryError(service.root, error.message);
     return;
   }
   if (service) {
@@ -8100,8 +8021,11 @@ async function refresh(options = {}) {
     }
 
     const service = activeServicePage();
-    if (service?.isConsole && window.S3Console) {
-      await window.S3Console.refresh();
+    if (service?.isConsole) {
+      const consoleModule = window[firstClassConsoleGlobals[service.key]];
+      if (consoleModule?.refresh) {
+        await consoleModule.refresh();
+      }
     } else if (service) {
       await loadServicePage(service, options);
       if (service.key === 'acm' && acmConsoleRoot && window.ACMConsole) {

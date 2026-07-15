@@ -4,7 +4,7 @@ from unittest.mock import patch
 from django.test import SimpleTestCase
 from django.urls import reverse
 
-from .ecs_api import register_task_definition, run_task
+from .ecs_api import register_task_definition, run_task, update_service, update_task_protection
 from .services import get_service
 
 
@@ -16,7 +16,7 @@ class ECSPageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>ECS inventory</h2>', html=True)
         self.assertContains(response, 'id="ecs-summary"')
         self.assertContains(response, 'id="ecs-console-root"')
-        self.assertContains(response, 'id="ecs-grid"')
+        self.assertNotContains(response, 'id="ecs-grid"')
         self.assertContains(response, 'dashboard/ecs-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/ecs-console.js')
@@ -108,7 +108,36 @@ class ECSActionsApiTests(SimpleTestCase):
             execution_role_arn='',
             volumes=volumes,
             tags=[],
+            options={},
         )
+
+    @patch('dashboard.ecs_views.deregister_task_definition')
+    def test_deregister_task_definition_success(self, deregister_mock):
+        deregister_mock.return_value = {'task_definition_arn': 'arn:task-definition/web:1', 'status': 'INACTIVE'}
+
+        response = self.client.post(
+            reverse('dashboard:ecs-task-definition-detail'),
+            data=json.dumps({'task_definition': 'arn:task-definition/web:1'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['status'], 'INACTIVE')
+        deregister_mock.assert_called_once_with('arn:task-definition/web:1')
+
+    @patch('dashboard.ecs_views.delete_task_definitions')
+    def test_delete_task_definitions_success(self, delete_mock):
+        delete_mock.return_value = {'deleted': ['arn:task-definition/web:1'], 'failures': []}
+
+        response = self.client.delete(
+            reverse('dashboard:ecs-task-definition-detail'),
+            data=json.dumps({'task_definitions': ['arn:task-definition/web:1']}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['deleted'], ['arn:task-definition/web:1'])
+        delete_mock.assert_called_once_with(['arn:task-definition/web:1'])
 
     @patch('dashboard.ecs_views.run_task')
     def test_run_task_success(self, run_mock):
@@ -163,6 +192,28 @@ class ECSActionsApiTests(SimpleTestCase):
         self.assertEqual(response.json()['last_status'], 'STOPPED')
         stop_mock.assert_called_once_with('local', 'arn:task/1', reason='done')
 
+    @patch('dashboard.ecs_views.update_task_protection')
+    def test_update_task_protection_success(self, protection_mock):
+        protection_mock.return_value = {'protected_tasks': [{'taskArn': 'arn:task/1', 'protectionEnabled': True}], 'failures': []}
+        response = self.client.post(
+            reverse('dashboard:ecs-tasks-protection'),
+            data=json.dumps({'cluster': 'local', 'tasks': ['arn:task/1'], 'protection_enabled': True, 'expires_in_minutes': 60}),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        protection_mock.assert_called_once_with('local', ['arn:task/1'], protection_enabled=True, expires_in_minutes=60)
+
+    @patch('dashboard.ecs_views.update_container_instances_state')
+    def test_update_container_instance_state_success(self, state_mock):
+        state_mock.return_value = {'container_instances': [{'containerInstanceArn': 'arn:instance/1', 'status': 'DRAINING'}], 'failures': []}
+        response = self.client.post(
+            reverse('dashboard:ecs-container-instances-state'),
+            data=json.dumps({'cluster': 'local', 'container_instances': ['arn:instance/1'], 'status': 'DRAINING'}),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        state_mock.assert_called_once_with('local', ['arn:instance/1'], 'DRAINING')
+
     @patch('dashboard.ecs_views.create_service')
     def test_create_service_success(self, create_mock):
         create_mock.return_value = {'service_name': 'web', 'desired_count': 1}
@@ -202,7 +253,7 @@ class ECSActionsApiTests(SimpleTestCase):
                 'cluster': 'local',
                 'service': 'web',
                 'desired_count': 2,
-                'force_new_deployment': True,
+                'network_configuration': {'awsvpcConfiguration': {'subnets': ['subnet-1']}},
             }),
             content_type='application/json',
         )
@@ -214,7 +265,7 @@ class ECSActionsApiTests(SimpleTestCase):
             service='web',
             desired_count=2,
             task_definition='',
-            force_new_deployment=True,
+            network_configuration={'awsvpcConfiguration': {'subnets': ['subnet-1']}},
         )
 
     @patch('dashboard.ecs_views.delete_service')
@@ -275,6 +326,35 @@ class ECSActionsApiTests(SimpleTestCase):
 
 
 class ECSApiHelperTests(SimpleTestCase):
+    @patch('dashboard.ecs_api._client')
+    def test_update_task_protection_passes_expiration(self, client_factory):
+        client_factory.return_value.update_task_protection.return_value = {'protectedTasks': [], 'failures': []}
+        update_task_protection('local', ['arn:task/1'], protection_enabled=True, expires_in_minutes=60)
+        client_factory.return_value.update_task_protection.assert_called_once_with(
+            cluster='local', tasks=['arn:task/1'], protectionEnabled=True, expiresInMinutes=60,
+        )
+
+    @patch('dashboard.ecs_api._client')
+    def test_update_service_passes_supported_network_configuration(self, client_factory):
+        client_factory.return_value.update_service.return_value = {
+            'service': {'serviceName': 'web', 'desiredCount': 3},
+        }
+
+        result = update_service(
+            cluster='local',
+            service='web',
+            desired_count=3,
+            network_configuration={'awsvpcConfiguration': {'subnets': ['subnet-1']}},
+        )
+
+        client_factory.return_value.update_service.assert_called_once_with(
+            cluster='local',
+            service='web',
+            desiredCount=3,
+            networkConfiguration={'awsvpcConfiguration': {'subnets': ['subnet-1']}},
+        )
+        self.assertEqual(result['desired_count'], 3)
+
     @patch('dashboard.ecs_api._client')
     def test_register_task_definition_passes_volumes(self, client_factory):
         containers = [{

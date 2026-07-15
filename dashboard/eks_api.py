@@ -186,6 +186,60 @@ def delete_nodegroup(cluster_name: str, nodegroup_name: str) -> dict[str, Any]:
     }
 
 
+def create_fargate_profile(
+    *,
+    cluster_name: str,
+    profile_name: str,
+    pod_execution_role_arn: str,
+    subnets: Any = None,
+    selectors: Any = None,
+    tags: Any = None,
+) -> dict[str, Any]:
+    clean_selectors = _list(selectors, 'Selectors')
+    if not clean_selectors:
+        raise ValueError('At least one selector is required')
+    if not all(isinstance(selector, dict) for selector in clean_selectors):
+        raise ValueError('Selectors must contain objects')
+
+    kwargs = {
+        'clusterName': _required(cluster_name, 'Cluster name'),
+        'fargateProfileName': _required(profile_name, 'Fargate profile name'),
+        'podExecutionRoleArn': _required(pod_execution_role_arn, 'Pod execution role ARN'),
+        'subnets': _list(subnets, 'Subnets'),
+        'selectors': clean_selectors,
+    }
+    clean_tags = _tags(tags)
+    if clean_tags:
+        kwargs['tags'] = clean_tags
+
+    response = _client().create_fargate_profile(**kwargs)
+    profile = response.get('fargateProfile', {})
+    return {
+        'cluster_name': kwargs['clusterName'],
+        'fargate_profile_name': profile.get('fargateProfileName') or kwargs['fargateProfileName'],
+        'arn': profile.get('fargateProfileArn'),
+        'status': profile.get('status'),
+        'response': _clean_response(response),
+    }
+
+
+def delete_fargate_profile(cluster_name: str, profile_name: str) -> dict[str, Any]:
+    clean_cluster = _required(cluster_name, 'Cluster name')
+    clean_profile = _required(profile_name, 'Fargate profile name')
+    response = _client().delete_fargate_profile(
+        clusterName=clean_cluster,
+        fargateProfileName=clean_profile,
+    )
+    profile = response.get('fargateProfile', {})
+    return {
+        'cluster_name': clean_cluster,
+        'fargate_profile_name': profile.get('fargateProfileName') or clean_profile,
+        'arn': profile.get('fargateProfileArn'),
+        'status': profile.get('status'),
+        'response': _clean_response(response),
+    }
+
+
 def tag_resource(resource_arn: str, tags: Any) -> dict[str, Any]:
     clean_arn = _required(resource_arn, 'Resource ARN')
     clean_tags = _tags(tags)

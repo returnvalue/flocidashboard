@@ -4,7 +4,8 @@ from unittest.mock import MagicMock, patch
 from django.test import SimpleTestCase
 from django.urls import reverse
 
-from .eks_api import create_nodegroup
+from .aws import eks_inventory
+from .eks_api import create_fargate_profile, create_nodegroup
 from .services import get_service
 
 
@@ -16,7 +17,7 @@ class EKSPageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>EKS inventory</h2>', html=True)
         self.assertContains(response, 'id="eks-summary"')
         self.assertContains(response, 'id="eks-console-root"')
-        self.assertContains(response, 'id="eks-grid"')
+        self.assertNotContains(response, 'id="eks-grid"')
         self.assertContains(response, 'dashboard/eks-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/eks-console.js')
@@ -31,6 +32,8 @@ class EKSPageTemplateTests(SimpleTestCase):
         self.assertTrue(any(action.name == 'delete_cluster' for action in service.actions))
         self.assertTrue(any(action.name == 'create_nodegroup' for action in service.actions))
         self.assertTrue(any(action.name == 'delete_nodegroup' for action in service.actions))
+        self.assertTrue(any(action.name == 'create_fargate_profile' for action in service.actions))
+        self.assertTrue(any(action.name == 'delete_fargate_profile' for action in service.actions))
         self.assertTrue(any(action.name == 'tag_resource' for action in service.actions))
 
 
@@ -190,6 +193,39 @@ class EKSActionsApiTests(SimpleTestCase):
         self.assertEqual(response.json()['service'], 'eks')
         self.assertEqual(response.json()['operation'], 'create_nodegroup')
 
+    @patch('dashboard.eks_views.create_fargate_profile')
+    def test_create_fargate_profile_success(self, create_mock):
+        create_mock.return_value = {'cluster_name': 'local', 'fargate_profile_name': 'default', 'status': 'ACTIVE'}
+        response = self.client.post(
+            reverse('dashboard:eks-fargate-profiles', kwargs={'cluster_name': 'local'}),
+            data=json.dumps({
+                'profile_name': 'default',
+                'pod_execution_role_arn': 'arn:aws:iam::000000000000:role/fargate-role',
+                'subnets': ['subnet-1'],
+                'selectors': [{'namespace': 'default', 'labels': {'app': 'web'}}],
+                'tags': {'env': 'local'},
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['status'], 'ACTIVE')
+        create_mock.assert_called_once_with(
+            cluster_name='local', profile_name='default',
+            pod_execution_role_arn='arn:aws:iam::000000000000:role/fargate-role',
+            subnets=['subnet-1'], selectors=[{'namespace': 'default', 'labels': {'app': 'web'}}],
+            tags={'env': 'local'},
+        )
+
+    @patch('dashboard.eks_views.delete_fargate_profile')
+    def test_delete_fargate_profile_success(self, delete_mock):
+        delete_mock.return_value = {'cluster_name': 'local', 'fargate_profile_name': 'default', 'status': 'DELETING'}
+        response = self.client.delete(reverse(
+            'dashboard:eks-fargate-profile-detail',
+            kwargs={'cluster_name': 'local', 'profile_name': 'default'},
+        ))
+        self.assertEqual(response.status_code, 200)
+        delete_mock.assert_called_once_with('local', 'default')
+
 
 class EKSApiHelperTests(SimpleTestCase):
     @patch('dashboard.eks_api._client')
@@ -221,3 +257,41 @@ class EKSApiHelperTests(SimpleTestCase):
         self.assertEqual(kwargs['diskSize'], 20)
         self.assertEqual(kwargs['labels'], {'role': 'worker'})
         self.assertEqual(kwargs['tags'], {'env': 'local'})
+
+    @patch('dashboard.eks_api._client')
+    def test_create_fargate_profile_uses_eks_api(self, client_mock):
+        client = MagicMock()
+        client.create_fargate_profile.return_value = {
+            'fargateProfile': {'fargateProfileName': 'default', 'status': 'ACTIVE'},
+        }
+        client_mock.return_value = client
+        result = create_fargate_profile(
+            cluster_name='local', profile_name='default',
+            pod_execution_role_arn='arn:aws:iam::000000000000:role/fargate-role',
+            subnets=['subnet-1'], selectors=[{'namespace': 'default'}], tags={'env': 'local'},
+        )
+        self.assertEqual(result['fargate_profile_name'], 'default')
+        client.create_fargate_profile.assert_called_once_with(
+            clusterName='local', fargateProfileName='default',
+            podExecutionRoleArn='arn:aws:iam::000000000000:role/fargate-role',
+            subnets=['subnet-1'], selectors=[{'namespace': 'default'}], tags={'env': 'local'},
+        )
+
+
+class EKSInventoryCapabilityTests(SimpleTestCase):
+    @patch('dashboard.aws._paginate')
+    @patch('dashboard.aws.FlociClientFactory')
+    def test_inventory_only_calls_operations_supported_by_floci(self, factory_mock, paginate_mock):
+        client = MagicMock()
+        factory_mock.return_value.client.return_value = client
+        paginate_mock.side_effect = lambda _client, operation, _key, **_kwargs: ['local'] if operation == 'list_clusters' else []
+        client.describe_cluster.return_value = {'cluster': {'name': 'local', 'status': 'ACTIVE'}}
+
+        inventory = eks_inventory()
+
+        self.assertEqual(inventory['summary'], {'clusters': 1, 'nodegroups': 0, 'fargate_profiles': 0})
+        client.list_addons.assert_not_called()
+        client.list_identity_provider_configs.assert_not_called()
+        client.list_access_entries.assert_not_called()
+        self.assertNotIn('addons', inventory)
+        self.assertNotIn('access_entries', inventory)

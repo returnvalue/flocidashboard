@@ -15,7 +15,7 @@ class ConfigPageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>AWS Config inventory</h2>', html=True)
         self.assertContains(response, 'id="config-summary"')
         self.assertContains(response, 'id="config-console-root"')
-        self.assertContains(response, 'id="config-grid"')
+        self.assertNotContains(response, 'id="config-grid"')
         self.assertContains(response, 'dashboard/config-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/config-console.js')

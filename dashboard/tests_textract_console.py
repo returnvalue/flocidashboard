@@ -15,7 +15,7 @@ class TextractPageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>Textract inventory</h2>', html=True)
         self.assertContains(response, 'id="textract-summary"')
         self.assertContains(response, 'id="textract-console-root"')
-        self.assertContains(response, 'id="textract-grid"')
+        self.assertNotContains(response, 'id="textract-grid"')
         self.assertContains(response, 'dashboard/textract-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/textract-console.js')

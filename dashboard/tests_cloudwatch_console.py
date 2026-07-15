@@ -14,7 +14,7 @@ class CloudWatchPageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>CloudWatch inventory</h2>', html=True)
         self.assertContains(response, 'id="cloudwatch-summary"')
         self.assertContains(response, 'id="cloudwatch-console-root"')
-        self.assertContains(response, 'id="cloudwatch-grid"')
+        self.assertNotContains(response, 'id="cloudwatch-grid"')
         self.assertContains(response, 'dashboard/cloudwatch-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/cloudwatch-console.js')

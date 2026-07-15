@@ -15,7 +15,7 @@ class FirehosePageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>Data Firehose inventory</h2>', html=True)
         self.assertContains(response, 'id="firehose-summary"')
         self.assertContains(response, 'id="firehose-console-root"')
-        self.assertContains(response, 'id="firehose-grid"')
+        self.assertNotContains(response, 'id="firehose-grid"')
         self.assertContains(response, 'dashboard/firehose-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/firehose-console.js')

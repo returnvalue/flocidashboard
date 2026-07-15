@@ -68,9 +68,9 @@ class StaticJavaScriptTests(SimpleTestCase):
         script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'dashboard.js'
         source = script.read_text()
 
-        self.assertIn("search.textContent = 'Command search'", source)
-        self.assertIn("serviceSearchInput.id = 'global-nav-service-search'", source)
-        self.assertIn('renderGlobalNavServiceGroups(globalServiceNav, serviceMetadata, navQuery)', source)
+        self.assertIn("search.textContent = 'Search'", source)
+        self.assertNotIn("global-nav-service-search", source)
+        self.assertIn("renderGlobalNavServiceGroups(globalServiceNav, serviceMetadata, '')", source)
         self.assertIn("activity.href = '/activity/'", source)
         self.assertIn("activity.textContent = 'Activity'", source)
         self.assertIn("navActions.className = 'global-nav-actions'", source)
@@ -218,7 +218,6 @@ class StaticJavaScriptTests(SimpleTestCase):
         source = script.read_text()
 
         self.assertIn('function renderFilterableDetailList(title, items, fields = [], options = {})', source)
-        self.assertIn("filterPlaceholder: 'Find functions'", source)
         self.assertIn("filterPlaceholder: 'Find queues'", source)
         self.assertIn("filterPlaceholder: 'Find secrets'", source)
         self.assertIn("filterPlaceholder: 'Find tables'", source)
@@ -614,105 +613,15 @@ class DashboardTemplateTests(SimpleTestCase):
                 self.assertSharedShell(response)
                 self.assertContains(response, 'dashboard/styles.css')
                 self.assertContains(response, 'dashboard/dashboard.js')
-                if key == 's3':
-                    self.assertContains(response, 'id="s3-loaded-at"')
-                    self.assertContains(response, 'id="s3-summary"')
-                    self.assertContains(response, 'id="s3-console-root"')
+                self.assertContains(response, f'id="{key}-loaded-at"')
+                self.assertContains(response, f'id="{key}-summary"')
+                definition = SERVICE_REGISTRY[key]
+                if definition.console_js:
+                    self.assertContains(response, f'id="{key}-console-root"')
+                    self.assertNotContains(response, f'id="{key}-grid"')
                     self.assertContains(response, 'dashboard/service-console.js')
-                    self.assertContains(response, 'dashboard/s3-console.js')
-                elif key == 'iam':
-                    self.assertContains(response, 'id="iam-loaded-at"')
-                    self.assertContains(response, 'id="iam-summary"')
-                    self.assertContains(response, 'id="iam-console-root"')
-                    self.assertContains(response, 'dashboard/service-console.js')
-                    self.assertContains(response, 'dashboard/iam-console.js')
-                elif key == 'stepfunctions':
-                    self.assertContains(response, 'id="stepfunctions-loaded-at"')
-                    self.assertContains(response, 'id="stepfunctions-summary"')
-                    self.assertContains(response, 'id="stepfunctions-console-root"')
-                    self.assertContains(response, 'id="stepfunctions-grid"')
-                    self.assertContains(response, 'dashboard/service-console.js')
-                    self.assertContains(response, 'dashboard/stepfunctions-console.js')
-                elif key == 'cloudformation':
-                    self.assertContains(response, 'id="cloudformation-loaded-at"')
-                    self.assertContains(response, 'id="cloudformation-summary"')
-                    self.assertContains(response, 'id="cloudformation-console-root"')
-                    self.assertContains(response, 'id="cloudformation-grid"')
-                    self.assertContains(response, 'dashboard/service-console.js')
-                    self.assertContains(response, 'dashboard/cloudformation-console.js')
-                elif key == 'cognito':
-                    self.assertContains(response, 'id="cognito-loaded-at"')
-                    self.assertContains(response, 'id="cognito-summary"')
-                    self.assertContains(response, 'id="cognito-console-root"')
-                    self.assertContains(response, 'id="cognito-grid"')
-                    self.assertContains(response, 'dashboard/service-console.js')
-                    self.assertContains(response, 'dashboard/cognito-console.js')
-                elif key == 'eventbridge':
-                    self.assertContains(response, 'id="eventbridge-loaded-at"')
-                    self.assertContains(response, 'id="eventbridge-summary"')
-                    self.assertContains(response, 'id="eventbridge-console-root"')
-                    self.assertContains(response, 'id="eventbridge-grid"')
-                    self.assertContains(response, 'dashboard/service-console.js')
-                    self.assertContains(response, 'dashboard/eventbridge-console.js')
-                elif key == 'ec2':
-                    self.assertContains(response, 'id="ec2-loaded-at"')
-                    self.assertContains(response, 'id="ec2-summary"')
-                    self.assertContains(response, 'id="ec2-console-root"')
-                    self.assertContains(response, 'id="ec2-grid"')
-                    self.assertContains(response, 'dashboard/service-console.js')
-                    self.assertContains(response, 'dashboard/ec2-console.js')
-                elif key == 'apigateway':
-                    self.assertContains(response, 'id="apigateway-loaded-at"')
-                    self.assertContains(response, 'id="apigateway-summary"')
-                    self.assertContains(response, 'id="apigateway-console-root"')
-                    self.assertContains(response, 'id="apigateway-grid"')
-                    self.assertContains(response, 'dashboard/service-console.js')
-                    self.assertContains(response, 'dashboard/apigateway-console.js')
-                elif key == 'kinesis':
-                    self.assertContains(response, 'id="kinesis-loaded-at"')
-                    self.assertContains(response, 'id="kinesis-summary"')
-                    self.assertContains(response, 'id="kinesis-console-root"')
-                    self.assertContains(response, 'id="kinesis-grid"')
-                    self.assertContains(response, 'dashboard/service-console.js')
-                    self.assertContains(response, 'dashboard/kinesis-console.js')
-                elif key == 'secretsmanager':
-                    self.assertContains(response, 'id="secretsmanager-loaded-at"')
-                    self.assertContains(response, 'id="secretsmanager-summary"')
-                    self.assertContains(response, 'id="secretsmanager-console-root"')
-                    self.assertContains(response, 'id="secretsmanager-grid"')
-                    self.assertContains(response, 'dashboard/service-console.js')
-                    self.assertContains(response, 'dashboard/secretsmanager-console.js')
-                elif key == 'ssm':
-                    self.assertContains(response, 'id="ssm-loaded-at"')
-                    self.assertContains(response, 'id="ssm-summary"')
-                    self.assertContains(response, 'id="ssm-console-root"')
-                    self.assertContains(response, 'id="ssm-grid"')
-                    self.assertContains(response, 'dashboard/service-console.js')
-                    self.assertContains(response, 'dashboard/ssm-console.js')
-                elif key == 'rds':
-                    self.assertContains(response, 'id="rds-loaded-at"')
-                    self.assertContains(response, 'id="rds-summary"')
-                    self.assertContains(response, 'id="rds-console-root"')
-                    self.assertContains(response, 'id="rds-grid"')
-                    self.assertContains(response, 'dashboard/service-console.js')
-                    self.assertContains(response, 'dashboard/rds-console.js')
-                elif key == 'autoscaling':
-                    self.assertContains(response, 'id="autoscaling-loaded-at"')
-                    self.assertContains(response, 'id="autoscaling-summary"')
-                    self.assertContains(response, 'id="autoscaling-console-root"')
-                    self.assertContains(response, 'id="autoscaling-grid"')
-                    self.assertContains(response, 'dashboard/service-console.js')
-                    self.assertContains(response, 'dashboard/autoscaling-console.js')
-                elif key == 'elasticloadbalancing':
-                    self.assertContains(response, 'id="elasticloadbalancing-loaded-at"')
-                    self.assertContains(response, 'id="elasticloadbalancing-summary"')
-                    self.assertContains(response, 'id="elasticloadbalancing-console-root"')
-                    self.assertContains(response, 'id="elasticloadbalancing-grid"')
-                    self.assertContains(response, 'dashboard/service-console.js')
-                    self.assertContains(response, 'dashboard/elasticloadbalancing-console.js')
+                    self.assertContains(response, definition.console_js)
                 else:
-                    self.assertContains(response, f'id="{key}-loaded-at"')
-                    self.assertContains(response, f'id="{key}-summary"')
                     self.assertContains(response, f'id="{key}-grid"')
 
     def test_unknown_service_page_404s(self):
@@ -3654,6 +3563,54 @@ class IAMActionTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()['deleted'])
         delete_policy_version.assert_called_once_with('arn:aws:iam::000000000000:policy/Local', 'v1')
+
+    @patch('dashboard.iam_views.save_login_profile')
+    def test_create_login_profile_endpoint(self, save_login_profile):
+        save_login_profile.return_value = {'user_name': 'alice', 'password_reset_required': True}
+        response = self.client.post(
+            reverse('dashboard:iam-user-login-profile', kwargs={'user_name': 'alice'}),
+            data=json.dumps({'password': 'LocalPassword1!', 'password_reset_required': True}),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        save_login_profile.assert_called_once_with('alice', 'LocalPassword1!', reset_required=True, update=False)
+
+    @patch('dashboard.iam_views.get_access_key_last_used')
+    def test_access_key_last_used_endpoint(self, get_last_used):
+        get_last_used.return_value = {'access_key_id': 'AKIALOCAL', 'last_used': {}}
+        response = self.client.get(reverse('dashboard:iam-access-key-last-used', kwargs={'access_key_id': 'AKIALOCAL'}))
+        self.assertEqual(response.status_code, 200)
+        get_last_used.assert_called_once_with('AKIALOCAL')
+
+    @patch('dashboard.iam_views.delete_instance_profile')
+    def test_delete_instance_profile_endpoint(self, delete_profile):
+        delete_profile.return_value = {'instance_profile_name': 'app', 'deleted': True}
+        response = self.client.delete(reverse('dashboard:iam-instance-profile-detail', kwargs={'instance_profile_name': 'app'}))
+        self.assertEqual(response.status_code, 200)
+        delete_profile.assert_called_once_with('app')
+
+    @patch('dashboard.iam_views.update_tags')
+    def test_tag_iam_resource_endpoint(self, update_tags):
+        update_tags.return_value = {'resource_type': 'user', 'resource_name': 'alice'}
+        response = self.client.post(
+            reverse('dashboard:iam-tags', kwargs={'resource_type': 'user', 'resource_name': 'alice'}),
+            data=json.dumps({'tags': {'team': 'platform'}}), content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        update_tags.assert_called_once_with('user', 'alice', {'team': 'platform'}, remove=None)
+
+    @patch('dashboard.iam_views.delete_managed_policy')
+    def test_delete_managed_policy_endpoint(self, delete_policy):
+        arn = 'arn:aws:iam::000000000000:policy/Local'
+        delete_policy.return_value = {'policy_arn': arn, 'deleted': True}
+        response = self.client.delete(reverse('dashboard:iam-managed-policies'), data=json.dumps({'policy_arn': arn}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        delete_policy.assert_called_once_with(arn)
+
+    def test_iam_console_exposes_complete_lifecycle_controls(self):
+        source = (Path(__file__).resolve().parent / 'static' / 'dashboard' / 'iam-console.js').read_text()
+        for label in ('Update user', 'Create login', 'Update role', 'Delete policy', 'Delete profile', 'Edit tags', 'Last used'):
+            self.assertIn(label, source)
 
 
 class GuidedEC2LabTests(TestCase):

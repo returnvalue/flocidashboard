@@ -15,7 +15,7 @@ class SchedulerPageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>EventBridge Scheduler inventory</h2>', html=True)
         self.assertContains(response, 'id="scheduler-summary"')
         self.assertContains(response, 'id="scheduler-console-root"')
-        self.assertContains(response, 'id="scheduler-grid"')
+        self.assertNotContains(response, 'id="scheduler-grid"')
         self.assertContains(response, 'dashboard/scheduler-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/scheduler-console.js')

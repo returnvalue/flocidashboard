@@ -13,7 +13,7 @@ class SecretsManagerPageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>Secrets Manager inventory</h2>', html=True)
         self.assertContains(response, 'id="secretsmanager-summary"')
         self.assertContains(response, 'id="secretsmanager-console-root"')
-        self.assertContains(response, 'id="secretsmanager-grid"')
+        self.assertNotContains(response, 'id="secretsmanager-grid"')
         self.assertContains(response, 'dashboard/secretsmanager-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/secretsmanager-console.js')

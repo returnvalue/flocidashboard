@@ -15,7 +15,7 @@ class BedrockRuntimePageTemplateTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<h2>Bedrock Runtime inventory</h2>', html=True)
         self.assertContains(response, 'id="bedrockruntime-console-root"')
-        self.assertContains(response, 'id="bedrockruntime-grid"')
+        self.assertNotContains(response, 'id="bedrockruntime-grid"')
         self.assertContains(response, 'dashboard/bedrockruntime-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/bedrockruntime-console.js')

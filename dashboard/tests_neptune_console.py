@@ -15,7 +15,7 @@ class NeptunePageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>Neptune inventory</h2>', html=True)
         self.assertContains(response, 'id="neptune-summary"')
         self.assertContains(response, 'id="neptune-console-root"')
-        self.assertContains(response, 'id="neptune-grid"')
+        self.assertNotContains(response, 'id="neptune-grid"')
         self.assertContains(response, 'dashboard/neptune-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/neptune-console.js')

@@ -13,7 +13,7 @@ class CodeBuildPageTemplateTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<h2>CodeBuild inventory</h2>', html=True)
         self.assertContains(response, 'id="codebuild-console-root"')
-        self.assertContains(response, 'id="codebuild-grid"')
+        self.assertNotContains(response, 'id="codebuild-grid"')
         self.assertContains(response, 'dashboard/codebuild-console.js')
 
     def test_codebuild_registry_marks_service_interactive(self):

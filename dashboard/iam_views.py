@@ -35,6 +35,15 @@ from .iam_api import (
     add_role_to_instance_profile,
     update_role_trust_policy,
     update_access_key,
+    update_user,
+    update_role,
+    save_login_profile,
+    delete_login_profile,
+    get_access_key_last_used,
+    remove_role_from_instance_profile,
+    delete_instance_profile,
+    delete_managed_policy,
+    update_tags,
 )
 
 
@@ -50,13 +59,15 @@ def iam_users_create(request):
         return handle_action_error(exc, service='iam', operation='create_user')
 
 
-@require_http_methods(['DELETE'])
+@require_http_methods(['PATCH', 'DELETE'])
 def iam_user_detail(request, user_name: str):
     try:
         body = parse_json_body(request)
+        if request.method == 'PATCH':
+            return JsonResponse(update_user(user_name, new_name=body.get('new_name') or '', new_path=body.get('new_path') or ''))
         return JsonResponse(cleanup_user(user_name, force=body.get('force') is True))
     except Exception as exc:
-        return handle_action_error(exc, service='iam', operation='delete_user')
+        return handle_action_error(exc, service='iam', operation='update_user' if request.method == 'PATCH' else 'delete_user')
 
 
 @require_http_methods(['POST'])
@@ -90,13 +101,15 @@ def iam_roles_create(request):
         return handle_action_error(exc, service='iam', operation='create_role')
 
 
-@require_http_methods(['DELETE'])
+@require_http_methods(['PATCH', 'DELETE'])
 def iam_role_detail(request, role_name: str):
     try:
         body = parse_json_body(request)
+        if request.method == 'PATCH':
+            return JsonResponse(update_role(role_name, description=body.get('description'), max_session_duration=body.get('max_session_duration')))
         return JsonResponse(cleanup_role(role_name, force=body.get('force') is True))
     except Exception as exc:
-        return handle_action_error(exc, service='iam', operation='delete_role')
+        return handle_action_error(exc, service='iam', operation='update_role' if request.method == 'PATCH' else 'delete_role')
 
 
 @require_http_methods(['POST'])
@@ -108,13 +121,44 @@ def iam_instance_profiles_create(request):
         return handle_action_error(exc, service='iam', operation='create_instance_profile')
 
 
-@require_http_methods(['POST'])
+@require_http_methods(['POST', 'DELETE'])
 def iam_instance_profile_roles(request, instance_profile_name: str):
     try:
         body = parse_json_body(request)
+        if request.method == 'DELETE':
+            return JsonResponse(remove_role_from_instance_profile(instance_profile_name, body.get('role_name', '')))
         return JsonResponse(add_role_to_instance_profile(instance_profile_name, body.get('role_name', '')))
     except Exception as exc:
-        return handle_action_error(exc, service='iam', operation='add_role_to_instance_profile')
+        operation = 'remove_role_from_instance_profile' if request.method == 'DELETE' else 'add_role_to_instance_profile'
+        return handle_action_error(exc, service='iam', operation=operation)
+
+
+@require_http_methods(['DELETE'])
+def iam_instance_profile_detail(request, instance_profile_name: str):
+    try:
+        return JsonResponse(delete_instance_profile(instance_profile_name))
+    except Exception as exc:
+        return handle_action_error(exc, service='iam', operation='delete_instance_profile')
+
+
+@require_http_methods(['POST', 'PUT', 'DELETE'])
+def iam_user_login_profile(request, user_name: str):
+    try:
+        if request.method == 'DELETE':
+            return JsonResponse(delete_login_profile(user_name))
+        body = parse_json_body(request)
+        return JsonResponse(save_login_profile(user_name, body.get('password', ''), reset_required=body.get('password_reset_required') is True, update=request.method == 'PUT'))
+    except Exception as exc:
+        operation = {'POST': 'create_login_profile', 'PUT': 'update_login_profile', 'DELETE': 'delete_login_profile'}[request.method]
+        return handle_action_error(exc, service='iam', operation=operation)
+
+
+@require_http_methods(['GET'])
+def iam_access_key_last_used(request, access_key_id: str):
+    try:
+        return JsonResponse(get_access_key_last_used(access_key_id))
+    except Exception as exc:
+        return handle_action_error(exc, service='iam', operation='get_access_key_last_used')
 
 
 @require_http_methods(['POST'])
@@ -218,10 +262,12 @@ def iam_inline_policy_document(request, principal_type: str, principal_name: str
         return handle_action_error(exc, service='iam', operation='get_inline_policy')
 
 
-@require_http_methods(['POST'])
+@require_http_methods(['POST', 'DELETE'])
 def iam_managed_policies_create(request):
     try:
         body = parse_json_body(request)
+        if request.method == 'DELETE':
+            return JsonResponse(delete_managed_policy(body.get('policy_arn', '')))
         return JsonResponse(create_managed_policy(
             body.get('name', ''),
             body.get('document'),
@@ -230,6 +276,15 @@ def iam_managed_policies_create(request):
         ))
     except Exception as exc:
         return handle_action_error(exc, service='iam', operation='create_managed_policy')
+
+
+@require_http_methods(['POST', 'DELETE'])
+def iam_tags(request, resource_type: str, resource_name: str):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(update_tags(resource_type, resource_name, body.get('tags'), remove=body.get('tag_keys') if request.method == 'DELETE' else None))
+    except Exception as exc:
+        return handle_action_error(exc, service='iam', operation='untag_resource' if request.method == 'DELETE' else 'tag_resource')
 
 
 @require_http_methods(['POST'])

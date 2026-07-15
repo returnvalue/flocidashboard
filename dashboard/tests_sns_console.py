@@ -13,7 +13,7 @@ class SNSPageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>SNS inventory</h2>', html=True)
         self.assertContains(response, 'id="sns-summary"')
         self.assertContains(response, 'id="sns-console-root"')
-        self.assertContains(response, 'id="sns-grid"')
+        self.assertNotContains(response, 'id="sns-grid"')
         self.assertContains(response, 'dashboard/sns-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/sns-console.js')

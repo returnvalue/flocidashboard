@@ -15,7 +15,7 @@ class KafkaPageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>MSK / Kafka inventory</h2>', html=True)
         self.assertContains(response, 'id="kafka-summary"')
         self.assertContains(response, 'id="kafka-console-root"')
-        self.assertContains(response, 'id="kafka-grid"')
+        self.assertNotContains(response, 'id="kafka-grid"')
         self.assertContains(response, 'dashboard/kafka-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/kafka-console.js')

@@ -15,7 +15,7 @@ class AppConfigPageTemplateTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<h2>AppConfig inventory</h2>', html=True)
         self.assertContains(response, 'id="appconfig-console-root"')
-        self.assertContains(response, 'id="appconfig-grid"')
+        self.assertNotContains(response, 'id="appconfig-grid"')
         self.assertContains(response, 'dashboard/appconfig-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/appconfig-console.js')

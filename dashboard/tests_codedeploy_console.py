@@ -15,7 +15,7 @@ class CodeDeployPageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>CodeDeploy inventory</h2>', html=True)
         self.assertContains(response, 'id="codedeploy-summary"')
         self.assertContains(response, 'id="codedeploy-console-root"')
-        self.assertContains(response, 'id="codedeploy-grid"')
+        self.assertNotContains(response, 'id="codedeploy-grid"')
         self.assertContains(response, 'dashboard/codedeploy-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/codedeploy-console.js')

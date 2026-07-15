@@ -13,7 +13,7 @@ class CloudFrontPageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>CloudFront inventory</h2>', html=True)
         self.assertContains(response, 'id="cloudfront-summary"')
         self.assertContains(response, 'id="cloudfront-console-root"')
-        self.assertContains(response, 'id="cloudfront-grid"')
+        self.assertNotContains(response, 'id="cloudfront-grid"')
         self.assertContains(response, 'dashboard/cloudfront-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/cloudfront-console.js')

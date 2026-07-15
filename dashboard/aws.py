@@ -452,6 +452,8 @@ def iam_inventory() -> dict[str, Any]:
             'name': name,
             'arn': user.get('Arn'),
             'created': user.get('CreateDate'),
+            'path': full_user.get('Path') or user.get('Path'),
+            'login_profile': _safe_value(lambda: iam.get_login_profile(UserName=name).get('LoginProfile'), None),
             'permissions_boundary': full_user.get('PermissionsBoundary') or cached_boundary('user', name),
             'groups': [
                 group.get('GroupName')
@@ -479,6 +481,10 @@ def iam_inventory() -> dict[str, Any]:
                     'id': key.get('AccessKeyId'),
                     'status': key.get('Status'),
                     'created': key.get('CreateDate'),
+                    'last_used': _safe_value(
+                        lambda key_id=key.get('AccessKeyId'): iam.get_access_key_last_used(AccessKeyId=key_id).get('AccessKeyLastUsed', {}),
+                        {},
+                    ),
                 }
                 for key in _safe_value(
                     lambda: _paginate(iam, 'list_access_keys', 'AccessKeyMetadata', UserName=name),
@@ -524,6 +530,9 @@ def iam_inventory() -> dict[str, Any]:
             'name': name,
             'arn': role.get('Arn'),
             'created': role.get('CreateDate'),
+            'path': full_role.get('Path') or role.get('Path'),
+            'description': full_role.get('Description') or role.get('Description'),
+            'max_session_duration': full_role.get('MaxSessionDuration') or role.get('MaxSessionDuration'),
             'permissions_boundary': full_role.get('PermissionsBoundary') or cached_boundary('role', name),
             'trust_policy': full_role.get('AssumeRolePolicyDocument') or role.get('AssumeRolePolicyDocument'),
             'attached_policies': [
@@ -561,6 +570,8 @@ def iam_inventory() -> dict[str, Any]:
             'permissions_boundary_usage_count': policy.get('PermissionsBoundaryUsageCount'),
             'created': policy.get('CreateDate'),
             'updated': policy.get('UpdateDate'),
+            'path': policy.get('Path'),
+            'description': policy.get('Description'),
             'versions': [
                 {
                     'id': version.get('VersionId'),
@@ -584,6 +595,12 @@ def iam_inventory() -> dict[str, Any]:
     )
     instance_profiles = _paginate(iam, 'list_instance_profiles', 'InstanceProfiles')
 
+    def enrich(items: list[dict[str, Any]], loader: Callable[[dict[str, Any]], dict[str, Any]]) -> list[dict[str, Any]]:
+        if len(items) < 2:
+            return [loader(item) for item in items]
+        with ThreadPoolExecutor(max_workers=min(8, len(items))) as executor:
+            return list(executor.map(loader, items))
+
     return {
         'summary': {
             'users': len(users),
@@ -592,10 +609,10 @@ def iam_inventory() -> dict[str, Any]:
             'customer_policies': len(policies),
             'instance_profiles': len(instance_profiles),
         },
-        'users': [user_detail(user) for user in users],
-        'groups': [group_detail(group) for group in groups],
-        'roles': [role_detail(role) for role in roles],
-        'policies': [policy_detail(policy) for policy in policies],
+        'users': enrich(users, user_detail),
+        'groups': enrich(groups, group_detail),
+        'roles': enrich(roles, role_detail),
+        'policies': enrich(policies, policy_detail),
         'instance_profiles': [
             {
                 'name': profile.get('InstanceProfileName'),
@@ -2167,7 +2184,13 @@ def lambda_inventory() -> dict[str, Any]:
             ) if arn else None,
         }
 
-    detailed_functions = [function_detail(function) for function in functions]
+    # Detail enrichment is independent per function and otherwise requires many
+    # sequential round trips. Preserve list ordering while bounding concurrency.
+    if len(functions) > 1:
+        with ThreadPoolExecutor(max_workers=min(8, len(functions))) as executor:
+            detailed_functions = list(executor.map(function_detail, functions))
+    else:
+        detailed_functions = [function_detail(function) for function in functions]
 
     def layer_name(layer: dict[str, Any]) -> str | None:
         arn = layer.get('Arn') or layer.get('LayerVersionArn') or layer.get('LayerArn')
@@ -4847,9 +4870,6 @@ def eks_inventory() -> dict[str, Any]:
         cluster = response.get('cluster', {}) if isinstance(response, dict) and not response.get('error') else {}
         nodegroups = _eks_optional(lambda: _paginate(eks, 'list_nodegroups', 'nodegroups', clusterName=name), {'ResourceNotFoundException'})
         fargate_profiles = _eks_optional(lambda: _paginate(eks, 'list_fargate_profiles', 'fargateProfileNames', clusterName=name), {'ResourceNotFoundException'})
-        addons = _eks_optional(lambda: _paginate(eks, 'list_addons', 'addons', clusterName=name), {'ResourceNotFoundException'})
-        identity_provider_configs = _eks_optional(lambda: _paginate(eks, 'list_identity_provider_configs', 'identityProviderConfigs', clusterName=name), {'ResourceNotFoundException'})
-        entries = access_entries(name)
 
         return {
             'name': name,
@@ -4872,14 +4892,8 @@ def eks_inventory() -> dict[str, Any]:
             'upgrade_policy': cluster.get('upgradePolicy'),
             'nodegroup_count': len(nodegroups) if isinstance(nodegroups, list) else 0,
             'fargate_profile_count': len(fargate_profiles) if isinstance(fargate_profiles, list) else 0,
-            'addon_count': len(addons) if isinstance(addons, list) else 0,
-            'identity_provider_config_count': len(identity_provider_configs) if isinstance(identity_provider_configs, list) else 0,
-            'access_entry_count': len(entries),
             'nodegroups': nodegroups if isinstance(nodegroups, list) else [],
             'fargate_profiles': fargate_profiles if isinstance(fargate_profiles, list) else [],
-            'addons': addons if isinstance(addons, list) else [],
-            'identity_provider_configs': identity_provider_configs if isinstance(identity_provider_configs, list) else [],
-            'access_entries': entries,
             'details': response if isinstance(response, dict) and response.get('error') else None,
         }
 
@@ -4985,33 +4999,27 @@ def eks_inventory() -> dict[str, Any]:
             'details': response if isinstance(response, dict) and response.get('error') else None,
         }
 
-    clusters = [cluster_detail(name) for name in cluster_names]
-    nodegroups = [nodegroup_detail(cluster.get('name'), name) for cluster in clusters for name in cluster.get('nodegroups', [])]
-    fargate_profiles = [fargate_profile_detail(cluster.get('name'), name) for cluster in clusters for name in cluster.get('fargate_profiles', [])]
-    addons = [addon_detail(cluster.get('name'), name) for cluster in clusters for name in cluster.get('addons', [])]
-    identity_provider_configs = [
-        identity_provider_detail(cluster.get('name'), config)
-        for cluster in clusters
-        for config in cluster.get('identity_provider_configs', [])
-        if isinstance(config, dict)
-    ]
-    access_entries_flat = [entry for cluster in clusters for entry in cluster.get('access_entries', [])]
+    def enrich(items, loader):
+        if len(items) < 2:
+            return [loader(item) for item in items]
+        with ThreadPoolExecutor(max_workers=min(8, len(items))) as executor:
+            return list(executor.map(loader, items))
+
+    clusters = enrich(cluster_names, cluster_detail)
+    nodegroup_refs = [(cluster.get('name'), name) for cluster in clusters for name in cluster.get('nodegroups', [])]
+    profile_refs = [(cluster.get('name'), name) for cluster in clusters for name in cluster.get('fargate_profiles', [])]
+    nodegroups = enrich(nodegroup_refs, lambda ref: nodegroup_detail(*ref))
+    fargate_profiles = enrich(profile_refs, lambda ref: fargate_profile_detail(*ref))
 
     return {
         'summary': {
             'clusters': len(clusters),
             'nodegroups': len(nodegroups),
             'fargate_profiles': len(fargate_profiles),
-            'addons': len(addons),
-            'identity_provider_configs': len(identity_provider_configs),
-            'access_entries': len(access_entries_flat),
         },
         'clusters': clusters,
         'nodegroups': nodegroups,
         'fargate_profiles': fargate_profiles,
-        'addons': addons,
-        'identity_provider_configs': identity_provider_configs,
-        'access_entries': access_entries_flat,
         'supported_from_sdk': [
             'CreateCluster',
             'DescribeCluster',
@@ -5025,18 +5033,9 @@ def eks_inventory() -> dict[str, Any]:
             'DescribeFargateProfile',
             'ListFargateProfiles',
             'DeleteFargateProfile',
-            'CreateAddon',
-            'DescribeAddon',
-            'ListAddons',
-            'DeleteAddon',
-            'AssociateIdentityProviderConfig',
-            'DescribeIdentityProviderConfig',
-            'ListIdentityProviderConfigs',
-            'CreateAccessEntry',
-            'DescribeAccessEntry',
-            'ListAccessEntries',
-            'AssociateAccessPolicy',
-            'ListAssociatedAccessPolicies',
+            'TagResource',
+            'UntagResource',
+            'ListTagsForResource',
         ],
         'notes': [
             'Floci EKS Phase 1 supports cluster create, describe, list, delete, tag, untag, and list-tags operations through the REST JSON API.',
@@ -5044,6 +5043,7 @@ def eks_inventory() -> dict[str, Any]:
             'Floci 1.5.23 seeds standard EKS cluster and node group managed IAM policies so common EKS provisioning modules can attach them without explicit local creation.',
             'Mock mode stores cluster metadata in-process and marks clusters ACTIVE immediately; real mode starts a k3s container per cluster.',
             'Floci 1.5.24 adds managed node group create, describe, list, and delete support; the dashboard exposes node group create/delete flows and keeps the full inventory visible.',
+            'Floci 1.5.33 adds Fargate profile create, describe, list, and delete support; the dashboard exposes profile create/delete flows and keeps selector, subnet, role, health, and tag details visible.',
         ],
     }
 
@@ -7020,7 +7020,15 @@ def ecs_inventory() -> dict[str, Any]:
     factory = FlociClientFactory()
     ecs = factory.client('ecs')
     cluster_arns = _safe_value(lambda: _paginate(ecs, 'list_clusters', 'clusterArns'), [])
-    task_definition_arns = _safe_value(lambda: _paginate(ecs, 'list_task_definitions', 'taskDefinitionArns'), [])
+    active_task_definition_arns = _safe_value(
+        lambda: _paginate(ecs, 'list_task_definitions', 'taskDefinitionArns', status='ACTIVE'),
+        [],
+    )
+    inactive_task_definition_arns = _safe_value(
+        lambda: _paginate(ecs, 'list_task_definitions', 'taskDefinitionArns', status='INACTIVE'),
+        [],
+    )
+    task_definition_arns = list(dict.fromkeys(active_task_definition_arns + inactive_task_definition_arns))
     task_definition_families = _safe_value(lambda: _paginate(ecs, 'list_task_definition_families', 'families'), [])
 
     def list_tags(arn: Optional[str]) -> Any:
@@ -7064,11 +7072,26 @@ def ecs_inventory() -> dict[str, Any]:
                     'memory': container.get('memory'),
                     'essential': container.get('essential'),
                     'port_mappings': container.get('portMappings'),
+                    'command': container.get('command'),
+                    'entry_point': container.get('entryPoint'),
+                    'environment': container.get('environment'),
+                    'secrets': container.get('secrets'),
+                    'mount_points': container.get('mountPoints'),
+                    'health_check': container.get('healthCheck'),
+                    'log_configuration': container.get('logConfiguration'),
+                    'depends_on': container.get('dependsOn'),
                 }
                 for container in task_definition.get('containerDefinitions', [])
             ],
+            'container_definitions': task_definition.get('containerDefinitions', []),
             'volumes': task_definition.get('volumes'),
             'placement_constraints': task_definition.get('placementConstraints'),
+            'runtime_platform': task_definition.get('runtimePlatform'),
+            'ephemeral_storage': task_definition.get('ephemeralStorage'),
+            'proxy_configuration': task_definition.get('proxyConfiguration'),
+            'ipc_mode': task_definition.get('ipcMode'),
+            'pid_mode': task_definition.get('pidMode'),
+            'inference_accelerators': task_definition.get('inferenceAccelerators'),
             'tags': response.get('tags') or list_tags(task_definition.get('taskDefinitionArn') or arn),
         }
 
@@ -7108,6 +7131,16 @@ def ecs_inventory() -> dict[str, Any]:
                 )
                 if isinstance(task_response, list):
                     tasks.extend(_clean_response(task_response))
+            for batch in _chunks(task_arns, 10):
+                protection_response = _ecs_optional(
+                    lambda batch=batch: ecs.get_task_protection(cluster=cluster_arn, tasks=batch),
+                    {'ClusterNotFoundException', 'InvalidParameterException'},
+                )
+                protected = protection_response.get('protectedTasks', []) if isinstance(protection_response, dict) else []
+                protection_by_task = {item.get('taskArn'): item for item in protected if item.get('taskArn')}
+                for task in tasks:
+                    if task.get('taskArn') in protection_by_task:
+                        task['protection'] = protection_by_task[task['taskArn']]
 
         services: list[dict[str, Any]] = []
         task_sets: list[dict[str, Any]] = []
@@ -7201,8 +7234,19 @@ def ecs_inventory() -> dict[str, Any]:
             'service_revisions': service_revisions,
         }
 
-    detailed_clusters = [cluster_detail(arn) for arn in cluster_arns]
-    task_definitions = [describe_task_definition(arn) for arn in task_definition_arns]
+    def parallel_map(values: list[str], loader: Callable[[str], dict[str, Any]]) -> list[dict[str, Any]]:
+        if len(values) < 2:
+            return [loader(value) for value in values]
+        with ThreadPoolExecutor(max_workers=min(8, len(values))) as executor:
+            return list(executor.map(loader, values))
+
+    detailed_clusters = parallel_map(cluster_arns, cluster_detail)
+    task_definitions = parallel_map(task_definition_arns, describe_task_definition)
+    task_definition_groups: dict[str, list[dict[str, Any]]] = {}
+    for definition in task_definitions:
+        task_definition_groups.setdefault(definition.get('family') or 'Unknown', []).append(definition)
+    for revisions in task_definition_groups.values():
+        revisions.sort(key=lambda item: item.get('revision') or 0, reverse=True)
     capacity_providers = _ecs_optional(
         lambda: ecs.describe_capacity_providers().get('capacityProviders', []),
         {'ClientException'},
@@ -7233,6 +7277,10 @@ def ecs_inventory() -> dict[str, Any]:
         },
         'clusters': detailed_clusters,
         'task_definitions': task_definitions,
+        'task_definition_groups': [
+            {'family': family, 'revisions': revisions}
+            for family, revisions in sorted(task_definition_groups.items())
+        ],
         'task_definition_families': task_definition_families,
         'capacity_providers': capacity_providers,
         'account_settings': account_settings,
@@ -8199,7 +8247,11 @@ def ecr_inventory() -> dict[str, Any]:
             for item in auth_data
         ]
 
-    detailed_repositories = [repository_detail(repository) for repository in repositories]
+    if len(repositories) > 1:
+        with ThreadPoolExecutor(max_workers=min(8, len(repositories))) as executor:
+            detailed_repositories = list(executor.map(repository_detail, repositories))
+    else:
+        detailed_repositories = [repository_detail(repository) for repository in repositories]
 
     return {
         'summary': {
@@ -8212,6 +8264,11 @@ def ecr_inventory() -> dict[str, Any]:
                 if isinstance(image, dict) and image.get('imageTag')
             ),
             'auth_endpoints': len(auth_endpoints),
+            'storage_bytes': sum(
+                image.get('imageSizeInBytes') or 0
+                for repository in detailed_repositories
+                for image in (repository.get('image_details') if isinstance(repository.get('image_details'), list) else [])
+            ),
         },
         'repositories': detailed_repositories,
         'auth_endpoints': auth_endpoints,

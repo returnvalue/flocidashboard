@@ -233,6 +233,62 @@ const IAMConsole = (() => {
     });
   }
 
+  async function mutate(path, method, body, message) {
+    const data = await apiJson(path, { method, body: body === null ? undefined : JSON.stringify(body) });
+    toast(message);
+    await refresh();
+    return data;
+  }
+
+  function showUpdateUserModal(user) {
+    const form = el('div');
+    const name = document.createElement('input'); name.value = user.name;
+    const path = document.createElement('input'); path.value = user.path || '/';
+    form.append(el('label', null, 'User name'), name, el('label', null, 'Path'), path);
+    openModal('Update user', form, 'Update', async (close) => {
+      const newName = name.value.trim();
+      await mutate(`/api/iam/users/${encodeURIComponent(user.name)}/`, 'PATCH', { new_name: newName === user.name ? '' : newName, new_path: path.value.trim() }, 'User updated');
+      state.selectedName = newName; close();
+    });
+  }
+
+  function showUpdateRoleModal(role) {
+    const form = el('div');
+    const description = document.createElement('input'); description.value = role.description || '';
+    const duration = document.createElement('input'); duration.type = 'number'; duration.value = role.max_session_duration || 3600;
+    form.append(el('label', null, 'Description'), description, el('label', null, 'Maximum session duration'), duration);
+    openModal('Update role settings', form, 'Update', async (close) => {
+      await mutate(`/api/iam/roles/${encodeURIComponent(role.name)}/`, 'PATCH', { description: description.value, max_session_duration: duration.value }, 'Role updated'); close();
+    });
+  }
+
+  function showLoginProfileModal(user, update = Boolean(user.login_profile)) {
+    const form = el('div');
+    const password = document.createElement('input'); password.type = 'password';
+    const reset = document.createElement('input'); reset.type = 'checkbox'; reset.checked = true;
+    form.append(el('label', null, 'Password'), password, el('label', null, 'Require password reset'), reset);
+    openModal(update ? 'Update login profile' : 'Create login profile', form, update ? 'Update' : 'Create', async (close) => {
+      await mutate(`/api/iam/users/${encodeURIComponent(user.name)}/login-profile/`, update ? 'PUT' : 'POST', { password: password.value, password_reset_required: reset.checked }, update ? 'Login profile updated' : 'Login profile created'); close();
+    });
+  }
+
+  function showTagsModal(resource) {
+    const type = state.selectedType;
+    const resourceName = type === 'policy' ? resource.arn : resource.name;
+    const form = el('div');
+    const tags = document.createElement('textarea');
+    tags.value = JSON.stringify(Object.fromEntries((resource.tags || []).map((tag) => [tag.Key, tag.Value])), null, 2);
+    const remove = document.createElement('input'); remove.placeholder = 'tag-key-1,tag-key-2';
+    form.append(el('label', null, 'Tags JSON'), tags, el('label', null, 'Remove tag keys'), remove);
+    openModal('Edit tags', form, 'Save', async (close) => {
+      const keys = remove.value.split(',').map((key) => key.trim()).filter(Boolean);
+      const path = `/api/iam/tags/${type}/${encodeURIComponent(resourceName)}/`;
+      if (keys.length) await mutate(path, 'DELETE', { tag_keys: keys }, 'Tags removed');
+      if (tags.value.trim()) await mutate(path, 'POST', { tags: JSON.parse(tags.value) }, 'Tags updated');
+      close();
+    });
+  }
+
   function showCreateUserModal() {
     const form = el('div');
     const userInput = document.createElement('input');
@@ -1206,7 +1262,9 @@ const IAMConsole = (() => {
     } else {
       keys.forEach((key) => {
         const row = el('div', 'iam-access-key-row');
-        row.append(el('span', 'iam-principal-name', key.id), el('span', 'iam-principal-meta', key.status || 'Unknown'));
+        const usage = key.last_used || {};
+        const lastUsed = usage.LastUsedDate ? `Last used ${consoleUi.formatDate(usage.LastUsedDate)}${usage.ServiceName ? ` · ${usage.ServiceName}` : ''}` : 'Never used';
+        row.append(el('span', 'iam-principal-name', key.id), el('span', 'iam-principal-meta', `${key.status || 'Unknown'} · ${lastUsed}`));
         row.append(btn(key.status === 'Active' ? 'Deactivate' : 'Activate', 'iam-btn-secondary', () => {
           updateAccessKey(user, key, key.status === 'Active' ? 'Inactive' : 'Active').catch((error) => toast(error.message, true));
         }));
@@ -1243,12 +1301,20 @@ const IAMConsole = (() => {
     if (state.selectedType === 'user') {
       actions.append(
         btn('Use this user', null, () => showUseUserIdentityModal(principal)),
+        btn('Update user', 'iam-btn-secondary', () => showUpdateUserModal(principal)),
+        btn(principal.login_profile ? 'Update login' : 'Create login', 'iam-btn-secondary', () => showLoginProfileModal(principal)),
         btn('Create access key', 'iam-btn-secondary', () => showCreateAccessKeyModal(principal)),
         btn('Attach managed policy', 'iam-btn-secondary', () => showAttachManagedPolicyModal(principal)),
         btn('Set boundary', 'iam-btn-secondary', () => showPermissionsBoundaryModal(principal)),
         btn('Add inline policy', 'iam-btn-secondary', () => showInlinePolicyModal(principal)),
+        btn('Edit tags', 'iam-btn-secondary', () => showTagsModal(principal)),
         btn('Clean up user', 'iam-btn-danger', () => confirmCleanupPrincipal(principal)),
       );
+      if (principal.login_profile) {
+        actions.append(btn('Delete login', 'iam-btn-danger', async () => {
+          if (window.confirm(`Delete the login profile for ${principal.name}?`)) await mutate(`/api/iam/users/${encodeURIComponent(principal.name)}/login-profile/`, 'DELETE', null, 'Login profile deleted');
+        }));
+      }
       if (principal.permissions_boundary) {
         actions.append(btn('Clear boundary', 'iam-btn-danger', () => clearPermissionsBoundary(principal)));
       }
@@ -1256,10 +1322,12 @@ const IAMConsole = (() => {
       actions.append(
         btn('Assume in dashboard', null, () => useRoleIdentity(principal).catch((error) => toast(error.message, true))),
         btn('Get temporary credentials', 'iam-btn-secondary', () => showAssumeRoleModal(principal)),
+        btn('Update role', 'iam-btn-secondary', () => showUpdateRoleModal(principal)),
         btn('Attach managed policy', 'iam-btn-secondary', () => showAttachManagedPolicyModal(principal)),
         btn('Set boundary', 'iam-btn-secondary', () => showPermissionsBoundaryModal(principal)),
         btn('Add inline policy', 'iam-btn-secondary', () => showInlinePolicyModal(principal)),
         btn('Edit trust policy', 'iam-btn-secondary', () => showTrustPolicyModal(principal)),
+        btn('Edit tags', 'iam-btn-secondary', () => showTagsModal(principal)),
         btn('Clean up role', 'iam-btn-danger', () => confirmCleanupPrincipal(principal)),
       );
       if (principal.permissions_boundary) {
@@ -1276,9 +1344,28 @@ const IAMConsole = (() => {
       actions.append(
         btn('Open default version', 'iam-btn-secondary', () => loadManagedPolicy(principal).catch((error) => toast(error.message, true))),
         btn('Create version', 'iam-btn-secondary', () => showCreatePolicyVersionModal(principal)),
+        btn('Edit tags', 'iam-btn-secondary', () => showTagsModal(principal)),
+        btn('Delete policy', 'iam-btn-danger', async () => {
+          if (window.confirm(`Delete managed policy ${principal.name}?`)) {
+            state.selectedName = '';
+            await mutate('/api/iam/policies/', 'DELETE', { policy_arn: principal.arn }, 'Managed policy deleted');
+          }
+        }),
       );
     } else if (state.selectedType === 'profile') {
       actions.append(btn('Add role', 'iam-btn-secondary', () => showAddRoleToInstanceProfileModal(principal)));
+      (principal.roles || []).forEach((role) => {
+        const roleName = role.name || role.RoleName || role;
+        actions.append(btn(`Remove ${roleName}`, 'iam-btn-secondary', async () => {
+          await mutate(`/api/iam/instance-profiles/${encodeURIComponent(principal.name)}/roles/`, 'DELETE', { role_name: roleName }, 'Role removed from instance profile');
+        }));
+      });
+      actions.append(btn('Delete profile', 'iam-btn-danger', async () => {
+        if (window.confirm(`Delete instance profile ${principal.name}?`)) {
+          state.selectedName = '';
+          await mutate(`/api/iam/instance-profiles/${encodeURIComponent(principal.name)}/`, 'DELETE', null, 'Instance profile deleted');
+        }
+      }));
     }
     return actions;
   }
@@ -1302,6 +1389,8 @@ const IAMConsole = (() => {
     consoleUi.addField(details, 'Created', consoleUi.formatDate(principal.created));
     if (state.selectedType === 'user') {
       consoleUi.addField(details, 'Groups', principal.groups);
+      consoleUi.addField(details, 'Path', principal.path);
+      consoleUi.addField(details, 'Login profile', principal.login_profile ? 'Configured' : 'Not configured');
     }
     if (state.selectedType === 'group') {
       consoleUi.addField(details, 'Users', principal.users);
@@ -1311,6 +1400,8 @@ const IAMConsole = (() => {
     }
     if (state.selectedType === 'role') {
       consoleUi.addField(details, 'Instance profiles', principal.instance_profiles);
+      consoleUi.addField(details, 'Description', principal.description);
+      consoleUi.addField(details, 'Maximum session duration', principal.max_session_duration);
     }
     if (state.selectedType === 'policy') {
       consoleUi.addField(details, 'Default version', principal.default_version);

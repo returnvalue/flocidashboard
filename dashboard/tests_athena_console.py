@@ -15,7 +15,7 @@ class AthenaPageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>Athena inventory</h2>', html=True)
         self.assertContains(response, 'id="athena-summary"')
         self.assertContains(response, 'id="athena-console-root"')
-        self.assertContains(response, 'id="athena-grid"')
+        self.assertNotContains(response, 'id="athena-grid"')
         self.assertContains(response, 'dashboard/athena-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/athena-console.js')

@@ -163,6 +163,8 @@ When Django runs on your host, use `http://localhost:4566`. When Django runs ins
 - Detail pages for services such as Cost Explorer, Cost and Usage Reports, BCM Data Exports, Pricing, and more
 - Expanded inventory for EC2 VPC endpoints, EC2 Network ACLs, EC2 VPC Flow Logs, CloudFormation StackSets, SES v2 contact lists and contact CRUD, and SSM default patch baselines, plus KMS key enable/disable actions, filtered aliases, and richer S3 object metadata
 - A first-class EC2 workbench spanning instance launch and lifecycle actions, tags, SSM commands, VPC networking, security groups, routes, endpoints, NACLs, flow logs, volumes, snapshots, AMIs, launch templates, Spot requests, relationship diagnostics, and guided local compute workflows
+- First-class Lambda and IAM workbenches covering function lifecycle and relationships plus principal, policy, credential, role, and instance-profile management
+- First-class ECS, EKS, and ECR workbenches covering Floci-supported container orchestration, local k3s cluster resources, OCI repositories, image manifests, stored policies, and Docker push/pull workflows
 - Release-aware service notes refreshed through Floci 1.5.32, including optional S3 authorization enforcement and default SSE-S3 behavior, Lambda failure destinations and code downloads, Cognito session revocation, SES contact CRUD, KMS alias filtering, Step Functions JSONata variables, and the earlier 1.5.31 resource-discovery and persistence improvements
 - Loading state with the Floci cloud image while service data is fetched
 
@@ -232,7 +234,8 @@ Core files:
 
 Important conventions:
 
-- Treat interactive workbenches as additive. Do not remove summary cards, anchor-link behavior, read-only inventory cards, supported-operation panels, or service notes.
+- Keep summary cards and anchor-link behavior, but let first-class interactive workbenches own resource detail. Do not duplicate the same inventory in generic read-only cards or supported-operation panels.
+- Audit controls against Floci's implemented handlers before exposing them. A boto3 method accepting a field is not sufficient when Floci ignores that field or does not implement the operation.
 - Treat labs as curated workflows rather than a browser terminal. The browser sends registered service/lab/step identifiers and never arbitrary shell commands.
 - Treat the AWS CLI Console as an AWS command runner, not a shell. Keep it limited to `aws ...`, run with `shell=False`, reject shell operators and server file inputs, and preserve local-endpoint validation.
 - Derive lab completion from live Floci state whenever possible, keep reset ownership explicit, and keep expensive all-lab progress checks asynchronous from `/labs/`.

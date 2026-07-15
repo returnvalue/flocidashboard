@@ -15,7 +15,7 @@ class TransferPageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>Transfer Family inventory</h2>', html=True)
         self.assertContains(response, 'id="transfer-summary"')
         self.assertContains(response, 'id="transfer-console-root"')
-        self.assertContains(response, 'id="transfer-grid"')
+        self.assertNotContains(response, 'id="transfer-grid"')
         self.assertContains(response, 'dashboard/transfer-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/transfer-console.js')

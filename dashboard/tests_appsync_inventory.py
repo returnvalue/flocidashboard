@@ -16,7 +16,7 @@ class AppSyncPageTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<h2>AppSync inventory</h2>', html=True)
         self.assertContains(response, 'id="appsync-console-root"')
-        self.assertContains(response, 'id="appsync-grid"')
+        self.assertNotContains(response, 'id="appsync-grid"')
         self.assertContains(response, 'dashboard/appsync-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/appsync-console.js')

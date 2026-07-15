@@ -1,9 +1,12 @@
 import json
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase
 from django.urls import reverse
+
+from .lambda_api import create_function, save_alias, save_event_source_mapping, set_concurrency
+from .services import get_service
 
 
 class LambdaPageTemplateTests(SimpleTestCase):
@@ -12,20 +15,67 @@ class LambdaPageTemplateTests(SimpleTestCase):
         self.assertIn('mapping.DestinationConfig?.OnFailure?.Destination', source)
         self.assertIn("codeLink.textContent = 'Download function package'", source)
 
-    def test_lambda_service_page_keeps_readonly_inventory_and_embeds_console(self):
+    def test_lambda_service_page_embeds_management_console_without_legacy_inventory(self):
         response = self.client.get(reverse('dashboard:service-page', kwargs={'service_key': 'lambda'}))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, '<h2>Lambda inventory</h2>', html=True)
         self.assertContains(response, 'id="lambda-summary"')
         self.assertContains(response, 'id="lambda-console-root"')
-        self.assertContains(response, 'id="lambda-grid"')
+        self.assertNotContains(response, 'id="lambda-grid"')
         self.assertContains(response, 'dashboard/lambda-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/lambda-console.js')
 
+    def test_lambda_registry_exposes_management_lifecycle(self):
+        actions = {action.name for action in get_service('lambda').actions}
+        self.assertTrue({'create_function', 'update_function_configuration', 'update_function_code', 'delete_function', 'publish_version', 'create_alias', 'create_event_source_mapping', 'create_function_url_config', 'put_function_concurrency', 'add_permission', 'tag_resource'} <= actions)
+
+    def test_lambda_console_exposes_first_class_management_panels(self):
+        source = (Path(__file__).resolve().parent / 'static' / 'dashboard' / 'lambda-console.js').read_text()
+        for label in ('Create function', 'Configuration', 'Versions and aliases', 'Triggers', 'Access and runtime controls', 'Test and invoke'):
+            self.assertIn(label, source)
+
 
 class LambdaFunctionsApiTests(SimpleTestCase):
+    def test_management_action_routes_resolve(self):
+        self.assertEqual(reverse('dashboard:lambda-function-code', kwargs={'function_name': 'worker'}), '/api/lambda/functions/worker/code/')
+        self.assertEqual(reverse('dashboard:lambda-function-versions', kwargs={'function_name': 'worker'}), '/api/lambda/functions/worker/versions/')
+        self.assertEqual(reverse('dashboard:lambda-function-mappings', kwargs={'function_name': 'worker'}), '/api/lambda/functions/worker/event-source-mappings/')
+        self.assertEqual(reverse('dashboard:lambda-function-url', kwargs={'function_name': 'worker'}), '/api/lambda/functions/worker/url/')
+        self.assertEqual(reverse('dashboard:lambda-function-permissions', kwargs={'function_name': 'worker'}), '/api/lambda/functions/worker/permissions/')
+        self.assertEqual(reverse('dashboard:lambda-function-tags', kwargs={'function_name': 'worker'}), '/api/lambda/functions/worker/tags/')
+
+    @patch('dashboard.lambda_views.create_function')
+    def test_create_function_success(self, create_mock):
+        create_mock.return_value = {'function_name': 'worker', 'state': 'Active'}
+        response = self.client.post(reverse('dashboard:lambda-functions'), data=json.dumps({
+            'name': 'worker', 'role': 'arn:role', 'code': {'S3Bucket': 'code', 'S3Key': 'worker.zip'},
+            'configuration': {'Runtime': 'python3.13', 'Handler': 'worker.handler'}, 'tags': {'env': 'local'},
+        }), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        create_mock.assert_called_once_with('worker', 'arn:role', {'S3Bucket': 'code', 'S3Key': 'worker.zip'}, configuration={'Runtime': 'python3.13', 'Handler': 'worker.handler'}, tags={'env': 'local'})
+
+    @patch('dashboard.lambda_views.update_function_configuration')
+    def test_update_configuration_success(self, update_mock):
+        update_mock.return_value = {'function_name': 'worker'}
+        response = self.client.patch(reverse('dashboard:lambda-function-detail', kwargs={'function_name': 'worker'}), data=json.dumps({'configuration': {'MemorySize': 256}}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        update_mock.assert_called_once_with('worker', {'MemorySize': 256})
+
+    @patch('dashboard.lambda_views.save_alias')
+    def test_create_alias_success(self, save_mock):
+        save_mock.return_value = {'alias': 'prod', 'version': '2'}
+        response = self.client.post(reverse('dashboard:lambda-function-aliases', kwargs={'function_name': 'worker'}), data=json.dumps({'name': 'prod', 'function_version': '2'}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        save_mock.assert_called_once_with('worker', 'prod', '2', description='', update=False)
+
+    @patch('dashboard.lambda_views.set_concurrency')
+    def test_clear_concurrency_success(self, concurrency_mock):
+        concurrency_mock.return_value = {'function_name': 'worker', 'reserved_concurrency': None}
+        response = self.client.delete(reverse('dashboard:lambda-function-concurrency', kwargs={'function_name': 'worker'}))
+        self.assertEqual(response.status_code, 200)
+        concurrency_mock.assert_called_once_with('worker', None)
+
     def test_invoke_function_rejects_invalid_payload(self):
         response = self.client.post(
             reverse('dashboard:lambda-functions-invoke', kwargs={'function_name': 'worker'}),
@@ -57,4 +107,41 @@ class LambdaFunctionsApiTests(SimpleTestCase):
             'worker',
             {'hello': 'world'},
             qualifier='prod',
+            invocation_type='RequestResponse',
         )
+
+
+class LambdaApiHelperTests(SimpleTestCase):
+    @patch('dashboard.lambda_api._lambda_client')
+    def test_create_function_preserves_aws_request_shape(self, client_mock):
+        client = MagicMock()
+        client.create_function.return_value = {'FunctionArn': 'arn:function:worker', 'State': 'Active'}
+        client_mock.return_value = client
+        result = create_function('worker', 'arn:role', {'S3Bucket': 'code', 'S3Key': 'worker.zip'}, configuration={'Runtime': 'python3.13', 'Handler': 'worker.handler'}, tags={'env': 'local'})
+        self.assertEqual(result['state'], 'Active')
+        client.create_function.assert_called_once_with(FunctionName='worker', Role='arn:role', Code={'S3Bucket': 'code', 'S3Key': 'worker.zip'}, Runtime='python3.13', Handler='worker.handler', Tags={'env': 'local'})
+
+    @patch('dashboard.lambda_api._lambda_client')
+    def test_alias_update_uses_update_alias(self, client_mock):
+        client = MagicMock()
+        client.update_alias.return_value = {'FunctionVersion': '3'}
+        client_mock.return_value = client
+        save_alias('worker', 'prod', '3', update=True)
+        client.update_alias.assert_called_once_with(FunctionName='worker', Name='prod', FunctionVersion='3')
+
+    @patch('dashboard.lambda_api._lambda_client')
+    def test_mapping_update_uses_uuid_without_function_name(self, client_mock):
+        client = MagicMock()
+        client.update_event_source_mapping.return_value = {'UUID': 'mapping-1', 'State': 'Enabled'}
+        client_mock.return_value = client
+        save_event_source_mapping('', {'BatchSize': 5}, uuid='mapping-1')
+        client.update_event_source_mapping.assert_called_once_with(UUID='mapping-1', BatchSize=5)
+
+    @patch('dashboard.lambda_api._lambda_client')
+    def test_concurrency_accepts_number_string(self, client_mock):
+        client = MagicMock()
+        client.put_function_concurrency.return_value = {'ReservedConcurrentExecutions': 5}
+        client_mock.return_value = client
+        result = set_concurrency('worker', '5')
+        self.assertEqual(result['reserved_concurrency'], 5)
+        client.put_function_concurrency.assert_called_once_with(FunctionName='worker', ReservedConcurrentExecutions=5)

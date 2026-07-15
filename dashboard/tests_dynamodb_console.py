@@ -15,7 +15,7 @@ class DynamoDBPageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>DynamoDB inventory</h2>', html=True)
         self.assertContains(response, 'id="dynamodb-summary"')
         self.assertContains(response, 'id="dynamodb-console-root"')
-        self.assertContains(response, 'id="dynamodb-grid"')
+        self.assertNotContains(response, 'id="dynamodb-grid"')
         self.assertContains(response, 'dashboard/dynamodb-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/dynamodb-console.js')

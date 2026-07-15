@@ -15,7 +15,7 @@ class BackupPageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>Backup inventory</h2>', html=True)
         self.assertContains(response, 'id="backup-summary"')
         self.assertContains(response, 'id="backup-console-root"')
-        self.assertContains(response, 'id="backup-grid"')
+        self.assertNotContains(response, 'id="backup-grid"')
         self.assertContains(response, 'dashboard/backup-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/backup-console.js')

@@ -10,6 +10,11 @@ const ECSConsole = (() => {
   const state = {
     inventory: null,
     selectedClusterArn: '',
+    activeView: 'overview',
+    selectedTaskDefinitionArn: '',
+    selectedServiceArn: '',
+    taskServiceFilter: '',
+    resourceQuery: '',
     lastResult: null,
   };
 
@@ -51,12 +56,41 @@ const ECSConsole = (() => {
     return definition?.arn || definition?.taskDefinitionArn || definition?.name || '';
   }
 
+  function selectedTaskDefinition() {
+    return taskDefinitions().find((definition) => taskDefArn(definition) === state.selectedTaskDefinitionArn) || taskDefinitions()[0] || null;
+  }
+
   function serviceName(service) {
     return service?.serviceName || service?.service_name || service?.serviceArn || '';
   }
 
+  function serviceArn(service) {
+    return service?.serviceArn || service?.service_arn || serviceName(service);
+  }
+
+  function selectedService(cluster = selectedCluster()) {
+    const services = cluster?.services || [];
+    return services.find((service) => serviceArn(service) === state.selectedServiceArn) || services[0] || null;
+  }
+
+  function matchesQuery(...values) {
+    const query = state.resourceQuery.trim().toLowerCase();
+    return !query || values.some((value) => JSON.stringify(value ?? '').toLowerCase().includes(query));
+  }
+
   function taskArn(task) {
     return task?.taskArn || task?.task_arn || '';
+  }
+
+  function resourceLink(label, href) {
+    const link = el('a', 'ecs-resource-link', label);
+    link.href = href;
+    return link;
+  }
+
+  function imageRepository(image) {
+    const match = String(image || '').match(/^(?:[^/]+\.dkr\.ecr\.[^/]+\.amazonaws\.com\/)?([^:@]+(?:\/[^:@]+)*)(?::[^@]+|@.+)?$/);
+    return match?.[1] || '';
   }
 
   function parseJson(value, fallback, label) {
@@ -175,12 +209,13 @@ const ECSConsole = (() => {
     });
   }
 
-  function showRegisterTaskDefinitionModal() {
+  function showRegisterTaskDefinitionModal(source = null) {
     const form = el('div', 'ecs-modal-form');
     const familyInput = document.createElement('input');
     familyInput.placeholder = 'web';
+    familyInput.value = source?.family || '';
     const containerInput = document.createElement('textarea');
-    containerInput.value = JSON.stringify([{
+    containerInput.value = JSON.stringify(source?.container_definitions || [{
       name: 'app',
       image: 'nginx:latest',
       cpu: 256,
@@ -190,15 +225,30 @@ const ECSConsole = (() => {
       mountPoints: [{ sourceVolume: 'app-data', containerPath: '/usr/share/nginx/html', readOnly: false }],
     }], null, 2);
     const volumesInput = document.createElement('textarea');
-    volumesInput.value = JSON.stringify([{ name: 'app-data' }], null, 2);
+    volumesInput.value = JSON.stringify(source?.volumes || [{ name: 'app-data' }], null, 2);
     const compatInput = document.createElement('input');
-    compatInput.value = 'FARGATE';
+    compatInput.value = (source?.requires_compatibilities || ['FARGATE']).join(',');
     const networkMode = document.createElement('select');
     ['awsvpc', 'bridge', 'host', 'none'].forEach((value) => option(networkMode, value, value));
+    networkMode.value = source?.network_mode || 'awsvpc';
     const cpuInput = document.createElement('input');
-    cpuInput.value = '256';
+    cpuInput.value = source?.cpu || '256';
     const memoryInput = document.createElement('input');
-    memoryInput.value = '512';
+    memoryInput.value = source?.memory || '512';
+    const taskRoleInput = document.createElement('input');
+    taskRoleInput.value = source?.task_role_arn || '';
+    const executionRoleInput = document.createElement('input');
+    executionRoleInput.value = source?.execution_role_arn || '';
+    const optionsInput = document.createElement('textarea');
+    optionsInput.value = JSON.stringify(source ? {
+      runtimePlatform: source.runtime_platform,
+      ephemeralStorage: source.ephemeral_storage,
+      placementConstraints: source.placement_constraints,
+      proxyConfiguration: source.proxy_configuration,
+      ipcMode: source.ipc_mode,
+      pidMode: source.pid_mode,
+      inferenceAccelerators: source.inference_accelerators,
+    } : {}, (key, value) => value == null ? undefined : value, 2);
     const tagsInput = document.createElement('textarea');
     tagsInput.placeholder = '[{"key":"app","value":"web"}]';
     form.append(
@@ -216,6 +266,9 @@ const ECSConsole = (() => {
       cpuInput,
       el('label', null, 'Memory'),
       memoryInput,
+      el('label', null, 'Task role ARN'), taskRoleInput,
+      el('label', null, 'Execution role ARN'), executionRoleInput,
+      el('label', null, 'Advanced options JSON'), optionsInput,
       el('label', null, 'Tags JSON'),
       tagsInput,
     );
@@ -230,6 +283,9 @@ const ECSConsole = (() => {
           network_mode: networkMode.value,
           cpu: cpuInput.value.trim(),
           memory: memoryInput.value.trim(),
+          task_role_arn: taskRoleInput.value.trim(),
+          execution_role_arn: executionRoleInput.value.trim(),
+          options: parseJson(optionsInput.value, {}, 'Advanced options'),
           tags: parseJson(tagsInput.value, [], 'Tags'),
         }),
       });
@@ -240,12 +296,13 @@ const ECSConsole = (() => {
     });
   }
 
-  function showRunTaskModal(cluster = selectedCluster()) {
+  function showRunTaskModal(cluster = selectedCluster(), definition = null) {
     const form = el('div', 'ecs-modal-form');
     const clusterSelect = document.createElement('select');
     addClusterOptions(clusterSelect, clusterArn(cluster));
     const taskDefSelect = document.createElement('select');
     addTaskDefinitionOptions(taskDefSelect);
+    if (definition) taskDefSelect.value = taskDefArn(definition);
     const launchType = document.createElement('select');
     ['FARGATE', 'EC2', 'EXTERNAL'].forEach((value) => option(launchType, value, value));
     const countInput = document.createElement('input');
@@ -360,16 +417,15 @@ const ECSConsole = (() => {
     const taskDefSelect = document.createElement('select');
     option(taskDefSelect, '', 'Keep current task definition');
     addTaskDefinitionOptions(taskDefSelect, service.taskDefinition || '');
-    const forceWrap = el('label', 'ecs-checkbox');
-    const forceInput = document.createElement('input');
-    forceInput.type = 'checkbox';
-    forceWrap.append(forceInput, el('span', null, 'Force new deployment'));
+    const networkInput = document.createElement('textarea');
+    networkInput.value = JSON.stringify(service.networkConfiguration || {}, null, 2);
     form.append(
       el('label', null, 'Desired count'),
       desiredInput,
       el('label', null, 'Task definition'),
       taskDefSelect,
-      forceWrap,
+      el('label', null, 'Network configuration JSON'),
+      networkInput,
     );
     openModal('Update service', form, 'Update', async (close) => {
       const data = await apiJson('/api/ecs/services/update/', {
@@ -379,7 +435,7 @@ const ECSConsole = (() => {
           service: serviceName(service),
           desired_count: desiredInput.value,
           task_definition: taskDefSelect.value,
-          force_new_deployment: forceInput.checked,
+          network_configuration: parseJson(networkInput.value, {}, 'Network configuration'),
         }),
       });
       state.lastResult = data;
@@ -501,6 +557,34 @@ const ECSConsole = (() => {
     await refresh();
   }
 
+  function showTaskProtectionModal(cluster, task) {
+    const form = el('div', 'ecs-modal-form');
+    const enabledWrap = el('label', 'ecs-checkbox');
+    const enabled = document.createElement('input');
+    enabled.type = 'checkbox';
+    enabled.checked = Boolean(task.protection?.protectionEnabled);
+    enabledWrap.append(enabled, el('span', null, 'Protect task from service scale-in'));
+    const expires = document.createElement('input');
+    expires.type = 'number'; expires.min = '1'; expires.value = '60';
+    form.append(enabledWrap, el('label', null, 'Expires in minutes'), expires);
+    openModal('Task scale-in protection', form, 'Save', async (close) => {
+      const data = await apiJson('/api/ecs/tasks/protection/', {
+        method: 'POST',
+        body: JSON.stringify({ cluster: clusterArn(cluster), tasks: [taskArn(task)], protection_enabled: enabled.checked, expires_in_minutes: enabled.checked ? expires.value : null }),
+      });
+      state.lastResult = data; close(); toast(enabled.checked ? 'Task protected' : 'Task protection removed'); await refresh();
+    });
+  }
+
+  async function updateContainerInstanceState(cluster, instance, status) {
+    const arn = instance.containerInstanceArn;
+    const data = await apiJson('/api/ecs/container-instances/state/', {
+      method: 'POST',
+      body: JSON.stringify({ cluster: clusterArn(cluster), container_instances: [arn], status }),
+    });
+    state.lastResult = data; toast(`Container instance set to ${status}`); await refresh();
+  }
+
   async function deleteService(cluster, service) {
     if (!window.confirm('Delete this ECS service?')) {
       return;
@@ -573,9 +657,17 @@ const ECSConsole = (() => {
 
   function renderTasksPanel(cluster) {
     const panel = el('section', 'ecs-panel');
-    panel.append(el('div', 'ecs-panel-heading', `Tasks (${cluster.tasks?.length || 0})`));
+    const serviceFilter = state.taskServiceFilter;
+    const tasks = (cluster.tasks || []).filter((task) => {
+      const belongsToService = !serviceFilter || task.group === `service:${serviceFilter}` || task.startedBy === serviceFilter;
+      return belongsToService && matchesQuery(taskArn(task), task.group, task.taskDefinitionArn, task.containers);
+    });
+    const heading = el('div', 'ecs-panel-heading');
+    heading.append(el('span', null, `Tasks (${tasks.length})`));
+    if (serviceFilter) heading.append(btn(`Clear service filter: ${serviceFilter}`, 'ecs-btn-secondary', () => { state.taskServiceFilter = ''; render(); }));
+    panel.append(heading);
     const body = el('div', 'ecs-card-list');
-    (cluster.tasks || []).forEach((task) => {
+    tasks.forEach((task) => {
       const card = el('article', 'ecs-card');
       card.append(el('h3', null, task.group || taskArn(task) || 'Task'));
       const facts = el('dl', 'ecs-facts');
@@ -584,12 +676,38 @@ const ECSConsole = (() => {
       consoleUi.addField(facts, 'Last status', task.lastStatus);
       consoleUi.addField(facts, 'Desired status', task.desiredStatus);
       consoleUi.addField(facts, 'Launch type', task.launchType);
-      consoleUi.addField(facts, 'Containers', task.containers);
-      card.append(facts, btn('Stop task', 'ecs-btn-danger', () => stopTask(cluster, task).catch((error) => toast(error.message, true))));
+      consoleUi.addField(facts, 'Capacity provider', task.capacityProviderName);
+      consoleUi.addField(facts, 'Started by', task.startedBy);
+      consoleUi.addField(facts, 'Stopped reason', task.stoppedReason);
+      consoleUi.addField(facts, 'Connectivity', task.connectivity);
+      consoleUi.addField(facts, 'Health', task.healthStatus);
+      consoleUi.addField(facts, 'Scale-in protection', task.protection);
+      consoleUi.addField(facts, 'Attachments', task.attachments);
+      card.append(facts);
+      (task.containers || []).forEach((container) => {
+        const containerFacts = el('dl', 'ecs-facts ecs-container-facts');
+        consoleUi.addField(containerFacts, 'Container', container.name);
+        consoleUi.addField(containerFacts, 'Image', container.image);
+        consoleUi.addField(containerFacts, 'Status', container.lastStatus);
+        consoleUi.addField(containerFacts, 'Exit code', container.exitCode);
+        consoleUi.addField(containerFacts, 'Reason', container.reason);
+        consoleUi.addField(containerFacts, 'Network bindings', container.networkBindings);
+        consoleUi.addField(containerFacts, 'Network interfaces', container.networkInterfaces);
+        card.append(containerFacts);
+        const repository = imageRepository(container.image);
+        if (repository) card.append(resourceLink(`Open ECR repository: ${repository}`, `/service/ecr/?repository=${encodeURIComponent(repository)}`));
+      });
+      const actions = el('div', 'ecs-action-row');
+      const definition = taskDefinitions().find((item) => taskDefArn(item) === task.taskDefinitionArn);
+      if (definition) actions.append(btn('Task definition', 'ecs-btn-secondary', () => { state.selectedTaskDefinitionArn = taskDefArn(definition); state.activeView = 'definitions'; render(); }));
+      if (task.lastStatus !== 'STOPPED') actions.append(btn(task.protection?.protectionEnabled ? 'Edit protection' : 'Protect', 'ecs-btn-secondary', () => showTaskProtectionModal(cluster, task)));
+      if (task.lastStatus !== 'STOPPED') actions.append(btn('Stop task', 'ecs-btn-danger', () => stopTask(cluster, task).catch((error) => toast(error.message, true))));
+      actions.append(btn('Tags', 'ecs-btn-secondary', () => showTagsModal(taskArn(task))));
+      card.append(actions);
       body.append(card);
     });
-    if (!cluster.tasks?.length) {
-      body.append(el('p', 'ecs-empty', 'No tasks found in this cluster.'));
+    if (!tasks.length) {
+      body.append(el('p', 'ecs-empty', serviceFilter ? 'No tasks match this service.' : 'No tasks match the current filter.'));
     }
     panel.append(body);
     return panel;
@@ -597,9 +715,19 @@ const ECSConsole = (() => {
 
   function renderServicesPanel(cluster) {
     const panel = el('section', 'ecs-panel');
-    panel.append(el('div', 'ecs-panel-heading', `Services (${cluster.services?.length || 0})`));
-    const body = el('div', 'ecs-card-list');
-    (cluster.services || []).forEach((service) => {
+    const services = (cluster.services || []).filter((service) => matchesQuery(serviceName(service), serviceArn(service), service.taskDefinition, service.loadBalancers));
+    panel.append(el('div', 'ecs-panel-heading', `Services (${services.length})`));
+    const body = el('div', 'ecs-definition-layout');
+    const list = el('div', 'ecs-definition-list');
+    services.forEach((service) => {
+      list.append(btn(`${serviceName(service)} · ${service.status || 'Unknown'}`, serviceArn(service) === serviceArn(selectedService(cluster)) ? 'ecs-btn-active' : 'ecs-btn-secondary', () => {
+        state.selectedServiceArn = serviceArn(service);
+        render();
+      }));
+    });
+    const detail = el('div', 'ecs-definition-detail');
+    const service = services.find((item) => serviceArn(item) === state.selectedServiceArn) || services[0] || null;
+    if (service) {
       const card = el('article', 'ecs-card');
       card.append(el('h3', null, serviceName(service) || 'Service'));
       const facts = el('dl', 'ecs-facts');
@@ -610,28 +738,126 @@ const ECSConsole = (() => {
       consoleUi.addField(facts, 'Running count', service.runningCount);
       consoleUi.addField(facts, 'Pending count', service.pendingCount);
       consoleUi.addField(facts, 'Deployments', service.deployments);
+      consoleUi.addField(facts, 'Capacity provider strategy', service.capacityProviderStrategy);
+      consoleUi.addField(facts, 'Network configuration', service.networkConfiguration);
+      consoleUi.addField(facts, 'Load balancers', service.loadBalancers);
+      consoleUi.addField(facts, 'Deployment configuration', service.deploymentConfiguration);
+      consoleUi.addField(facts, 'Health check grace period', service.healthCheckGracePeriodSeconds);
+      consoleUi.addField(facts, 'Placement constraints', service.placementConstraints);
+      consoleUi.addField(facts, 'Placement strategy', service.placementStrategy);
+      consoleUi.addField(facts, 'Execute command', service.enableExecuteCommand);
+      consoleUi.addField(facts, 'Scheduling strategy', service.schedulingStrategy);
+      consoleUi.addField(facts, 'Platform version', service.platformVersion);
+      consoleUi.addField(facts, 'Created', service.createdAt);
+      consoleUi.addField(facts, 'Events', (service.events || []).slice(0, 10));
       card.append(facts);
       const actions = el('div', 'ecs-action-row');
+      const definition = taskDefinitions().find((item) => taskDefArn(item) === service.taskDefinition);
       actions.append(
         btn('Update', null, () => showUpdateServiceModal(cluster, service)),
+        btn('View tasks', 'ecs-btn-secondary', () => { state.taskServiceFilter = serviceName(service); state.activeView = 'tasks'; render(); }),
         btn('Tags', 'ecs-btn-secondary', () => showTagsModal(service.serviceArn)),
         btn('Delete', 'ecs-btn-danger', () => deleteService(cluster, service).catch((error) => toast(error.message, true))),
       );
+      if (definition) actions.insertBefore(btn('Task definition', 'ecs-btn-secondary', () => { state.selectedTaskDefinitionArn = taskDefArn(definition); state.activeView = 'definitions'; render(); }), actions.children[2]);
       card.append(actions);
-      body.append(card);
-    });
-    if (!cluster.services?.length) {
-      body.append(el('p', 'ecs-empty', 'No services found in this cluster.'));
+      detail.append(card);
     }
+    if (!services.length) {
+      detail.append(el('p', 'ecs-empty', 'No services match the current filter.'));
+    }
+    body.append(list, detail);
     panel.append(body);
     return panel;
   }
 
+  function renderDeploymentsPanel(cluster) {
+    const panel = el('section', 'ecs-panel');
+    panel.append(el('div', 'ecs-panel-heading', 'Deployments and task sets'));
+    const body = el('div', 'ecs-card-list');
+    (cluster.services || []).forEach((service) => {
+      (service.deployments || []).forEach((deployment) => {
+        const card = el('article', 'ecs-card');
+        card.append(el('h3', null, `${serviceName(service)} · ${deployment.status || 'deployment'}`));
+        const facts = el('dl', 'ecs-facts');
+        [['Task definition', deployment.taskDefinition], ['Desired', deployment.desiredCount], ['Pending', deployment.pendingCount], ['Running', deployment.runningCount], ['Rollout', deployment.rolloutState], ['Reason', deployment.rolloutStateReason], ['Created', deployment.createdAt], ['Updated', deployment.updatedAt]].forEach(([label, value]) => consoleUi.addField(facts, label, value));
+        card.append(facts); body.append(card);
+      });
+    });
+    (cluster.task_sets || []).forEach((taskSet) => {
+      const card = el('article', 'ecs-card');
+      card.append(el('h3', null, `Task set · ${taskSet.status || taskSet.id || ''}`));
+      const facts = el('dl', 'ecs-facts');
+      [['ARN', taskSet.taskSetArn], ['Service', taskSet.serviceArn], ['Task definition', taskSet.taskDefinition], ['Scale', taskSet.scale], ['Running', taskSet.runningCount], ['Pending', taskSet.pendingCount], ['Stability', taskSet.stabilityStatus]].forEach(([label, value]) => consoleUi.addField(facts, label, value));
+      card.append(facts); body.append(card);
+    });
+    (cluster.service_deployments || []).forEach((deployment) => {
+      const pre = el('pre', 'ecs-result', JSON.stringify(consoleUi.displayValue(deployment), null, 2)); body.append(pre);
+    });
+    if (!body.childNodes.length) body.append(el('p', 'ecs-empty', 'No deployments or task sets found.'));
+    panel.append(body); return panel;
+  }
+
+  function renderInfrastructurePanel(cluster) {
+    const panel = el('section', 'ecs-panel');
+    panel.append(el('div', 'ecs-panel-heading', 'Container infrastructure'));
+    const body = el('div', 'ecs-card-list');
+    (cluster.container_instances || []).forEach((instance) => {
+      const card = el('article', 'ecs-card');
+      card.append(el('h3', null, instance.ec2InstanceId || instance.containerInstanceArn || 'Container instance'));
+      const facts = el('dl', 'ecs-facts');
+      [['Status', instance.status], ['Agent connected', instance.agentConnected], ['Running tasks', instance.runningTasksCount], ['Pending tasks', instance.pendingTasksCount], ['Attributes', instance.attributes], ['Resources', instance.remainingResources], ['Health', instance.healthStatus]].forEach(([label, value]) => consoleUi.addField(facts, label, value));
+      const actions = el('div', 'ecs-action-row');
+      if (instance.status !== 'DRAINING') actions.append(btn('Drain', 'ecs-btn-danger', () => updateContainerInstanceState(cluster, instance, 'DRAINING').catch((error) => toast(error.message, true))));
+      if (instance.status !== 'ACTIVE') actions.append(btn('Activate', 'ecs-btn-secondary', () => updateContainerInstanceState(cluster, instance, 'ACTIVE').catch((error) => toast(error.message, true))));
+      card.append(facts, actions); body.append(card);
+    });
+    const globals = el('dl', 'ecs-facts');
+    consoleUi.addField(globals, 'Capacity providers', state.inventory?.capacity_providers);
+    consoleUi.addField(globals, 'Account settings', state.inventory?.account_settings);
+    consoleUi.addField(globals, 'Attributes', state.inventory?.attributes);
+    body.append(globals); panel.append(body); return panel;
+  }
+
+  function renderResourceTabs() {
+    const tabs = el('div', 'ecs-resource-tabs');
+    const navigation = el('div', 'ecs-resource-tab-buttons');
+    [['overview', 'Overview'], ['services', 'Services'], ['tasks', 'Tasks'], ['definitions', 'Task definitions'], ['deployments', 'Deployments'], ['infrastructure', 'Infrastructure']].forEach(([key, label]) => {
+      navigation.append(btn(label, state.activeView === key ? 'ecs-btn-active' : 'ecs-btn-secondary', () => { state.activeView = key; render(); }));
+    });
+    const search = document.createElement('input');
+    search.type = 'search';
+    search.placeholder = 'Filter current resources';
+    search.value = state.resourceQuery;
+    search.setAttribute('aria-label', 'Filter current ECS resources');
+    search.addEventListener('input', () => { state.resourceQuery = search.value; });
+    search.addEventListener('change', render);
+    search.addEventListener('keydown', (event) => { if (event.key === 'Enter') render(); });
+    tabs.append(navigation, search);
+    return tabs;
+  }
+
   function renderTaskDefinitionsPanel() {
     const panel = el('section', 'ecs-panel');
-    panel.append(el('div', 'ecs-panel-heading', `Task definitions (${taskDefinitions().length})`));
-    const body = el('div', 'ecs-card-list');
-    taskDefinitions().slice(0, 6).forEach((definition) => {
+    const heading = el('div', 'ecs-panel-heading');
+    heading.append(el('span', null, `Task definitions (${taskDefinitions().length})`), btn('Register', 'ecs-btn-secondary', () => showRegisterTaskDefinitionModal()));
+    panel.append(heading);
+    const body = el('div', 'ecs-definition-layout');
+    const list = el('div', 'ecs-definition-list');
+    (state.inventory?.task_definition_groups || []).forEach((group) => {
+      const revisions = (group.revisions || []).filter((definition) => matchesQuery(group.family, definition.name, definition.status, definition.containers));
+      if (!revisions.length) return;
+      list.append(el('strong', 'ecs-definition-family', group.family));
+      revisions.forEach((definition) => {
+        const row = btn(`${definition.family}:${definition.revision} · ${definition.status}`, taskDefArn(definition) === taskDefArn(selectedTaskDefinition()) ? 'ecs-btn-active' : 'ecs-btn-secondary', () => {
+          state.selectedTaskDefinitionArn = taskDefArn(definition); render();
+        });
+        list.append(row);
+      });
+    });
+    const detail = el('div', 'ecs-definition-detail');
+    const definition = selectedTaskDefinition();
+    if (definition) {
       const card = el('article', 'ecs-card');
       card.append(el('h3', null, definition.name || taskDefArn(definition)));
       const facts = el('dl', 'ecs-facts');
@@ -640,13 +866,51 @@ const ECSConsole = (() => {
       consoleUi.addField(facts, 'Network mode', definition.network_mode);
       consoleUi.addField(facts, 'CPU', definition.cpu);
       consoleUi.addField(facts, 'Memory', definition.memory);
-      consoleUi.addField(facts, 'Containers', definition.containers);
-      card.append(facts, btn('Tags', 'ecs-btn-secondary', () => showTagsModal(taskDefArn(definition))));
-      body.append(card);
-    });
-    if (!taskDefinitions().length) {
-      body.append(el('p', 'ecs-empty', 'No task definitions registered.'));
+      consoleUi.addField(facts, 'Task role', definition.task_role_arn);
+      consoleUi.addField(facts, 'Execution role', definition.execution_role_arn);
+      consoleUi.addField(facts, 'Runtime platform', definition.runtime_platform);
+      consoleUi.addField(facts, 'Volumes', definition.volumes);
+      consoleUi.addField(facts, 'Placement constraints', definition.placement_constraints);
+      const relatedServices = clusters().flatMap((cluster) => (cluster.services || []).filter((service) => service.taskDefinition === taskDefArn(definition)).map((service) => `${clusterName(cluster)} / ${serviceName(service)}`));
+      const relatedTasks = clusters().flatMap((cluster) => (cluster.tasks || []).filter((task) => task.taskDefinitionArn === taskDefArn(definition)).map((task) => taskArn(task)));
+      consoleUi.addField(facts, 'Related services', relatedServices);
+      consoleUi.addField(facts, 'Related tasks', relatedTasks);
+      card.append(facts);
+      if (definition.task_role_arn) card.append(resourceLink('Open task role in IAM', `/service/iam/?resource=${encodeURIComponent(definition.task_role_arn)}`));
+      if (definition.execution_role_arn) card.append(resourceLink('Open execution role in IAM', `/service/iam/?resource=${encodeURIComponent(definition.execution_role_arn)}`));
+      (definition.containers || []).forEach((container) => {
+        const containerFacts = el('dl', 'ecs-facts ecs-container-facts');
+        [['Container', container.name], ['Image', container.image], ['Command', container.command], ['Entry point', container.entry_point], ['Ports', container.port_mappings], ['Environment', container.environment], ['Secrets', container.secrets], ['Mounts', container.mount_points], ['Health check', container.health_check], ['Logging', container.log_configuration], ['Dependencies', container.depends_on]].forEach(([label, value]) => consoleUi.addField(containerFacts, label, value));
+        card.append(containerFacts);
+        const logGroup = container.log_configuration?.options?.['awslogs-group'];
+        if (logGroup) {
+          const link = el('a', 'ecs-log-link', `Open logs: ${logGroup}`);
+          link.href = `/service/cloudwatch/?logGroup=${encodeURIComponent(logGroup)}`;
+          card.append(link);
+        }
+        const repository = imageRepository(container.image);
+        if (repository) card.append(resourceLink(`Open ECR repository: ${repository}`, `/service/ecr/?repository=${encodeURIComponent(repository)}`));
+      });
+      const actions = el('div', 'ecs-action-row');
+      actions.append(btn('Run task', null, () => showRunTaskModal(selectedCluster(), definition)), btn('Clone revision', 'ecs-btn-secondary', () => showRegisterTaskDefinitionModal(definition)), btn('Tags', 'ecs-btn-secondary', () => showTagsModal(taskDefArn(definition))));
+      if (definition.status === 'ACTIVE') {
+        actions.append(btn('Deregister', 'ecs-btn-danger', async () => {
+          if (!window.confirm(`Deregister ${definition.name}?`)) return;
+          await apiJson('/api/ecs/task-definitions/detail/', { method: 'POST', body: JSON.stringify({ task_definition: taskDefArn(definition) }) }); await refresh();
+        }));
+      } else {
+        actions.append(btn('Delete permanently', 'ecs-btn-danger', async () => {
+          if (!window.confirm(`Permanently delete ${definition.name}?`)) return;
+          state.selectedTaskDefinitionArn = '';
+          await apiJson('/api/ecs/task-definitions/detail/', { method: 'DELETE', body: JSON.stringify({ task_definitions: [taskDefArn(definition)] }) }); await refresh();
+        }));
+      }
+      card.append(actions); detail.append(card);
     }
+    if (!taskDefinitions().length) {
+      detail.append(el('p', 'ecs-empty', 'No task definitions registered.'));
+    }
+    body.append(list, detail);
     panel.append(body);
     return panel;
   }
@@ -668,12 +932,18 @@ const ECSConsole = (() => {
     const cluster = selectedCluster();
     workbench.append(renderClusterList());
     const detail = el('div', 'ecs-detail-stack');
-    if (!cluster) {
+    detail.append(renderResourceTabs());
+    if (state.activeView === 'definitions') {
+      detail.append(renderTaskDefinitionsPanel());
+    } else if (!cluster) {
       detail.append(el('section', 'ecs-panel ecs-empty-panel', 'Create a cluster to start testing local container workloads.'));
     } else {
-      detail.append(renderClusterDetail(cluster), renderServicesPanel(cluster), renderTasksPanel(cluster));
+      if (state.activeView === 'overview') detail.append(renderClusterDetail(cluster));
+      if (state.activeView === 'services') detail.append(renderServicesPanel(cluster));
+      if (state.activeView === 'tasks') detail.append(renderTasksPanel(cluster));
+      if (state.activeView === 'deployments') detail.append(renderDeploymentsPanel(cluster));
+      if (state.activeView === 'infrastructure') detail.append(renderInfrastructurePanel(cluster));
     }
-    detail.append(renderTaskDefinitionsPanel());
     const result = renderResult();
     if (result) {
       detail.append(result);

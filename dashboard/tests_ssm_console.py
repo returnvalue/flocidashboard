@@ -15,7 +15,7 @@ class SSMPageTemplateTests(SimpleTestCase):
         self.assertContains(response, '<h2>SSM inventory</h2>', html=True)
         self.assertContains(response, 'id="ssm-summary"')
         self.assertContains(response, 'id="ssm-console-root"')
-        self.assertContains(response, 'id="ssm-grid"')
+        self.assertNotContains(response, 'id="ssm-grid"')
         self.assertContains(response, 'dashboard/ssm-console.css')
         self.assertContains(response, 'dashboard/service-console.js')
         self.assertContains(response, 'dashboard/ssm-console.js')
