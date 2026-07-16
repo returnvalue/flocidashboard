@@ -55,3 +55,46 @@ class EventBridgeApplicationLabTests(SimpleTestCase):
         self.assertEqual(processing['InputTransformer'], application.PROCESSING_TRANSFORMER)
         self.assertEqual(processing['RetryPolicy']['MaximumRetryAttempts'], 2)
         self.assertEqual(processing['DeadLetterConfig']['Arn'], application.QUEUE_ARNS[application.DLQ])
+
+    def test_reset_removes_current_and_legacy_named_resources(self):
+        module = importlib.import_module(application.reset.__module__)
+        clients = {name: MagicMock() for name in ['events', 'lambda', 'apigatewayv2', 'logs', 'iam', 'sqs']}
+        clients['apigatewayv2'].get_apis.return_value = {
+            'Items': [
+                {'Name': application.API_NAME, 'ApiId': 'api-current'},
+                {'Name': application.LEGACY_API_NAME, 'ApiId': 'api-legacy'},
+            ]
+        }
+        clients['sqs'].get_queue_url.side_effect = lambda QueueName: {'QueueUrl': f'http://sqs/{QueueName}'}
+
+        with patch.object(module, 'client', side_effect=lambda name: clients[name]):
+            result = module.reset()
+
+        self.assertTrue(result['json']['legacy_names_removed'])
+        self.assertEqual(
+            {call.kwargs['Name'] for call in clients['events'].delete_event_bus.call_args_list},
+            {application.BUS, application.LEGACY_BUS},
+        )
+        self.assertEqual(
+            {call.kwargs['FunctionName'] for call in clients['lambda'].delete_function.call_args_list},
+            {
+                application.PRODUCER_FUNCTION,
+                application.NOTIFIER_FUNCTION,
+                application.LEGACY_PRODUCER_FUNCTION,
+                application.LEGACY_NOTIFIER_FUNCTION,
+            },
+        )
+        self.assertEqual(
+            {call.kwargs['QueueUrl'] for call in clients['sqs'].delete_queue.call_args_list},
+            {
+                f'http://sqs/{name}'
+                for name in [
+                    application.PROCESSING_QUEUE,
+                    application.AUDIT_QUEUE,
+                    application.DLQ,
+                    application.LEGACY_PROCESSING_QUEUE,
+                    application.LEGACY_AUDIT_QUEUE,
+                    application.LEGACY_DLQ,
+                ]
+            },
+        )

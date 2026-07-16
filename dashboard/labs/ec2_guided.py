@@ -27,7 +27,7 @@ GUIDED_EC2_LABS = [
     _lab('guided-imds', 'Launch an instance and inspect IMDS', 'Launch a disposable Ubuntu instance, query its identity and networking metadata from inside the guest, and retain the evidence.', 'aws ec2 run-instances --image-id ami-ubuntu2204 --instance-type t2.micro\naws ssm send-command --instance-ids <instance-id> --parameters commands="curl -s http://169.254.169.254/latest/meta-data/instance-id"', 'The metadata request runs inside the instance through SSM, not on the dashboard host.'),
     _lab('guided-userdata', 'Run UserData and verify its output', 'Boot an instance with deterministic UserData and read the generated artifact back through SSM.', "aws ec2 run-instances --image-id ami-ubuntu2204 --user-data '#!/bin/sh\necho floci-userdata-ok >/tmp/floci-userdata.txt'\naws ssm send-command --instance-ids <instance-id> --parameters commands='cat /tmp/floci-userdata.txt'", 'UserData runs asynchronously during guest startup; the dashboard waits for its observable filesystem effect before completing the lab.'),
     _lab('guided-instance-role', 'Use an IAM role from inside an instance', 'Create an EC2-trusted role and instance profile, launch with the profile, then inspect its temporary credential document through IMDS.', 'aws iam create-role --role-name FlociGuidedEc2Role --assume-role-policy-document file://trust.json\naws iam create-instance-profile --instance-profile-name FlociGuidedEc2Profile\naws ec2 run-instances --iam-instance-profile Name=FlociGuidedEc2Profile', 'This proves the role-to-profile-to-instance chain while redacting credential values from the response.'),
-    _lab('guided-web-server', 'Publish a web server through a security group', 'Allow TCP/8080, start a local web server with UserData, and verify its page from inside the guest.', 'aws ec2 create-security-group --group-name floci-guided-web --vpc-id vpc-default\naws ec2 authorize-security-group-ingress --group-id <group-id> --protocol tcp --port 8080 --cidr 0.0.0.0/0\naws ec2 run-instances --security-group-ids <group-id>', 'Floci publishes allowed TCP ingress ports on the host; the lab verifies the rule and guest web process.'),
+    _lab('guided-web-server', 'Publish a web server through a security group', 'Allow TCP/8080, start a local web server with UserData, and verify its page from inside the guest.', 'aws ec2 create-security-group --group-name guided-web --vpc-id vpc-default\naws ec2 authorize-security-group-ingress --group-id <group-id> --protocol tcp --port 8080 --cidr 0.0.0.0/0\naws ec2 run-instances --security-group-ids <group-id>', 'Floci publishes allowed TCP ingress ports on the host; the lab verifies the rule and guest web process.'),
     _lab('guided-broken-route', 'Diagnose a broken route', 'Build an isolated subnet whose route table has no default route and run relationship diagnostics.', 'aws ec2 create-vpc --cidr-block 10.47.0.0/16\naws ec2 create-subnet --vpc-id <vpc-id> --cidr-block 10.47.1.0/24\naws ec2 create-route-table --vpc-id <vpc-id>\naws ec2 describe-route-tables --route-table-ids <route-table-id>', 'A table with only its local VPC route cannot reach external destinations; the result identifies the missing route.'),
     _lab('guided-private-s3', 'Connect privately to S3 through a VPC endpoint', 'Create an S3 gateway endpoint on the default route table and verify that it becomes available.', 'aws ec2 create-vpc-endpoint --vpc-id vpc-default --service-name com.amazonaws.us-east-1.s3 --vpc-endpoint-type Gateway --route-table-ids rtb-default', 'Gateway endpoints attach to route tables rather than security groups; Floci models the endpoint boundary.'),
     _lab('guided-ssm-command', 'Execute a command with SSM', 'Launch a disposable instance, run a shell command through SSM, and return invocation evidence.', "aws ec2 run-instances --image-id ami-ubuntu2204\naws ssm send-command --instance-ids <instance-id> --parameters commands='printf floci-ssm-ok'", 'This exercises the same command path as the instance detail runner.'),
@@ -41,7 +41,7 @@ def _iam(): return FlociClientFactory().client('iam')
 
 
 def _launch(lab_key: str, *, user_data: str | None = None, groups: list[str] | None = None, profile_arn: str | None = None) -> str:
-    result = run_instances(DEFAULT_IMAGE, DEFAULT_TYPE, subnet_id=DEFAULT_SUBNET, security_group_ids=groups or [DEFAULT_GROUP], user_data=user_data, iam_instance_profile_arn=profile_arn, tags={'Name': f'floci-{lab_key}'})
+    result = run_instances(DEFAULT_IMAGE, DEFAULT_TYPE, subnet_id=DEFAULT_SUBNET, security_group_ids=groups or [DEFAULT_GROUP], user_data=user_data, iam_instance_profile_arn=profile_arn, tags={'Name': lab_key})
     instance_id = _remember(lab_key, 'instance-id', result['instance_id'])
     for _attempt in range(50):
         response = _ec2().describe_instances(InstanceIds=[instance_id])
@@ -134,10 +134,10 @@ def _run_web() -> dict[str, Any]:
     lab = GUIDED_EC2_LABS[3]; ec2 = _ec2()
     groups = ec2.describe_security_groups(Filters=[
         {'Name': 'vpc-id', 'Values': [DEFAULT_VPC]},
-        {'Name': 'group-name', 'Values': ['floci-guided-web']},
+        {'Name': 'group-name', 'Values': ['guided-web']},
     ]).get('SecurityGroups', [])
     group = groups[0] if groups else None
-    group_id = group['GroupId'] if group else ec2.create_security_group(GroupName='floci-guided-web', Description='Guided local web server', VpcId=DEFAULT_VPC)['GroupId']
+    group_id = group['GroupId'] if group else ec2.create_security_group(GroupName='guided-web', Description='Guided local web server', VpcId=DEFAULT_VPC)['GroupId']
     has_ingress = any(
         permission.get('IpProtocol') == 'tcp'
         and permission.get('FromPort') == 8080

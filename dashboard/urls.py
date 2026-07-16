@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import acm_views, apigateway_views, appconfig_views, appsync_views, athena_views, autoscaling_views, backup_views, bedrockruntime_views, cloudformation_views, cloudfront_views, cloudmap_views, cloudtrail_views, cloudwatch_logs_views, codebuild_views, codedeploy_views, cognito_views, config_views, console_views, dynamodb_views, ec2_views, ecr_views, ecs_views, eks_views, elasticache_views, elasticbeanstalk_views, elasticloadbalancing_views, eventbridge_views, firehose_views, glue_views, iam_views, identity_views, inspector_views, kafka_views, kinesis_views, kms_views, lambda_views, neptune_views, opensearch_views, pipes_views, rds_views, resourcegroupstagging_views, route53_views, s3_views, scheduler_views, secretsmanager_views, ses_views, settings_views, sns_views, sqs_views, ssm_views, stepfunctions_views, textract_views, transcribe_views, transfer_views, views
+from . import acm_views, apigateway_views, appconfig_views, appsync_views, athena_views, autoscaling_views, backup_views, bedrockruntime_views, cloudformation_views, cloudfront_views, cloudmap_views, cloudtrail_views, cloudwatch_logs_views, codebuild_views, codedeploy_views, cognito_views, config_views, console_views, dynamodb_views, ec2_views, ecr_views, ecs_views, eks_views, elasticache_views, elasticbeanstalk_views, elasticloadbalancing_views, eventbridge_views, firehose_views, glue_views, iam_views, identity_views, inspector_views, kafka_views, kinesis_views, kms_views, lambda_views, neptune_views, opensearch_views, pipes_views, rds_views, resource_graph_views, resourcegroupstagging_views, route53_views, s3_views, scheduler_views, secretsmanager_views, ses_views, settings_views, sns_views, sqs_views, ssm_views, stepfunctions_views, textract_views, transcribe_views, transfer_views, views
 
 app_name = 'dashboard'
 
@@ -10,6 +10,7 @@ urlpatterns = [
     path('activity/', views.activity, name='activity'),
     path('console/', console_views.console_page, name='console'),
     path('settings/', views.settings_page, name='settings'),
+    path('api/resource-graph/', resource_graph_views.graph_detail, name='resource-graph-detail'),
     path('inspector/', inspector_views.inspector_page, name='inspector'),
     path('labs/', views.labs_directory, name='labs-directory'),
     path('services/', views.service_matrix, name='service-matrix'),

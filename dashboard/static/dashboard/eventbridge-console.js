@@ -6,10 +6,12 @@ const EventBridgeConsole = (() => {
   const breadcrumbsEl = document.getElementById('eventbridge-breadcrumbs');
   const summaryEl = document.getElementById('eventbridge-summary');
   const loadedAtEl = document.getElementById('eventbridge-loaded-at');
+  const requestedBusName = new URLSearchParams(window.location.search).get('bus') || 'default';
+  const requestedRuleName = new URLSearchParams(window.location.search).get('rule') || '';
 
   const state = {
     inventory: null,
-    selectedBusName: 'default',
+    selectedBusName: requestedBusName,
     lastPut: null,
   };
 
@@ -257,7 +259,8 @@ const EventBridgeConsole = (() => {
   }
 
   function renderRule(bus, rule) {
-    const card = el('article', 'eventbridge-rule');
+    const card = el('article', `eventbridge-rule${requestedRuleName === rule.name ? ' eventbridge-rule-requested' : ''}`);
+    card.id = `eventbridge-rule-${rule.name}`;
     const heading = el('div', 'eventbridge-rule-heading');
     heading.append(el('h4', null, rule.name || 'Rule'));
     heading.append(el('span', `eventbridge-rule-state eventbridge-rule-state-${String(rule.state || '').toLowerCase()}`, rule.state || 'UNKNOWN'));
@@ -388,11 +391,14 @@ const EventBridgeConsole = (() => {
   async function refresh() {
     const data = await apiJson('/api/eventbridge/');
     state.inventory = data;
-    if (!selectedBus() && buses().length) {
+    if (!buses().some((bus) => busName(bus) === state.selectedBusName) && buses().length) {
       state.selectedBusName = busName(buses()[0]);
     }
     renderSummary(data.summary || {});
     render();
+    if (requestedRuleName) {
+      document.getElementById(`eventbridge-rule-${requestedRuleName}`)?.scrollIntoView({ block: 'center' });
+    }
   }
 
   function init() {

@@ -48,7 +48,7 @@ FLOCI_STS_SESSION_NAME = 'floci-session-policy-lab'
 FLOCI_STS_ROLE_POLICY_NAME = 'FlociStsListBuckets'
 FLOCI_EC2_ROLE_NAME = 'FlociEc2Role'
 FLOCI_EC2_INSTANCE_PROFILE_NAME = 'FlociEc2InstanceProfile'
-LAMBDA_FUNCTION_NAME = 'floci-lab-echo'
+LAMBDA_FUNCTION_NAME = 'lab-echo'
 LAMBDA_ROLE_NAME = 'FlociLambdaLabRole'
 LAMBDA_ROLE_POLICY_NAME = 'FlociLambdaLabLogs'
 LAMBDA_ROLE_ARN = f'arn:aws:iam::{AWS_ACCOUNT_ID}:role/{LAMBDA_ROLE_NAME}'
@@ -63,13 +63,13 @@ LAMBDA_INVOKE_PAYLOAD = {
 LAMBDA_INVOKE_PAYLOAD_TEXT = json.dumps(LAMBDA_INVOKE_PAYLOAD, separators=(',', ':'))
 LAMBDA_INVOKE_CACHE_KEY = 'floci-lab:lambda:create-invoke-logs:invoke'
 LAMBDA_LOGS_CACHE_KEY = 'floci-lab:lambda:create-invoke-logs:logs'
-LAMBDA_CONFIG_FUNCTION_NAME = 'floci-lab-config-reader'
+LAMBDA_CONFIG_FUNCTION_NAME = 'lab-config-reader'
 LAMBDA_CONFIG_ROLE_NAME = 'FlociLambdaConfigRole'
 LAMBDA_CONFIG_POLICY_NAME = 'FlociLambdaConfigRead'
 LAMBDA_CONFIG_ROLE_ARN = f'arn:aws:iam::{AWS_ACCOUNT_ID}:role/{LAMBDA_CONFIG_ROLE_NAME}'
 LAMBDA_CONFIG_LOG_GROUP_NAME = f'/aws/lambda/{LAMBDA_CONFIG_FUNCTION_NAME}'
 LAMBDA_CONFIG_PARAMETER_NAME = '/floci/lab/lambda/config'
-LAMBDA_CONFIG_SECRET_NAME = 'floci-lab/lambda-secret'
+LAMBDA_CONFIG_SECRET_NAME = 'lab/lambda-secret'
 LAMBDA_CONFIG_PARAMETER_VALUE = {
     'application': 'orders',
     'environment': 'local',
@@ -85,11 +85,11 @@ LAMBDA_CONFIG_PAYLOAD = {
 LAMBDA_CONFIG_PAYLOAD_TEXT = json.dumps(LAMBDA_CONFIG_PAYLOAD, separators=(',', ':'))
 LAMBDA_CONFIG_INVOKE_CACHE_KEY = 'floci-lab:lambda:runtime-config:invoke'
 LAMBDA_CONFIG_LOGS_CACHE_KEY = 'floci-lab:lambda:runtime-config:logs'
-LAMBDA_SQS_QUEUE_NAME = 'floci-lab-lambda-events'
+LAMBDA_SQS_QUEUE_NAME = 'lab-lambda-events'
 LAMBDA_SQS_QUEUE_ARN = (
     f'arn:aws:sqs:{AWS_REGION}:{AWS_ACCOUNT_ID}:{LAMBDA_SQS_QUEUE_NAME}'
 )
-LAMBDA_SQS_FUNCTION_NAME = 'floci-lab-sqs-consumer'
+LAMBDA_SQS_FUNCTION_NAME = 'lab-sqs-consumer'
 LAMBDA_SQS_ROLE_NAME = 'FlociLambdaSqsConsumerRole'
 LAMBDA_SQS_POLICY_NAME = 'FlociLambdaSqsConsumerPolicy'
 LAMBDA_SQS_ROLE_ARN = f'arn:aws:iam::{AWS_ACCOUNT_ID}:role/{LAMBDA_SQS_ROLE_NAME}'
@@ -108,7 +108,7 @@ LAMBDA_SQS_MESSAGE_ATTRIBUTES = {
 LAMBDA_SQS_MAPPING_CACHE_KEY = 'floci-lab:lambda:sqs-event-source:mapping'
 LAMBDA_SQS_SEND_CACHE_KEY = 'floci-lab:lambda:sqs-event-source:send-message'
 LAMBDA_SQS_LOGS_CACHE_KEY = 'floci-lab:lambda:sqs-event-source:logs'
-APIGW_LAMBDA_API_NAME = 'floci-lab-lambda-api'
+APIGW_LAMBDA_API_NAME = 'lab-lambda-api'
 APIGW_LAMBDA_ROUTE_KEY = 'POST /echo'
 APIGW_LAMBDA_PATH = '/echo'
 APIGW_LAMBDA_STAGE_NAME = '$default'
@@ -117,7 +117,7 @@ APIGW_LAMBDA_REQUEST_CACHE_KEY = 'floci-lab:apigateway:lambda-request:request'
 APIGW_LAMBDA_API_ID_CACHE_KEY = 'floci-lab:apigateway:lambda-request:api-id'
 APIGW_LAMBDA_INTEGRATION_ID_CACHE_KEY = 'floci-lab:apigateway:lambda-request:integration-id'
 APIGW_LAMBDA_ROUTE_ID_CACHE_KEY = 'floci-lab:apigateway:lambda-request:route-id'
-DYNAMODB_TABLE_NAME = 'floci-lab-orders'
+DYNAMODB_TABLE_NAME = 'lab-orders'
 DYNAMODB_CUSTOMER_INDEX_NAME = 'CustomerIdIndex'
 DYNAMODB_ORDER_ID = 'ORDER#1001'
 DYNAMODB_CUSTOMER_ID = 'CUSTOMER#42'
@@ -142,8 +142,8 @@ DYNAMODB_UPDATE_CACHE_KEY = 'floci-lab:dynamodb:crud-query:update-item'
 DYNAMODB_QUERY_CACHE_KEY = 'floci-lab:dynamodb:crud-query:query'
 DYNAMODB_DELETE_ITEM_CACHE_KEY = 'floci-lab:dynamodb:crud-query:delete-item'
 DYNAMODB_DELETE_TABLE_CACHE_KEY = 'floci-lab:dynamodb:crud-query:delete-table'
-LAMBDA_DYNAMODB_TABLE_NAME = 'floci-lab-lambda-orders'
-LAMBDA_DYNAMODB_FUNCTION_NAME = 'floci-lab-order-writer'
+LAMBDA_DYNAMODB_TABLE_NAME = 'lab-lambda-orders'
+LAMBDA_DYNAMODB_FUNCTION_NAME = 'lab-order-writer'
 LAMBDA_DYNAMODB_ROLE_NAME = 'FlociLambdaDynamoDbRole'
 LAMBDA_DYNAMODB_POLICY_NAME = 'FlociLambdaDynamoDbWrite'
 LAMBDA_DYNAMODB_ROLE_ARN = f'arn:aws:iam::{AWS_ACCOUNT_ID}:role/{LAMBDA_DYNAMODB_ROLE_NAME}'
@@ -160,7 +160,7 @@ LAMBDA_DYNAMODB_PAYLOAD = {
 LAMBDA_DYNAMODB_PAYLOAD_TEXT = json.dumps(LAMBDA_DYNAMODB_PAYLOAD, separators=(',', ':'))
 LAMBDA_DYNAMODB_INVOKE_CACHE_KEY = 'floci-lab:dynamodb:lambda-writes:invoke'
 LAMBDA_DYNAMODB_LOGS_CACHE_KEY = 'floci-lab:dynamodb:lambda-writes:logs'
-KMS_LAB_ALIAS_NAME = 'alias/floci-lab-data-key'
+KMS_LAB_ALIAS_NAME = 'alias/lab-data-key'
 KMS_LAB_DESCRIPTION = 'Floci dashboard local workflow lab key'
 KMS_LAB_TAGS = [
     {'TagKey': 'Lab', 'TagValue': 'kms-crypto'},
@@ -186,28 +186,28 @@ SSM_PARAMETER_VALUE = {
     },
 }
 SSM_PARAMETER_VALUE_TEXT = json.dumps(SSM_PARAMETER_VALUE, separators=(',', ':'))
-SECRETS_MANAGER_SECRET_NAME = 'floci-lab/app-credentials'
+SECRETS_MANAGER_SECRET_NAME = 'lab/app-credentials'
 SECRETS_MANAGER_INITIAL_SECRET = {
-    'username': 'floci-lab-app',
+    'username': 'lab-app',
     'password': 'initial-local-password',
 }
 SECRETS_MANAGER_UPDATED_SECRET = {
-    'username': 'floci-lab-app',
+    'username': 'lab-app',
     'password': 'rotated-local-password',
 }
 SECRETS_MANAGER_INITIAL_CACHE_KEY = 'floci-lab:secretsmanager:secret-lifecycle:initial-read'
 SECRETS_MANAGER_UPDATED_CACHE_KEY = 'floci-lab:secretsmanager:secret-lifecycle:updated-read'
-S3_BASICS_BUCKET_NAME = 'floci-lab-basics'
-S3_OBJECTS_BUCKET_NAME = 'floci-lab-objects'
+S3_BASICS_BUCKET_NAME = 'lab-basics'
+S3_OBJECTS_BUCKET_NAME = 'lab-objects'
 S3_HELLO_OBJECT_KEY = 'hello.txt'
 S3_HELLO_OBJECT_TEXT = 'Hello from the Floci S3 lab!\n'
 S3_HELLO_OBJECT_BYTES = S3_HELLO_OBJECT_TEXT.encode('utf-8')
-S3_PREFIXES_BUCKET_NAME = 'floci-lab-prefixes'
+S3_PREFIXES_BUCKET_NAME = 'lab-prefixes'
 S3_REPORT_SOURCE_KEY = 'incoming/report.txt'
 S3_REPORT_ARCHIVE_KEY = 'archive/report.txt'
 S3_REPORT_TEXT = 'Floci S3 lab report\nStatus: ready for archive\n'
 S3_REPORT_BYTES = S3_REPORT_TEXT.encode('utf-8')
-S3_METADATA_BUCKET_NAME = 'floci-lab-metadata'
+S3_METADATA_BUCKET_NAME = 'lab-metadata'
 S3_INVOICE_OBJECT_KEY = 'documents/invoice.txt'
 S3_INVOICE_TEXT = 'Invoice: FLOCI-1001\nAmount: 42.00\n'
 S3_INVOICE_BYTES = S3_INVOICE_TEXT.encode('utf-8')
@@ -219,18 +219,18 @@ S3_INVOICE_TAGS = [
     {'Key': 'Environment', 'Value': 'lab'},
     {'Key': 'CostCenter', 'Value': 'training'},
 ]
-S3_VERSIONING_BUCKET_NAME = 'floci-lab-versioning'
+S3_VERSIONING_BUCKET_NAME = 'lab-versioning'
 S3_CONFIGURATION_KEY = 'configuration.txt'
 S3_CONFIGURATION_V1_TEXT = 'feature_enabled=false\nrelease=v1\n'
 S3_CONFIGURATION_V2_TEXT = 'feature_enabled=true\nrelease=v2\n'
 S3_CONFIGURATION_V1_BYTES = S3_CONFIGURATION_V1_TEXT.encode('utf-8')
 S3_CONFIGURATION_V2_BYTES = S3_CONFIGURATION_V2_TEXT.encode('utf-8')
-S3_PRESIGNED_BUCKET_NAME = 'floci-lab-presigned'
+S3_PRESIGNED_BUCKET_NAME = 'lab-presigned'
 S3_PRESIGNED_OBJECT_KEY = 'shared/guide.txt'
 S3_PRESIGNED_GUIDE_TEXT = 'Temporary access with an S3 presigned URL.\n'
 S3_PRESIGNED_GUIDE_BYTES = S3_PRESIGNED_GUIDE_TEXT.encode('utf-8')
 S3_PRESIGNED_EXPIRES_IN = 300
-S3_SECURITY_BUCKET_NAME = 'floci-lab-security'
+S3_SECURITY_BUCKET_NAME = 'lab-security'
 S3_PUBLIC_ACCESS_BLOCK = {
     'BlockPublicAcls': True,
     'IgnorePublicAcls': True,
@@ -249,7 +249,7 @@ S3_SECURITY_BUCKET_POLICY = {
         },
     ],
 }
-S3_ENCRYPTION_BUCKET_NAME = 'floci-lab-encryption'
+S3_ENCRYPTION_BUCKET_NAME = 'lab-encryption'
 S3_ENCRYPTION_OBJECT_KEY = 'protected/record.txt'
 S3_ENCRYPTION_RECORD_TEXT = 'Protected by the bucket encryption default.\n'
 S3_ENCRYPTION_RECORD_BYTES = S3_ENCRYPTION_RECORD_TEXT.encode('utf-8')
@@ -263,7 +263,7 @@ S3_SSE_S3_CONFIGURATION = {
         },
     ],
 }
-S3_LIFECYCLE_BUCKET_NAME = 'floci-lab-lifecycle'
+S3_LIFECYCLE_BUCKET_NAME = 'lab-lifecycle'
 S3_LIFECYCLE_OBJECT_KEY = 'logs/app.log'
 S3_LIFECYCLE_LOG_TEXT = '2026-06-18T12:00:00Z INFO Floci lifecycle lab started\n'
 S3_LIFECYCLE_LOG_BYTES = S3_LIFECYCLE_LOG_TEXT.encode('utf-8')
@@ -278,7 +278,7 @@ S3_LIFECYCLE_CONFIGURATION = {
         },
     ],
 }
-S3_CORS_BUCKET_NAME = 'floci-lab-cors'
+S3_CORS_BUCKET_NAME = 'lab-cors'
 S3_CORS_CONFIGURATION = {
     'CORSRules': [
         {
@@ -291,8 +291,8 @@ S3_CORS_CONFIGURATION = {
         },
     ],
 }
-S3_NOTIFICATIONS_BUCKET_NAME = 'floci-lab-notifications'
-S3_NOTIFICATIONS_QUEUE_NAME = 'floci-lab-s3-events'
+S3_NOTIFICATIONS_BUCKET_NAME = 'lab-notifications'
+S3_NOTIFICATIONS_QUEUE_NAME = 'lab-s3-events'
 S3_NOTIFICATIONS_QUEUE_ARN = (
     f'arn:aws:sqs:us-east-1:{AWS_ACCOUNT_ID}:{S3_NOTIFICATIONS_QUEUE_NAME}'
 )
@@ -329,13 +329,13 @@ S3_NOTIFICATIONS_CONFIGURATION = {
         },
     ],
 }
-S3_MULTIPART_BUCKET_NAME = 'floci-lab-multipart'
+S3_MULTIPART_BUCKET_NAME = 'lab-multipart'
 S3_MULTIPART_OBJECT_KEY = 'archives/application.bin'
 S3_MULTIPART_CONTENT_TYPE = 'application/octet-stream'
 S3_MULTIPART_PART_ONE_BYTES = b'A' * (5 * 1024 * 1024)
 S3_MULTIPART_PART_TWO_BYTES = b'B' * 1024
 S3_MULTIPART_OBJECT_BYTES = S3_MULTIPART_PART_ONE_BYTES + S3_MULTIPART_PART_TWO_BYTES
-SQS_BASICS_QUEUE_NAME = 'floci-lab-basics'
+SQS_BASICS_QUEUE_NAME = 'lab-basics'
 SQS_BASICS_QUEUE_ARN = (
     f'arn:aws:sqs:{AWS_REGION}:{AWS_ACCOUNT_ID}:{SQS_BASICS_QUEUE_NAME}'
 )
@@ -407,8 +407,8 @@ SQS_CONFIGURATION_TAGS = {
     'Environment': 'lab',
     'Purpose': 'training',
 }
-SQS_REDRIVE_SOURCE_QUEUE_NAME = 'floci-lab-redrive-source'
-SQS_REDRIVE_DLQ_NAME = 'floci-lab-redrive-dlq'
+SQS_REDRIVE_SOURCE_QUEUE_NAME = 'lab-redrive-source'
+SQS_REDRIVE_DLQ_NAME = 'lab-redrive-dlq'
 SQS_REDRIVE_SOURCE_QUEUE_ARN = (
     f'arn:aws:sqs:{AWS_REGION}:{AWS_ACCOUNT_ID}:{SQS_REDRIVE_SOURCE_QUEUE_NAME}'
 )
@@ -438,7 +438,7 @@ SQS_REDRIVE_TRIGGERED_CACHE_KEY = 'floci-lab:sqs:dead-letter-redrive:triggered'
 SQS_REDRIVE_DLQ_OBSERVED_CACHE_KEY = 'floci-lab:sqs:dead-letter-redrive:dlq-observed'
 SQS_REDRIVE_TASK_CACHE_KEY = 'floci-lab:sqs:dead-letter-redrive:task'
 SQS_REDRIVE_RETURNED_CACHE_KEY = 'floci-lab:sqs:dead-letter-redrive:returned'
-SQS_FIFO_QUEUE_NAME = 'floci-lab-orders.fifo'
+SQS_FIFO_QUEUE_NAME = 'lab-orders.fifo'
 SQS_FIFO_QUEUE_ARN = (
     f'arn:aws:sqs:{AWS_REGION}:{AWS_ACCOUNT_ID}:{SQS_FIFO_QUEUE_NAME}'
 )
@@ -474,7 +474,7 @@ SQS_FIFO_DEDUPLICATION_IDS = [
 SQS_FIFO_FIRST_SEND_CACHE_KEY = 'floci-lab:sqs:fifo-ordering:first-send'
 SQS_FIFO_DEDUPLICATED_CACHE_KEY = 'floci-lab:sqs:fifo-ordering:deduplicated'
 SQS_FIFO_ORDERED_CACHE_KEY = 'floci-lab:sqs:fifo-ordering:ordered'
-SQS_CLEANUP_QUEUE_NAME = 'floci-lab-cleanup'
+SQS_CLEANUP_QUEUE_NAME = 'lab-cleanup'
 SQS_CLEANUP_QUEUE_ARN = (
     f'arn:aws:sqs:{AWS_REGION}:{AWS_ACCOUNT_ID}:{SQS_CLEANUP_QUEUE_NAME}'
 )
@@ -492,12 +492,12 @@ SQS_CLEANUP_ATTRIBUTE_VALUE = 'purge-delete'
 SQS_CLEANUP_POPULATED_CACHE_KEY = 'floci-lab:sqs:purge-delete:populated'
 SQS_CLEANUP_PURGED_CACHE_KEY = 'floci-lab:sqs:purge-delete:purged'
 SQS_CLEANUP_DELETED_CACHE_KEY = 'floci-lab:sqs:purge-delete:deleted'
-SNS_FANOUT_TOPIC_NAME = 'floci-lab-order-events'
+SNS_FANOUT_TOPIC_NAME = 'lab-order-events'
 SNS_FANOUT_TOPIC_ARN = (
     f'arn:aws:sns:{AWS_REGION}:{AWS_ACCOUNT_ID}:{SNS_FANOUT_TOPIC_NAME}'
 )
-SNS_FANOUT_ORDERS_QUEUE_NAME = 'floci-lab-order-processing'
-SNS_FANOUT_AUDIT_QUEUE_NAME = 'floci-lab-order-audit'
+SNS_FANOUT_ORDERS_QUEUE_NAME = 'lab-order-processing'
+SNS_FANOUT_AUDIT_QUEUE_NAME = 'lab-order-audit'
 SNS_FANOUT_ORDERS_QUEUE_ARN = (
     f'arn:aws:sqs:{AWS_REGION}:{AWS_ACCOUNT_ID}:{SNS_FANOUT_ORDERS_QUEUE_NAME}'
 )
@@ -519,12 +519,12 @@ SNS_FANOUT_MESSAGE_ATTRIBUTES = {
         'StringValue': 'lab',
     },
 }
-SNS_FILTER_TOPIC_NAME = 'floci-lab-filtered-events'
+SNS_FILTER_TOPIC_NAME = 'lab-filtered-events'
 SNS_FILTER_TOPIC_ARN = (
     f'arn:aws:sns:{AWS_REGION}:{AWS_ACCOUNT_ID}:{SNS_FILTER_TOPIC_NAME}'
 )
-SNS_FILTER_CREATED_QUEUE_NAME = 'floci-lab-created-events'
-SNS_FILTER_PRIORITY_QUEUE_NAME = 'floci-lab-priority-events'
+SNS_FILTER_CREATED_QUEUE_NAME = 'lab-created-events'
+SNS_FILTER_PRIORITY_QUEUE_NAME = 'lab-priority-events'
 SNS_FILTER_CREATED_QUEUE_ARN = (
     f'arn:aws:sqs:{AWS_REGION}:{AWS_ACCOUNT_ID}:{SNS_FILTER_CREATED_QUEUE_NAME}'
 )
@@ -557,14 +557,14 @@ SNS_FILTER_PRIORITY_ATTRIBUTES = {
     'EventType': {'DataType': 'String', 'StringValue': 'order.cancelled'},
     'Priority': {'DataType': 'String', 'StringValue': 'high'},
 }
-SCHEDULER_SQS_QUEUE_NAME = 'floci-lab-scheduled-reports'
+SCHEDULER_SQS_QUEUE_NAME = 'lab-scheduled-reports'
 SCHEDULER_SQS_QUEUE_ARN = (
     f'arn:aws:sqs:{AWS_REGION}:{AWS_ACCOUNT_ID}:{SCHEDULER_SQS_QUEUE_NAME}'
 )
 SCHEDULER_ROLE_NAME = 'FlociSchedulerSqsRole'
 SCHEDULER_ROLE_ARN = f'arn:aws:iam::{AWS_ACCOUNT_ID}:role/{SCHEDULER_ROLE_NAME}'
 SCHEDULER_ROLE_POLICY_NAME = 'SendScheduledReportToSqs'
-SCHEDULER_GROUP_NAME = 'floci-lab-scheduler'
+SCHEDULER_GROUP_NAME = 'lab-scheduler'
 SCHEDULER_GROUP_ARN = (
     f'arn:aws:scheduler:{AWS_REGION}:{AWS_ACCOUNT_ID}:'
     f'schedule-group/{SCHEDULER_GROUP_NAME}'
@@ -599,9 +599,9 @@ SCHEDULER_EXPRESSION_CACHE_KEY = 'floci-lab:scheduler:sqs-delivery:expression'
 SCHEDULER_CREATED_CACHE_KEY = 'floci-lab:scheduler:sqs-delivery:created'
 SCHEDULER_DELIVERED_CACHE_KEY = 'floci-lab:scheduler:sqs-delivery:delivered'
 SCHEDULER_DELETED_CACHE_KEY = 'floci-lab:scheduler:sqs-delivery:deleted'
-CLOUDFORMATION_STACK_NAME = 'floci-lab-storage-messaging'
-CLOUDFORMATION_BUCKET_NAME = 'floci-lab-cfn-storage'
-CLOUDFORMATION_QUEUE_NAME = 'floci-lab-cfn-jobs'
+CLOUDFORMATION_STACK_NAME = 'lab-storage-messaging'
+CLOUDFORMATION_BUCKET_NAME = 'lab-cfn-storage'
+CLOUDFORMATION_QUEUE_NAME = 'lab-cfn-jobs'
 CLOUDFORMATION_QUEUE_ARN = (
     f'arn:aws:sqs:{AWS_REGION}:{AWS_ACCOUNT_ID}:{CLOUDFORMATION_QUEUE_NAME}'
 )
@@ -651,7 +651,7 @@ EC2_PRIVATE_SUBNET_CIDR = '10.42.2.0/24'
 EC2_PUBLIC_AZ = 'us-east-1a'
 EC2_PRIVATE_AZ = 'us-east-1b'
 EC2_VPC_TAGS = [
-    {'Key': 'Name', 'Value': 'floci-lab-vpc'},
+    {'Key': 'Name', 'Value': 'lab-vpc'},
     {'Key': 'Lab', 'Value': 'vpc-public-private'},
 ]
 EC2_VPC_ID_CACHE_KEY = 'floci-lab:ec2:vpc-networking:vpc-id'
@@ -666,11 +666,11 @@ EC2_SECURITY_VPC_CIDR = '10.43.0.0/16'
 EC2_SECURITY_SUBNET_CIDR = '10.43.1.0/24'
 EC2_SECURITY_AZ = 'us-east-1a'
 EC2_SECURITY_VPC_TAGS = [
-    {'Key': 'Name', 'Value': 'floci-lab-security-vpc'},
+    {'Key': 'Name', 'Value': 'lab-security-vpc'},
     {'Key': 'Lab', 'Value': 'security-controls'},
 ]
-EC2_WEB_SG_NAME = 'floci-lab-web-sg'
-EC2_APP_SG_NAME = 'floci-lab-app-sg'
+EC2_WEB_SG_NAME = 'lab-web-sg'
+EC2_APP_SG_NAME = 'lab-app-sg'
 EC2_TRUSTED_CLIENT_CIDR = '203.0.113.0/24'
 EC2_NACL_DESIGN = {
     'InboundRules': [
@@ -713,9 +713,9 @@ EC2_NACL_ASSOC_ID_CACHE_KEY = 'floci-lab:ec2:security-controls:nacl-association-
 EC2_ENDPOINT_VPC_CIDR = '10.44.0.0/16'
 EC2_ENDPOINT_SUBNET_CIDR = '10.44.1.0/24'
 EC2_ENDPOINT_AZ = 'us-east-1a'
-EC2_ENDPOINT_BUCKET_NAME = 'floci-lab-private-s3-data'
+EC2_ENDPOINT_BUCKET_NAME = 'lab-private-s3-data'
 EC2_ENDPOINT_VPC_TAGS = [
-    {'Key': 'Name', 'Value': 'floci-lab-s3-endpoint-vpc'},
+    {'Key': 'Name', 'Value': 'lab-s3-endpoint-vpc'},
     {'Key': 'Lab', 'Value': 's3-gateway-endpoint'},
 ]
 EC2_ENDPOINT_POLICY = {
@@ -740,13 +740,13 @@ EC2_ENDPOINT_ROUTE_BOUNDARY_CACHE_KEY = 'floci-lab:ec2:s3-endpoint:route-boundar
 EC2_INTERFACE_VPC_CIDR = '10.45.0.0/16'
 EC2_INTERFACE_SUBNET_CIDR = '10.45.1.0/24'
 EC2_INTERFACE_AZ = 'us-east-1a'
-EC2_INTERFACE_QUEUE_NAME = 'floci-lab-private-sqs'
+EC2_INTERFACE_QUEUE_NAME = 'lab-private-sqs'
 EC2_INTERFACE_QUEUE_ARN = (
     f'arn:aws:sqs:{AWS_REGION}:{AWS_ACCOUNT_ID}:{EC2_INTERFACE_QUEUE_NAME}'
 )
-EC2_INTERFACE_SG_NAME = 'floci-lab-sqs-endpoint-sg'
+EC2_INTERFACE_SG_NAME = 'lab-sqs-endpoint-sg'
 EC2_INTERFACE_VPC_TAGS = [
-    {'Key': 'Name', 'Value': 'floci-lab-sqs-interface-endpoint-vpc'},
+    {'Key': 'Name', 'Value': 'lab-sqs-interface-endpoint-vpc'},
     {'Key': 'Lab', 'Value': 'sqs-interface-endpoint'},
 ]
 EC2_INTERFACE_POLICY = {
@@ -3484,7 +3484,7 @@ EC2_S3_GATEWAY_ENDPOINT_LAB = {
         {
             'key': 'inspect-private-s3-path',
             'title': 'Inspect the private S3 path',
-            'command': 'aws ec2 describe-vpc-endpoints --vpc-endpoint-ids <endpoint-id>\naws ec2 describe-route-tables --route-table-ids <route-table-id>\naws s3api head-bucket --bucket floci-lab-private-s3-data',
+            'command': 'aws ec2 describe-vpc-endpoints --vpc-endpoint-ids <endpoint-id>\naws ec2 describe-route-tables --route-table-ids <route-table-id>\naws s3api head-bucket --bucket lab-private-s3-data',
             'explanation': 'Verifies the endpoint and bucket, then examines the route-table behavior. AWS injects an S3 prefix-list route; Floci currently does not persist that managed route.',
         },
     ],

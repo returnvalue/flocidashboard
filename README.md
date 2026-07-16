@@ -178,6 +178,8 @@ The curriculum includes eleven IAM labs, twelve S3 labs, nine SQS labs, two SNS 
 
 The EventBridge curriculum also includes an application-spine capstone joining API Gateway, Lambda, a custom event bus, transformed and full-envelope SQS targets, a notification Lambda, correlation logs, and controlled failure experiments.
 
+The capstone includes a live, dependency-free SVG resource graph. It lays serverless resources out in deterministic semantic columns, deep-links nodes to their workbenches, exposes configuration evidence for every relationship, and distinguishes healthy, disabled, broken, unverified, and locally unsupported states.
+
 Lab definitions and implementation notes live in [`buildinglabs.md`](./buildinglabs.md).
 
 ## Configuration

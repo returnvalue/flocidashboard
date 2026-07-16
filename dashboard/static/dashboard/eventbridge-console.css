@@ -221,6 +221,11 @@
   margin: 12px 0;
 }
 
+.eventbridge-rule-requested {
+  border-color: #0972d3 !important;
+  box-shadow: 0 0 0 2px rgba(9, 114, 211, 0.18);
+}
+
 .eventbridge-btn-danger {
   border-color: #d13212 !important;
   color: #b12704 !important;

@@ -17,24 +17,34 @@ from dashboard.aws import FlociClientFactory, _clean_response
 
 REGION = 'us-east-1'
 ACCOUNT = '000000000000'
-BUS = 'floci-lab-application-events'
-PROCESSING_QUEUE = 'floci-lab-order-processing'
-AUDIT_QUEUE = 'floci-lab-order-audit'
-DLQ = 'floci-lab-eventbridge-dlq'
+BUS = 'lab-application-events'
+PROCESSING_QUEUE = 'lab-order-processing'
+AUDIT_QUEUE = 'lab-order-audit'
+DLQ = 'lab-eventbridge-dlq'
 PRODUCER_ROLE = 'FlociEventProducerRole'
 PRODUCER_POLICY = 'PutApplicationEvents'
 NOTIFIER_ROLE = 'FlociEventNotifierRole'
 NOTIFIER_POLICY = 'WriteNotificationLogs'
-PRODUCER_FUNCTION = 'floci-lab-event-producer'
-NOTIFIER_FUNCTION = 'floci-lab-event-notifier'
-API_NAME = 'floci-lab-event-api'
+PRODUCER_FUNCTION = 'lab-event-producer'
+NOTIFIER_FUNCTION = 'lab-event-notifier'
+API_NAME = 'lab-event-api'
 ROUTE_KEY = 'POST /orders'
 STAGE = '$default'
 API_PERMISSION = 'AllowFlociEventApi'
 EVENT_PERMISSION = 'AllowFlociEventBridge'
-PROCESSING_RULE = 'floci-lab-process-orders'
-AUDIT_RULE = 'floci-lab-audit-orders'
-NOTIFICATION_RULE = 'floci-lab-priority-notifications'
+PROCESSING_RULE = 'lab-process-orders'
+AUDIT_RULE = 'lab-audit-orders'
+NOTIFICATION_RULE = 'lab-priority-notifications'
+LEGACY_BUS = 'floci-lab-application-events'
+LEGACY_PROCESSING_QUEUE = 'floci-lab-order-processing'
+LEGACY_AUDIT_QUEUE = 'floci-lab-order-audit'
+LEGACY_DLQ = 'floci-lab-eventbridge-dlq'
+LEGACY_PRODUCER_FUNCTION = 'floci-lab-event-producer'
+LEGACY_NOTIFIER_FUNCTION = 'floci-lab-event-notifier'
+LEGACY_API_NAME = 'floci-lab-event-api'
+LEGACY_PROCESSING_RULE = 'floci-lab-process-orders'
+LEGACY_AUDIT_RULE = 'floci-lab-audit-orders'
+LEGACY_NOTIFICATION_RULE = 'floci-lab-priority-notifications'
 CORRELATION = 'FLOCI-EVENT-5001'
 DISABLED_CORRELATION = 'FLOCI-EVENT-DISABLED-5002'
 CACHE_PREFIX = 'floci-lab:eventbridge:application-spine:'
@@ -161,9 +171,9 @@ def queue_url(name: str) -> str:
     return client('sqs').get_queue_url(QueueName=name)['QueueUrl']
 
 
-def api() -> dict[str, Any] | None:
+def api(name: str = API_NAME) -> dict[str, Any] | None:
     for item in client('apigatewayv2').get_apis().get('Items', []):
-        if item.get('Name') == API_NAME:
+        if item.get('Name') == name:
             return item
     return None
 
@@ -352,23 +362,39 @@ def delete_ignoring(action: Callable[[], Any], codes: set[str]) -> bool:
 
 def reset() -> dict[str, Any]:
     started = time.perf_counter(); events = client('events'); lam = client('lambda'); gateway = client('apigatewayv2'); logs = client('logs'); iam = client('iam'); sqs = client('sqs')
-    for rule, ids in [(PROCESSING_RULE, ['processing']), (AUDIT_RULE, ['audit']), (NOTIFICATION_RULE, ['notification'])]:
-        try: events.remove_targets(Rule=rule, EventBusName=BUS, Ids=ids, Force=True)
-        except ClientError: pass
-        delete_ignoring(lambda rule=rule: events.delete_rule(Name=rule, EventBusName=BUS, Force=True), {'ResourceNotFoundException'})
-    delete_ignoring(lambda: events.delete_event_bus(Name=BUS), {'ResourceNotFoundException'})
-    current = api()
-    if current: gateway.delete_api(ApiId=current['ApiId'])
-    for function, sid in [(PRODUCER_FUNCTION, API_PERMISSION), (NOTIFIER_FUNCTION, EVENT_PERMISSION)]:
-        delete_ignoring(lambda function=function, sid=sid: lam.remove_permission(FunctionName=function, StatementId=sid), {'ResourceNotFoundException'})
-        delete_ignoring(lambda function=function: lam.delete_function(FunctionName=function), {'ResourceNotFoundException'})
-        delete_ignoring(lambda function=function: logs.delete_log_group(logGroupName=f'/aws/lambda/{function}'), {'ResourceNotFoundException'})
+    resource_sets = [
+        {
+            'bus': BUS, 'api': API_NAME,
+            'rules': [(PROCESSING_RULE, ['processing']), (AUDIT_RULE, ['audit']), (NOTIFICATION_RULE, ['notification'])],
+            'functions': [PRODUCER_FUNCTION, NOTIFIER_FUNCTION],
+            'queues': [PROCESSING_QUEUE, AUDIT_QUEUE, DLQ],
+        },
+        {
+            'bus': LEGACY_BUS, 'api': LEGACY_API_NAME,
+            'rules': [(LEGACY_PROCESSING_RULE, ['processing']), (LEGACY_AUDIT_RULE, ['audit']), (LEGACY_NOTIFICATION_RULE, ['notification'])],
+            'functions': [LEGACY_PRODUCER_FUNCTION, LEGACY_NOTIFIER_FUNCTION],
+            'queues': [LEGACY_PROCESSING_QUEUE, LEGACY_AUDIT_QUEUE, LEGACY_DLQ],
+        },
+    ]
+    for resources in resource_sets:
+        bus_name = resources['bus']
+        for rule, ids in resources['rules']:
+            try: events.remove_targets(Rule=rule, EventBusName=bus_name, Ids=ids, Force=True)
+            except ClientError: pass
+            delete_ignoring(lambda rule=rule, bus_name=bus_name: events.delete_rule(Name=rule, EventBusName=bus_name, Force=True), {'ResourceNotFoundException'})
+        delete_ignoring(lambda bus_name=bus_name: events.delete_event_bus(Name=bus_name), {'ResourceNotFoundException'})
+        current = api(resources['api'])
+        if current: gateway.delete_api(ApiId=current['ApiId'])
+        for function, sid in zip(resources['functions'], [API_PERMISSION, EVENT_PERMISSION]):
+            delete_ignoring(lambda function=function, sid=sid: lam.remove_permission(FunctionName=function, StatementId=sid), {'ResourceNotFoundException'})
+            delete_ignoring(lambda function=function: lam.delete_function(FunctionName=function), {'ResourceNotFoundException'})
+            delete_ignoring(lambda function=function: logs.delete_log_group(logGroupName=f'/aws/lambda/{function}'), {'ResourceNotFoundException'})
+        for name in resources['queues']:
+            try: sqs.delete_queue(QueueUrl=queue_url(name))
+            except ClientError: pass
     for role, policy in [(PRODUCER_ROLE, PRODUCER_POLICY), (NOTIFIER_ROLE, NOTIFIER_POLICY)]:
         delete_ignoring(lambda role=role, policy=policy: iam.delete_role_policy(RoleName=role, PolicyName=policy), {'NoSuchEntity'})
         delete_ignoring(lambda role=role: iam.delete_role(RoleName=role), {'NoSuchEntity'})
-    for name in QUEUE_ARNS:
-        try: sqs.delete_queue(QueueUrl=queue_url(name))
-        except ClientError: pass
     cache.delete_many([CACHE_PREFIX + key for key in ['queues', 'roles', 'functions', 'rules', 'targets', 'retry-boundary', 'api-id', 'permissions', 'happy-path', 'malformed', 'missing-permission', 'disabled-rule']])
-    payload = {'removed': True, 'dependency_order': ['targets', 'rules', 'bus', 'api', 'permissions', 'functions', 'logs', 'role policies', 'roles', 'queues']}
+    payload = {'removed': True, 'legacy_names_removed': True, 'dependency_order': ['targets', 'rules', 'bus', 'api', 'permissions', 'functions', 'logs', 'role policies', 'roles', 'queues']}
     return {'service': 'eventbridge', 'lab': 'application-spine', 'command': 'aws events remove-targets ... # dependency-safe cleanup', 'exit_code': 0, 'stdout': json.dumps(payload, indent=2), 'stderr': '', 'json': payload, 'duration_ms': round((time.perf_counter() - started) * 1000), 'reset': True, 'verification': {'status': 'passed', 'message': 'Lab resources and recorded milestones were removed in dependency order.'}}

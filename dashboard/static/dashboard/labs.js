@@ -134,6 +134,7 @@
       if (data.lab_complete) {
         renderNextBatchCard(data.next_batch);
       }
+      document.dispatchEvent(new CustomEvent('floci:lab-changed'));
     } catch (error) {
       responseStatus.textContent = 'Failed';
       responseBody.textContent = error.message;
@@ -190,6 +191,7 @@
         response.verification.textContent = data.verification?.message || '';
       }
       labState.textContent = 'Not started';
+      document.dispatchEvent(new CustomEvent('floci:lab-changed'));
     } catch (error) {
       if (response.panel) {
         response.panel.hidden = false;

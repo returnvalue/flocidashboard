@@ -3,6 +3,11 @@
 
 {% block title %}{{ service.title }} Labs - Floci Dashboard{% endblock %}
 
+{% block extrahead %}
+  {{ block.super }}
+  {% if service.key == 'eventbridge' and active_lab.key == 'application-spine' %}<link rel="stylesheet" href="{% static 'dashboard/resource-graph.css' %}">{% endif %}
+{% endblock %}
+
 {% block content %}
   <header class="page-header">
     <div>
@@ -70,6 +75,15 @@
       {% endif %}
       <p class="labs-description">{{ active_lab.description }}</p>
 
+      {% if service.key == 'eventbridge' and active_lab.key == 'application-spine' %}
+        <section class="resource-graph-panel" aria-labelledby="resource-graph-heading">
+          <div class="resource-graph-panel-heading">
+            <div><p class="eyebrow">Live architecture</p><h3 id="resource-graph-heading">Resource relationships</h3><p>Select a resource or relationship to inspect its configuration evidence.</p></div>
+          </div>
+          <div data-resource-graph data-graph-endpoint="{% url 'dashboard:resource-graph-detail' %}?scenario=eventbridge-application-spine" aria-busy="true"><p>Discovering live relationships...</p></div>
+        </section>
+      {% endif %}
+
       {% for step in active_lab.steps %}
         <section class="lab-step{% if step.status.verified %} lab-step-complete{% endif %}" data-step-key="{{ step.key }}">
           <div class="lab-step-heading">
@@ -114,5 +128,6 @@
 {% endblock %}
 
 {% block extrascripts %}
+  {% if service.key == 'eventbridge' and active_lab.key == 'application-spine' %}<script src="{% static 'dashboard/resource-graph.js' %}"></script>{% endif %}
   <script src="{% static 'dashboard/labs.js' %}"></script>
 {% endblock %}

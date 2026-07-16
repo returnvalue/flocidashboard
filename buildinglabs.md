@@ -575,12 +575,12 @@ Use simple names in early labs when the teaching value is clarity:
 Alice
 ```
 
-Use `floci-lab-*` names when a lab creates multiple resources or resources that are more likely to conflict:
+Use `lab-*` names when a lab creates multiple resources or resources that are more likely to conflict:
 
 ```text
-floci-lab-policy-user
-floci-lab-readonly-s3
-floci-lab-instance-profile
+lab-policy-user
+lab-readonly-s3
+lab-instance-profile
 ```
 
 For labs with fixed names, status detection must handle resources that already exist.
@@ -940,8 +940,8 @@ Create and inspect an S3 bucket
 Steps:
 
 ```bash
-aws s3api create-bucket --bucket floci-lab-basics
-aws s3api head-bucket --bucket floci-lab-basics
+aws s3api create-bucket --bucket lab-basics
+aws s3api head-bucket --bucket lab-basics
 aws s3api list-buckets
 ```
 
@@ -953,7 +953,7 @@ This is intentionally a three-command foundation:
 
 Live status is derived from `HeadBucket`, so revisiting the lab reflects the real Floci state. Creation is idempotent when the fixed lab bucket already exists.
 
-Reset owns the entire `floci-lab-basics` bucket. It removes ordinary objects, object versions, and delete markers before deleting the bucket. This keeps reset reliable even if a learner uses the normal S3 dashboard to experiment inside the lab bucket.
+Reset owns the entire `lab-basics` bucket. It removes ordinary objects, object versions, and delete markers before deleting the bucket. This keeps reset reliable even if a learner uses the normal S3 dashboard to experiment inside the lab bucket.
 
 Implemented second S3 lab:
 
@@ -964,11 +964,11 @@ Upload and retrieve an object
 Steps:
 
 ```bash
-aws s3api create-bucket --bucket floci-lab-objects
-aws s3api put-object --bucket floci-lab-objects --key hello.txt --body hello.txt --content-type text/plain
-aws s3api list-objects-v2 --bucket floci-lab-objects
-aws s3api head-object --bucket floci-lab-objects --key hello.txt
-aws s3api get-object --bucket floci-lab-objects --key hello.txt downloaded-hello.txt
+aws s3api create-bucket --bucket lab-objects
+aws s3api put-object --bucket lab-objects --key hello.txt --body hello.txt --content-type text/plain
+aws s3api list-objects-v2 --bucket lab-objects
+aws s3api head-object --bucket lab-objects --key hello.txt
+aws s3api get-object --bucket lab-objects --key hello.txt downloaded-hello.txt
 ```
 
 The page shows `hello.txt` as an expandable artifact containing:
@@ -998,11 +998,11 @@ Organize and copy objects with key prefixes
 Steps:
 
 ```bash
-aws s3api create-bucket --bucket floci-lab-prefixes
-aws s3api put-object --bucket floci-lab-prefixes --key incoming/report.txt --body report.txt
-aws s3api list-objects-v2 --bucket floci-lab-prefixes --prefix incoming/
-aws s3api copy-object --copy-source floci-lab-prefixes/incoming/report.txt --bucket floci-lab-prefixes --key archive/report.txt
-aws s3api list-objects-v2 --bucket floci-lab-prefixes --prefix archive/
+aws s3api create-bucket --bucket lab-prefixes
+aws s3api put-object --bucket lab-prefixes --key incoming/report.txt --body report.txt
+aws s3api list-objects-v2 --bucket lab-prefixes --prefix incoming/
+aws s3api copy-object --copy-source lab-prefixes/incoming/report.txt --bucket lab-prefixes --key archive/report.txt
+aws s3api list-objects-v2 --bucket lab-prefixes --prefix archive/
 ```
 
 This should teach that S3 has a flat object namespace and that apparent folders are key prefixes. Reset should remove both keys and the bucket.
@@ -1025,11 +1025,11 @@ Add object metadata and tags
 Steps:
 
 ```bash
-aws s3api create-bucket --bucket floci-lab-metadata
-aws s3api put-object --bucket floci-lab-metadata --key documents/invoice.txt --body invoice.txt --content-type text/plain --metadata project=floci,classification=internal
-aws s3api head-object --bucket floci-lab-metadata --key documents/invoice.txt
-aws s3api put-object-tagging --bucket floci-lab-metadata --key documents/invoice.txt --tagging file://invoice-tags.json
-aws s3api get-object-tagging --bucket floci-lab-metadata --key documents/invoice.txt
+aws s3api create-bucket --bucket lab-metadata
+aws s3api put-object --bucket lab-metadata --key documents/invoice.txt --body invoice.txt --content-type text/plain --metadata project=floci,classification=internal
+aws s3api head-object --bucket lab-metadata --key documents/invoice.txt
+aws s3api put-object-tagging --bucket lab-metadata --key documents/invoice.txt --tagging file://invoice-tags.json
+aws s3api get-object-tagging --bucket lab-metadata --key documents/invoice.txt
 ```
 
 This should teach the difference between HTTP/system metadata, user-defined object metadata, and object tags. Tags should use practical keys such as `Environment=lab` and `CostCenter=training`.
@@ -1065,12 +1065,12 @@ Enable versioning and recover an earlier object version
 Steps:
 
 ```bash
-aws s3api create-bucket --bucket floci-lab-versioning
-aws s3api put-bucket-versioning --bucket floci-lab-versioning --versioning-configuration Status=Enabled
-aws s3api put-object --bucket floci-lab-versioning --key configuration.txt --body configuration-v1.txt
-aws s3api put-object --bucket floci-lab-versioning --key configuration.txt --body configuration-v2.txt
-aws s3api list-object-versions --bucket floci-lab-versioning --prefix configuration.txt
-aws s3api get-object --bucket floci-lab-versioning --key configuration.txt --version-id <v1-version-id> recovered-configuration.txt
+aws s3api create-bucket --bucket lab-versioning
+aws s3api put-bucket-versioning --bucket lab-versioning --versioning-configuration Status=Enabled
+aws s3api put-object --bucket lab-versioning --key configuration.txt --body configuration-v1.txt
+aws s3api put-object --bucket lab-versioning --key configuration.txt --body configuration-v2.txt
+aws s3api list-object-versions --bucket lab-versioning --prefix configuration.txt
+aws s3api get-object --bucket lab-versioning --key configuration.txt --version-id <v1-version-id> recovered-configuration.txt
 ```
 
 The backend should discover version IDs from live Floci state rather than persisting them in browser state. Verification should prove that the latest version contains v2 while retrieving the older version returns v1.
@@ -1109,9 +1109,9 @@ Generate temporary access with a presigned URL
 Steps:
 
 ```bash
-aws s3api create-bucket --bucket floci-lab-presigned
-aws s3api put-object --bucket floci-lab-presigned --key shared/guide.txt --body guide.txt --content-type text/plain
-aws s3 presign s3://floci-lab-presigned/shared/guide.txt --expires-in 300
+aws s3api create-bucket --bucket lab-presigned
+aws s3api put-object --bucket lab-presigned --key shared/guide.txt --body guide.txt --content-type text/plain
+aws s3 presign s3://lab-presigned/shared/guide.txt --expires-in 300
 ```
 
 The lab should verify the object first, generate a five-minute URL, and perform an HTTP GET against that URL to prove the temporary access actually returns the expected bytes. Explain that presigned URLs use the signer identity's permissions and should be treated as bearer credentials until expiration.
@@ -1142,11 +1142,11 @@ Block public access and apply a bucket policy
 Steps:
 
 ```bash
-aws s3api create-bucket --bucket floci-lab-security
-aws s3api put-public-access-block --bucket floci-lab-security --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
-aws s3api get-public-access-block --bucket floci-lab-security
-aws s3api put-bucket-policy --bucket floci-lab-security --policy file://bucket-policy.json
-aws s3api get-bucket-policy --bucket floci-lab-security
+aws s3api create-bucket --bucket lab-security
+aws s3api put-public-access-block --bucket lab-security --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+aws s3api get-public-access-block --bucket lab-security
+aws s3api put-bucket-policy --bucket lab-security --policy file://bucket-policy.json
+aws s3api get-bucket-policy --bucket lab-security
 ```
 
 Use a non-public least-privilege policy, such as allowing the local account root to list the bucket. The lab should explain that public-access blocking and bucket policies are separate defense layers and that enabling `BlockPublicPolicy` intentionally rejects public policies.
@@ -1158,7 +1158,7 @@ The lab enables all four safeguards:
 - `BlockPublicPolicy`,
 - `RestrictPublicBuckets`.
 
-Its policy grants only `s3:ListBucket` on `arn:aws:s3:::floci-lab-security` to `arn:aws:iam::000000000000:root`. The policy contains no wildcard principal and grants no object actions.
+Its policy grants only `s3:ListBucket` on `arn:aws:s3:::lab-security` to `arn:aws:iam::000000000000:root`. The policy contains no wildcard principal and grants no object actions.
 
 Live verification treats the two security layers independently:
 
@@ -1186,11 +1186,11 @@ Enable default bucket encryption
 Steps:
 
 ```bash
-aws s3api create-bucket --bucket floci-lab-encryption
-aws s3api put-bucket-encryption --bucket floci-lab-encryption --server-side-encryption-configuration file://encryption.json
-aws s3api get-bucket-encryption --bucket floci-lab-encryption
-aws s3api put-object --bucket floci-lab-encryption --key protected/record.txt --body record.txt
-aws s3api head-object --bucket floci-lab-encryption --key protected/record.txt
+aws s3api create-bucket --bucket lab-encryption
+aws s3api put-bucket-encryption --bucket lab-encryption --server-side-encryption-configuration file://encryption.json
+aws s3api get-bucket-encryption --bucket lab-encryption
+aws s3api put-object --bucket lab-encryption --key protected/record.txt --body record.txt
+aws s3api head-object --bucket lab-encryption --key protected/record.txt
 ```
 
 Start with SSE-S3 using `AES256`. Verify both the bucket default-encryption configuration and the uploaded object's server-side-encryption response metadata.
@@ -1238,10 +1238,10 @@ Automate retention with an S3 lifecycle rule
 Steps:
 
 ```bash
-aws s3api create-bucket --bucket floci-lab-lifecycle
-aws s3api put-object --bucket floci-lab-lifecycle --key logs/app.log --body app.log --content-type text/plain
-aws s3api put-bucket-lifecycle-configuration --bucket floci-lab-lifecycle --lifecycle-configuration file://lifecycle.json
-aws s3api get-bucket-lifecycle-configuration --bucket floci-lab-lifecycle
+aws s3api create-bucket --bucket lab-lifecycle
+aws s3api put-object --bucket lab-lifecycle --key logs/app.log --body app.log --content-type text/plain
+aws s3api put-bucket-lifecycle-configuration --bucket lab-lifecycle --lifecycle-configuration file://lifecycle.json
+aws s3api get-bucket-lifecycle-configuration --bucket lab-lifecycle
 ```
 
 Use an enabled rule scoped to the `logs/` prefix that expires objects after 30 days. Explain that lifecycle actions are asynchronous in AWS and the lab verifies configuration, not the passage of 30 days.
@@ -1284,9 +1284,9 @@ Configure bucket CORS
 Steps:
 
 ```bash
-aws s3api create-bucket --bucket floci-lab-cors
-aws s3api put-bucket-cors --bucket floci-lab-cors --cors-configuration file://cors.json
-aws s3api get-bucket-cors --bucket floci-lab-cors
+aws s3api create-bucket --bucket lab-cors
+aws s3api put-bucket-cors --bucket lab-cors --cors-configuration file://cors.json
+aws s3api get-bucket-cors --bucket lab-cors
 ```
 
 The rule allows only `GET` and `HEAD` from `http://localhost:3000`, permits the `Authorization` request header, exposes `ETag`, and caches browser preflight results for 3600 seconds. It deliberately avoids a wildcard origin.
@@ -1302,16 +1302,16 @@ Send S3 object-created events to SQS
 Steps:
 
 ```bash
-aws sqs create-queue --queue-name floci-lab-s3-events
+aws sqs create-queue --queue-name lab-s3-events
 aws sqs set-queue-attributes --queue-url <queue-url> --attributes file://queue-attributes.json
-aws s3api create-bucket --bucket floci-lab-notifications
-aws s3api put-bucket-notification-configuration --bucket floci-lab-notifications --notification-configuration file://notification.json
-aws s3api get-bucket-notification-configuration --bucket floci-lab-notifications
-aws s3api put-object --bucket floci-lab-notifications --key uploads/report.txt --body report.txt --content-type text/plain
+aws s3api create-bucket --bucket lab-notifications
+aws s3api put-bucket-notification-configuration --bucket lab-notifications --notification-configuration file://notification.json
+aws s3api get-bucket-notification-configuration --bucket lab-notifications
+aws s3api put-object --bucket lab-notifications --key uploads/report.txt --body report.txt --content-type text/plain
 aws sqs receive-message --queue-url <queue-url> --max-number-of-messages 10 --visibility-timeout 0 --wait-time-seconds 1
 ```
 
-The queue policy grants `sqs:SendMessage` only to the S3 service, constrained to `arn:aws:s3:::floci-lab-notifications` and local account `000000000000`. The bucket notification selects `s3:ObjectCreated:*` and targets the dedicated queue ARN.
+The queue policy grants `sqs:SendMessage` only to the S3 service, constrained to `arn:aws:s3:::lab-notifications` and local account `000000000000`. The bucket notification selects `s3:ObjectCreated:*` and targets the dedicated queue ARN.
 
 Live completion requires:
 
@@ -1335,13 +1335,13 @@ Complete a multipart upload
 Steps:
 
 ```bash
-aws s3api create-bucket --bucket floci-lab-multipart
-aws s3api create-multipart-upload --bucket floci-lab-multipart --key archives/application.bin --content-type application/octet-stream
-aws s3api upload-part --bucket floci-lab-multipart --key archives/application.bin --part-number 1 --upload-id <upload-id> --body part-one.bin
-aws s3api upload-part --bucket floci-lab-multipart --key archives/application.bin --part-number 2 --upload-id <upload-id> --body part-two.bin
-aws s3api list-parts --bucket floci-lab-multipart --key archives/application.bin --upload-id <upload-id>
-aws s3api complete-multipart-upload --bucket floci-lab-multipart --key archives/application.bin --upload-id <upload-id> --multipart-upload file://parts.json
-aws s3api get-object --bucket floci-lab-multipart --key archives/application.bin downloaded-application.bin
+aws s3api create-bucket --bucket lab-multipart
+aws s3api create-multipart-upload --bucket lab-multipart --key archives/application.bin --content-type application/octet-stream
+aws s3api upload-part --bucket lab-multipart --key archives/application.bin --part-number 1 --upload-id <upload-id> --body part-one.bin
+aws s3api upload-part --bucket lab-multipart --key archives/application.bin --part-number 2 --upload-id <upload-id> --body part-two.bin
+aws s3api list-parts --bucket lab-multipart --key archives/application.bin --upload-id <upload-id>
+aws s3api complete-multipart-upload --bucket lab-multipart --key archives/application.bin --upload-id <upload-id> --multipart-upload file://parts.json
+aws s3api get-object --bucket lab-multipart --key archives/application.bin downloaded-application.bin
 ```
 
 The first part is exactly 5 MiB because AWS requires every non-final multipart part to be at least that large. The final part is 1 KiB. The approved backend action discovers the active upload ID and current part ETags from S3 rather than storing generated identifiers in browser state.
@@ -1367,19 +1367,19 @@ Create and inspect an SQS queue
 Steps:
 
 ```bash
-aws sqs create-queue --queue-name floci-lab-basics
-aws sqs get-queue-url --queue-name floci-lab-basics
+aws sqs create-queue --queue-name lab-basics
+aws sqs get-queue-url --queue-name lab-basics
 aws sqs get-queue-attributes --queue-url <queue-url> --attribute-names All
 aws sqs list-queues
 ```
 
 Live completion requires:
 
-- the queue name to resolve to a URL ending in `floci-lab-basics`,
-- the queue attributes to contain `arn:aws:sqs:us-east-1:000000000000:floci-lab-basics`,
+- the queue name to resolve to a URL ending in `lab-basics`,
+- the queue attributes to contain `arn:aws:sqs:us-east-1:000000000000:lab-basics`,
 - the queue URL to appear in `list-queues`.
 
-Reset discovers the queue URL from live state and deletes only `floci-lab-basics`.
+Reset discovers the queue URL from live state and deletes only `lab-basics`.
 
 Recommended next SQS lab:
 
@@ -1396,7 +1396,7 @@ Send, receive, and delete an SQS message
 Steps:
 
 ```bash
-aws sqs create-queue --queue-name floci-lab-basics
+aws sqs create-queue --queue-name lab-basics
 aws sqs send-message --queue-url <queue-url> --message-body file://message.json --message-attributes file://message-attributes.json
 aws sqs receive-message --queue-url <queue-url> --max-number-of-messages 10 --visibility-timeout 0 --wait-time-seconds 1 --message-attribute-names All
 aws sqs delete-message --queue-url <queue-url> --receipt-handle <receipt-handle>
@@ -1406,7 +1406,7 @@ The message body is a known `order.created` JSON event with order ID `FLOCI-1001
 
 Receive uses a zero-second visibility timeout so the message remains available for reload-safe live verification. Delete discovers a current receipt handle with a normal visibility timeout before removing the message.
 
-Message deletion cannot be distinguished from “never sent” using SQS state alone, so this step uses a short-lived server-side completion marker after the live delete succeeds. Reset clears that marker and removes only matching lifecycle messages while leaving the shared `floci-lab-basics` queue in place.
+Message deletion cannot be distinguished from “never sent” using SQS state alone, so this step uses a short-lived server-side completion marker after the live delete succeeds. Reset clears that marker and removes only matching lifecycle messages while leaving the shared `lab-basics` queue in place.
 
 Recommended next SQS lab:
 
@@ -1423,7 +1423,7 @@ Understand SQS visibility timeout
 Steps:
 
 ```bash
-aws sqs create-queue --queue-name floci-lab-basics
+aws sqs create-queue --queue-name lab-basics
 aws sqs send-message --queue-url <queue-url> --message-body file://job.json --message-attributes file://message-attributes.json
 aws sqs receive-message --queue-url <queue-url> --max-number-of-messages 10 --visibility-timeout 30 --wait-time-seconds 1 --message-attribute-names All
 aws sqs change-message-visibility --queue-url <queue-url> --receipt-handle <receipt-handle> --visibility-timeout 60
@@ -1453,7 +1453,7 @@ Work with delayed SQS messages
 Steps:
 
 ```bash
-aws sqs create-queue --queue-name floci-lab-basics
+aws sqs create-queue --queue-name lab-basics
 aws sqs send-message --queue-url <queue-url> --message-body file://report.json --message-attributes file://message-attributes.json --delay-seconds 10
 aws sqs get-queue-attributes --queue-url <queue-url> --attribute-names ApproximateNumberOfMessagesDelayed
 aws sqs receive-message --queue-url <queue-url> --max-number-of-messages 10 --visibility-timeout 0 --wait-time-seconds 12 --message-attribute-names All
@@ -1480,7 +1480,7 @@ Send and delete SQS messages in batches
 Steps:
 
 ```bash
-aws sqs create-queue --queue-name floci-lab-basics
+aws sqs create-queue --queue-name lab-basics
 aws sqs send-message-batch --queue-url <queue-url> --entries file://send-batch.json
 aws sqs receive-message --queue-url <queue-url> --max-number-of-messages 10 --visibility-timeout 0 --wait-time-seconds 1 --message-attribute-names All
 aws sqs delete-message-batch --queue-url <queue-url> --entries file://delete-batch.json
@@ -1507,7 +1507,7 @@ Configure SQS queue attributes and tags
 Steps:
 
 ```bash
-aws sqs create-queue --queue-name floci-lab-basics
+aws sqs create-queue --queue-name lab-basics
 aws sqs set-queue-attributes --queue-url <queue-url> --attributes file://queue-attributes.json
 aws sqs get-queue-attributes --queue-url <queue-url> --attribute-names VisibilityTimeout MessageRetentionPeriod ReceiveMessageWaitTimeSeconds
 aws sqs tag-queue --queue-url <queue-url> --tags Environment=lab,Purpose=training
@@ -1539,8 +1539,8 @@ Route failed messages to an SQS dead-letter queue
 Steps:
 
 ```bash
-aws sqs create-queue --queue-name floci-lab-redrive-dlq
-aws sqs create-queue --queue-name floci-lab-redrive-source
+aws sqs create-queue --queue-name lab-redrive-dlq
+aws sqs create-queue --queue-name lab-redrive-source
 aws sqs set-queue-attributes --queue-url <source-queue-url> --attributes file://redrive-policy.json
 aws sqs get-queue-attributes --queue-url <source-queue-url> --attribute-names RedrivePolicy
 aws sqs send-message --queue-url <source-queue-url> --message-body file://payment.json --message-attributes file://message-attributes.json
@@ -1548,8 +1548,8 @@ aws sqs receive-message --queue-url <source-queue-url> --max-number-of-messages 
 aws sqs receive-message --queue-url <source-queue-url> --max-number-of-messages 1 --visibility-timeout 0 --wait-time-seconds 0 --attribute-names All --message-attribute-names All
 aws sqs receive-message --queue-url <source-queue-url> --max-number-of-messages 1 --visibility-timeout 0 --wait-time-seconds 0 --attribute-names All --message-attribute-names All
 aws sqs receive-message --queue-url <dlq-url> --max-number-of-messages 1 --visibility-timeout 0 --wait-time-seconds 1 --attribute-names All --message-attribute-names All
-aws sqs start-message-move-task --source-arn arn:aws:sqs:us-east-1:000000000000:floci-lab-redrive-dlq --destination-arn arn:aws:sqs:us-east-1:000000000000:floci-lab-redrive-source --max-number-of-messages-per-second 10
-aws sqs list-message-move-tasks --source-arn arn:aws:sqs:us-east-1:000000000000:floci-lab-redrive-dlq --max-results 10
+aws sqs start-message-move-task --source-arn arn:aws:sqs:us-east-1:000000000000:lab-redrive-dlq --destination-arn arn:aws:sqs:us-east-1:000000000000:lab-redrive-source --max-number-of-messages-per-second 10
+aws sqs list-message-move-tasks --source-arn arn:aws:sqs:us-east-1:000000000000:lab-redrive-dlq --max-results 10
 aws sqs receive-message --queue-url <source-queue-url> --max-number-of-messages 1 --visibility-timeout 0 --wait-time-seconds 1 --attribute-names All --message-attribute-names All
 ```
 
@@ -1574,7 +1574,7 @@ Preserve ordering and deduplicate messages with an SQS FIFO queue
 Steps:
 
 ```bash
-aws sqs create-queue --queue-name floci-lab-orders.fifo --attributes FifoQueue=true,ContentBasedDeduplication=false
+aws sqs create-queue --queue-name lab-orders.fifo --attributes FifoQueue=true,ContentBasedDeduplication=false
 aws sqs get-queue-attributes --queue-url <fifo-queue-url> --attribute-names QueueArn FifoQueue ContentBasedDeduplication
 aws sqs send-message --queue-url <fifo-queue-url> --message-body file://order-created.json --message-group-id customer-FLOCI-1001 --message-deduplication-id FLOCI-ORDER-1001-1
 aws sqs send-message --queue-url <fifo-queue-url> --message-body file://duplicate-created.json --message-group-id customer-FLOCI-1001 --message-deduplication-id FLOCI-ORDER-1001-1
@@ -1607,7 +1607,7 @@ Purge messages and delete an SQS queue
 Steps:
 
 ```bash
-aws sqs create-queue --queue-name floci-lab-cleanup --attributes VisibilityTimeout=45 --tags Purpose=cleanup-training
+aws sqs create-queue --queue-name lab-cleanup --attributes VisibilityTimeout=45 --tags Purpose=cleanup-training
 aws sqs send-message-batch --queue-url <cleanup-queue-url> --entries file://cleanup-messages.json
 aws sqs get-queue-attributes --queue-url <cleanup-queue-url> --attribute-names QueueArn VisibilityTimeout ApproximateNumberOfMessages
 aws sqs purge-queue --queue-url <cleanup-queue-url>
@@ -1652,15 +1652,15 @@ Fan out an SNS message to SQS queues
 Steps:
 
 ```bash
-aws sns create-topic --name floci-lab-order-events
-aws sqs create-queue --queue-name floci-lab-order-processing
-aws sqs create-queue --queue-name floci-lab-order-audit
+aws sns create-topic --name lab-order-events
+aws sqs create-queue --queue-name lab-order-processing
+aws sqs create-queue --queue-name lab-order-audit
 aws sqs set-queue-attributes --queue-url <orders-queue-url> --attributes file://orders-queue-policy.json
 aws sqs set-queue-attributes --queue-url <audit-queue-url> --attributes file://audit-queue-policy.json
-aws sns subscribe --topic-arn arn:aws:sns:us-east-1:000000000000:floci-lab-order-events --protocol sqs --notification-endpoint arn:aws:sqs:us-east-1:000000000000:floci-lab-order-processing --attributes RawMessageDelivery=true --return-subscription-arn
-aws sns subscribe --topic-arn arn:aws:sns:us-east-1:000000000000:floci-lab-order-events --protocol sqs --notification-endpoint arn:aws:sqs:us-east-1:000000000000:floci-lab-order-audit --attributes RawMessageDelivery=true --return-subscription-arn
-aws sns list-subscriptions-by-topic --topic-arn arn:aws:sns:us-east-1:000000000000:floci-lab-order-events
-aws sns publish --topic-arn arn:aws:sns:us-east-1:000000000000:floci-lab-order-events --message file://order-created.json --subject "Order created" --message-attributes file://message-attributes.json
+aws sns subscribe --topic-arn arn:aws:sns:us-east-1:000000000000:lab-order-events --protocol sqs --notification-endpoint arn:aws:sqs:us-east-1:000000000000:lab-order-processing --attributes RawMessageDelivery=true --return-subscription-arn
+aws sns subscribe --topic-arn arn:aws:sns:us-east-1:000000000000:lab-order-events --protocol sqs --notification-endpoint arn:aws:sqs:us-east-1:000000000000:lab-order-audit --attributes RawMessageDelivery=true --return-subscription-arn
+aws sns list-subscriptions-by-topic --topic-arn arn:aws:sns:us-east-1:000000000000:lab-order-events
+aws sns publish --topic-arn arn:aws:sns:us-east-1:000000000000:lab-order-events --message file://order-created.json --subject "Order created" --message-attributes file://message-attributes.json
 aws sqs receive-message --queue-url <orders-queue-url> --max-number-of-messages 10 --visibility-timeout 0 --wait-time-seconds 1 --message-attribute-names All
 aws sqs receive-message --queue-url <audit-queue-url> --max-number-of-messages 10 --visibility-timeout 0 --wait-time-seconds 1 --message-attribute-names All
 ```
@@ -1682,16 +1682,16 @@ Route selected SNS messages with subscription filter policies
 Steps:
 
 ```bash
-aws sns create-topic --name floci-lab-filtered-events
-aws sqs create-queue --queue-name floci-lab-created-events
-aws sqs create-queue --queue-name floci-lab-priority-events
+aws sns create-topic --name lab-filtered-events
+aws sqs create-queue --queue-name lab-created-events
+aws sqs create-queue --queue-name lab-priority-events
 aws sqs set-queue-attributes --queue-url <created-queue-url> --attributes file://created-queue-policy.json
 aws sqs set-queue-attributes --queue-url <priority-queue-url> --attributes file://priority-queue-policy.json
-aws sns subscribe --topic-arn arn:aws:sns:us-east-1:000000000000:floci-lab-filtered-events --protocol sqs --notification-endpoint arn:aws:sqs:us-east-1:000000000000:floci-lab-created-events --attributes file://created-filter.json --return-subscription-arn
-aws sns subscribe --topic-arn arn:aws:sns:us-east-1:000000000000:floci-lab-filtered-events --protocol sqs --notification-endpoint arn:aws:sqs:us-east-1:000000000000:floci-lab-priority-events --attributes file://priority-filter.json --return-subscription-arn
+aws sns subscribe --topic-arn arn:aws:sns:us-east-1:000000000000:lab-filtered-events --protocol sqs --notification-endpoint arn:aws:sqs:us-east-1:000000000000:lab-created-events --attributes file://created-filter.json --return-subscription-arn
+aws sns subscribe --topic-arn arn:aws:sns:us-east-1:000000000000:lab-filtered-events --protocol sqs --notification-endpoint arn:aws:sqs:us-east-1:000000000000:lab-priority-events --attributes file://priority-filter.json --return-subscription-arn
 aws sns get-subscription-attributes --subscription-arn <subscription-arn>
-aws sns publish --topic-arn arn:aws:sns:us-east-1:000000000000:floci-lab-filtered-events --message file://created-event.json --message-attributes file://created-attributes.json
-aws sns publish --topic-arn arn:aws:sns:us-east-1:000000000000:floci-lab-filtered-events --message file://priority-event.json --message-attributes file://priority-attributes.json
+aws sns publish --topic-arn arn:aws:sns:us-east-1:000000000000:lab-filtered-events --message file://created-event.json --message-attributes file://created-attributes.json
+aws sns publish --topic-arn arn:aws:sns:us-east-1:000000000000:lab-filtered-events --message file://priority-event.json --message-attributes file://priority-attributes.json
 aws sqs receive-message --queue-url <created-queue-url> --max-number-of-messages 10 --visibility-timeout 0 --wait-time-seconds 1 --message-attribute-names All
 aws sqs receive-message --queue-url <priority-queue-url> --max-number-of-messages 10 --visibility-timeout 0 --wait-time-seconds 1 --message-attribute-names All
 ```
@@ -1720,16 +1720,16 @@ Steps:
 
 ```bash
 aws cloudformation validate-template --template-body file://storage-messaging-stack.json
-aws cloudformation create-stack --stack-name floci-lab-storage-messaging --template-body file://storage-messaging-stack.json
-aws cloudformation describe-stacks --stack-name floci-lab-storage-messaging
-aws cloudformation describe-stack-resources --stack-name floci-lab-storage-messaging
-aws cloudformation describe-stack-events --stack-name floci-lab-storage-messaging
-aws s3api head-bucket --bucket floci-lab-cfn-storage
+aws cloudformation create-stack --stack-name lab-storage-messaging --template-body file://storage-messaging-stack.json
+aws cloudformation describe-stacks --stack-name lab-storage-messaging
+aws cloudformation describe-stack-resources --stack-name lab-storage-messaging
+aws cloudformation describe-stack-events --stack-name lab-storage-messaging
+aws s3api head-bucket --bucket lab-cfn-storage
 aws sqs get-queue-attributes --queue-url <queue-url> --attribute-names QueueArn VisibilityTimeout
-aws cloudformation delete-stack --stack-name floci-lab-storage-messaging
-aws cloudformation describe-stacks --stack-name floci-lab-storage-messaging
-aws s3api head-bucket --bucket floci-lab-cfn-storage
-aws sqs get-queue-url --queue-name floci-lab-cfn-jobs
+aws cloudformation delete-stack --stack-name lab-storage-messaging
+aws cloudformation describe-stacks --stack-name lab-storage-messaging
+aws s3api head-bucket --bucket lab-cfn-storage
+aws sqs get-queue-url --queue-name lab-cfn-jobs
 ```
 
 The JSON template declares an `AWS::S3::Bucket` and `AWS::SQS::Queue`, plus outputs for the bucket name, queue URL, and queue ARN. Validation runs before resource creation.
@@ -1810,9 +1810,9 @@ Steps:
 ```bash
 aws ec2 create-vpc --cidr-block 10.43.0.0/16 --tag-specifications file://vpc-tags.json
 aws ec2 create-subnet --vpc-id <vpc-id> --cidr-block 10.43.1.0/24 --availability-zone us-east-1a
-aws ec2 create-security-group --group-name floci-lab-web-sg --description "HTTPS web tier" --vpc-id <vpc-id>
+aws ec2 create-security-group --group-name lab-web-sg --description "HTTPS web tier" --vpc-id <vpc-id>
 aws ec2 authorize-security-group-ingress --group-id <web-sg-id> --ip-permissions file://trusted-https.json
-aws ec2 create-security-group --group-name floci-lab-app-sg --description "Private application tier" --vpc-id <vpc-id>
+aws ec2 create-security-group --group-name lab-app-sg --description "Private application tier" --vpc-id <vpc-id>
 aws ec2 authorize-security-group-ingress --group-id <app-sg-id> --ip-permissions file://web-to-app.json
 aws ec2 describe-security-groups --group-ids <web-sg-id> <app-sg-id>
 aws ec2 describe-security-group-rules --filters Name=group-id,Values=<web-sg-id>,<app-sg-id>
@@ -1864,11 +1864,11 @@ aws ec2 create-vpc --cidr-block 10.44.0.0/16 --tag-specifications file://vpc-tag
 aws ec2 create-subnet --vpc-id <vpc-id> --cidr-block 10.44.1.0/24 --availability-zone us-east-1a
 aws ec2 create-route-table --vpc-id <vpc-id>
 aws ec2 associate-route-table --route-table-id <route-table-id> --subnet-id <subnet-id>
-aws s3api create-bucket --bucket floci-lab-private-s3-data
+aws s3api create-bucket --bucket lab-private-s3-data
 aws ec2 create-vpc-endpoint --vpc-id <vpc-id> --vpc-endpoint-type Gateway --service-name com.amazonaws.us-east-1.s3 --route-table-ids <route-table-id> --policy-document file://endpoint-policy.json
 aws ec2 describe-vpc-endpoints --vpc-endpoint-ids <endpoint-id>
 aws ec2 describe-route-tables --route-table-ids <route-table-id>
-aws s3api head-bucket --bucket floci-lab-private-s3-data
+aws s3api head-bucket --bucket lab-private-s3-data
 ```
 
 The dedicated `10.44.0.0/16` VPC has no internet gateway or NAT gateway. Its `10.44.1.0/24` subnet disables automatic public IP assignment and uses a custom route table with no `0.0.0.0/0` route.
@@ -1903,9 +1903,9 @@ Steps:
 ```bash
 aws ec2 create-vpc --cidr-block 10.45.0.0/16 --tag-specifications file://vpc-tags.json
 aws ec2 create-subnet --vpc-id <vpc-id> --cidr-block 10.45.1.0/24 --availability-zone us-east-1a
-aws ec2 create-security-group --group-name floci-lab-sqs-endpoint-sg --description "Private SQS endpoint HTTPS" --vpc-id <vpc-id>
+aws ec2 create-security-group --group-name lab-sqs-endpoint-sg --description "Private SQS endpoint HTTPS" --vpc-id <vpc-id>
 aws ec2 authorize-security-group-ingress --group-id <endpoint-sg-id> --ip-permissions file://endpoint-https.json
-aws sqs create-queue --queue-name floci-lab-private-sqs
+aws sqs create-queue --queue-name lab-private-sqs
 aws ec2 create-vpc-endpoint --vpc-id <vpc-id> --vpc-endpoint-type Interface --service-name com.amazonaws.us-east-1.sqs --subnet-ids <subnet-id> --security-group-ids <endpoint-sg-id> --private-dns-enabled --policy-document file://endpoint-policy.json
 aws ec2 describe-vpc-endpoints --vpc-endpoint-ids <endpoint-id>
 aws ec2 describe-network-interfaces --network-interface-ids <eni-id>
@@ -1914,7 +1914,7 @@ aws sqs get-queue-attributes --queue-url <queue-url> --attribute-names QueueArn
 
 The interface endpoint differs from the S3 gateway endpoint in the preceding lab. It places an endpoint network interface in the selected subnet, uses a security group, and can make the standard regional SQS hostname resolve to private endpoint addresses when private DNS is enabled. It does not add a service prefix-list route to the subnet route table.
 
-The endpoint security group allows TCP 443 only from the dedicated `10.45.0.0/16` VPC. The endpoint policy allows only `sqs:GetQueueAttributes` and `sqs:SendMessage` against `floci-lab-private-sqs`.
+The endpoint security group allows TCP 443 only from the dedicated `10.45.0.0/16` VPC. The endpoint policy allows only `sqs:GetQueueAttributes` and `sqs:SendMessage` against `lab-private-sqs`.
 
 Live completion requires the VPC, private subnet, HTTPS ingress rule, target queue, available interface endpoint, and a completed topology inspection. The inspection reports the endpoint fields and ENIs that Floci persists while retaining the exact AWS request as the source of truth for any omitted local fields.
 
@@ -1937,17 +1937,17 @@ Schedule an EventBridge Scheduler message to SQS
 Steps:
 
 ```bash
-aws sqs create-queue --queue-name floci-lab-scheduled-reports
+aws sqs create-queue --queue-name lab-scheduled-reports
 aws iam create-role --role-name FlociSchedulerSqsRole --assume-role-policy-document file://scheduler-trust-policy.json
 aws iam put-role-policy --role-name FlociSchedulerSqsRole --policy-name SendScheduledReportToSqs --policy-document file://send-message-policy.json
-aws scheduler create-schedule-group --name floci-lab-scheduler
-aws scheduler create-schedule --name send-report-ready --group-name floci-lab-scheduler --schedule-expression "at(<utc-time-seconds-from-now>)" --flexible-time-window Mode=OFF --target file://target.json --action-after-completion DELETE
-aws scheduler get-schedule --name send-report-ready --group-name floci-lab-scheduler
+aws scheduler create-schedule-group --name lab-scheduler
+aws scheduler create-schedule --name send-report-ready --group-name lab-scheduler --schedule-expression "at(<utc-time-seconds-from-now>)" --flexible-time-window Mode=OFF --target file://target.json --action-after-completion DELETE
+aws scheduler get-schedule --name send-report-ready --group-name lab-scheduler
 aws sqs receive-message --queue-url <scheduled-reports-queue-url> --max-number-of-messages 10 --visibility-timeout 0 --wait-time-seconds 12
-aws scheduler get-schedule --name send-report-ready --group-name floci-lab-scheduler
+aws scheduler get-schedule --name send-report-ready --group-name lab-scheduler
 ```
 
-The IAM trust policy allows `scheduler.amazonaws.com` to assume the role. Its inline permissions policy grants only `sqs:SendMessage` on `arn:aws:sqs:us-east-1:000000000000:floci-lab-scheduled-reports`.
+The IAM trust policy allows `scheduler.amazonaws.com` to assume the role. Its inline permissions policy grants only `sqs:SendMessage` on `arn:aws:sqs:us-east-1:000000000000:lab-scheduled-reports`.
 
 The create-schedule runner generates a UTC `at(...)` expression several seconds in the future. The target stores the exact `report.ready` JSON input, the execution role ARN, and a bounded retry policy. `FlexibleTimeWindow=OFF` requests precise one-time invocation, while `ActionAfterCompletion=DELETE` removes the schedule after it runs.
 
@@ -1974,13 +1974,13 @@ Steps:
 ```bash
 aws iam create-role --role-name FlociLambdaLabRole --assume-role-policy-document file://lambda-trust-policy.json
 aws iam put-role-policy --role-name FlociLambdaLabRole --policy-name FlociLambdaLabLogs --policy-document file://lambda-logs-policy.json
-aws lambda create-function --function-name floci-lab-echo --runtime python3.11 --role arn:aws:iam::000000000000:role/FlociLambdaLabRole --handler handler.lambda_handler --zip-file fileb://function.zip
-aws lambda invoke --function-name floci-lab-echo --payload file://event.json response.json
-aws logs describe-log-streams --log-group-name /aws/lambda/floci-lab-echo
-aws logs get-log-events --log-group-name /aws/lambda/floci-lab-echo --log-stream-name <log-stream-name>
+aws lambda create-function --function-name lab-echo --runtime python3.11 --role arn:aws:iam::000000000000:role/FlociLambdaLabRole --handler handler.lambda_handler --zip-file fileb://function.zip
+aws lambda invoke --function-name lab-echo --payload file://event.json response.json
+aws logs describe-log-streams --log-group-name /aws/lambda/lab-echo
+aws logs get-log-events --log-group-name /aws/lambda/lab-echo --log-stream-name <log-stream-name>
 ```
 
-The IAM trust policy allows `lambda.amazonaws.com` to assume the execution role. Its inline permissions policy grants the function the CloudWatch Logs permissions needed to create log groups and streams and write events under `/aws/lambda/floci-lab-echo`.
+The IAM trust policy allows `lambda.amazonaws.com` to assume the execution role. Its inline permissions policy grants the function the CloudWatch Logs permissions needed to create log groups and streams and write events under `/aws/lambda/lab-echo`.
 
 The function package is generated by the approved backend runner from a small `handler.py` artifact. The visible command still teaches the real AWS CLI shape with `--zip-file fileb://function.zip`.
 
@@ -2002,16 +2002,16 @@ Steps:
 
 ```bash
 aws ssm put-parameter --name /floci/lab/lambda/config --type String --value file://lambda-config.json --description "Floci Lambda runtime configuration" --overwrite
-aws secretsmanager create-secret --name floci-lab/lambda-secret --description "Floci Lambda runtime secret" --secret-string file://lambda-secret.json
+aws secretsmanager create-secret --name lab/lambda-secret --description "Floci Lambda runtime secret" --secret-string file://lambda-secret.json
 aws iam create-role --role-name FlociLambdaConfigRole --assume-role-policy-document file://lambda-trust-policy.json
 aws iam put-role-policy --role-name FlociLambdaConfigRole --policy-name FlociLambdaConfigRead --policy-document file://lambda-config-policy.json
-aws lambda create-function --function-name floci-lab-config-reader --runtime python3.11 --role arn:aws:iam::000000000000:role/FlociLambdaConfigRole --handler handler.lambda_handler --zip-file fileb://function.zip --environment Variables={PARAMETER_NAME=/floci/lab/lambda/config,SECRET_ID=floci-lab/lambda-secret}
-aws lambda invoke --function-name floci-lab-config-reader --payload file://event.json response.json
-aws logs describe-log-streams --log-group-name /aws/lambda/floci-lab-config-reader
-aws logs get-log-events --log-group-name /aws/lambda/floci-lab-config-reader --log-stream-name <log-stream-name>
+aws lambda create-function --function-name lab-config-reader --runtime python3.11 --role arn:aws:iam::000000000000:role/FlociLambdaConfigRole --handler handler.lambda_handler --zip-file fileb://function.zip --environment Variables={PARAMETER_NAME=/floci/lab/lambda/config,SECRET_ID=lab/lambda-secret}
+aws lambda invoke --function-name lab-config-reader --payload file://event.json response.json
+aws logs describe-log-streams --log-group-name /aws/lambda/lab-config-reader
+aws logs get-log-events --log-group-name /aws/lambda/lab-config-reader --log-stream-name <log-stream-name>
 ```
 
-The lab creates its own SSM parameter and Secrets Manager secret so it can be run from a clean local environment. The Lambda execution role trusts `lambda.amazonaws.com` and grants only `ssm:GetParameter` on `/floci/lab/lambda/config`, `secretsmanager:GetSecretValue` on `floci-lab/lambda-secret`, and CloudWatch Logs writes for `/aws/lambda/floci-lab-config-reader`.
+The lab creates its own SSM parameter and Secrets Manager secret so it can be run from a clean local environment. The Lambda execution role trusts `lambda.amazonaws.com` and grants only `ssm:GetParameter` on `/floci/lab/lambda/config`, `secretsmanager:GetSecretValue` on `lab/lambda-secret`, and CloudWatch Logs writes for `/aws/lambda/lab-config-reader`.
 
 The function stores resource identifiers in environment variables, reads both services at invocation time, returns safe proof fields such as application name, environment, secret username, and secret key names, and does not return the secret API key value. Live completion verifies the parameter, secret, role, inline policy, function environment, successful invocation marker, and matching log event. Reset deletes the function, log group, role policy, role, SSM parameter, secret, and recorded invocation/log markers.
 
@@ -2030,17 +2030,17 @@ Process SQS messages with Lambda
 Steps:
 
 ```bash
-aws sqs create-queue --queue-name floci-lab-lambda-events
+aws sqs create-queue --queue-name lab-lambda-events
 aws iam create-role --role-name FlociLambdaSqsConsumerRole --assume-role-policy-document file://lambda-trust-policy.json
 aws iam put-role-policy --role-name FlociLambdaSqsConsumerRole --policy-name FlociLambdaSqsConsumerPolicy --policy-document file://lambda-sqs-policy.json
-aws lambda create-function --function-name floci-lab-sqs-consumer --runtime python3.11 --role arn:aws:iam::000000000000:role/FlociLambdaSqsConsumerRole --handler handler.lambda_handler --zip-file fileb://function.zip
-aws lambda create-event-source-mapping --function-name floci-lab-sqs-consumer --event-source-arn arn:aws:sqs:us-east-1:000000000000:floci-lab-lambda-events --batch-size 5 --enabled
+aws lambda create-function --function-name lab-sqs-consumer --runtime python3.11 --role arn:aws:iam::000000000000:role/FlociLambdaSqsConsumerRole --handler handler.lambda_handler --zip-file fileb://function.zip
+aws lambda create-event-source-mapping --function-name lab-sqs-consumer --event-source-arn arn:aws:sqs:us-east-1:000000000000:lab-lambda-events --batch-size 5 --enabled
 aws sqs send-message --queue-url <queue-url> --message-body file://order-event.json --message-attributes file://message-attributes.json
-aws logs describe-log-streams --log-group-name /aws/lambda/floci-lab-sqs-consumer
-aws logs get-log-events --log-group-name /aws/lambda/floci-lab-sqs-consumer --log-stream-name <log-stream-name>
+aws logs describe-log-streams --log-group-name /aws/lambda/lab-sqs-consumer
+aws logs get-log-events --log-group-name /aws/lambda/lab-sqs-consumer --log-stream-name <log-stream-name>
 ```
 
-The lab creates a dedicated SQS queue and Lambda function so it can teach event source mappings without reusing the synchronous echo function. The execution role trusts `lambda.amazonaws.com` and grants only `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:GetQueueAttributes` on `floci-lab-lambda-events`, plus CloudWatch Logs writes for `/aws/lambda/floci-lab-sqs-consumer`.
+The lab creates a dedicated SQS queue and Lambda function so it can teach event source mappings without reusing the synchronous echo function. The execution role trusts `lambda.amazonaws.com` and grants only `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:GetQueueAttributes` on `lab-lambda-events`, plus CloudWatch Logs writes for `/aws/lambda/lab-sqs-consumer`.
 
 The handler reads SQS `Records`, parses the order-event body, logs `FLOCI-LAMBDA-SQS-4001`, and returns a processed-record summary. Live completion verifies the queue ARN, role, inline policy, function, event source mapping, recorded SQS send, and matching log event. Reset deletes the event source mapping before deleting the function, then removes the log group, role policy, role, queue, and recorded mapping/message/log markers.
 
@@ -2063,12 +2063,12 @@ Steps:
 ```bash
 aws iam create-role --role-name FlociLambdaLabRole --assume-role-policy-document file://lambda-trust-policy.json
 aws iam put-role-policy --role-name FlociLambdaLabRole --policy-name FlociLambdaLabLogs --policy-document file://lambda-logs-policy.json
-aws lambda create-function --function-name floci-lab-echo --runtime python3.11 --role arn:aws:iam::000000000000:role/FlociLambdaLabRole --handler handler.lambda_handler --zip-file fileb://function.zip
-aws apigatewayv2 create-api --name floci-lab-lambda-api --protocol-type HTTP
-aws apigatewayv2 create-integration --api-id <api-id> --integration-type AWS_PROXY --integration-uri arn:aws:lambda:us-east-1:000000000000:function:floci-lab-echo --payload-format-version 2.0
+aws lambda create-function --function-name lab-echo --runtime python3.11 --role arn:aws:iam::000000000000:role/FlociLambdaLabRole --handler handler.lambda_handler --zip-file fileb://function.zip
+aws apigatewayv2 create-api --name lab-lambda-api --protocol-type HTTP
+aws apigatewayv2 create-integration --api-id <api-id> --integration-type AWS_PROXY --integration-uri arn:aws:lambda:us-east-1:000000000000:function:lab-echo --payload-format-version 2.0
 aws apigatewayv2 create-route --api-id <api-id> --route-key "POST /echo" --target integrations/<integration-id>
 aws apigatewayv2 create-stage --api-id <api-id> --stage-name $default --auto-deploy
-aws lambda add-permission --function-name floci-lab-echo --statement-id AllowFlociApiGatewayInvoke --action lambda:InvokeFunction --principal apigateway.amazonaws.com --source-arn arn:aws:execute-api:us-east-1:000000000000:<api-id>/*/*/echo
+aws lambda add-permission --function-name lab-echo --statement-id AllowFlociApiGatewayInvoke --action lambda:InvokeFunction --principal apigateway.amazonaws.com --source-arn arn:aws:execute-api:us-east-1:000000000000:<api-id>/*/*/echo
 curl -X POST <api-endpoint>/echo -H "Content-Type: application/json" --data @event.json
 ```
 
@@ -2095,13 +2095,13 @@ Create a DynamoDB table and query items
 Steps:
 
 ```bash
-aws dynamodb create-table --table-name floci-lab-orders --attribute-definitions file://attribute-definitions.json --key-schema file://key-schema.json --global-secondary-indexes file://customer-index.json --billing-mode PAY_PER_REQUEST
-aws dynamodb put-item --table-name floci-lab-orders --item file://order-item.json
-aws dynamodb get-item --table-name floci-lab-orders --key file://order-key.json
-aws dynamodb update-item --table-name floci-lab-orders --key file://order-key.json --update-expression "SET #status = :status, #total = :total" --expression-attribute-names file://attribute-names.json --expression-attribute-values file://updated-values.json --return-values ALL_NEW
-aws dynamodb query --table-name floci-lab-orders --index-name CustomerIdIndex --key-condition-expression "CustomerId = :customer" --expression-attribute-values file://query-values.json
-aws dynamodb delete-item --table-name floci-lab-orders --key file://order-key.json
-aws dynamodb delete-table --table-name floci-lab-orders
+aws dynamodb create-table --table-name lab-orders --attribute-definitions file://attribute-definitions.json --key-schema file://key-schema.json --global-secondary-indexes file://customer-index.json --billing-mode PAY_PER_REQUEST
+aws dynamodb put-item --table-name lab-orders --item file://order-item.json
+aws dynamodb get-item --table-name lab-orders --key file://order-key.json
+aws dynamodb update-item --table-name lab-orders --key file://order-key.json --update-expression "SET #status = :status, #total = :total" --expression-attribute-names file://attribute-names.json --expression-attribute-values file://updated-values.json --return-values ALL_NEW
+aws dynamodb query --table-name lab-orders --index-name CustomerIdIndex --key-condition-expression "CustomerId = :customer" --expression-attribute-values file://query-values.json
+aws dynamodb delete-item --table-name lab-orders --key file://order-key.json
+aws dynamodb delete-table --table-name lab-orders
 ```
 
 The table uses `OrderId` as its partition key and a `CustomerIdIndex` global secondary index for customer lookups. It uses on-demand billing with `PAY_PER_REQUEST`, keeping the workflow focused on schema, item shape, and access patterns instead of capacity math.
@@ -2123,17 +2123,17 @@ Write DynamoDB items from Lambda
 Steps:
 
 ```bash
-aws dynamodb create-table --table-name floci-lab-lambda-orders --attribute-definitions AttributeName=OrderId,AttributeType=S --key-schema AttributeName=OrderId,KeyType=HASH --billing-mode PAY_PER_REQUEST
+aws dynamodb create-table --table-name lab-lambda-orders --attribute-definitions AttributeName=OrderId,AttributeType=S --key-schema AttributeName=OrderId,KeyType=HASH --billing-mode PAY_PER_REQUEST
 aws iam create-role --role-name FlociLambdaDynamoDbRole --assume-role-policy-document file://lambda-trust-policy.json
 aws iam put-role-policy --role-name FlociLambdaDynamoDbRole --policy-name FlociLambdaDynamoDbWrite --policy-document file://lambda-dynamodb-policy.json
-aws lambda create-function --function-name floci-lab-order-writer --runtime python3.11 --role arn:aws:iam::000000000000:role/FlociLambdaDynamoDbRole --handler handler.lambda_handler --zip-file fileb://function.zip --environment Variables={TABLE_NAME=floci-lab-lambda-orders}
-aws lambda invoke --function-name floci-lab-order-writer --payload file://order-event.json response.json
-aws dynamodb get-item --table-name floci-lab-lambda-orders --key file://order-key.json
-aws logs describe-log-streams --log-group-name /aws/lambda/floci-lab-order-writer
-aws logs get-log-events --log-group-name /aws/lambda/floci-lab-order-writer --log-stream-name <log-stream-name>
+aws lambda create-function --function-name lab-order-writer --runtime python3.11 --role arn:aws:iam::000000000000:role/FlociLambdaDynamoDbRole --handler handler.lambda_handler --zip-file fileb://function.zip --environment Variables={TABLE_NAME=lab-lambda-orders}
+aws lambda invoke --function-name lab-order-writer --payload file://order-event.json response.json
+aws dynamodb get-item --table-name lab-lambda-orders --key file://order-key.json
+aws logs describe-log-streams --log-group-name /aws/lambda/lab-order-writer
+aws logs get-log-events --log-group-name /aws/lambda/lab-order-writer --log-stream-name <log-stream-name>
 ```
 
-The Lambda execution role trusts `lambda.amazonaws.com` and has a lab-scoped inline policy allowing `dynamodb:PutItem` only on `floci-lab-lambda-orders`, plus CloudWatch Logs writes for `/aws/lambda/floci-lab-order-writer`.
+The Lambda execution role trusts `lambda.amazonaws.com` and has a lab-scoped inline policy allowing `dynamodb:PutItem` only on `lab-lambda-orders`, plus CloudWatch Logs writes for `/aws/lambda/lab-order-writer`.
 
 The handler reads `TABLE_NAME` from its environment, writes the order event as a DynamoDB item, returns the order ID and request ID, and logs the write. Live completion verifies the table, role, inline policy, function environment, successful invocation marker, written item, and matching log event. Reset deletes the function, log group, role policy, role, item, table, and recorded invocation/log markers.
 
@@ -2155,13 +2155,13 @@ Steps:
 
 ```bash
 aws kms create-key --description "Floci dashboard local workflow lab key" --key-usage ENCRYPT_DECRYPT --key-spec SYMMETRIC_DEFAULT --tags file://key-tags.json
-aws kms create-alias --alias-name alias/floci-lab-data-key --target-key-id <key-id>
-aws kms describe-key --key-id alias/floci-lab-data-key
-aws kms encrypt --key-id alias/floci-lab-data-key --plaintext fileb://app-config.json
+aws kms create-alias --alias-name alias/lab-data-key --target-key-id <key-id>
+aws kms describe-key --key-id alias/lab-data-key
+aws kms encrypt --key-id alias/lab-data-key --plaintext fileb://app-config.json
 aws kms decrypt --ciphertext-blob fileb://ciphertext.bin
 ```
 
-The lab creates a symmetric `ENCRYPT_DECRYPT` key tagged for recovery, then attaches the stable alias `alias/floci-lab-data-key`. The alias demonstrates how local application configuration can refer to a stable key name instead of a generated key ID.
+The lab creates a symmetric `ENCRYPT_DECRYPT` key tagged for recovery, then attaches the stable alias `alias/lab-data-key`. The alias demonstrates how local application configuration can refer to a stable key name instead of a generated key ID.
 
 The encrypt step protects a small JSON app configuration payload. KMS does not retain ciphertext as discoverable service state, so the lab records the ciphertext returned by the approved encrypt step and uses that exact blob for decrypt verification. Live completion verifies the key, alias, recorded ciphertext, and decrypted plaintext match. Reset deletes the alias, schedules the lab key for deletion with a seven-day pending window, and clears recorded ciphertext/decrypt state.
 
@@ -2215,11 +2215,11 @@ Create and update a Secrets Manager secret
 Steps:
 
 ```bash
-aws secretsmanager create-secret --name floci-lab/app-credentials --description "Floci lab application credentials" --secret-string file://initial-secret.json
-aws secretsmanager get-secret-value --secret-id floci-lab/app-credentials
-aws secretsmanager put-secret-value --secret-id floci-lab/app-credentials --secret-string file://rotated-secret.json
-aws secretsmanager get-secret-value --secret-id floci-lab/app-credentials
-aws secretsmanager describe-secret --secret-id floci-lab/app-credentials
+aws secretsmanager create-secret --name lab/app-credentials --description "Floci lab application credentials" --secret-string file://initial-secret.json
+aws secretsmanager get-secret-value --secret-id lab/app-credentials
+aws secretsmanager put-secret-value --secret-id lab/app-credentials --secret-string file://rotated-secret.json
+aws secretsmanager get-secret-value --secret-id lab/app-credentials
+aws secretsmanager describe-secret --secret-id lab/app-credentials
 ```
 
 The lab creates a JSON application credential, reads the initial value, writes a rotated value, reads the current value, and inspects metadata separately from secret material.
@@ -2231,7 +2231,7 @@ Live completion requires:
 - the current secret value to match the rotated credential JSON,
 - metadata inspection through `DescribeSecret`.
 
-The initial-read milestone uses a short-lived server-side marker because once the secret is rotated, live Secrets Manager state can no longer prove that the old value was read successfully. Reset force-deletes only `floci-lab/app-credentials` and clears the lab markers.
+The initial-read milestone uses a short-lived server-side marker because once the secret is rotated, live Secrets Manager state can no longer prove that the old value was read successfully. Reset force-deletes only `lab/app-credentials` and clears the lab markers.
 
 Implemented follow-up Lambda lab:
 

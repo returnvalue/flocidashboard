@@ -3293,7 +3293,7 @@ def _eventbridge_optional(loader: Callable[[], Any], empty_codes: set[str]) -> A
 def eventbridge_inventory() -> dict[str, Any]:
     factory = FlociClientFactory()
     events = factory.client('events')
-    buses = _safe_value(lambda: _paginate(events, 'list_event_buses', 'EventBuses'), [])
+    buses = _safe_value(lambda: _operation_items(events, 'list_event_buses', 'EventBuses'), [])
 
     if not buses:
         buses = [{'Name': 'default'}]
@@ -3308,7 +3308,7 @@ def eventbridge_inventory() -> dict[str, Any]:
             {'ResourceNotFoundException'},
         )
         rules = _eventbridge_optional(
-            lambda: _paginate(events, 'list_rules', 'Rules', EventBusName=name),
+            lambda: _operation_items(events, 'list_rules', 'Rules', EventBusName=name),
             {'ResourceNotFoundException'},
         )
         rule_details = []
@@ -3317,7 +3317,7 @@ def eventbridge_inventory() -> dict[str, Any]:
             for rule in rules:
                 rule_name = rule.get('Name')
                 targets = _eventbridge_optional(
-                    lambda: _paginate(
+                    lambda: _operation_items(
                         events,
                         'list_targets_by_rule',
                         'Targets',

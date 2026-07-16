@@ -478,8 +478,8 @@ class LabsPageTests(SimpleTestCase):
         self.assertContains(response, f'href="{reverse("dashboard:service-page", kwargs={"service_key": "s3"})}"')
         self.assertContains(response, 'aria-current="page">Labs</span>')
         self.assertContains(response, 'Create and inspect an S3 bucket')
-        self.assertContains(response, 'aws s3api create-bucket --bucket floci-lab-basics')
-        self.assertContains(response, 'aws s3api head-bucket --bucket floci-lab-basics')
+        self.assertContains(response, 'aws s3api create-bucket --bucket lab-basics')
+        self.assertContains(response, 'aws s3api head-bucket --bucket lab-basics')
         self.assertContains(response, 'aws s3api list-buckets')
 
     @patch('dashboard.views.lab_status')
@@ -493,11 +493,11 @@ class LabsPageTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Upload and retrieve an S3 object')
-        self.assertContains(response, 'aws s3api create-bucket --bucket floci-lab-objects')
-        self.assertContains(response, 'aws s3api put-object --bucket floci-lab-objects --key hello.txt --body hello.txt --content-type text/plain')
-        self.assertContains(response, 'aws s3api list-objects-v2 --bucket floci-lab-objects')
-        self.assertContains(response, 'aws s3api head-object --bucket floci-lab-objects --key hello.txt')
-        self.assertContains(response, 'aws s3api get-object --bucket floci-lab-objects --key hello.txt downloaded-hello.txt')
+        self.assertContains(response, 'aws s3api create-bucket --bucket lab-objects')
+        self.assertContains(response, 'aws s3api put-object --bucket lab-objects --key hello.txt --body hello.txt --content-type text/plain')
+        self.assertContains(response, 'aws s3api list-objects-v2 --bucket lab-objects')
+        self.assertContains(response, 'aws s3api head-object --bucket lab-objects --key hello.txt')
+        self.assertContains(response, 'aws s3api get-object --bucket lab-objects --key hello.txt downloaded-hello.txt')
         self.assertContains(response, 'Hello from the Floci S3 lab!')
 
     @patch('dashboard.views.lab_status')
@@ -511,11 +511,11 @@ class LabsPageTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Organize and copy objects with key prefixes')
-        self.assertContains(response, 'aws s3api create-bucket --bucket floci-lab-prefixes')
-        self.assertContains(response, 'aws s3api put-object --bucket floci-lab-prefixes --key incoming/report.txt --body report.txt --content-type text/plain')
-        self.assertContains(response, 'aws s3api list-objects-v2 --bucket floci-lab-prefixes --prefix incoming/')
-        self.assertContains(response, 'aws s3api copy-object --copy-source floci-lab-prefixes/incoming/report.txt --bucket floci-lab-prefixes --key archive/report.txt')
-        self.assertContains(response, 'aws s3api list-objects-v2 --bucket floci-lab-prefixes --prefix archive/')
+        self.assertContains(response, 'aws s3api create-bucket --bucket lab-prefixes')
+        self.assertContains(response, 'aws s3api put-object --bucket lab-prefixes --key incoming/report.txt --body report.txt --content-type text/plain')
+        self.assertContains(response, 'aws s3api list-objects-v2 --bucket lab-prefixes --prefix incoming/')
+        self.assertContains(response, 'aws s3api copy-object --copy-source lab-prefixes/incoming/report.txt --bucket lab-prefixes --key archive/report.txt')
+        self.assertContains(response, 'aws s3api list-objects-v2 --bucket lab-prefixes --prefix archive/')
         self.assertContains(response, 'Status: ready for archive')
 
     @patch('dashboard.views.lab_status')
@@ -529,11 +529,11 @@ class LabsPageTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Add object metadata and tags')
-        self.assertContains(response, 'aws s3api create-bucket --bucket floci-lab-metadata')
-        self.assertContains(response, 'aws s3api put-object --bucket floci-lab-metadata --key documents/invoice.txt --body invoice.txt --content-type text/plain --metadata project=floci,classification=internal')
-        self.assertContains(response, 'aws s3api head-object --bucket floci-lab-metadata --key documents/invoice.txt')
-        self.assertContains(response, 'aws s3api put-object-tagging --bucket floci-lab-metadata --key documents/invoice.txt --tagging file://invoice-tags.json')
-        self.assertContains(response, 'aws s3api get-object-tagging --bucket floci-lab-metadata --key documents/invoice.txt')
+        self.assertContains(response, 'aws s3api create-bucket --bucket lab-metadata')
+        self.assertContains(response, 'aws s3api put-object --bucket lab-metadata --key documents/invoice.txt --body invoice.txt --content-type text/plain --metadata project=floci,classification=internal')
+        self.assertContains(response, 'aws s3api head-object --bucket lab-metadata --key documents/invoice.txt')
+        self.assertContains(response, 'aws s3api put-object-tagging --bucket lab-metadata --key documents/invoice.txt --tagging file://invoice-tags.json')
+        self.assertContains(response, 'aws s3api get-object-tagging --bucket lab-metadata --key documents/invoice.txt')
         self.assertContains(response, 'CostCenter')
         self.assertContains(response, 'training')
 
@@ -548,11 +548,11 @@ class LabsPageTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Enable versioning and recover an earlier object version')
-        self.assertContains(response, 'aws s3api create-bucket --bucket floci-lab-versioning')
-        self.assertContains(response, 'aws s3api put-bucket-versioning --bucket floci-lab-versioning --versioning-configuration Status=Enabled')
-        self.assertContains(response, 'aws s3api put-object --bucket floci-lab-versioning --key configuration.txt --body configuration-v1.txt --content-type text/plain')
-        self.assertContains(response, 'aws s3api list-object-versions --bucket floci-lab-versioning --prefix configuration.txt')
-        self.assertContains(response, 'aws s3api get-object --bucket floci-lab-versioning --key configuration.txt --version-id &lt;v1-version-id&gt; recovered-configuration.txt')
+        self.assertContains(response, 'aws s3api create-bucket --bucket lab-versioning')
+        self.assertContains(response, 'aws s3api put-bucket-versioning --bucket lab-versioning --versioning-configuration Status=Enabled')
+        self.assertContains(response, 'aws s3api put-object --bucket lab-versioning --key configuration.txt --body configuration-v1.txt --content-type text/plain')
+        self.assertContains(response, 'aws s3api list-object-versions --bucket lab-versioning --prefix configuration.txt')
+        self.assertContains(response, 'aws s3api get-object --bucket lab-versioning --key configuration.txt --version-id &lt;v1-version-id&gt; recovered-configuration.txt')
         self.assertContains(response, 'feature_enabled=false')
         self.assertContains(response, 'feature_enabled=true')
 
@@ -567,9 +567,9 @@ class LabsPageTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Generate temporary access with a presigned URL')
-        self.assertContains(response, 'aws s3api create-bucket --bucket floci-lab-presigned')
-        self.assertContains(response, 'aws s3api put-object --bucket floci-lab-presigned --key shared/guide.txt --body guide.txt --content-type text/plain')
-        self.assertContains(response, 'aws s3 presign s3://floci-lab-presigned/shared/guide.txt --expires-in 300')
+        self.assertContains(response, 'aws s3api create-bucket --bucket lab-presigned')
+        self.assertContains(response, 'aws s3api put-object --bucket lab-presigned --key shared/guide.txt --body guide.txt --content-type text/plain')
+        self.assertContains(response, 'aws s3 presign s3://lab-presigned/shared/guide.txt --expires-in 300')
         self.assertContains(response, 'Temporary access with an S3 presigned URL.')
 
     @patch('dashboard.views.lab_status')
@@ -583,12 +583,12 @@ class LabsPageTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Block public access and apply a bucket policy')
-        self.assertContains(response, 'aws s3api create-bucket --bucket floci-lab-security')
-        self.assertContains(response, 'aws s3api put-public-access-block --bucket floci-lab-security')
+        self.assertContains(response, 'aws s3api create-bucket --bucket lab-security')
+        self.assertContains(response, 'aws s3api put-public-access-block --bucket lab-security')
         self.assertContains(response, 'BlockPublicPolicy=true')
-        self.assertContains(response, 'aws s3api get-public-access-block --bucket floci-lab-security')
-        self.assertContains(response, 'aws s3api put-bucket-policy --bucket floci-lab-security --policy file://bucket-policy.json')
-        self.assertContains(response, 'aws s3api get-bucket-policy --bucket floci-lab-security')
+        self.assertContains(response, 'aws s3api get-public-access-block --bucket lab-security')
+        self.assertContains(response, 'aws s3api put-bucket-policy --bucket lab-security --policy file://bucket-policy.json')
+        self.assertContains(response, 'aws s3api get-bucket-policy --bucket lab-security')
         self.assertContains(response, 'AllowLocalAccountList')
         self.assertContains(response, 's3:ListBucket')
 
@@ -603,11 +603,11 @@ class LabsPageTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Enable default bucket encryption')
-        self.assertContains(response, 'aws s3api create-bucket --bucket floci-lab-encryption')
-        self.assertContains(response, 'aws s3api put-bucket-encryption --bucket floci-lab-encryption --server-side-encryption-configuration file://encryption.json')
-        self.assertContains(response, 'aws s3api get-bucket-encryption --bucket floci-lab-encryption')
-        self.assertContains(response, 'aws s3api put-object --bucket floci-lab-encryption --key protected/record.txt --body record.txt --content-type text/plain')
-        self.assertContains(response, 'aws s3api head-object --bucket floci-lab-encryption --key protected/record.txt')
+        self.assertContains(response, 'aws s3api create-bucket --bucket lab-encryption')
+        self.assertContains(response, 'aws s3api put-bucket-encryption --bucket lab-encryption --server-side-encryption-configuration file://encryption.json')
+        self.assertContains(response, 'aws s3api get-bucket-encryption --bucket lab-encryption')
+        self.assertContains(response, 'aws s3api put-object --bucket lab-encryption --key protected/record.txt --body record.txt --content-type text/plain')
+        self.assertContains(response, 'aws s3api head-object --bucket lab-encryption --key protected/record.txt')
         self.assertContains(response, 'AES256')
 
     @patch('dashboard.views.lab_status')
@@ -621,10 +621,10 @@ class LabsPageTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Automate retention with an S3 lifecycle rule')
-        self.assertContains(response, 'aws s3api create-bucket --bucket floci-lab-lifecycle')
-        self.assertContains(response, 'aws s3api put-object --bucket floci-lab-lifecycle --key logs/app.log --body app.log --content-type text/plain')
-        self.assertContains(response, 'aws s3api put-bucket-lifecycle-configuration --bucket floci-lab-lifecycle --lifecycle-configuration file://lifecycle.json')
-        self.assertContains(response, 'aws s3api get-bucket-lifecycle-configuration --bucket floci-lab-lifecycle')
+        self.assertContains(response, 'aws s3api create-bucket --bucket lab-lifecycle')
+        self.assertContains(response, 'aws s3api put-object --bucket lab-lifecycle --key logs/app.log --body app.log --content-type text/plain')
+        self.assertContains(response, 'aws s3api put-bucket-lifecycle-configuration --bucket lab-lifecycle --lifecycle-configuration file://lifecycle.json')
+        self.assertContains(response, 'aws s3api get-bucket-lifecycle-configuration --bucket lab-lifecycle')
         self.assertContains(response, 'ExpireApplicationLogsAfter30Days')
         self.assertContains(response, '&quot;Days&quot;: 30')
         self.assertContains(response, 'asynchronously')
@@ -640,9 +640,9 @@ class LabsPageTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Configure bucket CORS for a local web app')
-        self.assertContains(response, 'aws s3api create-bucket --bucket floci-lab-cors')
-        self.assertContains(response, 'aws s3api put-bucket-cors --bucket floci-lab-cors --cors-configuration file://cors.json')
-        self.assertContains(response, 'aws s3api get-bucket-cors --bucket floci-lab-cors')
+        self.assertContains(response, 'aws s3api create-bucket --bucket lab-cors')
+        self.assertContains(response, 'aws s3api put-bucket-cors --bucket lab-cors --cors-configuration file://cors.json')
+        self.assertContains(response, 'aws s3api get-bucket-cors --bucket lab-cors')
         self.assertContains(response, 'http://localhost:3000')
         self.assertContains(response, 'AllowLocalWebAppRead')
         self.assertContains(response, 'ETag')
@@ -658,11 +658,11 @@ class LabsPageTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Send S3 object-created events to SQS')
-        self.assertContains(response, 'aws sqs create-queue --queue-name floci-lab-s3-events')
+        self.assertContains(response, 'aws sqs create-queue --queue-name lab-s3-events')
         self.assertContains(response, 'aws sqs set-queue-attributes --queue-url &lt;queue-url&gt; --attributes file://queue-attributes.json')
-        self.assertContains(response, 'aws s3api create-bucket --bucket floci-lab-notifications')
-        self.assertContains(response, 'aws s3api put-bucket-notification-configuration --bucket floci-lab-notifications')
-        self.assertContains(response, 'aws s3api put-object --bucket floci-lab-notifications --key uploads/report.txt')
+        self.assertContains(response, 'aws s3api create-bucket --bucket lab-notifications')
+        self.assertContains(response, 'aws s3api put-bucket-notification-configuration --bucket lab-notifications')
+        self.assertContains(response, 'aws s3api put-object --bucket lab-notifications --key uploads/report.txt')
         self.assertContains(response, 'aws sqs receive-message --queue-url &lt;queue-url&gt;')
         self.assertContains(response, 'AllowS3ObjectCreatedEvents')
         self.assertContains(response, 's3:ObjectCreated:*')
@@ -678,14 +678,14 @@ class LabsPageTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Complete a multipart upload')
-        self.assertContains(response, 'aws s3api create-bucket --bucket floci-lab-multipart')
-        self.assertContains(response, 'aws s3api create-multipart-upload --bucket floci-lab-multipart')
-        self.assertContains(response, 'aws s3api upload-part --bucket floci-lab-multipart')
+        self.assertContains(response, 'aws s3api create-bucket --bucket lab-multipart')
+        self.assertContains(response, 'aws s3api create-multipart-upload --bucket lab-multipart')
+        self.assertContains(response, 'aws s3api upload-part --bucket lab-multipart')
         self.assertContains(response, '--part-number 1')
         self.assertContains(response, '--part-number 2')
-        self.assertContains(response, 'aws s3api list-parts --bucket floci-lab-multipart')
-        self.assertContains(response, 'aws s3api complete-multipart-upload --bucket floci-lab-multipart')
-        self.assertContains(response, 'aws s3api get-object --bucket floci-lab-multipart')
+        self.assertContains(response, 'aws s3api list-parts --bucket lab-multipart')
+        self.assertContains(response, 'aws s3api complete-multipart-upload --bucket lab-multipart')
+        self.assertContains(response, 'aws s3api get-object --bucket lab-multipart')
         self.assertContains(response, '5 MiB')
         self.assertContains(response, 'parts.json')
 
@@ -710,8 +710,8 @@ class LabsPageTests(SimpleTestCase):
         self.assertContains(response, f'href="{reverse("dashboard:index")}"')
         self.assertContains(response, f'href="{reverse("dashboard:service-page", kwargs={"service_key": "sqs"})}"')
         self.assertContains(response, 'Create and inspect an SQS queue')
-        self.assertContains(response, 'aws sqs create-queue --queue-name floci-lab-basics')
-        self.assertContains(response, 'aws sqs get-queue-url --queue-name floci-lab-basics')
+        self.assertContains(response, 'aws sqs create-queue --queue-name lab-basics')
+        self.assertContains(response, 'aws sqs get-queue-url --queue-name lab-basics')
         self.assertContains(response, 'aws sqs get-queue-attributes --queue-url &lt;queue-url&gt; --attribute-names All')
         self.assertContains(response, 'aws sqs list-queues')
 
@@ -726,7 +726,7 @@ class LabsPageTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Send, receive, and delete an SQS message')
-        self.assertContains(response, 'aws sqs create-queue --queue-name floci-lab-basics')
+        self.assertContains(response, 'aws sqs create-queue --queue-name lab-basics')
         self.assertContains(response, 'aws sqs send-message --queue-url &lt;queue-url&gt;')
         self.assertContains(response, 'aws sqs receive-message --queue-url &lt;queue-url&gt;')
         self.assertContains(response, 'aws sqs delete-message --queue-url &lt;queue-url&gt;')
@@ -824,8 +824,8 @@ class LabsPageTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Route failed messages to a dead-letter queue')
-        self.assertContains(response, 'aws sqs create-queue --queue-name floci-lab-redrive-dlq')
-        self.assertContains(response, 'aws sqs create-queue --queue-name floci-lab-redrive-source')
+        self.assertContains(response, 'aws sqs create-queue --queue-name lab-redrive-dlq')
+        self.assertContains(response, 'aws sqs create-queue --queue-name lab-redrive-source')
         self.assertContains(response, 'aws sqs set-queue-attributes --queue-url &lt;source-queue-url&gt;')
         self.assertContains(response, 'aws sqs start-message-move-task')
         self.assertContains(response, 'aws sqs list-message-move-tasks')
@@ -843,7 +843,7 @@ class LabsPageTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Preserve ordering and deduplicate messages with SQS FIFO')
-        self.assertContains(response, 'aws sqs create-queue --queue-name floci-lab-orders.fifo')
+        self.assertContains(response, 'aws sqs create-queue --queue-name lab-orders.fifo')
         self.assertContains(response, 'FifoQueue=true')
         self.assertContains(response, 'ContentBasedDeduplication=false')
         self.assertContains(response, '--message-group-id customer-FLOCI-1001')
@@ -863,7 +863,7 @@ class LabsPageTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Purge messages and delete an SQS queue')
-        self.assertContains(response, 'aws sqs create-queue --queue-name floci-lab-cleanup')
+        self.assertContains(response, 'aws sqs create-queue --queue-name lab-cleanup')
         self.assertContains(response, 'VisibilityTimeout=45')
         self.assertContains(response, 'Purpose=cleanup-training')
         self.assertContains(response, 'aws sqs send-message-batch')
@@ -890,9 +890,9 @@ class LabsPageTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<title>SNS Labs - Floci Dashboard</title>', html=True)
         self.assertContains(response, 'Fan out an SNS message to SQS queues')
-        self.assertContains(response, 'aws sns create-topic --name floci-lab-order-events')
-        self.assertContains(response, 'aws sqs create-queue --queue-name floci-lab-order-processing')
-        self.assertContains(response, 'aws sqs create-queue --queue-name floci-lab-order-audit')
+        self.assertContains(response, 'aws sns create-topic --name lab-order-events')
+        self.assertContains(response, 'aws sqs create-queue --queue-name lab-order-processing')
+        self.assertContains(response, 'aws sqs create-queue --queue-name lab-order-audit')
         self.assertContains(response, 'RawMessageDelivery=true')
         self.assertContains(response, 'aws sns publish')
         self.assertContains(response, 'order.created')
@@ -912,9 +912,9 @@ class LabsPageTests(SimpleTestCase):
             response,
             'Route selected SNS messages with subscription filters',
         )
-        self.assertContains(response, 'floci-lab-filtered-events')
-        self.assertContains(response, 'floci-lab-created-events')
-        self.assertContains(response, 'floci-lab-priority-events')
+        self.assertContains(response, 'lab-filtered-events')
+        self.assertContains(response, 'lab-created-events')
+        self.assertContains(response, 'lab-priority-events')
         self.assertContains(response, 'FilterPolicyScope')
         self.assertContains(response, 'MessageAttributes')
         self.assertContains(response, 'order.created')
@@ -949,7 +949,7 @@ class LabsPageTests(SimpleTestCase):
             response,
             'Schedule an EventBridge Scheduler message to SQS',
         )
-        self.assertContains(response, 'aws sqs create-queue --queue-name floci-lab-scheduled-reports')
+        self.assertContains(response, 'aws sqs create-queue --queue-name lab-scheduled-reports')
         self.assertContains(response, 'aws iam create-role --role-name FlociSchedulerSqsRole')
         self.assertContains(response, 'scheduler.amazonaws.com')
         self.assertContains(response, 'sqs:SendMessage')
@@ -995,8 +995,8 @@ class LabsPageTests(SimpleTestCase):
         self.assertContains(response, 'aws cloudformation create-stack')
         self.assertContains(response, 'AWS::S3::Bucket')
         self.assertContains(response, 'AWS::SQS::Queue')
-        self.assertContains(response, 'floci-lab-cfn-storage')
-        self.assertContains(response, 'floci-lab-cfn-jobs')
+        self.assertContains(response, 'lab-cfn-storage')
+        self.assertContains(response, 'lab-cfn-jobs')
         self.assertContains(response, 'describe-stack-events')
         self.assertContains(response, 'delete-stack')
 
@@ -1046,8 +1046,8 @@ class LabsPageTests(SimpleTestCase):
             response,
             'Control VPC traffic with security groups and network ACLs',
         )
-        self.assertContains(response, 'floci-lab-web-sg')
-        self.assertContains(response, 'floci-lab-app-sg')
+        self.assertContains(response, 'lab-web-sg')
+        self.assertContains(response, 'lab-app-sg')
         self.assertContains(response, '203.0.113.0/24')
         self.assertContains(response, 'FromPort')
         self.assertContains(response, '8080')
@@ -1093,7 +1093,7 @@ class LabsPageTests(SimpleTestCase):
         )
         self.assertContains(response, '10.45.0.0/16')
         self.assertContains(response, 'com.amazonaws.us-east-1.sqs')
-        self.assertContains(response, 'floci-lab-sqs-endpoint-sg')
+        self.assertContains(response, 'lab-sqs-endpoint-sg')
         self.assertContains(response, 'private-dns-enabled')
         self.assertContains(response, 'describe-network-interfaces')
         self.assertContains(response, 'sqs:SendMessage')
@@ -2328,14 +2328,14 @@ class LabsRunnerTests(SimpleTestCase):
     @patch('dashboard.labs.FlociClientFactory')
     def test_s3_create_bucket_step_creates_and_verifies_bucket(self, factory_mock):
         s3 = MagicMock()
-        s3.create_bucket.return_value = {'Location': '/floci-lab-basics'}
+        s3.create_bucket.return_value = {'Location': '/lab-basics'}
         s3.head_bucket.return_value = {'BucketRegion': 'us-east-1'}
         factory_mock.return_value.client.return_value = s3
 
         result = run_lab_step('s3', 'create-bucket', 'create-bucket')
 
-        s3.create_bucket.assert_called_once_with(Bucket='floci-lab-basics')
-        s3.head_bucket.assert_called_once_with(Bucket='floci-lab-basics')
+        s3.create_bucket.assert_called_once_with(Bucket='lab-basics')
+        s3.head_bucket.assert_called_once_with(Bucket='lab-basics')
         self.assertTrue(result['verified'])
 
     @patch('dashboard.labs.FlociClientFactory')
@@ -2368,7 +2368,7 @@ class LabsRunnerTests(SimpleTestCase):
     def test_s3_list_buckets_step_returns_lab_bucket(self, factory_mock):
         s3 = MagicMock()
         s3.list_buckets.return_value = {
-            'Buckets': [{'Name': 'floci-lab-basics'}],
+            'Buckets': [{'Name': 'lab-basics'}],
         }
         s3.head_bucket.return_value = {'BucketRegion': 'us-east-1'}
         factory_mock.return_value.client.return_value = s3
@@ -2377,7 +2377,7 @@ class LabsRunnerTests(SimpleTestCase):
 
         s3.list_buckets.assert_called_once_with()
         self.assertTrue(result['verified'])
-        self.assertIn('floci-lab-basics', result['stdout'])
+        self.assertIn('lab-basics', result['stdout'])
 
     @patch('dashboard.labs.FlociClientFactory')
     def test_s3_lab_status_marks_all_steps_complete_from_live_bucket(self, factory_mock):
@@ -2412,7 +2412,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = reset_lab('s3', 'create-bucket')
 
         self.assertEqual(s3.delete_objects.call_count, 2)
-        s3.delete_bucket.assert_called_once_with(Bucket='floci-lab-basics')
+        s3.delete_bucket.assert_called_once_with(Bucket='lab-basics')
         self.assertEqual(result['deleted_objects'], 3)
         self.assertTrue(result['deleted_bucket'])
 
@@ -2432,7 +2432,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('s3', 'object-workflow', 'put-object')
 
         s3.put_object.assert_called_once_with(
-            Bucket='floci-lab-objects',
+            Bucket='lab-objects',
             Key='hello.txt',
             Body=b'Hello from the Floci S3 lab!\n',
             ContentType='text/plain',
@@ -2456,7 +2456,7 @@ class LabsRunnerTests(SimpleTestCase):
 
         result = run_lab_step('s3', 'object-workflow', 'list-objects')
 
-        s3.list_objects_v2.assert_called_once_with(Bucket='floci-lab-objects')
+        s3.list_objects_v2.assert_called_once_with(Bucket='lab-objects')
         self.assertTrue(result['verified'])
         self.assertIn('hello.txt', result['stdout'])
 
@@ -2520,10 +2520,10 @@ class LabsRunnerTests(SimpleTestCase):
         result = reset_lab('s3', 'object-workflow')
 
         s3.delete_objects.assert_called_once_with(
-            Bucket='floci-lab-objects',
+            Bucket='lab-objects',
             Delete={'Objects': [{'Key': 'hello.txt'}], 'Quiet': True},
         )
-        s3.delete_bucket.assert_called_once_with(Bucket='floci-lab-objects')
+        s3.delete_bucket.assert_called_once_with(Bucket='lab-objects')
         self.assertEqual(result['lab'], 'object-workflow')
         self.assertTrue(result['deleted_bucket'])
 
@@ -2539,7 +2539,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('s3', 'prefix-copy', 'put-source-object')
 
         s3.put_object.assert_called_once_with(
-            Bucket='floci-lab-prefixes',
+            Bucket='lab-prefixes',
             Key='incoming/report.txt',
             Body=b'Floci S3 lab report\nStatus: ready for archive\n',
             ContentType='text/plain',
@@ -2560,7 +2560,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('s3', 'prefix-copy', 'list-incoming-prefix')
 
         s3.list_objects_v2.assert_called_once_with(
-            Bucket='floci-lab-prefixes',
+            Bucket='lab-prefixes',
             Prefix='incoming/',
         )
         self.assertTrue(result['verified'])
@@ -2579,10 +2579,10 @@ class LabsRunnerTests(SimpleTestCase):
 
         s3.copy_object.assert_called_once_with(
             CopySource={
-                'Bucket': 'floci-lab-prefixes',
+                'Bucket': 'lab-prefixes',
                 'Key': 'incoming/report.txt',
             },
-            Bucket='floci-lab-prefixes',
+            Bucket='lab-prefixes',
             Key='archive/report.txt',
         )
         self.assertTrue(result['verified'])
@@ -2629,7 +2629,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = reset_lab('s3', 'prefix-copy')
 
         s3.delete_objects.assert_called_once_with(
-            Bucket='floci-lab-prefixes',
+            Bucket='lab-prefixes',
             Delete={
                 'Objects': [
                     {'Key': 'incoming/report.txt'},
@@ -2638,7 +2638,7 @@ class LabsRunnerTests(SimpleTestCase):
                 'Quiet': True,
             },
         )
-        s3.delete_bucket.assert_called_once_with(Bucket='floci-lab-prefixes')
+        s3.delete_bucket.assert_called_once_with(Bucket='lab-prefixes')
         self.assertEqual(result['deleted_objects'], 2)
         self.assertTrue(result['deleted_bucket'])
 
@@ -2662,7 +2662,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('s3', 'metadata-tags', 'put-object')
 
         s3.put_object.assert_called_once_with(
-            Bucket='floci-lab-metadata',
+            Bucket='lab-metadata',
             Key='documents/invoice.txt',
             Body=b'Invoice: FLOCI-1001\nAmount: 42.00\n',
             ContentType='text/plain',
@@ -2692,7 +2692,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('s3', 'metadata-tags', 'head-object')
 
         s3.head_object.assert_called_with(
-            Bucket='floci-lab-metadata',
+            Bucket='lab-metadata',
             Key='documents/invoice.txt',
         )
         self.assertTrue(result['verified'])
@@ -2713,7 +2713,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('s3', 'metadata-tags', 'put-object-tagging')
 
         s3.put_object_tagging.assert_called_once_with(
-            Bucket='floci-lab-metadata',
+            Bucket='lab-metadata',
             Key='documents/invoice.txt',
             Tagging={
                 'TagSet': [
@@ -2772,13 +2772,13 @@ class LabsRunnerTests(SimpleTestCase):
         result = reset_lab('s3', 'metadata-tags')
 
         s3.delete_objects.assert_called_once_with(
-            Bucket='floci-lab-metadata',
+            Bucket='lab-metadata',
             Delete={
                 'Objects': [{'Key': 'documents/invoice.txt'}],
                 'Quiet': True,
             },
         )
-        s3.delete_bucket.assert_called_once_with(Bucket='floci-lab-metadata')
+        s3.delete_bucket.assert_called_once_with(Bucket='lab-metadata')
         self.assertTrue(result['deleted_bucket'])
 
     @patch('dashboard.labs.FlociClientFactory')
@@ -2791,7 +2791,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('s3', 'version-recovery', 'enable-versioning')
 
         s3.put_bucket_versioning.assert_called_once_with(
-            Bucket='floci-lab-versioning',
+            Bucket='lab-versioning',
             VersioningConfiguration={'Status': 'Enabled'},
         )
         self.assertTrue(result['verified'])
@@ -2819,7 +2819,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('s3', 'version-recovery', 'put-version-one')
 
         s3.put_object.assert_called_once_with(
-            Bucket='floci-lab-versioning',
+            Bucket='lab-versioning',
             Key='configuration.txt',
             Body=b'feature_enabled=false\nrelease=v1\n',
             ContentType='text/plain',
@@ -2997,7 +2997,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = reset_lab('s3', 'version-recovery')
 
         s3.delete_objects.assert_called_once_with(
-            Bucket='floci-lab-versioning',
+            Bucket='lab-versioning',
             Delete={
                 'Objects': [
                     {'Key': 'configuration.txt', 'VersionId': 'version-two'},
@@ -3006,7 +3006,7 @@ class LabsRunnerTests(SimpleTestCase):
                 'Quiet': True,
             },
         )
-        s3.delete_bucket.assert_called_once_with(Bucket='floci-lab-versioning')
+        s3.delete_bucket.assert_called_once_with(Bucket='lab-versioning')
         self.assertEqual(result['deleted_objects'], 2)
 
     @patch('dashboard.labs.FlociClientFactory')
@@ -3021,7 +3021,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('s3', 'presigned-url', 'put-object')
 
         s3.put_object.assert_called_once_with(
-            Bucket='floci-lab-presigned',
+            Bucket='lab-presigned',
             Key='shared/guide.txt',
             Body=b'Temporary access with an S3 presigned URL.\n',
             ContentType='text/plain',
@@ -3033,7 +3033,7 @@ class LabsRunnerTests(SimpleTestCase):
     def test_s3_presigned_lab_generates_and_redeems_url(self, factory_mock, redeem_mock):
         s3 = MagicMock()
         s3.generate_presigned_url.return_value = (
-            'http://localhost:4566/floci-lab-presigned/shared/guide.txt?signature=sample'
+            'http://localhost:4566/lab-presigned/shared/guide.txt?signature=sample'
         )
         factory_mock.return_value.client.return_value = s3
         redeem_mock.return_value = b'Temporary access with an S3 presigned URL.\n'
@@ -3043,13 +3043,13 @@ class LabsRunnerTests(SimpleTestCase):
         s3.generate_presigned_url.assert_called_once_with(
             'get_object',
             Params={
-                'Bucket': 'floci-lab-presigned',
+                'Bucket': 'lab-presigned',
                 'Key': 'shared/guide.txt',
             },
             ExpiresIn=300,
         )
         redeem_mock.assert_called_once_with(
-            'http://localhost:4566/floci-lab-presigned/shared/guide.txt?signature=sample',
+            'http://localhost:4566/lab-presigned/shared/guide.txt?signature=sample',
         )
         self.assertTrue(result['verified'])
         self.assertIn('signature=sample', result['stdout'])
@@ -3091,13 +3091,13 @@ class LabsRunnerTests(SimpleTestCase):
         result = reset_lab('s3', 'presigned-url')
 
         s3.delete_objects.assert_called_once_with(
-            Bucket='floci-lab-presigned',
+            Bucket='lab-presigned',
             Delete={
                 'Objects': [{'Key': 'shared/guide.txt'}],
                 'Quiet': True,
             },
         )
-        s3.delete_bucket.assert_called_once_with(Bucket='floci-lab-presigned')
+        s3.delete_bucket.assert_called_once_with(Bucket='lab-presigned')
         self.assertTrue(result['deleted_bucket'])
 
     @patch('dashboard.labs.FlociClientFactory')
@@ -3118,7 +3118,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('s3', 'bucket-security', 'put-public-access-block')
 
         s3.put_public_access_block.assert_called_once_with(
-            Bucket='floci-lab-security',
+            Bucket='lab-security',
             PublicAccessBlockConfiguration=configuration,
         )
         self.assertTrue(result['verified'])
@@ -3133,7 +3133,7 @@ class LabsRunnerTests(SimpleTestCase):
                 'Effect': 'Allow',
                 'Principal': {'AWS': 'arn:aws:iam::000000000000:root'},
                 'Action': 's3:ListBucket',
-                'Resource': 'arn:aws:s3:::floci-lab-security',
+                'Resource': 'arn:aws:s3:::lab-security',
             }],
         }
         s3.put_bucket_policy.return_value = {}
@@ -3144,7 +3144,7 @@ class LabsRunnerTests(SimpleTestCase):
 
         s3.put_bucket_policy.assert_called_once()
         kwargs = s3.put_bucket_policy.call_args.kwargs
-        self.assertEqual(kwargs['Bucket'], 'floci-lab-security')
+        self.assertEqual(kwargs['Bucket'], 'lab-security')
         self.assertEqual(json.loads(kwargs['Policy']), policy)
         self.assertTrue(result['verified'])
 
@@ -3168,7 +3168,7 @@ class LabsRunnerTests(SimpleTestCase):
                     'Effect': 'Allow',
                     'Principal': {'AWS': 'arn:aws:iam::000000000000:root'},
                     'Action': 's3:ListBucket',
-                    'Resource': 'arn:aws:s3:::floci-lab-security',
+                    'Resource': 'arn:aws:s3:::lab-security',
                 }],
             }),
         }
@@ -3196,9 +3196,9 @@ class LabsRunnerTests(SimpleTestCase):
 
         result = reset_lab('s3', 'bucket-security')
 
-        s3.delete_bucket_policy.assert_called_once_with(Bucket='floci-lab-security')
-        s3.delete_public_access_block.assert_called_once_with(Bucket='floci-lab-security')
-        s3.delete_bucket.assert_called_once_with(Bucket='floci-lab-security')
+        s3.delete_bucket_policy.assert_called_once_with(Bucket='lab-security')
+        s3.delete_public_access_block.assert_called_once_with(Bucket='lab-security')
+        s3.delete_bucket.assert_called_once_with(Bucket='lab-security')
         self.assertTrue(result['deleted_bucket'])
 
     @patch('dashboard.labs.FlociClientFactory')
@@ -3219,7 +3219,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('s3', 'default-encryption', 'put-bucket-encryption')
 
         s3.put_bucket_encryption.assert_called_once_with(
-            Bucket='floci-lab-encryption',
+            Bucket='lab-encryption',
             ServerSideEncryptionConfiguration=configuration,
         )
         self.assertTrue(result['verified'])
@@ -3248,7 +3248,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('s3', 'default-encryption', 'put-object')
 
         s3.put_object.assert_called_once_with(
-            Bucket='floci-lab-encryption',
+            Bucket='lab-encryption',
             Key='protected/record.txt',
             Body=b'Protected by the bucket encryption default.\n',
             ContentType='text/plain',
@@ -3300,9 +3300,9 @@ class LabsRunnerTests(SimpleTestCase):
 
         result = reset_lab('s3', 'default-encryption')
 
-        s3.delete_bucket_encryption.assert_called_once_with(Bucket='floci-lab-encryption')
+        s3.delete_bucket_encryption.assert_called_once_with(Bucket='lab-encryption')
         s3.delete_objects.assert_called_once()
-        s3.delete_bucket.assert_called_once_with(Bucket='floci-lab-encryption')
+        s3.delete_bucket.assert_called_once_with(Bucket='lab-encryption')
         self.assertTrue(result['deleted_bucket'])
 
     @patch('dashboard.labs.FlociClientFactory')
@@ -3321,7 +3321,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('s3', 'lifecycle-retention', 'put-object')
 
         s3.put_object.assert_called_once_with(
-            Bucket='floci-lab-lifecycle',
+            Bucket='lab-lifecycle',
             Key='logs/app.log',
             Body=b'2026-06-18T12:00:00Z INFO Floci lifecycle lab started\n',
             ContentType='text/plain',
@@ -3350,7 +3350,7 @@ class LabsRunnerTests(SimpleTestCase):
         )
 
         s3.put_bucket_lifecycle_configuration.assert_called_once_with(
-            Bucket='floci-lab-lifecycle',
+            Bucket='lab-lifecycle',
             LifecycleConfiguration=configuration,
         )
         self.assertTrue(result['verified'])
@@ -3400,9 +3400,9 @@ class LabsRunnerTests(SimpleTestCase):
 
         result = reset_lab('s3', 'lifecycle-retention')
 
-        s3.delete_bucket_lifecycle.assert_called_once_with(Bucket='floci-lab-lifecycle')
+        s3.delete_bucket_lifecycle.assert_called_once_with(Bucket='lab-lifecycle')
         s3.delete_objects.assert_called_once()
-        s3.delete_bucket.assert_called_once_with(Bucket='floci-lab-lifecycle')
+        s3.delete_bucket.assert_called_once_with(Bucket='lab-lifecycle')
         self.assertTrue(result['deleted_bucket'])
 
     @patch('dashboard.labs.FlociClientFactory')
@@ -3425,7 +3425,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('s3', 'bucket-cors', 'put-bucket-cors')
 
         s3.put_bucket_cors.assert_called_once_with(
-            Bucket='floci-lab-cors',
+            Bucket='lab-cors',
             CORSConfiguration=configuration,
         )
         self.assertTrue(result['verified'])
@@ -3489,14 +3489,14 @@ class LabsRunnerTests(SimpleTestCase):
 
         result = reset_lab('s3', 'bucket-cors')
 
-        s3.delete_bucket_cors.assert_called_once_with(Bucket='floci-lab-cors')
-        s3.delete_bucket.assert_called_once_with(Bucket='floci-lab-cors')
+        s3.delete_bucket_cors.assert_called_once_with(Bucket='lab-cors')
+        s3.delete_bucket.assert_called_once_with(Bucket='lab-cors')
         self.assertTrue(result['deleted_bucket'])
 
     @patch('dashboard.labs.FlociClientFactory')
     def test_s3_notifications_lab_sets_queue_policy(self, factory_mock):
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-s3-events'
+        queue_url = 'http://localhost:4566/000000000000/lab-s3-events'
         policy = {
             'Version': '2012-10-17',
             'Statement': [{
@@ -3504,10 +3504,10 @@ class LabsRunnerTests(SimpleTestCase):
                 'Effect': 'Allow',
                 'Principal': {'Service': 's3.amazonaws.com'},
                 'Action': 'sqs:SendMessage',
-                'Resource': 'arn:aws:sqs:us-east-1:000000000000:floci-lab-s3-events',
+                'Resource': 'arn:aws:sqs:us-east-1:000000000000:lab-s3-events',
                 'Condition': {
                     'ArnEquals': {
-                        'aws:SourceArn': 'arn:aws:s3:::floci-lab-notifications',
+                        'aws:SourceArn': 'arn:aws:s3:::lab-notifications',
                     },
                     'StringEquals': {'aws:SourceAccount': '000000000000'},
                 },
@@ -3538,7 +3538,7 @@ class LabsRunnerTests(SimpleTestCase):
         configuration = {
             'QueueConfigurations': [{
                 'Id': 'SendObjectCreatedToSqs',
-                'QueueArn': 'arn:aws:sqs:us-east-1:000000000000:floci-lab-s3-events',
+                'QueueArn': 'arn:aws:sqs:us-east-1:000000000000:lab-s3-events',
                 'Events': ['s3:ObjectCreated:*'],
             }],
         }
@@ -3553,7 +3553,7 @@ class LabsRunnerTests(SimpleTestCase):
         )
 
         s3.put_bucket_notification_configuration.assert_called_once_with(
-            Bucket='floci-lab-notifications',
+            Bucket='lab-notifications',
             NotificationConfiguration=configuration,
         )
         self.assertTrue(result['verified'])
@@ -3578,7 +3578,7 @@ class LabsRunnerTests(SimpleTestCase):
         )
 
         s3.put_object.assert_called_once_with(
-            Bucket='floci-lab-notifications',
+            Bucket='lab-notifications',
             Key='uploads/report.txt',
             Body=b'Floci S3 notification delivery report\n',
             ContentType='text/plain',
@@ -3588,13 +3588,13 @@ class LabsRunnerTests(SimpleTestCase):
     @patch('dashboard.labs.FlociClientFactory')
     def test_s3_notifications_lab_receives_matching_s3_event(self, factory_mock):
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-s3-events'
+        queue_url = 'http://localhost:4566/000000000000/lab-s3-events'
         event = {
             'Records': [{
                 'eventSource': 'aws:s3',
                 'eventName': 'ObjectCreated:Put',
                 's3': {
-                    'bucket': {'name': 'floci-lab-notifications'},
+                    'bucket': {'name': 'lab-notifications'},
                     'object': {'key': 'uploads/report.txt', 'size': 38},
                 },
             }],
@@ -3627,8 +3627,8 @@ class LabsRunnerTests(SimpleTestCase):
     def test_s3_notifications_lab_status_requires_delivered_event(self, factory_mock):
         s3 = MagicMock()
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-s3-events'
-        queue_arn = 'arn:aws:sqs:us-east-1:000000000000:floci-lab-s3-events'
+        queue_url = 'http://localhost:4566/000000000000/lab-s3-events'
+        queue_arn = 'arn:aws:sqs:us-east-1:000000000000:lab-s3-events'
         policy = {
             'Version': '2012-10-17',
             'Statement': [{
@@ -3639,7 +3639,7 @@ class LabsRunnerTests(SimpleTestCase):
                 'Resource': queue_arn,
                 'Condition': {
                     'ArnEquals': {
-                        'aws:SourceArn': 'arn:aws:s3:::floci-lab-notifications',
+                        'aws:SourceArn': 'arn:aws:s3:::lab-notifications',
                     },
                     'StringEquals': {'aws:SourceAccount': '000000000000'},
                 },
@@ -3652,7 +3652,7 @@ class LabsRunnerTests(SimpleTestCase):
                 'eventSource': 'aws:s3',
                 'eventName': 'ObjectCreated:Put',
                 's3': {
-                    'bucket': {'name': 'floci-lab-notifications'},
+                    'bucket': {'name': 'lab-notifications'},
                     'object': {'key': 'uploads/report.txt', 'size': 38},
                 },
             }],
@@ -3695,7 +3695,7 @@ class LabsRunnerTests(SimpleTestCase):
     def test_s3_notifications_lab_reset_removes_bucket_then_queue(self, factory_mock):
         s3 = MagicMock()
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-s3-events'
+        queue_url = 'http://localhost:4566/000000000000/lab-s3-events'
         version_paginator = MagicMock()
         object_paginator = MagicMock()
         version_paginator.paginate.return_value = []
@@ -3711,10 +3711,10 @@ class LabsRunnerTests(SimpleTestCase):
         result = reset_lab('s3', 'object-notifications-sqs')
 
         s3.put_bucket_notification_configuration.assert_called_once_with(
-            Bucket='floci-lab-notifications',
+            Bucket='lab-notifications',
             NotificationConfiguration={},
         )
-        s3.delete_bucket.assert_called_once_with(Bucket='floci-lab-notifications')
+        s3.delete_bucket.assert_called_once_with(Bucket='lab-notifications')
         sqs.delete_queue.assert_called_once_with(QueueUrl=queue_url)
         self.assertTrue(result['deleted_bucket'])
         self.assertTrue(result['deleted_queue'])
@@ -3731,7 +3731,7 @@ class LabsRunnerTests(SimpleTestCase):
             {'Uploads': [active_upload]},
         ]
         s3.create_multipart_upload.return_value = {
-            'Bucket': 'floci-lab-multipart',
+            'Bucket': 'lab-multipart',
             'Key': 'archives/application.bin',
             'UploadId': 'upload-1',
         }
@@ -3744,7 +3744,7 @@ class LabsRunnerTests(SimpleTestCase):
         )
 
         s3.create_multipart_upload.assert_called_once_with(
-            Bucket='floci-lab-multipart',
+            Bucket='lab-multipart',
             Key='archives/application.bin',
             ContentType='application/octet-stream',
         )
@@ -3776,7 +3776,7 @@ class LabsRunnerTests(SimpleTestCase):
         )
 
         call = s3.upload_part.call_args.kwargs
-        self.assertEqual(call['Bucket'], 'floci-lab-multipart')
+        self.assertEqual(call['Bucket'], 'lab-multipart')
         self.assertEqual(call['Key'], 'archives/application.bin')
         self.assertEqual(call['PartNumber'], 1)
         self.assertEqual(call['UploadId'], 'upload-1')
@@ -3838,7 +3838,7 @@ class LabsRunnerTests(SimpleTestCase):
         )
 
         s3.complete_multipart_upload.assert_called_once_with(
-            Bucket='floci-lab-multipart',
+            Bucket='lab-multipart',
             Key='archives/application.bin',
             UploadId='upload-1',
             MultipartUpload={
@@ -3904,39 +3904,39 @@ class LabsRunnerTests(SimpleTestCase):
         result = reset_lab('s3', 'multipart-upload')
 
         s3.abort_multipart_upload.assert_called_once_with(
-            Bucket='floci-lab-multipart',
+            Bucket='lab-multipart',
             Key='archives/application.bin',
             UploadId='upload-1',
         )
-        s3.delete_bucket.assert_called_once_with(Bucket='floci-lab-multipart')
+        s3.delete_bucket.assert_called_once_with(Bucket='lab-multipart')
         self.assertEqual(result['aborted_uploads'], 1)
         self.assertTrue(result['deleted_bucket'])
 
     @patch('dashboard.labs.FlociClientFactory')
     def test_sqs_create_queue_step_creates_and_verifies_queue(self, factory_mock):
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         sqs.create_queue.return_value = {'QueueUrl': queue_url}
         sqs.get_queue_url.return_value = {'QueueUrl': queue_url}
         factory_mock.return_value.client.return_value = sqs
 
         result = run_lab_step('sqs', 'create-queue', 'create-queue')
 
-        sqs.create_queue.assert_called_once_with(QueueName='floci-lab-basics')
+        sqs.create_queue.assert_called_once_with(QueueName='lab-basics')
         self.assertTrue(result['verified'])
         self.assertEqual(
             result['command'],
-            'aws sqs create-queue --queue-name floci-lab-basics',
+            'aws sqs create-queue --queue-name lab-basics',
         )
 
     @patch('dashboard.labs.FlociClientFactory')
     def test_sqs_get_queue_attributes_step_verifies_expected_arn(self, factory_mock):
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         sqs.get_queue_url.return_value = {'QueueUrl': queue_url}
         sqs.get_queue_attributes.return_value = {
             'Attributes': {
-                'QueueArn': 'arn:aws:sqs:us-east-1:000000000000:floci-lab-basics',
+                'QueueArn': 'arn:aws:sqs:us-east-1:000000000000:lab-basics',
                 'VisibilityTimeout': '30',
             },
         }
@@ -3958,7 +3958,7 @@ class LabsRunnerTests(SimpleTestCase):
     @patch('dashboard.labs.FlociClientFactory')
     def test_sqs_list_queues_step_finds_lab_queue(self, factory_mock):
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         sqs.list_queues.return_value = {'QueueUrls': [queue_url]}
         factory_mock.return_value.client.return_value = sqs
 
@@ -3966,16 +3966,16 @@ class LabsRunnerTests(SimpleTestCase):
 
         sqs.list_queues.assert_called()
         self.assertTrue(result['verified'])
-        self.assertIn('floci-lab-basics', result['stdout'])
+        self.assertIn('lab-basics', result['stdout'])
 
     @patch('dashboard.labs.FlociClientFactory')
     def test_sqs_create_queue_lab_status_recomputes_from_live_queue(self, factory_mock):
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         sqs.get_queue_url.return_value = {'QueueUrl': queue_url}
         sqs.get_queue_attributes.return_value = {
             'Attributes': {
-                'QueueArn': 'arn:aws:sqs:us-east-1:000000000000:floci-lab-basics',
+                'QueueArn': 'arn:aws:sqs:us-east-1:000000000000:lab-basics',
             },
         }
         sqs.list_queues.return_value = {'QueueUrls': [queue_url]}
@@ -3994,7 +3994,7 @@ class LabsRunnerTests(SimpleTestCase):
     @patch('dashboard.labs.FlociClientFactory')
     def test_sqs_create_queue_lab_reset_deletes_queue(self, factory_mock):
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         sqs.get_queue_url.return_value = {'QueueUrl': queue_url}
         factory_mock.return_value.client.return_value = sqs
 
@@ -4008,7 +4008,7 @@ class LabsRunnerTests(SimpleTestCase):
     def test_sqs_message_lifecycle_sends_known_body_and_attribute(self, factory_mock):
         cache.clear()
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         message = {
             'MessageId': 'message-1',
             'ReceiptHandle': 'receipt-1',
@@ -4043,7 +4043,7 @@ class LabsRunnerTests(SimpleTestCase):
     def test_sqs_message_lifecycle_receives_without_hiding_message(self, factory_mock):
         cache.clear()
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         message = {
             'MessageId': 'message-1',
             'ReceiptHandle': 'receipt-1',
@@ -4072,7 +4072,7 @@ class LabsRunnerTests(SimpleTestCase):
     def test_sqs_message_lifecycle_deletes_with_live_receipt_handle(self, factory_mock):
         cache.clear()
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         message = {
             'MessageId': 'message-1',
             'ReceiptHandle': 'receipt-1',
@@ -4104,7 +4104,7 @@ class LabsRunnerTests(SimpleTestCase):
         cache.clear()
         cache.set('floci-lab:sqs:message-lifecycle:deleted', True)
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         sqs.get_queue_url.return_value = {'QueueUrl': queue_url}
         sqs.receive_message.return_value = {'Messages': []}
         factory_mock.return_value.client.return_value = sqs
@@ -4124,7 +4124,7 @@ class LabsRunnerTests(SimpleTestCase):
         cache.clear()
         cache.set('floci-lab:sqs:message-lifecycle:deleted', True)
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         matching = {
             'ReceiptHandle': 'receipt-1',
             'Body': '{"event":"order.created","order_id":"FLOCI-1001"}',
@@ -4155,7 +4155,7 @@ class LabsRunnerTests(SimpleTestCase):
     def test_sqs_visibility_lab_receives_and_captures_receipt(self, factory_mock):
         cache.clear()
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         message = {
             'MessageId': 'job-1',
             'ReceiptHandle': 'visibility-receipt',
@@ -4185,7 +4185,7 @@ class LabsRunnerTests(SimpleTestCase):
             'visibility-receipt',
         )
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         sqs.get_queue_url.return_value = {'QueueUrl': queue_url}
         sqs.change_message_visibility.return_value = {}
         factory_mock.return_value.client.return_value = sqs
@@ -4212,7 +4212,7 @@ class LabsRunnerTests(SimpleTestCase):
             'visibility-receipt',
         )
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         sqs.get_queue_url.return_value = {'QueueUrl': queue_url}
         factory_mock.return_value.client.return_value = sqs
 
@@ -4234,7 +4234,7 @@ class LabsRunnerTests(SimpleTestCase):
     def test_sqs_visibility_lab_verifies_message_is_hidden(self, factory_mock):
         cache.clear()
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         sqs.get_queue_url.return_value = {'QueueUrl': queue_url}
         sqs.receive_message.return_value = {'Messages': []}
         factory_mock.return_value.client.return_value = sqs
@@ -4262,7 +4262,7 @@ class LabsRunnerTests(SimpleTestCase):
     ):
         cache.clear()
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         message = {
             'MessageId': 'job-1',
             'ReceiptHandle': 'new-receipt',
@@ -4295,7 +4295,7 @@ class LabsRunnerTests(SimpleTestCase):
         cache.set('floci-lab:sqs:visibility-timeout:hidden', True)
         cache.set('floci-lab:sqs:visibility-timeout:returned', True)
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         message = {
             'MessageId': 'job-1',
             'ReceiptHandle': 'new-receipt',
@@ -4328,7 +4328,7 @@ class LabsRunnerTests(SimpleTestCase):
             'old-receipt',
         )
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         message = {
             'ReceiptHandle': 'current-receipt',
             'Body': '{"event":"job.ready","job_id":"FLOCI-JOB-1001"}',
@@ -4359,7 +4359,7 @@ class LabsRunnerTests(SimpleTestCase):
     def test_sqs_delayed_lab_sends_and_immediately_verifies_delay(self, factory_mock):
         cache.clear()
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         sqs.get_queue_url.return_value = {'QueueUrl': queue_url}
         sqs.send_message.return_value = {'MessageId': 'report-1'}
         sqs.get_queue_attributes.return_value = {
@@ -4394,7 +4394,7 @@ class LabsRunnerTests(SimpleTestCase):
         cache.clear()
         cache.set('floci-lab:sqs:delayed-message:observed', True)
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         sqs.get_queue_url.return_value = {'QueueUrl': queue_url}
         sqs.get_queue_attributes.return_value = {
             'Attributes': {'ApproximateNumberOfMessagesDelayed': '1'},
@@ -4419,7 +4419,7 @@ class LabsRunnerTests(SimpleTestCase):
     def test_sqs_delayed_lab_receives_message_after_delay(self, factory_mock):
         cache.clear()
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         message = {
             'MessageId': 'report-1',
             'ReceiptHandle': 'report-receipt',
@@ -4459,7 +4459,7 @@ class LabsRunnerTests(SimpleTestCase):
         cache.set('floci-lab:sqs:delayed-message:observed', True)
         cache.set('floci-lab:sqs:delayed-message:returned', True)
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         message = {
             'MessageId': 'report-1',
             'ReceiptHandle': 'report-receipt',
@@ -4487,7 +4487,7 @@ class LabsRunnerTests(SimpleTestCase):
         cache.clear()
         cache.set('floci-lab:sqs:delayed-message:observed', True)
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         matching = {
             'ReceiptHandle': 'report-receipt',
             'Body': '{"event":"report.generate","report_id":"FLOCI-REPORT-1001"}',
@@ -4518,7 +4518,7 @@ class LabsRunnerTests(SimpleTestCase):
     def test_sqs_batch_lab_sends_three_entries(self, factory_mock):
         cache.clear()
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         messages = [
             {
                 'MessageId': f'message-{index}',
@@ -4560,7 +4560,7 @@ class LabsRunnerTests(SimpleTestCase):
     def test_sqs_batch_lab_receives_all_three_messages(self, factory_mock):
         cache.clear()
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         messages = [
             {
                 'MessageId': f'message-{index}',
@@ -4585,7 +4585,7 @@ class LabsRunnerTests(SimpleTestCase):
     def test_sqs_batch_lab_deletes_with_live_receipt_handles(self, factory_mock):
         cache.clear()
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         messages = [
             {
                 'MessageId': f'message-{index}',
@@ -4632,7 +4632,7 @@ class LabsRunnerTests(SimpleTestCase):
         cache.clear()
         cache.set('floci-lab:sqs:batch-messages:deleted', True)
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         sqs.get_queue_url.return_value = {'QueueUrl': queue_url}
         sqs.receive_message.return_value = {'Messages': []}
         factory_mock.return_value.client.return_value = sqs
@@ -4651,7 +4651,7 @@ class LabsRunnerTests(SimpleTestCase):
     def test_sqs_batch_lab_reset_deletes_only_matching_messages(self, factory_mock):
         cache.clear()
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         messages = [
             {
                 'ReceiptHandle': f'receipt-{index}',
@@ -4678,7 +4678,7 @@ class LabsRunnerTests(SimpleTestCase):
     @patch('dashboard.labs.FlociClientFactory')
     def test_sqs_configuration_lab_sets_processing_attributes(self, factory_mock):
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         configured = {
             'VisibilityTimeout': '45',
             'MessageRetentionPeriod': '86400',
@@ -4703,7 +4703,7 @@ class LabsRunnerTests(SimpleTestCase):
     @patch('dashboard.labs.FlociClientFactory')
     def test_sqs_configuration_lab_tags_queue(self, factory_mock):
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         tags = {'Environment': 'lab', 'Purpose': 'training'}
         sqs.get_queue_url.return_value = {'QueueUrl': queue_url}
         sqs.list_queue_tags.return_value = {'Tags': tags}
@@ -4727,7 +4727,7 @@ class LabsRunnerTests(SimpleTestCase):
         factory_mock,
     ):
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         sqs.get_queue_url.return_value = {'QueueUrl': queue_url}
         sqs.get_queue_attributes.return_value = {
             'Attributes': {
@@ -4757,7 +4757,7 @@ class LabsRunnerTests(SimpleTestCase):
         factory_mock,
     ):
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-basics'
+        queue_url = 'http://localhost:4566/000000000000/lab-basics'
         sqs.get_queue_url.return_value = {'QueueUrl': queue_url}
         factory_mock.return_value.client.return_value = sqs
 
@@ -4782,10 +4782,10 @@ class LabsRunnerTests(SimpleTestCase):
     @patch('dashboard.labs.FlociClientFactory')
     def test_sqs_redrive_lab_configures_source_queue_policy(self, factory_mock):
         sqs = MagicMock()
-        source_url = 'http://localhost:4566/000000000000/floci-lab-redrive-source'
+        source_url = 'http://localhost:4566/000000000000/lab-redrive-source'
         policy = {
             'deadLetterTargetArn': (
-                'arn:aws:sqs:us-east-1:000000000000:floci-lab-redrive-dlq'
+                'arn:aws:sqs:us-east-1:000000000000:lab-redrive-dlq'
             ),
             'maxReceiveCount': '2',
         }
@@ -4811,7 +4811,7 @@ class LabsRunnerTests(SimpleTestCase):
     def test_sqs_redrive_lab_records_two_failed_receives(self, factory_mock):
         cache.clear()
         sqs = MagicMock()
-        source_url = 'http://localhost:4566/000000000000/floci-lab-redrive-source'
+        source_url = 'http://localhost:4566/000000000000/lab-redrive-source'
         sqs.get_queue_url.return_value = {'QueueUrl': source_url}
         messages = [
             {
@@ -4863,7 +4863,7 @@ class LabsRunnerTests(SimpleTestCase):
     def test_sqs_redrive_lab_inspects_dlq_and_starts_move_task(self, factory_mock):
         cache.clear()
         sqs = MagicMock()
-        dlq_url = 'http://localhost:4566/000000000000/floci-lab-redrive-dlq'
+        dlq_url = 'http://localhost:4566/000000000000/lab-redrive-dlq'
         message = {
             'MessageId': 'payment-1',
             'ReceiptHandle': 'dlq-receipt',
@@ -4898,9 +4898,9 @@ class LabsRunnerTests(SimpleTestCase):
         self.assertTrue(inspect_result['verified'])
         self.assertTrue(move_result['verified'])
         sqs.start_message_move_task.assert_called_once_with(
-            SourceArn='arn:aws:sqs:us-east-1:000000000000:floci-lab-redrive-dlq',
+            SourceArn='arn:aws:sqs:us-east-1:000000000000:lab-redrive-dlq',
             DestinationArn=(
-                'arn:aws:sqs:us-east-1:000000000000:floci-lab-redrive-source'
+                'arn:aws:sqs:us-east-1:000000000000:lab-redrive-source'
             ),
             MaxNumberOfMessagesPerSecond=10,
         )
@@ -4918,7 +4918,7 @@ class LabsRunnerTests(SimpleTestCase):
             True,
         )
         sqs = MagicMock()
-        source_url = 'http://localhost:4566/000000000000/floci-lab-redrive-source'
+        source_url = 'http://localhost:4566/000000000000/lab-redrive-source'
         sqs.get_queue_url.return_value = {'QueueUrl': source_url}
         sqs.receive_message.return_value = {}
         factory_mock.return_value.client.return_value = sqs
@@ -4940,15 +4940,15 @@ class LabsRunnerTests(SimpleTestCase):
         cache.clear()
         cache.set('floci-lab:sqs:dead-letter-redrive:task', 'task-1')
         sqs = MagicMock()
-        source_url = 'http://localhost:4566/000000000000/floci-lab-redrive-source'
+        source_url = 'http://localhost:4566/000000000000/lab-redrive-source'
         task = {
             'TaskHandle': 'task-1',
             'Status': 'COMPLETED',
             'SourceArn': (
-                'arn:aws:sqs:us-east-1:000000000000:floci-lab-redrive-dlq'
+                'arn:aws:sqs:us-east-1:000000000000:lab-redrive-dlq'
             ),
             'DestinationArn': (
-                'arn:aws:sqs:us-east-1:000000000000:floci-lab-redrive-source'
+                'arn:aws:sqs:us-east-1:000000000000:lab-redrive-source'
             ),
             'ApproximateNumberOfMessagesMoved': 1,
         }
@@ -5009,11 +5009,11 @@ class LabsRunnerTests(SimpleTestCase):
             )
         cache.set('floci-lab:sqs:dead-letter-redrive:task', 'task-1')
         sqs = MagicMock()
-        source_url = 'http://localhost:4566/000000000000/floci-lab-redrive-source'
-        dlq_url = 'http://localhost:4566/000000000000/floci-lab-redrive-dlq'
+        source_url = 'http://localhost:4566/000000000000/lab-redrive-source'
+        dlq_url = 'http://localhost:4566/000000000000/lab-redrive-dlq'
         urls = {
-            'floci-lab-redrive-source': source_url,
-            'floci-lab-redrive-dlq': dlq_url,
+            'lab-redrive-source': source_url,
+            'lab-redrive-dlq': dlq_url,
         }
         sqs.get_queue_url.side_effect = lambda QueueName: {
             'QueueUrl': urls[QueueName],
@@ -5034,7 +5034,7 @@ class LabsRunnerTests(SimpleTestCase):
                     'RedrivePolicy': json.dumps({
                         'deadLetterTargetArn': (
                             'arn:aws:sqs:us-east-1:000000000000:'
-                            'floci-lab-redrive-dlq'
+                            'lab-redrive-dlq'
                         ),
                         'maxReceiveCount': '2',
                     }),
@@ -5048,7 +5048,7 @@ class LabsRunnerTests(SimpleTestCase):
                 'Status': 'COMPLETED',
                 'DestinationArn': (
                     'arn:aws:sqs:us-east-1:000000000000:'
-                    'floci-lab-redrive-source'
+                    'lab-redrive-source'
                 ),
                 'ApproximateNumberOfMessagesMoved': 1,
             }],
@@ -5074,11 +5074,11 @@ class LabsRunnerTests(SimpleTestCase):
         cache.clear()
         sqs = MagicMock()
         urls = {
-            'floci-lab-redrive-source': (
-                'http://localhost:4566/000000000000/floci-lab-redrive-source'
+            'lab-redrive-source': (
+                'http://localhost:4566/000000000000/lab-redrive-source'
             ),
-            'floci-lab-redrive-dlq': (
-                'http://localhost:4566/000000000000/floci-lab-redrive-dlq'
+            'lab-redrive-dlq': (
+                'http://localhost:4566/000000000000/lab-redrive-dlq'
             ),
         }
         sqs.get_queue_url.side_effect = lambda QueueName: {
@@ -5096,24 +5096,24 @@ class LabsRunnerTests(SimpleTestCase):
         )
         self.assertEqual(
             [call.kwargs['QueueUrl'] for call in sqs.delete_queue.call_args_list],
-            [urls['floci-lab-redrive-source'], urls['floci-lab-redrive-dlq']],
+            [urls['lab-redrive-source'], urls['lab-redrive-dlq']],
         )
         self.assertEqual(result['cancelled_tasks'], 1)
         self.assertEqual(
             result['deleted_queues'],
-            ['floci-lab-redrive-source', 'floci-lab-redrive-dlq'],
+            ['lab-redrive-source', 'lab-redrive-dlq'],
         )
 
     @patch('dashboard.labs.FlociClientFactory')
     def test_sqs_fifo_lab_creates_explicit_deduplication_queue(self, factory_mock):
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-orders.fifo'
+        queue_url = 'http://localhost:4566/000000000000/lab-orders.fifo'
         sqs.create_queue.return_value = {'QueueUrl': queue_url}
         sqs.get_queue_url.return_value = {'QueueUrl': queue_url}
         sqs.get_queue_attributes.return_value = {
             'Attributes': {
                 'QueueArn': (
-                    'arn:aws:sqs:us-east-1:000000000000:floci-lab-orders.fifo'
+                    'arn:aws:sqs:us-east-1:000000000000:lab-orders.fifo'
                 ),
                 'FifoQueue': 'true',
                 'ContentBasedDeduplication': 'false',
@@ -5124,7 +5124,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('sqs', 'fifo-ordering', 'create-queue')
 
         sqs.create_queue.assert_called_once_with(
-            QueueName='floci-lab-orders.fifo',
+            QueueName='lab-orders.fifo',
             Attributes={
                 'FifoQueue': 'true',
                 'ContentBasedDeduplication': 'false',
@@ -5139,7 +5139,7 @@ class LabsRunnerTests(SimpleTestCase):
     ):
         cache.clear()
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-orders.fifo'
+        queue_url = 'http://localhost:4566/000000000000/lab-orders.fifo'
         sqs.get_queue_url.return_value = {'QueueUrl': queue_url}
         sqs.send_message.side_effect = [
             {'MessageId': 'message-1', 'SequenceNumber': '41'},
@@ -5172,7 +5172,7 @@ class LabsRunnerTests(SimpleTestCase):
         cache.clear()
         cache.set('floci-lab:sqs:fifo-ordering:deduplicated', True)
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-orders.fifo'
+        queue_url = 'http://localhost:4566/000000000000/lab-orders.fifo'
         bodies = [
             (
                 '{"event":"order.status","order_id":"FLOCI-ORDER-1001",'
@@ -5223,7 +5223,7 @@ class LabsRunnerTests(SimpleTestCase):
         cache.set('floci-lab:sqs:fifo-ordering:deduplicated', True)
         cache.set('floci-lab:sqs:fifo-ordering:ordered', True)
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-orders.fifo'
+        queue_url = 'http://localhost:4566/000000000000/lab-orders.fifo'
         bodies = [
             (
                 '{"event":"order.status","order_id":"FLOCI-ORDER-1001",'
@@ -5254,7 +5254,7 @@ class LabsRunnerTests(SimpleTestCase):
                 'Attributes': {
                     'QueueArn': (
                         'arn:aws:sqs:us-east-1:000000000000:'
-                        'floci-lab-orders.fifo'
+                        'lab-orders.fifo'
                     ),
                     'FifoQueue': 'true',
                     'ContentBasedDeduplication': 'false',
@@ -5280,7 +5280,7 @@ class LabsRunnerTests(SimpleTestCase):
         cache.clear()
         cache.set('floci-lab:sqs:fifo-ordering:deduplicated', True)
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-orders.fifo'
+        queue_url = 'http://localhost:4566/000000000000/lab-orders.fifo'
         sqs.get_queue_url.return_value = {'QueueUrl': queue_url}
         factory_mock.return_value.client.return_value = sqs
 
@@ -5295,13 +5295,13 @@ class LabsRunnerTests(SimpleTestCase):
     @patch('dashboard.labs.FlociClientFactory')
     def test_sqs_cleanup_lab_creates_configured_tagged_queue(self, factory_mock):
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-cleanup'
+        queue_url = 'http://localhost:4566/000000000000/lab-cleanup'
         sqs.create_queue.return_value = {'QueueUrl': queue_url}
         sqs.get_queue_url.return_value = {'QueueUrl': queue_url}
         sqs.get_queue_attributes.return_value = {
             'Attributes': {
                 'QueueArn': (
-                    'arn:aws:sqs:us-east-1:000000000000:floci-lab-cleanup'
+                    'arn:aws:sqs:us-east-1:000000000000:lab-cleanup'
                 ),
                 'VisibilityTimeout': '45',
                 'ApproximateNumberOfMessages': '0',
@@ -5315,7 +5315,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('sqs', 'purge-delete', 'create-queue')
 
         sqs.create_queue.assert_called_once_with(
-            QueueName='floci-lab-cleanup',
+            QueueName='lab-cleanup',
             Attributes={'VisibilityTimeout': '45'},
             tags={'Purpose': 'cleanup-training'},
         )
@@ -5325,7 +5325,7 @@ class LabsRunnerTests(SimpleTestCase):
     def test_sqs_cleanup_lab_populates_three_messages(self, factory_mock):
         cache.clear()
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-cleanup'
+        queue_url = 'http://localhost:4566/000000000000/lab-cleanup'
         sqs.get_queue_url.return_value = {'QueueUrl': queue_url}
         sqs.send_message_batch.return_value = {
             'Successful': [
@@ -5337,7 +5337,7 @@ class LabsRunnerTests(SimpleTestCase):
         sqs.get_queue_attributes.return_value = {
             'Attributes': {
                 'QueueArn': (
-                    'arn:aws:sqs:us-east-1:000000000000:floci-lab-cleanup'
+                    'arn:aws:sqs:us-east-1:000000000000:lab-cleanup'
                 ),
                 'VisibilityTimeout': '45',
                 'ApproximateNumberOfMessages': '3',
@@ -5372,12 +5372,12 @@ class LabsRunnerTests(SimpleTestCase):
         cache.clear()
         cache.set('floci-lab:sqs:purge-delete:populated', True)
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-cleanup'
+        queue_url = 'http://localhost:4566/000000000000/lab-cleanup'
         sqs.get_queue_url.return_value = {'QueueUrl': queue_url}
         sqs.get_queue_attributes.return_value = {
             'Attributes': {
                 'QueueArn': (
-                    'arn:aws:sqs:us-east-1:000000000000:floci-lab-cleanup'
+                    'arn:aws:sqs:us-east-1:000000000000:lab-cleanup'
                 ),
                 'VisibilityTimeout': '45',
                 'ApproximateNumberOfMessages': '0',
@@ -5403,7 +5403,7 @@ class LabsRunnerTests(SimpleTestCase):
         cache.clear()
         cache.set('floci-lab:sqs:purge-delete:purged', True)
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-cleanup'
+        queue_url = 'http://localhost:4566/000000000000/lab-cleanup'
         sqs.get_queue_url.side_effect = [
             {'QueueUrl': queue_url},
             ClientError(
@@ -5463,7 +5463,7 @@ class LabsRunnerTests(SimpleTestCase):
         cache.clear()
         cache.set('floci-lab:sqs:purge-delete:populated', True)
         sqs = MagicMock()
-        queue_url = 'http://localhost:4566/000000000000/floci-lab-cleanup'
+        queue_url = 'http://localhost:4566/000000000000/lab-cleanup'
         sqs.get_queue_url.return_value = {'QueueUrl': queue_url}
         factory_mock.return_value.client.return_value = sqs
 
@@ -5478,13 +5478,13 @@ class LabsRunnerTests(SimpleTestCase):
         sns = MagicMock()
         sqs = MagicMock()
         orders_url = (
-            'http://localhost:4566/000000000000/floci-lab-order-processing'
+            'http://localhost:4566/000000000000/lab-order-processing'
         )
         topic_arn = (
-            'arn:aws:sns:us-east-1:000000000000:floci-lab-order-events'
+            'arn:aws:sns:us-east-1:000000000000:lab-order-events'
         )
         orders_arn = (
-            'arn:aws:sqs:us-east-1:000000000000:floci-lab-order-processing'
+            'arn:aws:sqs:us-east-1:000000000000:lab-order-processing'
         )
         sns.create_topic.return_value = {'TopicArn': topic_arn}
         sns.get_topic_attributes.return_value = {
@@ -5531,10 +5531,10 @@ class LabsRunnerTests(SimpleTestCase):
         sns = MagicMock()
         sqs = MagicMock()
         topic_arn = (
-            'arn:aws:sns:us-east-1:000000000000:floci-lab-order-events'
+            'arn:aws:sns:us-east-1:000000000000:lab-order-events'
         )
         orders_arn = (
-            'arn:aws:sqs:us-east-1:000000000000:floci-lab-order-processing'
+            'arn:aws:sqs:us-east-1:000000000000:lab-order-processing'
         )
         subscription_arn = f'{topic_arn}:subscription-1'
         sns.subscribe.return_value = {'SubscriptionArn': subscription_arn}
@@ -5576,14 +5576,14 @@ class LabsRunnerTests(SimpleTestCase):
         sns = MagicMock()
         sqs = MagicMock()
         topic_arn = (
-            'arn:aws:sns:us-east-1:000000000000:floci-lab-order-events'
+            'arn:aws:sns:us-east-1:000000000000:lab-order-events'
         )
         urls = {
-            'floci-lab-order-processing': (
-                'http://localhost:4566/000000000000/floci-lab-order-processing'
+            'lab-order-processing': (
+                'http://localhost:4566/000000000000/lab-order-processing'
             ),
-            'floci-lab-order-audit': (
-                'http://localhost:4566/000000000000/floci-lab-order-audit'
+            'lab-order-audit': (
+                'http://localhost:4566/000000000000/lab-order-audit'
             ),
         }
         message = {
@@ -5672,7 +5672,7 @@ class LabsRunnerTests(SimpleTestCase):
         sns = MagicMock()
         sqs = MagicMock()
         topic_arn = (
-            'arn:aws:sns:us-east-1:000000000000:floci-lab-order-events'
+            'arn:aws:sns:us-east-1:000000000000:lab-order-events'
         )
         subscription_arns = [
             f'{topic_arn}:subscription-{number}'
@@ -5685,11 +5685,11 @@ class LabsRunnerTests(SimpleTestCase):
             ],
         }
         urls = {
-            'floci-lab-order-processing': (
-                'http://localhost:4566/000000000000/floci-lab-order-processing'
+            'lab-order-processing': (
+                'http://localhost:4566/000000000000/lab-order-processing'
             ),
-            'floci-lab-order-audit': (
-                'http://localhost:4566/000000000000/floci-lab-order-audit'
+            'lab-order-audit': (
+                'http://localhost:4566/000000000000/lab-order-audit'
             ),
         }
         sqs.get_queue_url.side_effect = lambda QueueName: {
@@ -5715,10 +5715,10 @@ class LabsRunnerTests(SimpleTestCase):
         sns = MagicMock()
         sqs = MagicMock()
         topic_arn = (
-            'arn:aws:sns:us-east-1:000000000000:floci-lab-filtered-events'
+            'arn:aws:sns:us-east-1:000000000000:lab-filtered-events'
         )
         queue_arn = (
-            'arn:aws:sqs:us-east-1:000000000000:floci-lab-created-events'
+            'arn:aws:sqs:us-east-1:000000000000:lab-created-events'
         )
         subscription_arn = f'{topic_arn}:subscription-1'
         sns.subscribe.return_value = {'SubscriptionArn': subscription_arn}
@@ -5810,7 +5810,7 @@ class LabsRunnerTests(SimpleTestCase):
         sns = MagicMock()
         sqs = MagicMock()
         queue_url = (
-            'http://localhost:4566/000000000000/floci-lab-created-events'
+            'http://localhost:4566/000000000000/lab-created-events'
         )
         sqs.get_queue_url.return_value = {'QueueUrl': queue_url}
         sqs.receive_message.return_value = {
@@ -5874,7 +5874,7 @@ class LabsRunnerTests(SimpleTestCase):
         sns = MagicMock()
         sqs = MagicMock()
         topic_arn = (
-            'arn:aws:sns:us-east-1:000000000000:floci-lab-filtered-events'
+            'arn:aws:sns:us-east-1:000000000000:lab-filtered-events'
         )
         sns.list_subscriptions_by_topic.return_value = {
             'Subscriptions': [
@@ -5883,11 +5883,11 @@ class LabsRunnerTests(SimpleTestCase):
             ],
         }
         urls = {
-            'floci-lab-created-events': (
-                'http://localhost:4566/000000000000/floci-lab-created-events'
+            'lab-created-events': (
+                'http://localhost:4566/000000000000/lab-created-events'
             ),
-            'floci-lab-priority-events': (
-                'http://localhost:4566/000000000000/floci-lab-priority-events'
+            'lab-priority-events': (
+                'http://localhost:4566/000000000000/lab-priority-events'
             ),
         }
         sqs.get_queue_url.side_effect = lambda QueueName: {
@@ -5958,7 +5958,7 @@ class LabsRunnerTests(SimpleTestCase):
         self.assertEqual(call['RoleName'], 'FlociSchedulerSqsRole')
         self.assertEqual(call['PolicyName'], 'SendScheduledReportToSqs')
         self.assertIn('sqs:SendMessage', call['PolicyDocument'])
-        self.assertIn('floci-lab-scheduled-reports', call['PolicyDocument'])
+        self.assertIn('lab-scheduled-reports', call['PolicyDocument'])
         self.assertTrue(result['verified'])
 
     @patch('dashboard.labs._verify_scheduler_schedule')
@@ -5973,7 +5973,7 @@ class LabsRunnerTests(SimpleTestCase):
         scheduler.create_schedule.return_value = {
             'ScheduleArn': (
                 'arn:aws:scheduler:us-east-1:000000000000:schedule/'
-                'floci-lab-scheduler/send-report-ready'
+                'lab-scheduler/send-report-ready'
             ),
         }
         verify_schedule_mock.return_value = {
@@ -5994,7 +5994,7 @@ class LabsRunnerTests(SimpleTestCase):
         self.assertEqual(call['ActionAfterCompletion'], 'DELETE')
         self.assertEqual(
             call['Target']['Arn'],
-            'arn:aws:sqs:us-east-1:000000000000:floci-lab-scheduled-reports',
+            'arn:aws:sqs:us-east-1:000000000000:lab-scheduled-reports',
         )
         self.assertEqual(
             call['Target']['RoleArn'],
@@ -6012,7 +6012,7 @@ class LabsRunnerTests(SimpleTestCase):
         iam = MagicMock()
         queue_url = (
             'http://localhost:4566/000000000000/'
-            'floci-lab-scheduled-reports'
+            'lab-scheduled-reports'
         )
         sqs.get_queue_url.return_value = {'QueueUrl': queue_url}
         sqs.receive_message.return_value = {
@@ -6083,7 +6083,7 @@ class LabsRunnerTests(SimpleTestCase):
         scheduler = MagicMock()
         queue_url = (
             'http://localhost:4566/000000000000/'
-            'floci-lab-scheduled-reports'
+            'lab-scheduled-reports'
         )
         sqs.get_queue_url.return_value = {'QueueUrl': queue_url}
         factory_mock.return_value.client.side_effect = (
@@ -6145,7 +6145,7 @@ class LabsRunnerTests(SimpleTestCase):
         cloudformation = MagicMock()
         cloudformation.create_stack.return_value = {'StackId': 'stack-id'}
         wait_mock.return_value = {
-            'StackName': 'floci-lab-storage-messaging',
+            'StackName': 'lab-storage-messaging',
             'StackStatus': 'CREATE_COMPLETE',
         }
         verify_mock.return_value = {'status': 'passed', 'message': 'verified'}
@@ -6159,8 +6159,8 @@ class LabsRunnerTests(SimpleTestCase):
 
         cloudformation.create_stack.assert_called_once()
         call = cloudformation.create_stack.call_args.kwargs
-        self.assertEqual(call['StackName'], 'floci-lab-storage-messaging')
-        self.assertIn('floci-lab-cfn-storage', call['TemplateBody'])
+        self.assertEqual(call['StackName'], 'lab-storage-messaging')
+        self.assertIn('lab-cfn-storage', call['TemplateBody'])
         self.assertTrue(result['verified'])
         self.assertTrue(
             cache.get('floci-lab:cloudformation:s3-sqs:created')
@@ -6176,14 +6176,14 @@ class LabsRunnerTests(SimpleTestCase):
         resources = [
             {
                 'LogicalResourceId': 'StorageBucket',
-                'PhysicalResourceId': 'floci-lab-cfn-storage',
+                'PhysicalResourceId': 'lab-cfn-storage',
                 'ResourceType': 'AWS::S3::Bucket',
                 'ResourceStatus': 'CREATE_COMPLETE',
             },
             {
                 'LogicalResourceId': 'JobsQueue',
                 'PhysicalResourceId': (
-                    'http://localhost:4566/000000000000/floci-lab-cfn-jobs'
+                    'http://localhost:4566/000000000000/lab-cfn-jobs'
                 ),
                 'ResourceType': 'AWS::SQS::Queue',
                 'ResourceStatus': 'CREATE_COMPLETE',
@@ -6235,7 +6235,7 @@ class LabsRunnerTests(SimpleTestCase):
         )
 
         cloudformation.delete_stack.assert_called_once_with(
-            StackName='floci-lab-storage-messaging',
+            StackName='lab-storage-messaging',
         )
         self.assertTrue(result['verified'])
         self.assertTrue(
@@ -6570,7 +6570,7 @@ class LabsRunnerTests(SimpleTestCase):
         policy = json.loads(call['PolicyDocument'])
         self.assertEqual(
             policy['Statement'][0]['Resource'][0],
-            'arn:aws:s3:::floci-lab-private-s3-data',
+            'arn:aws:s3:::lab-private-s3-data',
         )
         self.assertTrue(result['verified'])
         cache.clear()
@@ -6637,7 +6637,7 @@ class LabsRunnerTests(SimpleTestCase):
         policy = json.loads(call['PolicyDocument'])
         self.assertEqual(
             policy['Statement'][0]['Resource'],
-            'arn:aws:sqs:us-east-1:000000000000:floci-lab-private-sqs',
+            'arn:aws:sqs:us-east-1:000000000000:lab-private-sqs',
         )
         self.assertTrue(result['verified'])
         cache.clear()
@@ -6681,10 +6681,10 @@ class LabsRunnerTests(SimpleTestCase):
         self.assertContains(response, 'Create, invoke, and inspect a Lambda function')
         self.assertContains(response, 'aws iam create-role --role-name FlociLambdaLabRole')
         self.assertContains(response, 'aws iam put-role-policy --role-name FlociLambdaLabRole')
-        self.assertContains(response, 'aws lambda create-function --function-name floci-lab-echo')
+        self.assertContains(response, 'aws lambda create-function --function-name lab-echo')
         self.assertContains(response, '--zip-file fileb://function.zip')
-        self.assertContains(response, 'aws lambda invoke --function-name floci-lab-echo --payload file://event.json response.json')
-        self.assertContains(response, 'aws logs describe-log-streams --log-group-name /aws/lambda/floci-lab-echo')
+        self.assertContains(response, 'aws lambda invoke --function-name lab-echo --payload file://event.json response.json')
+        self.assertContains(response, 'aws logs describe-log-streams --log-group-name /aws/lambda/lab-echo')
         self.assertContains(response, 'lambda-trust-policy.json')
         self.assertContains(response, 'lambda-logs-policy.json')
         self.assertContains(response, 'handler.py')
@@ -6695,12 +6695,12 @@ class LabsRunnerTests(SimpleTestCase):
     def test_lambda_lab_create_function_packages_handler_zip(self, factory_mock):
         lambda_client = MagicMock()
         lambda_client.create_function.return_value = {
-            'FunctionName': 'floci-lab-echo',
+            'FunctionName': 'lab-echo',
             'Role': 'arn:aws:iam::000000000000:role/FlociLambdaLabRole',
         }
         lambda_client.get_function.return_value = {
             'Configuration': {
-                'FunctionName': 'floci-lab-echo',
+                'FunctionName': 'lab-echo',
                 'Role': 'arn:aws:iam::000000000000:role/FlociLambdaLabRole',
             },
         }
@@ -6709,7 +6709,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('lambda', 'create-invoke-logs', 'create-function')
 
         call = lambda_client.create_function.call_args.kwargs
-        self.assertEqual(call['FunctionName'], 'floci-lab-echo')
+        self.assertEqual(call['FunctionName'], 'lab-echo')
         self.assertEqual(call['Runtime'], 'python3.11')
         self.assertEqual(call['Handler'], 'handler.lambda_handler')
         with zipfile.ZipFile(BytesIO(call['Code']['ZipFile'])) as archive:
@@ -6735,7 +6735,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('lambda', 'create-invoke-logs', 'invoke-function')
 
         call = lambda_client.invoke.call_args.kwargs
-        self.assertEqual(call['FunctionName'], 'floci-lab-echo')
+        self.assertEqual(call['FunctionName'], 'lab-echo')
         self.assertEqual(call['InvocationType'], 'RequestResponse')
         self.assertIn(b'FLOCI-LAMBDA-1001', call['Payload'])
         self.assertTrue(result['verified'])
@@ -6782,8 +6782,8 @@ class LabsRunnerTests(SimpleTestCase):
 
         result = reset_lab('lambda', 'create-invoke-logs')
 
-        lambda_client.delete_function.assert_called_once_with(FunctionName='floci-lab-echo')
-        logs.delete_log_group.assert_called_once_with(logGroupName='/aws/lambda/floci-lab-echo')
+        lambda_client.delete_function.assert_called_once_with(FunctionName='lab-echo')
+        logs.delete_log_group.assert_called_once_with(logGroupName='/aws/lambda/lab-echo')
         iam.delete_role_policy.assert_called_once_with(
             RoleName='FlociLambdaLabRole',
             PolicyName='FlociLambdaLabLogs',
@@ -6804,11 +6804,11 @@ class LabsRunnerTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<title>API Gateway Labs - Floci Dashboard</title>', html=True)
         self.assertContains(response, 'Send an API Gateway request to Lambda')
-        self.assertContains(response, 'aws apigatewayv2 create-api --name floci-lab-lambda-api --protocol-type HTTP')
+        self.assertContains(response, 'aws apigatewayv2 create-api --name lab-lambda-api --protocol-type HTTP')
         self.assertContains(response, 'aws apigatewayv2 create-integration --api-id &lt;api-id&gt;')
         self.assertContains(response, 'aws apigatewayv2 create-route --api-id &lt;api-id&gt; --route-key &quot;POST /echo&quot;')
         self.assertContains(response, 'aws apigatewayv2 create-stage --api-id &lt;api-id&gt; --stage-name $default --auto-deploy')
-        self.assertContains(response, 'aws lambda add-permission --function-name floci-lab-echo')
+        self.assertContains(response, 'aws lambda add-permission --function-name lab-echo')
         self.assertContains(response, 'curl -X POST &lt;api-endpoint&gt;/echo')
         self.assertContains(response, 'event.json')
         self.assertContains(response, 'FLOCI-LAMBDA-1001')
@@ -6836,7 +6836,7 @@ class LabsRunnerTests(SimpleTestCase):
         apigw.create_integration.assert_called_once_with(
             ApiId='api123',
             IntegrationType='AWS_PROXY',
-            IntegrationUri='arn:aws:lambda:us-east-1:000000000000:function:floci-lab-echo',
+            IntegrationUri='arn:aws:lambda:us-east-1:000000000000:function:lab-echo',
             PayloadFormatVersion='2.0',
         )
         self.assertTrue(result['verified'])
@@ -6988,11 +6988,11 @@ class LabsRunnerTests(SimpleTestCase):
 
         apigw.delete_api.assert_called_once_with(ApiId='api123')
         lambda_client.remove_permission.assert_called_once_with(
-            FunctionName='floci-lab-echo',
+            FunctionName='lab-echo',
             StatementId='AllowFlociApiGatewayInvoke',
         )
-        lambda_client.delete_function.assert_called_once_with(FunctionName='floci-lab-echo')
-        logs.delete_log_group.assert_called_once_with(logGroupName='/aws/lambda/floci-lab-echo')
+        lambda_client.delete_function.assert_called_once_with(FunctionName='lab-echo')
+        logs.delete_log_group.assert_called_once_with(logGroupName='/aws/lambda/lab-echo')
         iam.delete_role_policy.assert_called_once_with(
             RoleName='FlociLambdaLabRole',
             PolicyName='FlociLambdaLabLogs',
@@ -7013,13 +7013,13 @@ class LabsRunnerTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<title>DynamoDB Labs - Floci Dashboard</title>', html=True)
         self.assertContains(response, 'Create a DynamoDB table and query items')
-        self.assertContains(response, 'aws dynamodb create-table --table-name floci-lab-orders')
-        self.assertContains(response, 'aws dynamodb put-item --table-name floci-lab-orders --item file://order-item.json')
-        self.assertContains(response, 'aws dynamodb get-item --table-name floci-lab-orders --key file://order-key.json')
-        self.assertContains(response, 'aws dynamodb update-item --table-name floci-lab-orders')
-        self.assertContains(response, 'aws dynamodb query --table-name floci-lab-orders --index-name CustomerIdIndex')
-        self.assertContains(response, 'aws dynamodb delete-item --table-name floci-lab-orders')
-        self.assertContains(response, 'aws dynamodb delete-table --table-name floci-lab-orders')
+        self.assertContains(response, 'aws dynamodb create-table --table-name lab-orders')
+        self.assertContains(response, 'aws dynamodb put-item --table-name lab-orders --item file://order-item.json')
+        self.assertContains(response, 'aws dynamodb get-item --table-name lab-orders --key file://order-key.json')
+        self.assertContains(response, 'aws dynamodb update-item --table-name lab-orders')
+        self.assertContains(response, 'aws dynamodb query --table-name lab-orders --index-name CustomerIdIndex')
+        self.assertContains(response, 'aws dynamodb delete-item --table-name lab-orders')
+        self.assertContains(response, 'aws dynamodb delete-table --table-name lab-orders')
         self.assertContains(response, 'order-item.json')
         self.assertContains(response, 'ORDER#1001')
 
@@ -7031,14 +7031,14 @@ class LabsRunnerTests(SimpleTestCase):
         verify_mock,
     ):
         dynamodb = MagicMock()
-        dynamodb.create_table.return_value = {'TableDescription': {'TableName': 'floci-lab-orders'}}
+        dynamodb.create_table.return_value = {'TableDescription': {'TableName': 'lab-orders'}}
         factory_mock.return_value.client.return_value = dynamodb
         verify_mock.return_value = {'status': 'passed', 'message': 'verified'}
 
         result = run_lab_step('dynamodb', 'crud-query', 'create-table')
 
         call = dynamodb.create_table.call_args.kwargs
-        self.assertEqual(call['TableName'], 'floci-lab-orders')
+        self.assertEqual(call['TableName'], 'lab-orders')
         self.assertEqual(call['BillingMode'], 'PAY_PER_REQUEST')
         self.assertEqual(call['KeySchema'], [{'AttributeName': 'OrderId', 'KeyType': 'HASH'}])
         self.assertEqual(call['GlobalSecondaryIndexes'][0]['IndexName'], 'CustomerIdIndex')
@@ -7127,10 +7127,10 @@ class LabsRunnerTests(SimpleTestCase):
         result = reset_lab('dynamodb', 'crud-query')
 
         dynamodb.delete_item.assert_called_once_with(
-            TableName='floci-lab-orders',
+            TableName='lab-orders',
             Key={'OrderId': {'S': 'ORDER#1001'}},
         )
-        dynamodb.delete_table.assert_called_once_with(TableName='floci-lab-orders')
+        dynamodb.delete_table.assert_called_once_with(TableName='lab-orders')
         self.assertTrue(result['reset'])
         self.assertIsNone(cache.get('floci-lab:dynamodb:crud-query:put-item'))
         self.assertIsNone(cache.get('floci-lab:dynamodb:crud-query:delete-table'))
@@ -7146,14 +7146,14 @@ class LabsRunnerTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Write DynamoDB items from Lambda')
-        self.assertContains(response, 'aws dynamodb create-table --table-name floci-lab-lambda-orders')
+        self.assertContains(response, 'aws dynamodb create-table --table-name lab-lambda-orders')
         self.assertContains(response, 'aws iam create-role --role-name FlociLambdaDynamoDbRole')
         self.assertContains(response, 'aws iam put-role-policy --role-name FlociLambdaDynamoDbRole')
-        self.assertContains(response, 'aws lambda create-function --function-name floci-lab-order-writer')
-        self.assertContains(response, 'TABLE_NAME=floci-lab-lambda-orders')
-        self.assertContains(response, 'aws lambda invoke --function-name floci-lab-order-writer')
-        self.assertContains(response, 'aws dynamodb get-item --table-name floci-lab-lambda-orders')
-        self.assertContains(response, 'aws logs describe-log-streams --log-group-name /aws/lambda/floci-lab-order-writer')
+        self.assertContains(response, 'aws lambda create-function --function-name lab-order-writer')
+        self.assertContains(response, 'TABLE_NAME=lab-lambda-orders')
+        self.assertContains(response, 'aws lambda invoke --function-name lab-order-writer')
+        self.assertContains(response, 'aws dynamodb get-item --table-name lab-lambda-orders')
+        self.assertContains(response, 'aws logs describe-log-streams --log-group-name /aws/lambda/lab-order-writer')
         self.assertContains(response, 'lambda-dynamodb-policy.json')
         self.assertContains(response, 'order-event.json')
         self.assertContains(response, 'FLOCI-LAMBDA-DDB-2001')
@@ -7167,7 +7167,7 @@ class LabsRunnerTests(SimpleTestCase):
     ):
         lambda_client = MagicMock()
         lambda_client.create_function.return_value = {
-            'FunctionName': 'floci-lab-order-writer',
+            'FunctionName': 'lab-order-writer',
             'Role': 'arn:aws:iam::000000000000:role/FlociLambdaDynamoDbRole',
         }
         factory_mock.return_value.client.return_value = lambda_client
@@ -7176,8 +7176,8 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('dynamodb', 'lambda-writes', 'create-function')
 
         call = lambda_client.create_function.call_args.kwargs
-        self.assertEqual(call['FunctionName'], 'floci-lab-order-writer')
-        self.assertEqual(call['Environment'], {'Variables': {'TABLE_NAME': 'floci-lab-lambda-orders'}})
+        self.assertEqual(call['FunctionName'], 'lab-order-writer')
+        self.assertEqual(call['Environment'], {'Variables': {'TABLE_NAME': 'lab-lambda-orders'}})
         with zipfile.ZipFile(BytesIO(call['Code']['ZipFile'])) as archive:
             source = archive.read('handler.py').decode('utf-8')
         self.assertIn('dynamodb.put_item', source)
@@ -7200,7 +7200,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('dynamodb', 'lambda-writes', 'invoke-function')
 
         call = lambda_client.invoke.call_args.kwargs
-        self.assertEqual(call['FunctionName'], 'floci-lab-order-writer')
+        self.assertEqual(call['FunctionName'], 'lab-order-writer')
         self.assertIn(b'FLOCI-LAMBDA-DDB-2001', call['Payload'])
         self.assertTrue(result['verified'])
         self.assertTrue(cache.get('floci-lab:dynamodb:lambda-writes:invoke'))
@@ -7249,18 +7249,18 @@ class LabsRunnerTests(SimpleTestCase):
 
         result = reset_lab('dynamodb', 'lambda-writes')
 
-        lambda_client.delete_function.assert_called_once_with(FunctionName='floci-lab-order-writer')
-        logs.delete_log_group.assert_called_once_with(logGroupName='/aws/lambda/floci-lab-order-writer')
+        lambda_client.delete_function.assert_called_once_with(FunctionName='lab-order-writer')
+        logs.delete_log_group.assert_called_once_with(logGroupName='/aws/lambda/lab-order-writer')
         iam.delete_role_policy.assert_called_once_with(
             RoleName='FlociLambdaDynamoDbRole',
             PolicyName='FlociLambdaDynamoDbWrite',
         )
         iam.delete_role.assert_called_once_with(RoleName='FlociLambdaDynamoDbRole')
         dynamodb.delete_item.assert_called_once_with(
-            TableName='floci-lab-lambda-orders',
+            TableName='lab-lambda-orders',
             Key={'OrderId': {'S': 'ORDER#2001'}},
         )
-        dynamodb.delete_table.assert_called_once_with(TableName='floci-lab-lambda-orders')
+        dynamodb.delete_table.assert_called_once_with(TableName='lab-lambda-orders')
         self.assertTrue(result['reset'])
         self.assertIsNone(cache.get('floci-lab:dynamodb:lambda-writes:invoke'))
         self.assertIsNone(cache.get('floci-lab:dynamodb:lambda-writes:logs'))
@@ -7277,14 +7277,14 @@ class LabsRunnerTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Read app configuration and secrets from Lambda')
         self.assertContains(response, 'aws ssm put-parameter --name /floci/lab/lambda/config')
-        self.assertContains(response, 'aws secretsmanager create-secret --name floci-lab/lambda-secret')
+        self.assertContains(response, 'aws secretsmanager create-secret --name lab/lambda-secret')
         self.assertContains(response, 'aws iam create-role --role-name FlociLambdaConfigRole')
         self.assertContains(response, 'aws iam put-role-policy --role-name FlociLambdaConfigRole')
-        self.assertContains(response, 'aws lambda create-function --function-name floci-lab-config-reader')
+        self.assertContains(response, 'aws lambda create-function --function-name lab-config-reader')
         self.assertContains(response, 'PARAMETER_NAME=/floci/lab/lambda/config')
-        self.assertContains(response, 'SECRET_ID=floci-lab/lambda-secret')
-        self.assertContains(response, 'aws lambda invoke --function-name floci-lab-config-reader')
-        self.assertContains(response, 'aws logs describe-log-streams --log-group-name /aws/lambda/floci-lab-config-reader')
+        self.assertContains(response, 'SECRET_ID=lab/lambda-secret')
+        self.assertContains(response, 'aws lambda invoke --function-name lab-config-reader')
+        self.assertContains(response, 'aws logs describe-log-streams --log-group-name /aws/lambda/lab-config-reader')
         self.assertContains(response, 'lambda-config-policy.json')
         self.assertContains(response, 'lambda-config.json')
         self.assertContains(response, 'lambda-secret.json')
@@ -7298,7 +7298,7 @@ class LabsRunnerTests(SimpleTestCase):
     ):
         lambda_client = MagicMock()
         lambda_client.create_function.return_value = {
-            'FunctionName': 'floci-lab-config-reader',
+            'FunctionName': 'lab-config-reader',
             'Role': 'arn:aws:iam::000000000000:role/FlociLambdaConfigRole',
         }
         factory_mock.return_value.client.return_value = lambda_client
@@ -7307,11 +7307,11 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('lambda', 'runtime-config', 'create-function')
 
         call = lambda_client.create_function.call_args.kwargs
-        self.assertEqual(call['FunctionName'], 'floci-lab-config-reader')
+        self.assertEqual(call['FunctionName'], 'lab-config-reader')
         self.assertEqual(call['Environment'], {
             'Variables': {
                 'PARAMETER_NAME': '/floci/lab/lambda/config',
-                'SECRET_ID': 'floci-lab/lambda-secret',
+                'SECRET_ID': 'lab/lambda-secret',
             },
         })
         with zipfile.ZipFile(BytesIO(call['Code']['ZipFile'])) as archive:
@@ -7330,7 +7330,7 @@ class LabsRunnerTests(SimpleTestCase):
                 'ok': True,
                 'request_id': 'FLOCI-LAMBDA-CONFIG-3001',
                 'parameter_name': '/floci/lab/lambda/config',
-                'secret_id': 'floci-lab/lambda-secret',
+                'secret_id': 'lab/lambda-secret',
                 'application': 'orders',
                 'environment': 'local',
                 'secret_username': 'floci-lambda',
@@ -7342,7 +7342,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('lambda', 'runtime-config', 'invoke-function')
 
         call = lambda_client.invoke.call_args.kwargs
-        self.assertEqual(call['FunctionName'], 'floci-lab-config-reader')
+        self.assertEqual(call['FunctionName'], 'lab-config-reader')
         self.assertIn(b'FLOCI-LAMBDA-CONFIG-3001', call['Payload'])
         self.assertTrue(result['verified'])
         self.assertTrue(cache.get('floci-lab:lambda:runtime-config:invoke'))
@@ -7395,8 +7395,8 @@ class LabsRunnerTests(SimpleTestCase):
 
         result = reset_lab('lambda', 'runtime-config')
 
-        lambda_client.delete_function.assert_called_once_with(FunctionName='floci-lab-config-reader')
-        logs.delete_log_group.assert_called_once_with(logGroupName='/aws/lambda/floci-lab-config-reader')
+        lambda_client.delete_function.assert_called_once_with(FunctionName='lab-config-reader')
+        logs.delete_log_group.assert_called_once_with(logGroupName='/aws/lambda/lab-config-reader')
         iam.delete_role_policy.assert_called_once_with(
             RoleName='FlociLambdaConfigRole',
             PolicyName='FlociLambdaConfigRead',
@@ -7404,7 +7404,7 @@ class LabsRunnerTests(SimpleTestCase):
         iam.delete_role.assert_called_once_with(RoleName='FlociLambdaConfigRole')
         ssm.delete_parameter.assert_called_once_with(Name='/floci/lab/lambda/config')
         secrets.delete_secret.assert_called_once_with(
-            SecretId='floci-lab/lambda-secret',
+            SecretId='lab/lambda-secret',
             ForceDeleteWithoutRecovery=True,
         )
         self.assertTrue(result['reset'])
@@ -7422,13 +7422,13 @@ class LabsRunnerTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Process SQS messages with Lambda')
-        self.assertContains(response, 'aws sqs create-queue --queue-name floci-lab-lambda-events')
+        self.assertContains(response, 'aws sqs create-queue --queue-name lab-lambda-events')
         self.assertContains(response, 'aws iam create-role --role-name FlociLambdaSqsConsumerRole')
         self.assertContains(response, 'aws iam put-role-policy --role-name FlociLambdaSqsConsumerRole')
-        self.assertContains(response, 'aws lambda create-function --function-name floci-lab-sqs-consumer')
-        self.assertContains(response, 'aws lambda create-event-source-mapping --function-name floci-lab-sqs-consumer')
+        self.assertContains(response, 'aws lambda create-function --function-name lab-sqs-consumer')
+        self.assertContains(response, 'aws lambda create-event-source-mapping --function-name lab-sqs-consumer')
         self.assertContains(response, 'aws sqs send-message --queue-url &lt;queue-url&gt;')
-        self.assertContains(response, 'aws logs describe-log-streams --log-group-name /aws/lambda/floci-lab-sqs-consumer')
+        self.assertContains(response, 'aws logs describe-log-streams --log-group-name /aws/lambda/lab-sqs-consumer')
         self.assertContains(response, 'lambda-sqs-policy.json')
         self.assertContains(response, 'order-event.json')
         self.assertContains(response, 'FLOCI-LAMBDA-SQS-4001')
@@ -7442,7 +7442,7 @@ class LabsRunnerTests(SimpleTestCase):
     ):
         lambda_client = MagicMock()
         lambda_client.create_function.return_value = {
-            'FunctionName': 'floci-lab-sqs-consumer',
+            'FunctionName': 'lab-sqs-consumer',
             'Role': 'arn:aws:iam::000000000000:role/FlociLambdaSqsConsumerRole',
         }
         factory_mock.return_value.client.return_value = lambda_client
@@ -7451,7 +7451,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('lambda', 'sqs-event-source', 'create-function')
 
         call = lambda_client.create_function.call_args.kwargs
-        self.assertEqual(call['FunctionName'], 'floci-lab-sqs-consumer')
+        self.assertEqual(call['FunctionName'], 'lab-sqs-consumer')
         self.assertEqual(call['Role'], 'arn:aws:iam::000000000000:role/FlociLambdaSqsConsumerRole')
         with zipfile.ZipFile(BytesIO(call['Code']['ZipFile'])) as archive:
             source = archive.read('handler.py').decode('utf-8')
@@ -7474,16 +7474,16 @@ class LabsRunnerTests(SimpleTestCase):
         lambda_client = MagicMock()
         lambda_client.create_event_source_mapping.return_value = {
             'UUID': 'mapping-123',
-            'FunctionArn': 'arn:aws:lambda:us-east-1:000000000000:function:floci-lab-sqs-consumer',
-            'EventSourceArn': 'arn:aws:sqs:us-east-1:000000000000:floci-lab-lambda-events',
+            'FunctionArn': 'arn:aws:lambda:us-east-1:000000000000:function:lab-sqs-consumer',
+            'EventSourceArn': 'arn:aws:sqs:us-east-1:000000000000:lab-lambda-events',
         }
         factory_mock.return_value.client.return_value = lambda_client
 
         result = run_lab_step('lambda', 'sqs-event-source', 'create-event-source-mapping')
 
         lambda_client.create_event_source_mapping.assert_called_once_with(
-            FunctionName='floci-lab-sqs-consumer',
-            EventSourceArn='arn:aws:sqs:us-east-1:000000000000:floci-lab-lambda-events',
+            FunctionName='lab-sqs-consumer',
+            EventSourceArn='arn:aws:sqs:us-east-1:000000000000:lab-lambda-events',
             BatchSize=5,
             Enabled=True,
         )
@@ -7500,7 +7500,7 @@ class LabsRunnerTests(SimpleTestCase):
     ):
         cache.clear()
         sqs = MagicMock()
-        sqs.get_queue_url.return_value = {'QueueUrl': 'http://localhost/queue/floci-lab-lambda-events'}
+        sqs.get_queue_url.return_value = {'QueueUrl': 'http://localhost/queue/lab-lambda-events'}
         sqs.send_message.return_value = {'MessageId': 'msg-123', 'MD5OfMessageBody': 'abc'}
         factory_mock.return_value.client.return_value = sqs
         verify_mock.return_value = {'status': 'passed', 'message': 'verified'}
@@ -7508,7 +7508,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('lambda', 'sqs-event-source', 'send-message')
 
         call = sqs.send_message.call_args.kwargs
-        self.assertEqual(call['QueueUrl'], 'http://localhost/queue/floci-lab-lambda-events')
+        self.assertEqual(call['QueueUrl'], 'http://localhost/queue/lab-lambda-events')
         self.assertIn('FLOCI-LAMBDA-SQS-4001', call['MessageBody'])
         self.assertEqual(call['MessageAttributes']['event_type']['StringValue'], 'order.created')
         self.assertTrue(result['verified'])
@@ -7556,7 +7556,7 @@ class LabsRunnerTests(SimpleTestCase):
         logs = MagicMock()
         iam = MagicMock()
         sqs = MagicMock()
-        sqs.get_queue_url.return_value = {'QueueUrl': 'http://localhost/queue/floci-lab-lambda-events'}
+        sqs.get_queue_url.return_value = {'QueueUrl': 'http://localhost/queue/lab-lambda-events'}
         factory_mock.return_value.client.side_effect = lambda service: {
             'lambda': lambda_client,
             'logs': logs,
@@ -7567,14 +7567,14 @@ class LabsRunnerTests(SimpleTestCase):
         result = reset_lab('lambda', 'sqs-event-source')
 
         lambda_client.delete_event_source_mapping.assert_called_once_with(UUID='mapping-123')
-        lambda_client.delete_function.assert_called_once_with(FunctionName='floci-lab-sqs-consumer')
-        logs.delete_log_group.assert_called_once_with(logGroupName='/aws/lambda/floci-lab-sqs-consumer')
+        lambda_client.delete_function.assert_called_once_with(FunctionName='lab-sqs-consumer')
+        logs.delete_log_group.assert_called_once_with(logGroupName='/aws/lambda/lab-sqs-consumer')
         iam.delete_role_policy.assert_called_once_with(
             RoleName='FlociLambdaSqsConsumerRole',
             PolicyName='FlociLambdaSqsConsumerPolicy',
         )
         iam.delete_role.assert_called_once_with(RoleName='FlociLambdaSqsConsumerRole')
-        sqs.delete_queue.assert_called_once_with(QueueUrl='http://localhost/queue/floci-lab-lambda-events')
+        sqs.delete_queue.assert_called_once_with(QueueUrl='http://localhost/queue/lab-lambda-events')
         self.assertTrue(result['reset'])
         self.assertIsNone(cache.get('floci-lab:lambda:sqs-event-source:mapping'))
         self.assertIsNone(cache.get('floci-lab:lambda:sqs-event-source:send-message'))
@@ -7592,9 +7592,9 @@ class LabsRunnerTests(SimpleTestCase):
         self.assertContains(response, '<title>KMS Labs - Floci Dashboard</title>', html=True)
         self.assertContains(response, 'Protect local app data with KMS')
         self.assertContains(response, 'aws kms create-key --description &quot;Floci dashboard local workflow lab key&quot;')
-        self.assertContains(response, 'aws kms create-alias --alias-name alias/floci-lab-data-key')
-        self.assertContains(response, 'aws kms describe-key --key-id alias/floci-lab-data-key')
-        self.assertContains(response, 'aws kms encrypt --key-id alias/floci-lab-data-key')
+        self.assertContains(response, 'aws kms create-alias --alias-name alias/lab-data-key')
+        self.assertContains(response, 'aws kms describe-key --key-id alias/lab-data-key')
+        self.assertContains(response, 'aws kms encrypt --key-id alias/lab-data-key')
         self.assertContains(response, 'aws kms decrypt --ciphertext-blob fileb://ciphertext.bin')
         self.assertContains(response, 'key-tags.json')
         self.assertContains(response, 'app-config.json')
@@ -7649,7 +7649,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('kms', 'key-alias-encrypt-decrypt', 'encrypt')
 
         call = kms.encrypt.call_args.kwargs
-        self.assertEqual(call['KeyId'], 'alias/floci-lab-data-key')
+        self.assertEqual(call['KeyId'], 'alias/lab-data-key')
         self.assertIn(b'sample-local-token', call['Plaintext'])
         self.assertEqual(
             cache.get('floci-lab:kms:crypto:ciphertext')['CiphertextBlob'],
@@ -7720,7 +7720,7 @@ class LabsRunnerTests(SimpleTestCase):
 
         result = reset_lab('kms', 'key-alias-encrypt-decrypt')
 
-        kms.delete_alias.assert_called_once_with(AliasName='alias/floci-lab-data-key')
+        kms.delete_alias.assert_called_once_with(AliasName='alias/lab-data-key')
         kms.schedule_key_deletion.assert_called_once_with(
             KeyId='key-123',
             PendingWindowInDays=7,
@@ -7809,10 +7809,10 @@ class LabsRunnerTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<title>Secrets Manager Labs - Floci Dashboard</title>', html=True)
         self.assertContains(response, 'Create and update a Secrets Manager secret')
-        self.assertContains(response, 'aws secretsmanager create-secret --name floci-lab/app-credentials')
-        self.assertContains(response, 'aws secretsmanager get-secret-value --secret-id floci-lab/app-credentials')
-        self.assertContains(response, 'aws secretsmanager put-secret-value --secret-id floci-lab/app-credentials')
-        self.assertContains(response, 'aws secretsmanager describe-secret --secret-id floci-lab/app-credentials')
+        self.assertContains(response, 'aws secretsmanager create-secret --name lab/app-credentials')
+        self.assertContains(response, 'aws secretsmanager get-secret-value --secret-id lab/app-credentials')
+        self.assertContains(response, 'aws secretsmanager put-secret-value --secret-id lab/app-credentials')
+        self.assertContains(response, 'aws secretsmanager describe-secret --secret-id lab/app-credentials')
         self.assertContains(response, 'initial-secret.json')
         self.assertContains(response, 'rotated-secret.json')
 
@@ -7821,8 +7821,8 @@ class LabsRunnerTests(SimpleTestCase):
     def test_secretsmanager_lab_create_secret_writes_initial_json(self, factory_mock, verify_mock):
         secrets = MagicMock()
         secrets.create_secret.return_value = {
-            'Name': 'floci-lab/app-credentials',
-            'ARN': 'arn:aws:secretsmanager:us-east-1:000000000000:secret:floci-lab/app-credentials',
+            'Name': 'lab/app-credentials',
+            'ARN': 'arn:aws:secretsmanager:us-east-1:000000000000:secret:lab/app-credentials',
             'VersionId': 'version-1',
         }
         factory_mock.return_value.client.return_value = secrets
@@ -7831,7 +7831,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('secretsmanager', 'secret-lifecycle', 'create-secret')
 
         call = secrets.create_secret.call_args.kwargs
-        self.assertEqual(call['Name'], 'floci-lab/app-credentials')
+        self.assertEqual(call['Name'], 'lab/app-credentials')
         self.assertIn('initial-local-password', call['SecretString'])
         self.assertTrue(result['verified'])
 
@@ -7841,8 +7841,8 @@ class LabsRunnerTests(SimpleTestCase):
         cache.clear()
         secrets = MagicMock()
         secrets.get_secret_value.return_value = {
-            'Name': 'floci-lab/app-credentials',
-            'SecretString': '{"username":"floci-lab-app","password":"initial-local-password"}',
+            'Name': 'lab/app-credentials',
+            'SecretString': '{"username":"lab-app","password":"initial-local-password"}',
         }
         factory_mock.return_value.client.return_value = secrets
         verify_mock.return_value = {'status': 'passed', 'message': 'verified'}
@@ -7858,7 +7858,7 @@ class LabsRunnerTests(SimpleTestCase):
     def test_secretsmanager_lab_put_secret_value_writes_rotated_json(self, factory_mock, verify_mock):
         secrets = MagicMock()
         secrets.put_secret_value.return_value = {
-            'Name': 'floci-lab/app-credentials',
+            'Name': 'lab/app-credentials',
             'VersionId': 'version-2',
             'VersionStages': ['AWSCURRENT'],
         }
@@ -7868,7 +7868,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = run_lab_step('secretsmanager', 'secret-lifecycle', 'put-secret-value')
 
         call = secrets.put_secret_value.call_args.kwargs
-        self.assertEqual(call['SecretId'], 'floci-lab/app-credentials')
+        self.assertEqual(call['SecretId'], 'lab/app-credentials')
         self.assertIn('rotated-local-password', call['SecretString'])
         self.assertTrue(result['verified'])
 
@@ -7908,7 +7908,7 @@ class LabsRunnerTests(SimpleTestCase):
         result = reset_lab('secretsmanager', 'secret-lifecycle')
 
         secrets.delete_secret.assert_called_once_with(
-            SecretId='floci-lab/app-credentials',
+            SecretId='lab/app-credentials',
             ForceDeleteWithoutRecovery=True,
         )
         self.assertTrue(result['reset'])
