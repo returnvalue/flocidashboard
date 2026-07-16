@@ -9,6 +9,7 @@ The current curriculum is complete through the first messaging, infrastructure, 
 - nine SQS labs,
 - two SNS labs,
 - one EventBridge Scheduler lab,
+- one EventBridge application capstone,
 - one CloudFormation lab,
 - four EC2 networking labs,
 - three Lambda labs,
@@ -25,6 +26,8 @@ The current curriculum is complete through the first messaging, infrastructure, 
 
 Continue with deeper endpoint and hybrid-connectivity scenarios when local support makes them useful.
 Continue the serverless application spine with deeper runtime scenarios, such as parameter history, secret restore flows, or configuration-driven API behavior when local support makes them useful.
+
+The EventBridge application capstone joins API Gateway, Lambda, a custom event bus, two SQS destinations, a notification Lambda, input transformation, multiple event patterns, resource permissions, correlation logs, and controlled malformed-input, missing-permission, and disabled-rule experiments. Current Floci executes matching, transformation, and delivery; target `RetryPolicy` and `DeadLetterConfig` remain visible AWS teaching artifacts until the emulator persists and enforces them.
 
 The dashboard also exposes `/labs/`, a registry-driven directory of every service with active labs. The homepage links to it between Environment and Service Matrix. Keep this page as a catalog; guidance belongs on the service lab page only when a user completes the last lab in a batch.
 

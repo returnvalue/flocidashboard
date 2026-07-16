@@ -52,6 +52,8 @@ Core architecture files:
 
 ## Completed Recently
 
+- Added an EventBridge application-spine capstone that builds API Gateway to Lambda to a custom event bus, fans out through transformed processing and full-envelope audit queues plus a notification Lambda, correlates CloudWatch logs, exercises malformed input, missing permissions, and disabled rules, and resets every owned dependency safely.
+
 - Rebuilt the EC2 Phase 1 experience around an Overview, Instances, and Run Command navigation shell with a searchable instance table, URL-addressable detail selection, state-aware single and bulk lifecycle actions, transition polling, a richer launch wizard, launch-time and editable tags, and AWS-native SSM command execution with invocation history and output polling.
 - Added the EC2 Phase 2 network control plane with VPC and subnet lifecycle management, security group creation and ingress/egress rule editing, internet gateway attachment, route table and route workflows, Elastic IPs, NAT gateways, VPC endpoints, relationship topology, and live connectivity diagnostics.
 - Added the EC2 Phase 3 advanced workbench with a network ACL editor, S3-backed VPC flow-log configuration and decoded record viewing, volume lifecycle plus snapshot inspection, AMI registration, launch template version/default management, and Spot request lifecycle controls.

@@ -56,6 +56,14 @@ class LabsRegistryAuditTests(SimpleTestCase):
             next_branch = source.find('\n    return {', start + 1)
         return source[start:next_branch if next_branch != -1 else len(source)]
 
+    def _expanded_branch_source(self, source: str, service_key: str, lab_key: str) -> str:
+        branch = self._branch_source(source, service_key, lab_key)
+        delegated = re.search(r'from \.([a-z0-9_]+) import (?:run_step|status|reset)', branch)
+        if delegated:
+            module = importlib.import_module(f'dashboard.labs.{delegated.group(1)}')
+            return f'{branch}\n{inspect.getsource(module)}'
+        return branch
+
     def test_every_batch_service_has_labs(self):
         for batch in LAB_BATCH_ORDER:
             with self.subTest(service=batch['service']):
@@ -70,7 +78,7 @@ class LabsRegistryAuditTests(SimpleTestCase):
 
     def test_every_registered_step_has_runner_dispatch(self):
         for lab in all_labs():
-            branch = self._branch_source(self.run_source, lab['service'], lab['key'])
+            branch = self._expanded_branch_source(self.run_source, lab['service'], lab['key'])
             for step in lab['steps']:
                 with self.subTest(service=lab['service'], lab=lab['key'], step=step['key']):
                     self.assertRegex(
@@ -81,7 +89,7 @@ class LabsRegistryAuditTests(SimpleTestCase):
 
     def test_every_registered_step_has_status_entry(self):
         for lab in all_labs():
-            branch = self._branch_source(self.status_source, lab['service'], lab['key'])
+            branch = self._expanded_branch_source(self.status_source, lab['service'], lab['key'])
             for step in lab['steps']:
                 with self.subTest(service=lab['service'], lab=lab['key'], step=step['key']):
                     self.assertRegex(
@@ -94,7 +102,7 @@ class LabsRegistryAuditTests(SimpleTestCase):
 class LabsPageTests(SimpleTestCase):
     def test_labs_package_facades_preserve_public_api(self):
         self.assertIs(facade_run_lab_step, run_lab_step)
-        self.assertEqual(len(all_labs()), 56)
+        self.assertEqual(len(all_labs()), 57)
         self.assertTrue(labs_for_service('iam'))
         self.assertTrue(issubclass(Lab, dict))
         self.assertTrue(issubclass(LabStep, dict))

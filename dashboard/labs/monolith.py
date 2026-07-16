@@ -3619,6 +3619,9 @@ def labs_for_service(service_key: str) -> list[dict[str, Any]]:
         ]
     if service_key == 'apigateway':
         return [APIGW_LAMBDA_REQUEST_LAB]
+    if service_key == 'eventbridge':
+        from .eventbridge_application import LAB
+        return [LAB]
     if service_key == 'dynamodb':
         return [DYNAMODB_CRUD_QUERY_LAB, DYNAMODB_LAMBDA_WRITES_LAB]
     if service_key == 'kms':
@@ -3675,6 +3678,11 @@ LAB_BATCH_ORDER = [
         'service': 'apigateway',
         'title': 'API Gateway labs',
         'summary': 'Continue into data persistence after exposing Lambda through a local HTTP API.',
+    },
+    {
+        'service': 'eventbridge',
+        'title': 'EventBridge application lab',
+        'summary': 'Build a complete API-to-event fan-out workflow with transformed queues, Lambda notification logs, and failure experiments.',
     },
     {
         'service': 'dynamodb',
@@ -8534,6 +8542,9 @@ def _verify_ec2_interface_inspection() -> dict[str, Any]:
 
 
 def run_lab_step(service_key: str, lab_key: str, step_key: str) -> dict[str, Any]:
+    if service_key == 'eventbridge' and lab_key == 'application-spine':
+        from .eventbridge_application import run_step
+        return run_step(step_key)
     lab = get_lab(service_key, lab_key)
     if not lab:
         raise ValueError('Lab not found')
@@ -9253,6 +9264,9 @@ def run_lab_step(service_key: str, lab_key: str, step_key: str) -> dict[str, Any
 
 
 def lab_status(service_key: str, lab_key: str) -> dict[str, Any]:
+    if service_key == 'eventbridge' and lab_key == 'application-spine':
+        from .eventbridge_application import status
+        return status()
     lab = get_lab(service_key, lab_key)
     if not lab:
         raise ValueError('Lab not found')
@@ -11628,6 +11642,9 @@ def lab_status(service_key: str, lab_key: str) -> dict[str, Any]:
 
 
 def reset_lab(service_key: str, lab_key: str) -> dict[str, Any]:
+    if service_key == 'eventbridge' and lab_key == 'application-spine':
+        from .eventbridge_application import reset
+        return reset()
     lab = get_lab(service_key, lab_key)
     if not lab:
         raise ValueError('Lab not found')
