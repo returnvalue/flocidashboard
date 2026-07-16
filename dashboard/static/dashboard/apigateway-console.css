@@ -262,3 +262,16 @@
     padding-top: 0;
   }
 }
+.apigateway-btn-danger {
+  border-color: #d13212 !important;
+  color: #b12704 !important;
+  background: #fff !important;
+}
+
+.apigateway-modal select {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+}

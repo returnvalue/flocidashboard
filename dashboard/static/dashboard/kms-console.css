@@ -67,6 +67,9 @@
   background: #f0f4fc;
 }
 
+.kms-btn-active,
+.kms-btn-active:hover { background: var(--accent); color: #fff; }
+
 .kms-btn-danger {
   background: #a93434;
 }
@@ -105,6 +108,14 @@
 .kms-detail-stack {
   gap: 14px;
 }
+
+.kms-resource-tabs { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; border: 1px solid var(--panel-border); border-radius: 8px; background: var(--panel); box-shadow: var(--shadow); }
+.kms-resource-tab-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.kms-resource-tabs input[type="search"] { min-width: min(230px, 100%); border: 1px solid #d8deea; border-radius: 6px; padding: 8px 10px; font: inherit; }
+.kms-card-list { display: grid; gap: 12px; padding: 14px; }
+.kms-card { display: grid; gap: 10px; padding: 14px; border: 1px solid #e8ebf1; border-radius: 8px; background: #fff; }
+.kms-card h3 { margin: 0; font-size: 0.95rem; }
+.kms-policy { overflow: auto; max-height: 480px; margin: 14px; padding: 12px; border-radius: 6px; background: #f6f8fb; font-size: 0.82rem; }
 
 .kms-key-row {
   display: grid;

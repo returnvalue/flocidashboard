@@ -889,6 +889,13 @@ CLOUDWATCH_ACTIONS = (
 
 
 EVENTBRIDGE_ACTIONS = (
+    action('create_event_bus', 'Create event bus', 'POST', '/api/eventbridge/buses/create/', 'create', fields=(action_field('name', 'Name', required=True), action_field('description', 'Description'))),
+    action('delete_event_bus', 'Delete event bus', 'POST', '/api/eventbridge/buses/delete/', 'delete', safety='destructive', confirm='Delete this custom event bus?', fields=(action_field('name', 'Name', required=True),)),
+    action('put_rule', 'Create or update rule', 'POST', '/api/eventbridge/rules/put/', 'update', fields=(action_field('name', 'Rule name', required=True), action_field('event_bus_name', 'Event bus'), action_field('event_pattern', 'Event pattern JSON', field_type='textarea'), action_field('schedule_expression', 'Schedule expression'), action_field('description', 'Description'), action_field('state', 'State'))),
+    action('set_rule_state', 'Enable or disable rule', 'POST', '/api/eventbridge/rules/state/', 'update', fields=(action_field('name', 'Rule name', required=True), action_field('event_bus_name', 'Event bus'), action_field('enabled', 'Enabled', field_type='boolean'))),
+    action('delete_rule', 'Delete rule', 'POST', '/api/eventbridge/rules/delete/', 'delete', safety='destructive', confirm='Delete this rule?', fields=(action_field('name', 'Rule name', required=True), action_field('event_bus_name', 'Event bus'))),
+    action('put_target', 'Add or update target', 'POST', '/api/eventbridge/targets/put/', 'update', fields=(action_field('rule_name', 'Rule name', required=True), action_field('event_bus_name', 'Event bus'), action_field('target_id', 'Target ID', required=True), action_field('arn', 'Target ARN', required=True), action_field('role_arn', 'Role ARN'), action_field('input', 'Constant input JSON', field_type='textarea'))),
+    action('remove_target', 'Remove target', 'POST', '/api/eventbridge/targets/remove/', 'delete', safety='destructive', confirm='Remove this target?', fields=(action_field('rule_name', 'Rule name', required=True), action_field('event_bus_name', 'Event bus'), action_field('target_id', 'Target ID', required=True))),
     action(
         'put_event',
         'Put event',
@@ -907,6 +914,8 @@ EVENTBRIDGE_ACTIONS = (
 
 
 APIGATEWAY_ACTIONS = (
+    action('create_api', 'Create API', 'POST', '/api/apigateway/apis/create/', 'create', fields=(action_field('api_type', 'API type', required=True), action_field('name', 'Name', required=True), action_field('description', 'Description'))),
+    action('delete_api', 'Delete API', 'POST', '/api/apigateway/apis/delete/', 'delete', safety='destructive', confirm='Delete this API and its routes, integrations, stages, and deployments?', fields=(action_field('api_type', 'API type', required=True), action_field('api_id', 'API ID', required=True))),
     action(
         'test_request',
         'Test request',
@@ -1629,6 +1638,18 @@ KMS_ACTIONS = (
         fields=(action_field('key_id', 'Key ID', required=True),),
         success_message='Key deletion canceled',
     ),
+    action('update_key_description', 'Update key description', 'PATCH', '/api/kms/key-metadata/', 'update', fields=(action_field('key_id', 'Key ID', required=True), action_field('description', 'Description')), success_message='Description updated'),
+    action('put_key_policy', 'Put key policy', 'PUT', '/api/kms/key-policy/', 'update', fields=(action_field('key_id', 'Key ID', required=True), action_field('policy', 'Policy', required=True, field_type='object')), success_message='Key policy updated'),
+    action('rotate_key_on_demand', 'Rotate key on demand', 'POST', '/api/kms/rotation/on-demand/', 'update', fields=(action_field('key_id', 'Key ID', required=True),), success_message='Key rotated'),
+    action('get_public_key', 'Get public key', 'POST', '/api/kms/public-key/', 'read', safety='safe', fields=(action_field('key_id', 'Key ID', required=True),), success_message='Public key loaded'),
+    action('create_grant', 'Create grant', 'POST', '/api/kms/grants/', 'create', fields=(action_field('key_id', 'Key ID', required=True), action_field('grantee_principal', 'Grantee principal', required=True), action_field('operations', 'Operations', required=True, field_type='array'), action_field('name', 'Name'), action_field('retiring_principal', 'Retiring principal')), success_message='Grant created'),
+    action('revoke_grant', 'Revoke grant', 'DELETE', '/api/kms/grants/', 'delete', safety='destructive', fields=(action_field('key_id', 'Key ID', required=True), action_field('grant_id', 'Grant ID', required=True)), confirm='Revoke this grant?', success_message='Grant revoked'),
+    action('tag_resource', 'Tag key', 'POST', '/api/kms/tags/', 'update', fields=(action_field('key_id', 'Key ID', required=True), action_field('tags', 'Tags', required=True, field_type='array')), success_message='Tags added'),
+    action('untag_resource', 'Untag key', 'DELETE', '/api/kms/tags/', 'update', fields=(action_field('key_id', 'Key ID', required=True), action_field('tag_keys', 'Tag keys', required=True, field_type='array')), success_message='Tags removed'),
+    action('sign', 'Sign message', 'POST', '/api/kms/crypto/sign/', 'execute', fields=(action_field('key_id', 'Key ID', required=True), action_field('message', 'Message', required=True, field_type='textarea'), action_field('signing_algorithm', 'Signing algorithm', required=True)), success_message='Message signed'),
+    action('verify', 'Verify signature', 'POST', '/api/kms/crypto/verify/', 'execute', fields=(action_field('key_id', 'Key ID', required=True), action_field('message', 'Message', required=True, field_type='textarea'), action_field('signature', 'Signature', required=True), action_field('signing_algorithm', 'Signing algorithm', required=True)), success_message='Signature verified'),
+    action('generate_mac', 'Generate MAC', 'POST', '/api/kms/crypto/mac/', 'execute', fields=(action_field('key_id', 'Key ID', required=True), action_field('message', 'Message', required=True, field_type='textarea'), action_field('mac_algorithm', 'MAC algorithm', required=True)), success_message='MAC generated'),
+    action('verify_mac', 'Verify MAC', 'POST', '/api/kms/crypto/mac/verify/', 'execute', fields=(action_field('key_id', 'Key ID', required=True), action_field('message', 'Message', required=True, field_type='textarea'), action_field('mac', 'MAC', required=True), action_field('mac_algorithm', 'MAC algorithm', required=True)), success_message='MAC verified'),
 )
 
 
@@ -1803,6 +1824,30 @@ SCHEDULER_ACTIONS = (
 )
 
 
+CLOUDTRAIL_ACTIONS = (
+    action(
+        'create_trail', 'Create trail', 'POST', '/api/cloudtrail/trails/', 'create',
+        fields=(
+            action_field('name', 'Trail name', required=True),
+            action_field('s3_bucket_name', 'S3 bucket name', required=True),
+            action_field('include_global_service_events', 'Include global service events', field_type='boolean'),
+            action_field('is_multi_region_trail', 'Multi-Region trail', field_type='boolean'),
+            action_field('is_organization_trail', 'Organization trail', field_type='boolean'),
+        ), success_message='Trail created',
+    ),
+    action(
+        'update_trail', 'Update trail', 'PATCH', '/api/cloudtrail/trails/{trail}/', 'update',
+        fields=(
+            action_field('s3_bucket_name', 'S3 bucket name'),
+            action_field('include_global_service_events', 'Include global service events', field_type='boolean'),
+            action_field('is_multi_region_trail', 'Multi-Region trail', field_type='boolean'),
+        ), success_message='Trail updated',
+    ),
+    action('set_trail_logging', 'Change logging state', 'POST', '/api/cloudtrail/trails/{trail}/logging/', 'update', fields=(action_field('enabled', 'Logging enabled', required=True, field_type='boolean'),), success_message='Logging state updated'),
+    action('delete_trail', 'Delete trail', 'DELETE', '/api/cloudtrail/trails/{trail}/', 'delete', safety='destructive', confirm='Delete this trail?', success_message='Trail deleted'),
+)
+
+
 SECRETSMANAGER_ACTIONS = (
     action(
         'create_secret',
@@ -1850,6 +1895,13 @@ SECRETSMANAGER_ACTIONS = (
         ),
         success_message='Secret deletion scheduled',
     ),
+    action('update_secret', 'Update secret metadata', 'PATCH', '/api/secretsmanager/secrets/{secret}/metadata/', 'update', fields=(action_field('description', 'Description'), action_field('kms_key_id', 'KMS key ID')), success_message='Secret metadata updated'),
+    action('restore_secret', 'Restore secret', 'POST', '/api/secretsmanager/secrets/{secret}/restore/', 'update', success_message='Secret restored'),
+    action('rotate_secret', 'Rotate secret', 'POST', '/api/secretsmanager/secrets/{secret}/rotate/', 'execute', fields=(action_field('rotation_lambda_arn', 'Rotation Lambda ARN'), action_field('rotation_rules', 'Rotation rules', field_type='object'), action_field('rotate_immediately', 'Rotate immediately', field_type='boolean')), success_message='Secret rotation started'),
+    action('tag_resource', 'Tag secret', 'POST', '/api/secretsmanager/secrets/{secret}/tags/', 'update', fields=(action_field('tags', 'Tags', required=True, field_type='array'),), success_message='Tags added'),
+    action('untag_resource', 'Untag secret', 'DELETE', '/api/secretsmanager/secrets/{secret}/tags/', 'update', fields=(action_field('tag_keys', 'Tag keys', required=True, field_type='array'),), success_message='Tags removed'),
+    action('update_secret_version_stage', 'Move version stage', 'POST', '/api/secretsmanager/secrets/{secret}/version-stage/', 'update', fields=(action_field('version_stage', 'Version stage', required=True), action_field('move_to_version_id', 'Move to version ID', required=True), action_field('remove_from_version_id', 'Remove from version ID')), success_message='Version stage updated'),
+    action('get_random_password', 'Generate random password', 'POST', '/api/secretsmanager/random-password/', 'execute', fields=(action_field('PasswordLength', 'Password length', field_type='number'), action_field('ExcludePunctuation', 'Exclude punctuation', field_type='boolean')), success_message='Password generated'),
 )
 
 
@@ -3136,6 +3188,19 @@ EKS_ACTIONS = (
 )
 
 
+ELASTICBEANSTALK_ACTIONS = (
+    action('create_application', 'Create application', 'POST', '/api/elasticbeanstalk/applications/', 'create', fields=(action_field('name', 'Application name', required=True), action_field('description', 'Description')), success_message='Application created'),
+    action('update_application', 'Update application', 'PATCH', '/api/elasticbeanstalk/applications/{application}/', 'update', fields=(action_field('description', 'Description'),), success_message='Application updated'),
+    action('delete_application', 'Delete application', 'DELETE', '/api/elasticbeanstalk/applications/{application}/', 'delete', safety='destructive', confirm='Delete this application and its stored versions?', fields=(action_field('terminate_environments', 'Terminate active environments', field_type='boolean'),), success_message='Application deleted'),
+    action('create_application_version', 'Create application version', 'POST', '/api/elasticbeanstalk/applications/{application}/versions/', 'create', fields=(action_field('version_label', 'Version label', required=True), action_field('description', 'Description'), action_field('s3_bucket', 'Source S3 bucket'), action_field('s3_key', 'Source S3 key')), success_message='Application version created'),
+    action('delete_application_version', 'Delete application version', 'DELETE', '/api/elasticbeanstalk/applications/{application}/versions/{version}/', 'delete', safety='destructive', confirm='Delete this application version?', success_message='Application version deleted'),
+    action('create_environment', 'Create environment', 'POST', '/api/elasticbeanstalk/environments/', 'create', fields=(action_field('application_name', 'Application name', required=True), action_field('environment_name', 'Environment name', required=True), action_field('version_label', 'Version label'), action_field('solution_stack_name', 'Solution stack'), action_field('cname_prefix', 'CNAME prefix'), action_field('description', 'Description'), action_field('option_settings', 'Option settings', field_type='array')), success_message='Environment created'),
+    action('update_environment', 'Update environment', 'PATCH', '/api/elasticbeanstalk/environments/{environment}/', 'update', fields=(action_field('description', 'Description'), action_field('version_label', 'Version label'), action_field('solution_stack_name', 'Solution stack'), action_field('option_settings', 'Option settings', field_type='array')), success_message='Environment updated'),
+    action('terminate_environment', 'Terminate environment', 'POST', '/api/elasticbeanstalk/environments/{environment}/terminate/', 'delete', safety='destructive', confirm='Terminate this environment?', success_message='Environment terminated'),
+    action('check_dns_availability', 'Check DNS availability', 'POST', '/api/elasticbeanstalk/dns/check/', 'read', safety='safe', fields=(action_field('cname_prefix', 'CNAME prefix', required=True),), success_message='DNS availability checked'),
+)
+
+
 ELASTICACHE_ACTIONS = (
     action(
         'create_replication_group',
@@ -4369,9 +4434,14 @@ SERVICES: tuple[ServiceDefinition, ...] = (
     service(
         'cloudtrail',
         'CloudTrail',
-        'Audit trails, logging status, event selectors, and tags',
+        'Audit trail configuration and persisted logging state',
         'Observability',
-        tags=('audit', 'inventory'),
+        maturity='interactive_workbench',
+        console_css='dashboard/cloudtrail-console.css',
+        console_js='dashboard/cloudtrail-console.js',
+        shared_console=True,
+        tags=('audit', 'layered-workbench'),
+        actions=CLOUDTRAIL_ACTIONS,
     ),
     service(
         'cloudformation',
@@ -4558,10 +4628,14 @@ SERVICES: tuple[ServiceDefinition, ...] = (
     service(
         'elasticbeanstalk',
         'Elastic Beanstalk',
-        'Applications, environments, versions, and platforms',
+        'Applications, versions, and local environment lifecycle',
         'Developer Tools',
-        maturity='read_only_inspector',
-        tags=('developer-tools', 'platform-as-a-service', 'inventory'),
+        maturity='interactive_workbench',
+        console_css='dashboard/elasticbeanstalk-console.css',
+        console_js='dashboard/elasticbeanstalk-console.js',
+        shared_console=True,
+        tags=('developer-tools', 'platform-as-a-service', 'layered-workbench'),
+        actions=ELASTICBEANSTALK_ACTIONS,
     ),
     service(
         'elasticloadbalancing',

@@ -530,3 +530,18 @@
     justify-content: flex-start;
   }
 }
+.iam-identity-recovery {
+  border-color: #f0a33a;
+  box-shadow: 0 0 0 3px rgb(240 163 58 / 12%), var(--shadow);
+}
+
+.iam-identity-recovery .iam-panel-heading-console {
+  background: #fff8e8;
+}
+
+.iam-identity-recovery-help {
+  max-width: 760px;
+  margin: 0 0 14px;
+  color: var(--muted);
+  line-height: 1.55;
+}

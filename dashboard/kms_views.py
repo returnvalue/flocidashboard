@@ -9,17 +9,27 @@ from .actions import handle_action_error, parse_json_body
 from .kms_api import (
     cancel_key_deletion,
     create_alias,
+    create_grant,
     create_key,
     decrypt,
     delete_alias,
     encrypt,
     generate_data_key,
     generate_random,
+    get_public_key,
+    put_key_policy,
+    revoke_grant,
+    rotate_key_on_demand,
     schedule_key_deletion,
+    sign,
     set_key_enabled,
     set_key_rotation,
     tag_key,
     untag_key,
+    update_key_description,
+    verify,
+    generate_mac,
+    verify_mac,
 )
 
 
@@ -147,3 +157,90 @@ def kms_tags(request):
     except Exception as exc:
         operation = 'tag_resource' if request.method == 'POST' else 'untag_resource'
         return handle_action_error(exc, service='kms', operation=operation)
+
+
+@require_http_methods(['PATCH'])
+def kms_key_metadata(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(update_key_description(body.get('key_id') or '', body.get('description') or ''))
+    except Exception as exc:
+        return handle_action_error(exc, service='kms', operation='update_key_description')
+
+
+@require_http_methods(['PUT'])
+def kms_key_policy(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(put_key_policy(body.get('key_id') or '', body.get('policy')))
+    except Exception as exc:
+        return handle_action_error(exc, service='kms', operation='put_key_policy')
+
+
+@require_http_methods(['POST'])
+def kms_rotation_on_demand(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(rotate_key_on_demand(body.get('key_id') or ''))
+    except Exception as exc:
+        return handle_action_error(exc, service='kms', operation='rotate_key_on_demand')
+
+
+@require_http_methods(['POST'])
+def kms_public_key(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(get_public_key(body.get('key_id') or ''))
+    except Exception as exc:
+        return handle_action_error(exc, service='kms', operation='get_public_key')
+
+
+@require_http_methods(['POST', 'DELETE'])
+def kms_grants(request):
+    try:
+        body = parse_json_body(request)
+        if request.method == 'DELETE':
+            return JsonResponse(revoke_grant(body.get('key_id') or '', body.get('grant_id') or ''))
+        return JsonResponse(create_grant(
+            body.get('key_id') or '', body.get('grantee_principal') or '', body.get('operations') or [],
+            name=body.get('name') or '', retiring_principal=body.get('retiring_principal') or '',
+        ))
+    except Exception as exc:
+        operation = 'revoke_grant' if request.method == 'DELETE' else 'create_grant'
+        return handle_action_error(exc, service='kms', operation=operation)
+
+
+@require_http_methods(['POST'])
+def kms_sign(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(sign(body.get('key_id') or '', body.get('message'), body.get('signing_algorithm') or ''))
+    except Exception as exc:
+        return handle_action_error(exc, service='kms', operation='sign')
+
+
+@require_http_methods(['POST'])
+def kms_verify(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(verify(body.get('key_id') or '', body.get('message'), body.get('signature') or '', body.get('signing_algorithm') or ''))
+    except Exception as exc:
+        return handle_action_error(exc, service='kms', operation='verify')
+
+
+@require_http_methods(['POST'])
+def kms_generate_mac(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(generate_mac(body.get('key_id') or '', body.get('message'), body.get('mac_algorithm') or ''))
+    except Exception as exc:
+        return handle_action_error(exc, service='kms', operation='generate_mac')
+
+
+@require_http_methods(['POST'])
+def kms_verify_mac(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(verify_mac(body.get('key_id') or '', body.get('message'), body.get('mac') or '', body.get('mac_algorithm') or ''))
+    except Exception as exc:
+        return handle_action_error(exc, service='kms', operation='verify_mac')

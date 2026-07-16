@@ -170,3 +170,35 @@ def test_api_request(
         'body': text,
         'json': parsed_body,
     }
+
+
+def create_api(api_type: str, name: str, *, description: str = '') -> dict[str, Any]:
+    clean_type = (api_type or '').strip().lower()
+    clean_name = _clean_required(name, 'API name')
+    factory = FlociClientFactory()
+    if clean_type == 'rest':
+        kwargs: dict[str, Any] = {'name': clean_name}
+        if description.strip():
+            kwargs['description'] = description.strip()
+        response = factory.client('apigateway').create_rest_api(**kwargs)
+        return {'api_type': 'rest', 'api_id': response.get('id'), 'api': response}
+    if clean_type == 'http':
+        kwargs = {'Name': clean_name, 'ProtocolType': 'HTTP'}
+        if description.strip():
+            kwargs['Description'] = description.strip()
+        response = factory.client('apigatewayv2').create_api(**kwargs)
+        return {'api_type': 'http', 'api_id': response.get('ApiId'), 'api': response}
+    raise ValueError('API type must be rest or http')
+
+
+def delete_api(api_type: str, api_id: str) -> dict[str, Any]:
+    clean_type = (api_type or '').strip().lower()
+    clean_id = _clean_required(api_id, 'API ID')
+    factory = FlociClientFactory()
+    if clean_type == 'rest':
+        response = factory.client('apigateway').delete_rest_api(restApiId=clean_id)
+    elif clean_type == 'http':
+        response = factory.client('apigatewayv2').delete_api(ApiId=clean_id)
+    else:
+        raise ValueError('API type must be rest or http')
+    return {'api_type': clean_type, 'api_id': clean_id, 'deleted': True, 'response': response}

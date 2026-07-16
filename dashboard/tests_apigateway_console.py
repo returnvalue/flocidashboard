@@ -20,6 +20,22 @@ class ApiGatewayPageTemplateTests(SimpleTestCase):
 
 
 class ApiGatewayRequestsApiTests(SimpleTestCase):
+    @patch('dashboard.apigateway_views.create_api')
+    def test_create_api_endpoint(self, create_api):
+        create_api.return_value = {'api_type': 'http', 'api_id': 'api123'}
+        response = self.client.post(reverse('dashboard:apigateway-apis-create'), data=json.dumps({'api_type': 'http', 'name': 'orders', 'description': 'Orders API'}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['api_id'], 'api123')
+        create_api.assert_called_once_with('http', 'orders', description='Orders API')
+
+    @patch('dashboard.apigateway_views.delete_api')
+    def test_delete_api_endpoint(self, delete_api):
+        delete_api.return_value = {'api_type': 'rest', 'api_id': 'api123', 'deleted': True}
+        response = self.client.post(reverse('dashboard:apigateway-apis-delete'), data=json.dumps({'api_type': 'rest', 'api_id': 'api123'}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['deleted'])
+        delete_api.assert_called_once_with('rest', 'api123')
+
     @patch('dashboard.apigateway_api.urlopen')
     def test_test_request_success(self, urlopen_mock):
         response_mock = MagicMock()

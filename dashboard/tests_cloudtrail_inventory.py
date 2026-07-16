@@ -1,3 +1,5 @@
+import json
+from pathlib import Path
 from unittest.mock import patch
 
 from django.test import SimpleTestCase
@@ -7,22 +9,36 @@ from .services import get_service
 
 
 class CloudTrailInventoryTests(SimpleTestCase):
-    def test_cloudtrail_service_page_renders_inventory_shell(self):
+    def test_cloudtrail_buttons_pass_callable_handlers(self):
+        source = (Path(__file__).resolve().parent / 'static' / 'dashboard' / 'cloudtrail-console.js').read_text()
+        self.assertNotIn(", 'cloudtrail');", source)
+        self.assertIn("button('Create trail', null, createModal)", source)
+
+    def test_cloudtrail_about_panel_uses_first_class_panel_styling(self):
+        source = (Path(__file__).resolve().parent / 'static' / 'dashboard' / 'cloudtrail-console.css').read_text()
+        self.assertIn('.cloudtrail-about-floci summary', source)
+        self.assertIn('border:1px solid var(--panel-border)', source)
+        self.assertIn('box-shadow:var(--shadow)', source)
+
+    def test_cloudtrail_service_page_renders_workbench(self):
         response = self.client.get(reverse('dashboard:service-page', kwargs={'service_key': 'cloudtrail'}))
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<title>CloudTrail - Floci Dashboard</title>', html=True)
-        self.assertContains(response, 'Audit trails, logging status, event selectors, and tags')
+        self.assertContains(response, 'Audit trail configuration and persisted logging state')
         self.assertContains(response, 'id="cloudtrail-loaded-at"')
         self.assertContains(response, 'id="cloudtrail-summary"')
-        self.assertContains(response, 'id="cloudtrail-grid"')
+        self.assertContains(response, 'id="cloudtrail-console-root"')
+        self.assertNotContains(response, 'id="cloudtrail-grid"')
+        self.assertContains(response, 'dashboard/cloudtrail-console.css')
+        self.assertContains(response, 'dashboard/cloudtrail-console.js')
 
-    def test_cloudtrail_registry_marks_service_inventory_only(self):
+    def test_cloudtrail_registry_marks_service_interactive(self):
         service = get_service('cloudtrail')
 
         self.assertIsNotNone(service)
-        self.assertEqual(service.maturity, 'inventory_only')
-        self.assertEqual(service.api_path, None)
+        self.assertEqual(service.maturity, 'interactive_workbench')
+        self.assertEqual(len(service.actions), 4)
         self.assertEqual(service.category, 'Observability')
 
     @patch('dashboard.views.cloudtrail_inventory')
@@ -37,3 +53,35 @@ class CloudTrailInventoryTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['summary']['trails'], 1)
+
+    @patch('dashboard.cloudtrail_views.create_trail')
+    def test_create_trail(self, create_mock):
+        create_mock.return_value = {'name': 'local-audit', 'arn': 'arn:trail'}
+        response = self.client.post(reverse('dashboard:cloudtrail-trails'), data=json.dumps({'name': 'local-audit', 's3_bucket_name': 'audit-logs', 'include_global_service_events': True, 'is_multi_region_trail': False, 'is_organization_trail': False}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        create_mock.assert_called_once_with('local-audit', 'audit-logs', include_global_service_events=True, is_multi_region_trail=False, is_organization_trail=False)
+
+    @patch('dashboard.cloudtrail_views.update_trail')
+    def test_update_trail(self, update_mock):
+        update_mock.return_value = {'name': 'local-audit'}
+        response = self.client.patch(reverse('dashboard:cloudtrail-trail-detail', kwargs={'trail_name': 'local-audit'}), data=json.dumps({'s3_bucket_name': 'new-logs', 'include_global_service_events': False, 'is_multi_region_trail': True}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        update_mock.assert_called_once_with('local-audit', s3_bucket_name='new-logs', include_global_service_events=False, is_multi_region_trail=True)
+
+    @patch('dashboard.cloudtrail_views.set_trail_logging')
+    def test_set_logging(self, logging_mock):
+        logging_mock.return_value = {'name': 'local-audit', 'is_logging': True}
+        response = self.client.post(reverse('dashboard:cloudtrail-trail-logging', kwargs={'trail_name': 'local-audit'}), data=json.dumps({'enabled': True}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        logging_mock.assert_called_once_with('local-audit', True)
+
+    @patch('dashboard.cloudtrail_views.delete_trail')
+    def test_delete_trail(self, delete_mock):
+        delete_mock.return_value = {'name': 'local-audit', 'deleted': True}
+        response = self.client.delete(reverse('dashboard:cloudtrail-trail-detail', kwargs={'trail_name': 'local-audit'}))
+        self.assertEqual(response.status_code, 200)
+        delete_mock.assert_called_once_with('local-audit')
+
+    def test_logging_rejects_non_boolean(self):
+        response = self.client.post(reverse('dashboard:cloudtrail-trail-logging', kwargs={'trail_name': 'local-audit'}), data=json.dumps({'enabled': 'yes'}), content_type='application/json')
+        self.assertEqual(response.status_code, 400)

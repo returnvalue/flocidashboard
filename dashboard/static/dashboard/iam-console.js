@@ -1495,7 +1495,7 @@ const IAMConsole = (() => {
 
   async function returnToDefaultIdentity() {
     await apiJson('/api/session-identity/use-admin/', { method: 'POST' });
-    toast('Dashboard identity returned to admin/default');
+    toast('Dashboard identity restored to floci-admin or root');
     window.location.reload();
   }
 
@@ -1505,16 +1505,17 @@ const IAMConsole = (() => {
     }
     renderBreadcrumbs();
     root.textContent = '';
-    const panel = el('section', 'iam-panel-console');
+    const panel = el('section', 'iam-panel-console iam-identity-recovery');
     const heading = el('div', 'iam-panel-heading-console');
     heading.append(
-      el('span', null, 'IAM access denied'),
-      el('span', 'iam-principal-meta', 'Active dashboard identity'),
+      el('span', null, 'Restore IAM access'),
+      el('span', 'iam-principal-meta', 'Current session identity is restricted'),
     );
     const content = el('div', 'iam-principal-detail');
     content.append(
       el('p', 'iam-empty iam-empty-compact', error.message || 'The active identity cannot load IAM inventory.'),
-      btn('Return to admin/default identity', null, () => returnToDefaultIdentity().catch((resetError) => toast(resetError.message, true))),
+      el('p', 'iam-identity-recovery-help', 'Clear the current user or assumed-role session and return to the configured floci-admin profile. If that profile is not configured, the dashboard falls back to its root-like bootstrap credentials.'),
+      btn('Switch to floci-admin / root', null, () => returnToDefaultIdentity().catch((resetError) => toast(resetError.message, true))),
     );
     panel.append(heading, content);
     root.append(panel);
@@ -1524,14 +1525,24 @@ const IAMConsole = (() => {
   }
 
   async function refresh() {
-    const data = await apiJson('/api/iam/');
-    state.inventory = data;
-    state.loadedAt = new Date();
-    if (!selectedPrincipal() && principals().length) {
-      state.selectedName = principals()[0].name;
+    try {
+      const data = await apiJson('/api/iam/');
+      state.inventory = data;
+      state.loadedAt = new Date();
+      if (!selectedPrincipal() && principals().length) {
+        state.selectedName = principals()[0].name;
+      }
+      renderSummary(data.summary || {});
+      render();
+      return data;
+    } catch (error) {
+      state.inventory = null;
+      if (summaryEl) {
+        summaryEl.textContent = '';
+      }
+      renderIdentityRecovery(error);
+      return null;
     }
-    renderSummary(data.summary || {});
-    render();
   }
 
   function init() {
@@ -1539,10 +1550,7 @@ const IAMConsole = (() => {
       return;
     }
     root.append(el('div', 'iam-empty', 'Loading...'));
-    refresh().catch((error) => {
-      toast(error.message, true);
-      renderIdentityRecovery(error);
-    });
+    refresh();
   }
 
   return { init, refresh };

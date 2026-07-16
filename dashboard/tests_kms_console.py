@@ -5,7 +5,7 @@ from unittest.mock import patch
 from django.test import SimpleTestCase
 from django.urls import reverse
 
-from .kms_api import generate_random, set_key_enabled
+from .kms_api import create_grant, generate_random, put_key_policy, set_key_enabled
 from .services import get_service
 
 
@@ -222,8 +222,107 @@ class KMSActionsApiTests(SimpleTestCase):
         self.assertEqual(response.json()['key_state'], 'Enabled')
         cancel_mock.assert_called_once_with('key-1')
 
+    @patch('dashboard.kms_views.update_key_description')
+    def test_update_description_success(self, update_mock):
+        update_mock.return_value = {'key_id': 'key-1', 'description': 'Application key'}
+        response = self.client.patch(reverse('dashboard:kms-key-metadata'), data=json.dumps({'key_id': 'key-1', 'description': 'Application key'}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        update_mock.assert_called_once_with('key-1', 'Application key')
+
+    @patch('dashboard.kms_views.put_key_policy')
+    def test_put_policy_success(self, policy_mock):
+        policy = {'Version': '2012-10-17', 'Statement': []}
+        policy_mock.return_value = {'key_id': 'key-1', 'policy': policy}
+        response = self.client.put(reverse('dashboard:kms-key-policy'), data=json.dumps({'key_id': 'key-1', 'policy': policy}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        policy_mock.assert_called_once_with('key-1', policy)
+
+    @patch('dashboard.kms_views.create_grant')
+    def test_create_grant_success(self, grant_mock):
+        grant_mock.return_value = {'key_id': 'key-1', 'grant_id': 'grant-1'}
+        response = self.client.post(reverse('dashboard:kms-grants'), data=json.dumps({'key_id': 'key-1', 'grantee_principal': 'arn:role/app', 'operations': ['Encrypt']}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        grant_mock.assert_called_once_with('key-1', 'arn:role/app', ['Encrypt'], name='', retiring_principal='')
+
+    @patch('dashboard.kms_views.revoke_grant')
+    def test_revoke_grant_success(self, revoke_mock):
+        revoke_mock.return_value = {'key_id': 'key-1', 'grant_id': 'grant-1', 'revoked': True}
+        response = self.client.delete(reverse('dashboard:kms-grants'), data=json.dumps({'key_id': 'key-1', 'grant_id': 'grant-1'}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        revoke_mock.assert_called_once_with('key-1', 'grant-1')
+
+    @patch('dashboard.kms_views.rotate_key_on_demand')
+    def test_rotate_on_demand_success(self, rotate_mock):
+        rotate_mock.return_value = {'key_id': 'key-1'}
+        response = self.client.post(reverse('dashboard:kms-rotation-on-demand'), data=json.dumps({'key_id': 'key-1'}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        rotate_mock.assert_called_once_with('key-1')
+
+    @patch('dashboard.kms_views.get_public_key')
+    def test_get_public_key_success(self, public_mock):
+        public_mock.return_value = {'key_id': 'key-1', 'public_key_base64': 'AQID'}
+        response = self.client.post(reverse('dashboard:kms-public-key'), data=json.dumps({'key_id': 'key-1'}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        public_mock.assert_called_once_with('key-1')
+
+    @patch('dashboard.kms_views.tag_key')
+    def test_tag_key_success(self, tag_mock):
+        tags = [{'TagKey': 'env', 'TagValue': 'local'}]
+        tag_mock.return_value = {'key_id': 'key-1', 'tags': tags}
+        response = self.client.post(reverse('dashboard:kms-tags'), data=json.dumps({'key_id': 'key-1', 'tags': tags}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        tag_mock.assert_called_once_with('key-1', tags)
+
+    @patch('dashboard.kms_views.untag_key')
+    def test_untag_key_success(self, untag_mock):
+        untag_mock.return_value = {'key_id': 'key-1', 'tag_keys': ['env']}
+        response = self.client.delete(reverse('dashboard:kms-tags'), data=json.dumps({'key_id': 'key-1', 'tag_keys': ['env']}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        untag_mock.assert_called_once_with('key-1', ['env'])
+
+    @patch('dashboard.kms_views.sign')
+    def test_sign_success(self, sign_mock):
+        sign_mock.return_value = {'key_id': 'key-1', 'signature': 'AQID'}
+        response = self.client.post(reverse('dashboard:kms-sign'), data=json.dumps({'key_id': 'key-1', 'message': 'hello', 'signing_algorithm': 'RSASSA_PSS_SHA_256'}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        sign_mock.assert_called_once_with('key-1', 'hello', 'RSASSA_PSS_SHA_256')
+
+    @patch('dashboard.kms_views.verify')
+    def test_verify_success(self, verify_mock):
+        verify_mock.return_value = {'key_id': 'key-1', 'signature_valid': True}
+        response = self.client.post(reverse('dashboard:kms-verify'), data=json.dumps({'key_id': 'key-1', 'message': 'hello', 'signature': 'AQID', 'signing_algorithm': 'RSASSA_PSS_SHA_256'}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        verify_mock.assert_called_once_with('key-1', 'hello', 'AQID', 'RSASSA_PSS_SHA_256')
+
+    @patch('dashboard.kms_views.generate_mac')
+    def test_generate_mac_success(self, mac_mock):
+        mac_mock.return_value = {'key_id': 'key-1', 'mac': 'AQID'}
+        response = self.client.post(reverse('dashboard:kms-generate-mac'), data=json.dumps({'key_id': 'key-1', 'message': 'hello', 'mac_algorithm': 'HMAC_SHA_256'}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        mac_mock.assert_called_once_with('key-1', 'hello', 'HMAC_SHA_256')
+
+    @patch('dashboard.kms_views.verify_mac')
+    def test_verify_mac_success(self, verify_mock):
+        verify_mock.return_value = {'key_id': 'key-1', 'mac_valid': True}
+        response = self.client.post(reverse('dashboard:kms-verify-mac'), data=json.dumps({'key_id': 'key-1', 'message': 'hello', 'mac': 'AQID', 'mac_algorithm': 'HMAC_SHA_256'}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        verify_mock.assert_called_once_with('key-1', 'hello', 'AQID', 'HMAC_SHA_256')
+
 
 class KMSApiHelperTests(SimpleTestCase):
+    @patch('dashboard.kms_api._client')
+    def test_put_key_policy_serializes_document(self, client_factory):
+        policy = {'Version': '2012-10-17', 'Statement': []}
+        put_key_policy('key-1', policy)
+        client_factory.return_value.put_key_policy.assert_called_once_with(KeyId='key-1', PolicyName='default', Policy=json.dumps(policy))
+
+    @patch('dashboard.kms_api._client')
+    def test_create_grant_passes_supported_fields(self, client_factory):
+        client_factory.return_value.create_grant.return_value = {'GrantId': 'grant-1', 'GrantToken': 'token'}
+        result = create_grant('key-1', 'arn:role/app', ['Encrypt', 'Decrypt'], name='app')
+        client_factory.return_value.create_grant.assert_called_once_with(KeyId='key-1', GranteePrincipal='arn:role/app', Operations=['Encrypt', 'Decrypt'], Name='app')
+        self.assertEqual(result['grant_id'], 'grant-1')
+
     @patch('dashboard.kms_api._client')
     def test_generate_random_calls_kms_and_encodes_plaintext(self, client_factory):
         client_factory.return_value.generate_random.return_value = {'Plaintext': b'\x01\x02\x03'}

@@ -47,6 +47,16 @@ def _tags(value: Any) -> list[dict[str, str]]:
     return tags
 
 
+def _list(value: Any, label: str) -> list[str]:
+    if value in (None, '', []):
+        return []
+    if isinstance(value, str):
+        return [item.strip() for item in value.replace('\n', ',').split(',') if item.strip()]
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    raise ValueError(f'{label} must be a list')
+
+
 def _bytes_from_base64(value: Any, label: str) -> bytes:
     text = _clean_required(value, label)
     try:
@@ -246,3 +256,87 @@ def untag_key(key_id: str, tag_keys: Any) -> dict[str, Any]:
         raise ValueError('At least one tag key is required')
     _client().untag_resource(KeyId=clean_key, TagKeys=keys)
     return {'key_id': clean_key, 'tag_keys': keys}
+
+
+def update_key_description(key_id: str, description: str) -> dict[str, Any]:
+    clean_key = _clean_required(key_id, 'Key ID')
+    clean_description = str(description or '')
+    _client().update_key_description(KeyId=clean_key, Description=clean_description)
+    return {'key_id': clean_key, 'description': clean_description}
+
+
+def put_key_policy(key_id: str, policy: Any) -> dict[str, Any]:
+    clean_key = _clean_required(key_id, 'Key ID')
+    if not isinstance(policy, (dict, list, str)) or policy in ('', None):
+        raise ValueError('Policy is required')
+    text = policy if isinstance(policy, str) else json.dumps(policy)
+    _client().put_key_policy(KeyId=clean_key, PolicyName='default', Policy=text)
+    return {'key_id': clean_key, 'policy': policy}
+
+
+def rotate_key_on_demand(key_id: str) -> dict[str, Any]:
+    clean_key = _clean_required(key_id, 'Key ID')
+    response = _client().rotate_key_on_demand(KeyId=clean_key)
+    return {'key_id': response.get('KeyId') or clean_key, 'response': response}
+
+
+def get_public_key(key_id: str) -> dict[str, Any]:
+    clean_key = _clean_required(key_id, 'Key ID')
+    response = _client().get_public_key(KeyId=clean_key)
+    return {
+        'key_id': response.get('KeyId') or clean_key,
+        'public_key_base64': _encoded_blob(response.get('PublicKey')),
+        'key_spec': response.get('KeySpec') or response.get('CustomerMasterKeySpec'),
+        'key_usage': response.get('KeyUsage'),
+        'encryption_algorithms': response.get('EncryptionAlgorithms', []),
+        'signing_algorithms': response.get('SigningAlgorithms', []),
+    }
+
+
+def create_grant(key_id: str, grantee_principal: str, operations: Any, *, name: str = '', retiring_principal: str = '') -> dict[str, Any]:
+    clean_key = _clean_required(key_id, 'Key ID')
+    clean_operations = _list(operations, 'Operations')
+    if not clean_operations:
+        raise ValueError('At least one grant operation is required')
+    kwargs: dict[str, Any] = {'KeyId': clean_key, 'GranteePrincipal': _clean_required(grantee_principal, 'Grantee principal'), 'Operations': clean_operations}
+    if name:
+        kwargs['Name'] = str(name).strip()
+    if retiring_principal:
+        kwargs['RetiringPrincipal'] = str(retiring_principal).strip()
+    response = _client().create_grant(**kwargs)
+    return {'key_id': clean_key, 'grant_id': response.get('GrantId'), 'grant_token': response.get('GrantToken')}
+
+
+def revoke_grant(key_id: str, grant_id: str) -> dict[str, Any]:
+    clean_key = _clean_required(key_id, 'Key ID')
+    clean_grant = _clean_required(grant_id, 'Grant ID')
+    _client().revoke_grant(KeyId=clean_key, GrantId=clean_grant)
+    return {'key_id': clean_key, 'grant_id': clean_grant, 'revoked': True}
+
+
+def sign(key_id: str, message: Any, signing_algorithm: str) -> dict[str, Any]:
+    clean_key = _clean_required(key_id, 'Key ID')
+    algorithm = _clean_required(signing_algorithm, 'Signing algorithm')
+    response = _client().sign(KeyId=clean_key, Message=_plaintext_bytes(message), MessageType='RAW', SigningAlgorithm=algorithm)
+    return {'key_id': response.get('KeyId') or clean_key, 'signature': _encoded_blob(response.get('Signature')), 'signing_algorithm': response.get('SigningAlgorithm') or algorithm}
+
+
+def verify(key_id: str, message: Any, signature: str, signing_algorithm: str) -> dict[str, Any]:
+    clean_key = _clean_required(key_id, 'Key ID')
+    algorithm = _clean_required(signing_algorithm, 'Signing algorithm')
+    response = _client().verify(KeyId=clean_key, Message=_plaintext_bytes(message), MessageType='RAW', Signature=_bytes_from_base64(signature, 'Signature'), SigningAlgorithm=algorithm)
+    return {'key_id': response.get('KeyId') or clean_key, 'signature_valid': bool(response.get('SignatureValid')), 'signing_algorithm': response.get('SigningAlgorithm') or algorithm}
+
+
+def generate_mac(key_id: str, message: Any, mac_algorithm: str) -> dict[str, Any]:
+    clean_key = _clean_required(key_id, 'Key ID')
+    algorithm = _clean_required(mac_algorithm, 'MAC algorithm')
+    response = _client().generate_mac(KeyId=clean_key, Message=_plaintext_bytes(message), MacAlgorithm=algorithm)
+    return {'key_id': response.get('KeyId') or clean_key, 'mac': _encoded_blob(response.get('Mac')), 'mac_algorithm': response.get('MacAlgorithm') or algorithm}
+
+
+def verify_mac(key_id: str, message: Any, mac: str, mac_algorithm: str) -> dict[str, Any]:
+    clean_key = _clean_required(key_id, 'Key ID')
+    algorithm = _clean_required(mac_algorithm, 'MAC algorithm')
+    response = _client().verify_mac(KeyId=clean_key, Message=_plaintext_bytes(message), Mac=_bytes_from_base64(mac, 'MAC'), MacAlgorithm=algorithm)
+    return {'key_id': response.get('KeyId') or clean_key, 'mac_valid': bool(response.get('MacValid')), 'mac_algorithm': response.get('MacAlgorithm') or algorithm}

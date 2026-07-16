@@ -24,7 +24,6 @@ class NewServiceInventoryPageTests(SimpleTestCase):
             ('codepipeline', 'CodePipeline', 'Pipelines, stages, executions, webhooks, and action types'),
             ('s3vectors', 'S3 Vectors', 'Vector buckets and indexes'),
             ('iot', 'IoT Core', 'Things, policies, certificates, rules, jobs, and role aliases'),
-            ('elasticbeanstalk', 'Elastic Beanstalk', 'Applications, environments, versions, and platforms'),
             ('rdsdata', 'RDS Data API', 'Serverless SQL statement and transaction calls'),
             ('wafv2', 'WAF v2', 'Web ACLs, rule groups, IP sets, and regex pattern sets'),
         ]
@@ -50,7 +49,6 @@ class NewServiceInventoryPageTests(SimpleTestCase):
             ('codepipeline', 'Developer Tools'),
             ('s3vectors', 'Storage'),
             ('iot', 'Application Integration'),
-            ('elasticbeanstalk', 'Developer Tools'),
             ('rdsdata', 'Database'),
             ('wafv2', 'Security'),
         ]

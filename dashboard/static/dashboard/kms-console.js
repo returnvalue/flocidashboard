@@ -10,6 +10,9 @@ const KMSConsole = (() => {
   const state = {
     inventory: null,
     selectedKeyId: '',
+    activeView: 'overview',
+    resourceQuery: '',
+    lastResult: null,
     lastCrypto: null,
     lastDataKey: null,
     lastRandom: null,
@@ -87,6 +90,7 @@ const KMSConsole = (() => {
         enabled_keys: 'Keys',
         pending_deletion: 'Keys',
         rotation_enabled: 'Keys',
+        grants: 'Grants',
       },
     });
   }
@@ -111,6 +115,21 @@ const KMSConsole = (() => {
       return trimmed;
     }
     return JSON.parse(trimmed);
+  }
+
+  function matchesQuery(...values) {
+    const query = state.resourceQuery.trim().toLowerCase();
+    return !query || values.some((value) => JSON.stringify(value ?? '').toLowerCase().includes(query));
+  }
+
+  function parseJson(value, fallback, label) {
+    const text = String(value || '').trim();
+    if (!text) return fallback;
+    try { return JSON.parse(text); } catch (error) { throw new Error(`${label} must be valid JSON`); }
+  }
+
+  function parseList(value) {
+    return String(value || '').split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
   }
 
   function copyText(value, label) {
@@ -300,6 +319,53 @@ const KMSConsole = (() => {
     await refresh();
   }
 
+  function showDescriptionModal(key) {
+    const form = el('div', 'kms-modal-form');
+    const input = document.createElement('textarea'); input.value = keyDescription(key);
+    form.append(el('label', null, 'Description'), input);
+    openModal('Update key description', form, 'Save', async (close) => {
+      state.lastResult = await apiJson('/api/kms/key-metadata/', { method: 'PATCH', body: JSON.stringify({ key_id: keyId(key), description: input.value }) });
+      close(); toast('Description updated'); await refresh();
+    });
+  }
+
+  function showPolicyModal(key) {
+    const form = el('div', 'kms-modal-form');
+    const input = document.createElement('textarea'); input.value = JSON.stringify(key.policy || {}, null, 2);
+    form.append(el('label', null, 'Default key policy JSON'), input);
+    openModal('Edit key policy', form, 'Save', async (close) => {
+      state.lastResult = await apiJson('/api/kms/key-policy/', { method: 'PUT', body: JSON.stringify({ key_id: keyId(key), policy: parseJson(input.value, {}, 'Policy') }) });
+      close(); toast('Key policy updated'); await refresh();
+    });
+  }
+
+  function showTagsModal(key) {
+    const form = el('div', 'kms-modal-form');
+    const tags = document.createElement('textarea'); tags.placeholder = '[{"TagKey":"env","TagValue":"local"}]';
+    const keysInput = document.createElement('input'); keysInput.placeholder = 'env,owner';
+    form.append(el('label', null, 'Add tags JSON'), tags, btn('Add tags', null, async () => { await apiJson('/api/kms/tags/', { method: 'POST', body: JSON.stringify({ key_id: keyId(key), tags: parseTags(tags.value) }) }); toast('Tags added'); await refresh(); }), el('label', null, 'Remove tag keys'), keysInput, btn('Remove tags', 'kms-btn-secondary', async () => { await apiJson('/api/kms/tags/', { method: 'DELETE', body: JSON.stringify({ key_id: keyId(key), tag_keys: parseList(keysInput.value) }) }); toast('Tags removed'); await refresh(); }));
+    openModal('Key tags', form, 'Done', (close) => close());
+  }
+
+  function showCreateGrantModal(key) {
+    const form = el('div', 'kms-modal-form');
+    const principal = document.createElement('input'); principal.placeholder = 'arn:aws:iam::000000000000:role/app';
+    const operations = document.createElement('input'); operations.placeholder = 'Encrypt,Decrypt';
+    const name = document.createElement('input'); name.placeholder = 'app-access';
+    const retiring = document.createElement('input'); retiring.placeholder = 'optional retiring principal ARN';
+    form.append(el('label', null, 'Grantee principal'), principal, el('label', null, 'Operations'), operations, el('label', null, 'Grant name'), name, el('label', null, 'Retiring principal'), retiring);
+    openModal('Create grant', form, 'Create', async (close) => {
+      state.lastResult = await apiJson('/api/kms/grants/', { method: 'POST', body: JSON.stringify({ key_id: keyId(key), grantee_principal: principal.value, operations: parseList(operations.value), name: name.value, retiring_principal: retiring.value }) });
+      close(); toast('Grant created'); await refresh();
+    });
+  }
+
+  async function revokeGrant(key, grant) {
+    if (!window.confirm(`Revoke grant ${grant.GrantId}?`)) return;
+    state.lastResult = await apiJson('/api/kms/grants/', { method: 'DELETE', body: JSON.stringify({ key_id: keyId(key), grant_id: grant.GrantId }) });
+    toast('Grant revoked'); await refresh();
+  }
+
   function renderKeyRow(key) {
     const active = keyId(key) === keyId(selectedKey());
     const row = el('button', `kms-key-row${active ? ' kms-key-row-active' : ''}`);
@@ -318,10 +384,11 @@ const KMSConsole = (() => {
     const panel = el('section', 'kms-panel');
     panel.append(el('div', 'kms-panel-heading', 'Keys'));
     const list = el('div', 'kms-key-list');
-    if (!keys().length) {
+    const visibleKeys = keys().filter((key) => matchesQuery(keyId(key), keyAliases(key), keyDescription(key), keyState(key), key.tags));
+    if (!visibleKeys.length) {
       list.append(el('div', 'kms-empty', 'No KMS keys found.'));
     } else {
-      keys().forEach((key) => list.append(renderKeyRow(key)));
+      visibleKeys.forEach((key) => list.append(renderKeyRow(key)));
     }
     panel.append(list);
     return panel;
@@ -400,6 +467,24 @@ const KMSConsole = (() => {
     return panel;
   }
 
+  function renderSigningPanel(key) {
+    const panel = el('section', 'kms-panel'); panel.append(el('div', 'kms-panel-heading', 'Sign and verify'));
+    const body = el('div', 'kms-detail'); const message = document.createElement('textarea'); message.placeholder = 'Message to sign';
+    const algorithm = document.createElement('select'); (key.metadata?.SigningAlgorithms || ['RSASSA_PSS_SHA_256', 'ECDSA_SHA_256']).forEach((value) => algorithm.append(new Option(value, value)));
+    const signature = document.createElement('textarea'); signature.placeholder = 'Base64 signature';
+    body.append(el('label', null, 'Message'), message, el('label', null, 'Signing algorithm'), algorithm, btn('Sign', null, async () => { state.lastResult = await apiJson('/api/kms/crypto/sign/', { method: 'POST', body: JSON.stringify({ key_id: keyId(key), message: message.value, signing_algorithm: algorithm.value }) }); signature.value = state.lastResult.signature || ''; toast('Message signed'); }), el('label', null, 'Signature'), signature, btn('Verify', 'kms-btn-secondary', async () => { state.lastResult = await apiJson('/api/kms/crypto/verify/', { method: 'POST', body: JSON.stringify({ key_id: keyId(key), message: message.value, signature: signature.value, signing_algorithm: algorithm.value }) }); toast(state.lastResult.signature_valid ? 'Signature valid' : 'Signature invalid', !state.lastResult.signature_valid); render(); }));
+    if (state.lastResult) body.append(renderResult('Last signing result', state.lastResult)); panel.append(body); return panel;
+  }
+
+  function renderMacPanel(key) {
+    const panel = el('section', 'kms-panel'); panel.append(el('div', 'kms-panel-heading', 'Generate and verify MAC'));
+    const body = el('div', 'kms-detail'); const message = document.createElement('textarea'); message.placeholder = 'Message';
+    const algorithm = document.createElement('select'); (key.metadata?.MacAlgorithms || [`HMAC_SHA_${String(keySpec(key)).split('_').pop()}`]).forEach((value) => algorithm.append(new Option(value, value)));
+    const mac = document.createElement('textarea'); mac.placeholder = 'Base64 MAC';
+    body.append(el('label', null, 'Message'), message, el('label', null, 'MAC algorithm'), algorithm, btn('Generate MAC', null, async () => { state.lastResult = await apiJson('/api/kms/crypto/mac/', { method: 'POST', body: JSON.stringify({ key_id: keyId(key), message: message.value, mac_algorithm: algorithm.value }) }); mac.value = state.lastResult.mac || ''; toast('MAC generated'); }), el('label', null, 'MAC'), mac, btn('Verify MAC', 'kms-btn-secondary', async () => { state.lastResult = await apiJson('/api/kms/crypto/mac/verify/', { method: 'POST', body: JSON.stringify({ key_id: keyId(key), message: message.value, mac: mac.value, mac_algorithm: algorithm.value }) }); toast(state.lastResult.mac_valid ? 'MAC valid' : 'MAC invalid', !state.lastResult.mac_valid); render(); }));
+    if (state.lastResult) body.append(renderResult('Last MAC result', state.lastResult)); panel.append(body); return panel;
+  }
+
   function renderKeyDetail(key) {
     const panel = el('section', 'kms-panel');
     panel.append(el('div', 'kms-panel-heading', 'Selected key'));
@@ -409,21 +494,66 @@ const KMSConsole = (() => {
     consoleUi.addField(facts, 'ARN', key.key_arn);
     consoleUi.addField(facts, 'State', keyState(key));
     consoleUi.addField(facts, 'Description', keyDescription(key));
+    consoleUi.addField(facts, 'Key spec', keySpec(key));
+    consoleUi.addField(facts, 'Key usage', key.metadata?.KeyUsage);
+    consoleUi.addField(facts, 'Origin', key.metadata?.Origin);
+    consoleUi.addField(facts, 'Created', consoleUi.formatDate(key.metadata?.CreationDate));
     consoleUi.addField(facts, 'Aliases', keyAliases(key));
     consoleUi.addField(facts, 'Rotation enabled', key.rotation_enabled);
+    consoleUi.addField(facts, 'Deletion date', consoleUi.formatDate(key.metadata?.DeletionDate));
+    consoleUi.addField(facts, 'Tags', key.tags);
     body.append(facts);
     const actions = el('div', 'kms-action-row');
     const isDisabled = keyState(key) === 'Disabled';
     actions.append(
       btn('Create alias', null, () => showAliasModal(key)),
+      btn('Edit description', 'kms-btn-secondary', () => showDescriptionModal(key)),
+      btn('Tags', 'kms-btn-secondary', () => showTagsModal(key)),
       btn(isDisabled ? 'Enable key' : 'Disable key', 'kms-btn-secondary', () => setKeyEnabled(key, isDisabled).catch((error) => toast(error.message, true))),
-      btn(key.rotation_enabled ? 'Disable rotation' : 'Enable rotation', 'kms-btn-secondary', () => setRotation(key, !key.rotation_enabled).catch((error) => toast(error.message, true))),
-      btn('Cancel deletion', 'kms-btn-secondary', () => cancelDeletion(key).catch((error) => toast(error.message, true))),
-      btn('Schedule deletion', 'kms-btn-danger', () => scheduleDeletion(key).catch((error) => toast(error.message, true))),
     );
+    if (keySpec(key) === 'SYMMETRIC_DEFAULT') actions.append(btn(key.rotation_enabled ? 'Disable rotation' : 'Enable rotation', 'kms-btn-secondary', () => setRotation(key, !key.rotation_enabled).catch((error) => toast(error.message, true))));
+    if (keyState(key) === 'PendingDeletion') actions.append(btn('Cancel deletion', 'kms-btn-secondary', () => cancelDeletion(key).catch((error) => toast(error.message, true))));
+    else actions.append(btn('Schedule deletion', 'kms-btn-danger', () => scheduleDeletion(key).catch((error) => toast(error.message, true))));
     body.append(actions);
     panel.append(body);
     return panel;
+  }
+
+  function renderAccessPanel(key) {
+    const panel = el('section', 'kms-panel');
+    const heading = el('div', 'kms-panel-heading'); heading.append(el('span', null, `Grants (${key.grants?.length || 0})`), btn('Create grant', 'kms-btn-secondary', () => showCreateGrantModal(key))); panel.append(heading);
+    const body = el('div', 'kms-card-list');
+    (key.grants || []).forEach((grant) => {
+      const card = el('article', 'kms-card'); card.append(el('h3', null, grant.Name || grant.GrantId || 'Grant'));
+      const facts = el('dl', 'kms-facts'); [['Grant ID', grant.GrantId], ['Grantee', grant.GranteePrincipal], ['Retiring principal', grant.RetiringPrincipal], ['Operations', grant.Operations], ['Created', grant.CreationDate]].forEach(([label, value]) => consoleUi.addField(facts, label, value));
+      card.append(facts, btn('Revoke grant', 'kms-btn-danger', () => revokeGrant(key, grant).catch((error) => toast(error.message, true)))); body.append(card);
+    });
+    if (!key.grants?.length) body.append(el('p', 'kms-empty', 'No grants found for this key.'));
+    body.append(el('p', 'kms-empty', 'Floci stores grant lifecycle state, but grants are not evaluated when authorizing cryptographic operations.'));
+    panel.append(body); return panel;
+  }
+
+  function renderPolicyPanel(key) {
+    const panel = el('section', 'kms-panel');
+    const heading = el('div', 'kms-panel-heading'); heading.append(el('span', null, 'Default key policy'), btn('Edit policy', 'kms-btn-secondary', () => showPolicyModal(key))); panel.append(heading);
+    const pre = el('pre', 'kms-policy'); pre.textContent = JSON.stringify(consoleUi.displayValue(key.policy || {}), null, 2); panel.append(pre); return panel;
+  }
+
+  function renderMaterialPanel(key) {
+    const panel = el('section', 'kms-panel'); panel.append(el('div', 'kms-panel-heading', 'Key material'));
+    const body = el('div', 'kms-detail');
+    if (keySpec(key) === 'SYMMETRIC_DEFAULT') body.append(btn('Rotate on demand', null, async () => { state.lastResult = await apiJson('/api/kms/rotation/on-demand/', { method: 'POST', body: JSON.stringify({ key_id: keyId(key) }) }); toast('Key rotated'); render(); }));
+    else if (/^(RSA|ECC)/.test(keySpec(key))) body.append(btn('Get public key', null, async () => { state.lastResult = await apiJson('/api/kms/public-key/', { method: 'POST', body: JSON.stringify({ key_id: keyId(key) }) }); toast('Public key loaded'); render(); }));
+    else body.append(el('p', 'kms-empty', 'HMAC key material cannot be exported or rotated.'));
+    if (state.lastResult) body.append(renderResult('Last key material result', state.lastResult));
+    panel.append(body); return panel;
+  }
+
+  function renderResourceTabs() {
+    const tabs = el('div', 'kms-resource-tabs'); const nav = el('div', 'kms-resource-tab-buttons');
+    [['overview', 'Overview'], ['crypto', 'Cryptography'], ['material', 'Key material'], ['access', 'Grants'], ['policy', 'Policy']].forEach(([key, label]) => nav.append(btn(label, state.activeView === key ? 'kms-btn-active' : 'kms-btn-secondary', () => { state.activeView = key; render(); })));
+    const search = document.createElement('input'); search.type = 'search'; search.placeholder = 'Filter keys'; search.value = state.resourceQuery; search.addEventListener('input', () => { state.resourceQuery = search.value; }); search.addEventListener('change', render); search.addEventListener('keydown', (event) => { if (event.key === 'Enter') render(); });
+    tabs.append(nav, search); return tabs;
   }
 
   function renderResult(title, value) {
@@ -448,13 +578,23 @@ const KMSConsole = (() => {
     const key = selectedKey();
     workbench.append(renderKeyList());
     const detail = el('div', 'kms-detail-stack');
+    detail.append(renderResourceTabs());
     if (!key) {
       detail.append(
         el('section', 'kms-panel kms-empty-panel', 'Create a key to start encrypting local test payloads.'),
         renderRandomPanel(),
       );
     } else {
-      detail.append(renderKeyDetail(key), renderCryptoPanel(key), renderDataKeyPanel(key), renderRandomPanel());
+      if (state.activeView === 'overview') detail.append(renderKeyDetail(key));
+      if (state.activeView === 'crypto') {
+        if (key.metadata?.KeyUsage === 'SIGN_VERIFY') detail.append(renderSigningPanel(key));
+        else if (key.metadata?.KeyUsage === 'GENERATE_VERIFY_MAC') detail.append(renderMacPanel(key));
+        else detail.append(renderCryptoPanel(key), ...(keySpec(key) === 'SYMMETRIC_DEFAULT' ? [renderDataKeyPanel(key)] : []));
+        detail.append(renderRandomPanel());
+      }
+      if (state.activeView === 'material') detail.append(renderMaterialPanel(key));
+      if (state.activeView === 'access') detail.append(renderAccessPanel(key));
+      if (state.activeView === 'policy') detail.append(renderPolicyPanel(key));
     }
     workbench.append(detail);
     return workbench;

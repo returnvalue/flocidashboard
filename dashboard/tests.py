@@ -149,7 +149,10 @@ class StaticJavaScriptTests(SimpleTestCase):
         self.assertIn("btn('Get temporary credentials'", source)
         self.assertIn('function renderIdentityRecovery(error)', source)
         self.assertIn("apiJson('/api/session-identity/use-admin/'", source)
-        self.assertIn("btn('Return to admin/default identity'", source)
+        self.assertIn("btn('Switch to floci-admin / root'", source)
+        self.assertIn('iam-identity-recovery', source)
+        self.assertIn('renderIdentityRecovery(error);', source)
+        self.assertIn('return null;', source)
         self.assertIn('window.location.reload()', source)
 
     def test_iam_console_exposes_permissions_boundary_actions(self):
@@ -1604,6 +1607,55 @@ class StepFunctionsActionTests(SimpleTestCase):
 
 
 class EventBridgeActionTests(SimpleTestCase):
+    @patch('dashboard.eventbridge_views.create_event_bus')
+    def test_create_event_bus_endpoint(self, create_event_bus):
+        create_event_bus.return_value = {'name': 'orders', 'arn': 'arn:bus'}
+        response = self.client.post(reverse('dashboard:eventbridge-buses-create'), data=json.dumps({'name': 'orders', 'description': 'Order events'}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        create_event_bus.assert_called_once_with('orders', description='Order events')
+
+    @patch('dashboard.eventbridge_views.delete_event_bus')
+    def test_delete_event_bus_endpoint(self, delete_event_bus):
+        delete_event_bus.return_value = {'name': 'orders', 'deleted': True}
+        response = self.client.post(reverse('dashboard:eventbridge-buses-delete'), data=json.dumps({'name': 'orders'}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        delete_event_bus.assert_called_once_with('orders')
+
+    @patch('dashboard.eventbridge_views.put_rule')
+    def test_put_rule_endpoint(self, put_rule):
+        put_rule.return_value = {'name': 'created', 'state': 'ENABLED'}
+        response = self.client.post(reverse('dashboard:eventbridge-rules-put'), data=json.dumps({'name': 'created', 'event_bus_name': 'orders', 'event_pattern': {'source': ['app']}}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        put_rule.assert_called_once_with('created', 'orders', event_pattern={'source': ['app']}, schedule_expression='', description='', state='ENABLED')
+
+    @patch('dashboard.eventbridge_views.set_rule_state')
+    def test_set_rule_state_endpoint(self, set_rule_state):
+        set_rule_state.return_value = {'name': 'created', 'state': 'DISABLED'}
+        response = self.client.post(reverse('dashboard:eventbridge-rules-state'), data=json.dumps({'name': 'created', 'event_bus_name': 'orders', 'enabled': False}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        set_rule_state.assert_called_once_with('created', 'orders', enabled=False)
+
+    @patch('dashboard.eventbridge_views.delete_rule')
+    def test_delete_rule_endpoint(self, delete_rule):
+        delete_rule.return_value = {'name': 'created', 'deleted': True}
+        response = self.client.post(reverse('dashboard:eventbridge-rules-delete'), data=json.dumps({'name': 'created', 'event_bus_name': 'orders'}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        delete_rule.assert_called_once_with('created', 'orders')
+
+    @patch('dashboard.eventbridge_views.put_target')
+    def test_put_target_endpoint(self, put_target):
+        put_target.return_value = {'target': {'Id': 'queue', 'Arn': 'arn:sqs'}, 'failed_entry_count': 0}
+        response = self.client.post(reverse('dashboard:eventbridge-targets-put'), data=json.dumps({'rule_name': 'created', 'event_bus_name': 'orders', 'target_id': 'queue', 'arn': 'arn:sqs', 'input': {'kind': 'order'}}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        put_target.assert_called_once_with('created', 'orders', 'queue', 'arn:sqs', role_arn='', input_value={'kind': 'order'})
+
+    @patch('dashboard.eventbridge_views.remove_target')
+    def test_remove_target_endpoint(self, remove_target):
+        remove_target.return_value = {'target_id': 'queue', 'removed': True}
+        response = self.client.post(reverse('dashboard:eventbridge-targets-remove'), data=json.dumps({'rule_name': 'created', 'event_bus_name': 'orders', 'target_id': 'queue'}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        remove_target.assert_called_once_with('created', 'orders', 'queue')
+
     @patch('dashboard.eventbridge_views.put_event')
     def test_put_event_endpoint_uses_action_helper(self, put_event):
         put_event.return_value = {

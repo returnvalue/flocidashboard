@@ -22,6 +22,38 @@ const ApiGatewayConsole = (() => {
     type: isError ? 'error' : 'success',
   });
   const toolbar = (leftItems, rightItems) => consoleUi.toolbar(leftItems, rightItems, 'apigateway');
+  const openModal = (title, bodyNode, confirmLabel, onConfirm, options = {}) =>
+    consoleUi.openModal(title, bodyNode, confirmLabel, onConfirm, { classPrefix: 'apigateway', toast, ...options });
+
+  async function mutate(url, payload, message) {
+    const data = await apiJson(url, { method: 'POST', body: JSON.stringify(payload) });
+    toast(message);
+    await refresh();
+    return data;
+  }
+
+  function showCreateApiModal() {
+    const form = el('div');
+    const type = document.createElement('select');
+    type.append(new Option('HTTP API (v2)', 'http'), new Option('REST API (v1)', 'rest'));
+    const name = document.createElement('input');
+    name.placeholder = 'orders-api';
+    const description = document.createElement('textarea');
+    description.placeholder = 'Local application entry point';
+    form.append(el('label', null, 'API type'), type, el('label', null, 'Name'), name, el('label', null, 'Description'), description);
+    openModal('Create API', form, 'Create API', async (close) => {
+      const data = await mutate('/api/apigateway/apis/create/', { api_type: type.value, name: name.value, description: description.value }, `API ${name.value} created`);
+      state.selectedKey = `${data.api_type}:${data.api_id}`;
+      close();
+      render();
+    });
+  }
+
+  function deleteSelectedApi(item) {
+    if (!item || !window.confirm(`Delete API ${apiName(item)}? This removes its routes, integrations, stages, and deployments.`)) return;
+    mutate('/api/apigateway/apis/delete/', { api_type: item.type, api_id: item.api.id }, `API ${apiName(item)} deleted`)
+      .catch((error) => toast(error.message, true));
+  }
 
   function restApis() {
     return state.inventory?.rest_apis || [];
@@ -248,6 +280,16 @@ const ApiGatewayConsole = (() => {
       return panel;
     }
 
+    const overview = document.createElement('dl');
+    consoleUi.addField(overview, 'API ID', item.api.id);
+    consoleUi.addField(overview, 'Protocol', item.type === 'rest' ? 'REST' : (item.api.protocol_type || 'HTTP'));
+    consoleUi.addField(overview, 'Endpoint', item.api.api_endpoint || item.api.execute_url_pattern);
+    consoleUi.addField(overview, 'Description', item.api.description);
+    consoleUi.addField(overview, 'Routes / resources', item.type === 'rest' ? item.api.resources : item.api.routes);
+    consoleUi.addField(overview, 'Integrations', item.type === 'rest' ? item.api.resources : item.api.integrations);
+    consoleUi.addField(overview, 'Stages', item.api.stages || []);
+    body.append(overview);
+
     const methodInput = renderMethodSelect(item);
     const stageInput = renderStageSelect(item);
     const pathInput = document.createElement('input');
@@ -336,8 +378,9 @@ const ApiGatewayConsole = (() => {
     const item = selectedApi();
     const container = el('div');
     container.append(toolbar([
-      btn('Refresh APIs', 'apigateway-btn-secondary', refresh),
-    ], []));
+      btn('Create API', null, showCreateApiModal),
+      btn('Refresh', 'apigateway-btn-secondary', refresh),
+    ], [item ? btn('Delete API', 'apigateway-btn-danger', () => deleteSelectedApi(item)) : null].filter(Boolean)));
     const workbench = el('div', 'apigateway-workbench');
     workbench.append(renderApiList(), renderRequestPanel(item));
     container.append(workbench);

@@ -65,6 +65,8 @@
           <nav id="eks-breadcrumbs" class="eks-breadcrumbs" aria-label="EKS navigation"></nav>
         {% elif service.key == 'elasticache' %}
           <nav id="elasticache-breadcrumbs" class="elasticache-breadcrumbs" aria-label="ElastiCache navigation"></nav>
+        {% elif service.key == 'elasticbeanstalk' %}
+          <nav id="elasticbeanstalk-breadcrumbs" class="elasticbeanstalk-breadcrumbs" aria-label="Elastic Beanstalk navigation"></nav>
         {% elif service.key == 'opensearch' %}
           <nav id="opensearch-breadcrumbs" class="opensearch-breadcrumbs" aria-label="OpenSearch navigation"></nav>
         {% elif service.key == 'athena' %}
@@ -77,6 +79,8 @@
           <nav id="kms-breadcrumbs" class="kms-breadcrumbs" aria-label="KMS navigation"></nav>
         {% elif service.key == 'secretsmanager' %}
           <nav id="secretsmanager-breadcrumbs" class="secretsmanager-breadcrumbs" aria-label="Secrets Manager navigation"></nav>
+        {% elif service.key == 'cloudtrail' %}
+          <nav id="cloudtrail-breadcrumbs" class="cloudtrail-breadcrumbs" aria-label="CloudTrail navigation"></nav>
         {% elif service.key == 'ssm' %}
           <nav id="ssm-breadcrumbs" class="ssm-breadcrumbs" aria-label="SSM navigation"></nav>
         {% elif service.key == 'rds' %}
@@ -499,6 +503,20 @@
         <p>Local EventBridge Pipes stores pipe definitions that connect supported sources to supported targets, with optional enrichment and parameter blocks for service-specific behavior.</p>
         <p>Pipes are most useful for testing local event handoffs such as SQS to Lambda, Kinesis to Step Functions, or DynamoDB stream records to SNS. In Floci, a good learning flow is to create a pipe with source and target ARNs, start it, then inspect the downstream workbench for delivered events.</p>
         <p>Supported sources include SQS queues, Kinesis streams, DynamoDB streams, and Kafka topics. Supported targets include Lambda, SQS, SNS, Kinesis, and Step Functions.</p>
+      </details>
+    {% elif service.key == 'elasticbeanstalk' %}
+      <div id="elasticbeanstalk-console-root" class="elasticbeanstalk-console-root" aria-live="polite"></div>
+      <details class="elasticbeanstalk-about-floci">
+        <summary>About Floci Elastic Beanstalk</summary>
+        <p>Floci stores Elastic Beanstalk applications, application versions, source-bundle references, environments, platform selections, and configuration option settings.</p>
+        <p>Environments become Ready and Green immediately. No application infrastructure is provisioned and the generated local endpoint is metadata, so this workbench focuses on management-plane workflows.</p>
+      </details>
+    {% elif service.key == 'cloudtrail' %}
+      <div id="cloudtrail-console-root" class="cloudtrail-console-root" aria-live="polite"></div>
+      <details class="cloudtrail-about-floci">
+        <summary>About Floci CloudTrail</summary>
+        <p>Local CloudTrail persists trail configuration and logging state for AWS-compatible management-plane testing.</p>
+        <p>Floci does not record live API activity into trails, so event lookup remains empty. Event-selector requests are accepted but selector payloads are not stored; this workbench intentionally omits that no-op control.</p>
       </details>
     {% elif service.key == 'config' %}
       <div id="config-console-root" class="config-console-root" aria-live="polite"></div>

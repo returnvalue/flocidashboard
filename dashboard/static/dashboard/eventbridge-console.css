@@ -214,6 +214,19 @@
   color: #8a5300;
 }
 
+.eventbridge-rule-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.eventbridge-btn-danger {
+  border-color: #d13212 !important;
+  color: #b12704 !important;
+  background: #fff !important;
+}
+
 .eventbridge-empty {
   padding: 32px;
   text-align: center;

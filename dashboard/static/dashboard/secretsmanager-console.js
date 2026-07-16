@@ -10,6 +10,10 @@ const SecretsManagerConsole = (() => {
   const state = {
     inventory: null,
     selectedSecretName: '',
+    activeView: 'overview',
+    resourceQuery: '',
+    selectedVersionId: '',
+    lastResult: null,
     revealed: null,
   };
 
@@ -54,6 +58,21 @@ const SecretsManagerConsole = (() => {
     return JSON.parse(trimmed);
   }
 
+  function parseJson(value, fallback, label) {
+    const text = String(value || '').trim();
+    if (!text) return fallback;
+    try { return JSON.parse(text); } catch (error) { throw new Error(`${label} must be valid JSON`); }
+  }
+
+  function parseList(value) {
+    return String(value || '').split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
+  }
+
+  function matchesQuery(...values) {
+    const query = state.resourceQuery.trim().toLowerCase();
+    return !query || values.some((value) => JSON.stringify(value ?? '').toLowerCase().includes(query));
+  }
+
   function renderBreadcrumbs() {
     if (!breadcrumbsEl) {
       return;
@@ -79,7 +98,6 @@ const SecretsManagerConsole = (() => {
         secrets: 'Secrets',
         scheduled_for_deletion: 'Secrets',
         rotation_enabled: 'Secrets',
-        with_resource_policy: 'Secrets',
         versions: 'Secrets',
       },
     });
@@ -189,8 +207,50 @@ const SecretsManagerConsole = (() => {
     });
   }
 
-  async function revealSecret(secret) {
-    const data = await apiJson(`/api/secretsmanager/secrets/${secretPath(secret)}/value/`);
+  function showMetadataModal(secret) {
+    const form = el('div'); const description = document.createElement('textarea'); description.value = secret.description || '';
+    const kms = document.createElement('input'); kms.value = secret.kms_key_id || '';
+    form.append(el('label', null, 'Description'), description, el('label', null, 'KMS key ID'), kms);
+    openModal('Update secret metadata', form, 'Save', async (close) => {
+      state.lastResult = await apiJson(`/api/secretsmanager/secrets/${secretPath(secret)}/metadata/`, { method: 'PATCH', body: JSON.stringify({ description: description.value, kms_key_id: kms.value }) });
+      close(); toast('Secret metadata updated'); await refresh();
+    });
+  }
+
+  function showTagsModal(secret) {
+    const form = el('div'); const tags = document.createElement('textarea'); tags.placeholder = '[{"Key":"env","Value":"local"}]';
+    const keys = document.createElement('input'); keys.placeholder = 'env,owner';
+    form.append(el('label', null, 'Add tags JSON'), tags, btn('Add tags', null, async () => { await apiJson(`/api/secretsmanager/secrets/${secretPath(secret)}/tags/`, { method: 'POST', body: JSON.stringify({ tags: parseJson(tags.value, [], 'Tags') }) }); toast('Tags added'); await refresh(); }), el('label', null, 'Remove tag keys'), keys, btn('Remove tags', 'secretsmanager-btn-secondary', async () => { await apiJson(`/api/secretsmanager/secrets/${secretPath(secret)}/tags/`, { method: 'DELETE', body: JSON.stringify({ tag_keys: parseList(keys.value) }) }); toast('Tags removed'); await refresh(); }));
+    openModal('Secret tags', form, 'Done', (close) => close());
+  }
+
+  function showRotationModal(secret) {
+    const form = el('div'); const lambdaArn = document.createElement('input'); lambdaArn.value = secret.rotation_lambda_arn || ''; lambdaArn.placeholder = 'Lambda ARN';
+    const rules = document.createElement('textarea'); rules.value = JSON.stringify(secret.rotation_rules || { AutomaticallyAfterDays: 30 }, null, 2);
+    const immediate = document.createElement('input'); immediate.type = 'checkbox'; immediate.checked = true;
+    const immediateLabel = el('label', 'secretsmanager-checkbox'); immediateLabel.append(immediate, el('span', null, 'Rotate immediately'));
+    form.append(el('label', null, 'Rotation Lambda ARN'), lambdaArn, el('label', null, 'Rotation rules JSON'), rules, immediateLabel);
+    openModal('Configure rotation', form, 'Rotate', async (close) => {
+      state.lastResult = await apiJson(`/api/secretsmanager/secrets/${secretPath(secret)}/rotate/`, { method: 'POST', body: JSON.stringify({ rotation_lambda_arn: lambdaArn.value, rotation_rules: parseJson(rules.value, {}, 'Rotation rules'), rotate_immediately: immediate.checked }) });
+      close(); toast(immediate.checked ? 'Rotation started' : 'Rotation configured'); await refresh();
+    });
+  }
+
+  function showRandomPasswordModal() {
+    const form = el('div'); const length = document.createElement('input'); length.type = 'number'; length.value = '32'; length.min = '1'; length.max = '4096';
+    const punctuation = document.createElement('input'); punctuation.type = 'checkbox';
+    const punctuationLabel = el('label', 'secretsmanager-checkbox'); punctuationLabel.append(punctuation, el('span', null, 'Exclude punctuation'));
+    const result = el('pre', 'secretsmanager-secret-preview'); result.hidden = true;
+    form.append(el('label', null, 'Password length'), length, punctuationLabel, result);
+    openModal('Generate random password', form, 'Generate', async () => {
+      state.lastResult = await apiJson('/api/secretsmanager/random-password/', { method: 'POST', body: JSON.stringify({ PasswordLength: Number(length.value), ExcludePunctuation: punctuation.checked }) });
+      result.hidden = false; result.textContent = state.lastResult.random_password || ''; toast('Password generated');
+    });
+  }
+
+  async function revealSecret(secret, versionId = '') {
+    const query = versionId ? `?version_id=${encodeURIComponent(versionId)}` : '';
+    const data = await apiJson(`/api/secretsmanager/secrets/${secretPath(secret)}/value/${query}`);
     state.revealed = data;
     toast('Secret value loaded');
     render();
@@ -220,10 +280,11 @@ const SecretsManagerConsole = (() => {
     const panel = el('section', 'secretsmanager-panel');
     panel.append(el('div', 'secretsmanager-panel-heading', 'Secrets'));
     const list = el('div', 'secretsmanager-secret-list');
-    if (!secrets().length) {
+    const visibleSecrets = secrets().filter((secret) => matchesQuery(secretName(secret), secret.description, secret.tags, secret.kms_key_id));
+    if (!visibleSecrets.length) {
       list.append(el('div', 'secretsmanager-empty', 'No secrets found.'));
     } else {
-      secrets().forEach((secret) => list.append(renderSecretRow(secret)));
+      visibleSecrets.forEach((secret) => list.append(renderSecretRow(secret)));
     }
     panel.append(list);
     return panel;
@@ -270,6 +331,12 @@ const SecretsManagerConsole = (() => {
     consoleUi.addField(details, 'KMS key ID', secret.kms_key_id);
     consoleUi.addField(details, 'Created', consoleUi.formatDate(secret.created));
     consoleUi.addField(details, 'Last changed', consoleUi.formatDate(secret.last_changed));
+    consoleUi.addField(details, 'Last accessed', consoleUi.formatDate(secret.last_accessed));
+    consoleUi.addField(details, 'Last rotated', consoleUi.formatDate(secret.last_rotated));
+    consoleUi.addField(details, 'Next rotation', consoleUi.formatDate(secret.next_rotation));
+    consoleUi.addField(details, 'Rotation Lambda', secret.rotation_lambda_arn);
+    consoleUi.addField(details, 'Rotation rules', secret.rotation_rules);
+    consoleUi.addField(details, 'Tags', secret.tags);
     consoleUi.addField(details, 'Current value preview', secret.current_value);
     content.append(details);
 
@@ -277,11 +344,48 @@ const SecretsManagerConsole = (() => {
     actions.append(
       btn('Reveal value', null, () => revealSecret(secret).catch((error) => toast(error.message, true))),
       btn('Update value', 'secretsmanager-btn-secondary', () => showUpdateValueModal(secret)),
-      btn('Delete secret', 'secretsmanager-btn-danger', () => showDeleteSecretModal(secret)),
+      btn('Edit metadata', 'secretsmanager-btn-secondary', () => showMetadataModal(secret)),
+      btn('Tags', 'secretsmanager-btn-secondary', () => showTagsModal(secret)),
     );
+    if (secret.deleted) actions.append(btn('Restore secret', null, async () => { await apiJson(`/api/secretsmanager/secrets/${secretPath(secret)}/restore/`, { method: 'POST' }); toast('Secret restored'); await refresh(); }));
+    else actions.append(btn('Delete secret', 'secretsmanager-btn-danger', () => showDeleteSecretModal(secret)));
     content.append(actions, renderRevealedValue(secret));
     panel.append(content);
     return panel;
+  }
+
+  function renderVersionsPanel(secret) {
+    const panel = el('section', 'secretsmanager-panel'); panel.append(el('div', 'secretsmanager-panel-heading', `Versions (${secret.versions?.length || 0})`));
+    const body = el('div', 'secretsmanager-card-list');
+    (secret.versions || []).forEach((version) => {
+      const card = el('article', 'secretsmanager-value-card'); const heading = el('div', 'secretsmanager-value-heading'); heading.append(el('h4', null, version.VersionId), el('span', 'secretsmanager-secret-meta', (version.VersionStages || []).join(', ') || 'No stage'));
+      const actions = el('div', 'secretsmanager-actions'); actions.append(btn('Reveal version', 'secretsmanager-btn-secondary', () => revealSecret(secret, version.VersionId).catch((error) => toast(error.message, true))), btn('Make AWSCURRENT', null, async () => { const current = (secret.versions || []).find((item) => (item.VersionStages || []).includes('AWSCURRENT')); await apiJson(`/api/secretsmanager/secrets/${secretPath(secret)}/version-stage/`, { method: 'POST', body: JSON.stringify({ version_stage: 'AWSCURRENT', move_to_version_id: version.VersionId, remove_from_version_id: current?.VersionId || '' }) }); toast('AWSCURRENT moved'); await refresh(); }));
+      card.append(heading, actions); body.append(card);
+    });
+    if (!secret.versions?.length) body.append(el('p', 'secretsmanager-empty', 'No versions found.'));
+    body.append(renderRevealedValue(secret)); panel.append(body); return panel;
+  }
+
+  function renderRotationPanel(secret) {
+    const panel = el('section', 'secretsmanager-panel'); panel.append(el('div', 'secretsmanager-panel-heading', 'Rotation'));
+    const body = el('div', 'secretsmanager-detail'); const facts = document.createElement('dl');
+    consoleUi.addField(facts, 'Enabled', secret.rotation_enabled); consoleUi.addField(facts, 'Lambda ARN', secret.rotation_lambda_arn); consoleUi.addField(facts, 'Rules', secret.rotation_rules); consoleUi.addField(facts, 'Last rotated', consoleUi.formatDate(secret.last_rotated)); consoleUi.addField(facts, 'Next rotation', consoleUi.formatDate(secret.next_rotation));
+    body.append(facts, btn('Configure / rotate', null, () => showRotationModal(secret)), el('p', 'secretsmanager-empty-compact', 'Floci invokes the configured Lambda rotation lifecycle and manages AWSPENDING/AWSCURRENT staging labels.'));
+    panel.append(body); return panel;
+  }
+
+  function renderValuePanel(secret) {
+    const panel = el('section', 'secretsmanager-panel'); panel.append(el('div', 'secretsmanager-panel-heading', 'Secret value'));
+    const body = el('div', 'secretsmanager-detail'); body.append(el('p', 'secretsmanager-warning', 'Secret values are revealed only on demand and remain in this browser view until another secret is selected or refreshed.'));
+    const actions = el('div', 'secretsmanager-actions'); actions.append(btn('Reveal current value', null, () => revealSecret(secret).catch((error) => toast(error.message, true))), btn('Create new version', 'secretsmanager-btn-secondary', () => showUpdateValueModal(secret)));
+    body.append(actions, renderRevealedValue(secret)); panel.append(body); return panel;
+  }
+
+  function renderResourceTabs() {
+    const tabs = el('div', 'secretsmanager-resource-tabs'); const nav = el('div', 'secretsmanager-resource-tab-buttons');
+    [['overview', 'Overview'], ['value', 'Value'], ['versions', 'Versions'], ['rotation', 'Rotation']].forEach(([key, label]) => nav.append(btn(label, state.activeView === key ? 'secretsmanager-btn-active' : 'secretsmanager-btn-secondary', () => { state.activeView = key; render(); })));
+    const search = document.createElement('input'); search.type = 'search'; search.placeholder = 'Filter secrets'; search.value = state.resourceQuery; search.addEventListener('input', () => { state.resourceQuery = search.value; }); search.addEventListener('change', render); search.addEventListener('keydown', (event) => { if (event.key === 'Enter') render(); });
+    tabs.append(nav, search); return tabs;
   }
 
   function renderWorkbench() {
@@ -290,12 +394,21 @@ const SecretsManagerConsole = (() => {
     container.append(toolbar(
       [
         btn('Create secret', null, showCreateSecretModal),
+        btn('Generate password', 'secretsmanager-btn-secondary', showRandomPasswordModal),
         btn('Refresh secrets', 'secretsmanager-btn-secondary', () => refresh().catch((error) => toast(error.message, true))),
       ],
       [],
     ));
     const workbench = el('div', 'secretsmanager-workbench');
-    workbench.append(renderSecretList(), renderSecretDetail(secret));
+    const detail = el('div', 'secretsmanager-detail-stack'); detail.append(renderResourceTabs());
+    if (!secret) detail.append(renderSecretDetail(secret));
+    else {
+      if (state.activeView === 'overview') detail.append(renderSecretDetail(secret));
+      if (state.activeView === 'value') detail.append(renderValuePanel(secret));
+      if (state.activeView === 'versions') detail.append(renderVersionsPanel(secret));
+      if (state.activeView === 'rotation') detail.append(renderRotationPanel(secret));
+    }
+    workbench.append(renderSecretList(), detail);
     container.append(workbench);
     return container;
   }

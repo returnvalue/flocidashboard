@@ -99,9 +99,14 @@ def put_secret_value(secret_id: str, value: Any) -> dict[str, Any]:
     }
 
 
-def get_secret_value(secret_id: str) -> dict[str, Any]:
+def get_secret_value(secret_id: str, *, version_id: str = '', version_stage: str = '') -> dict[str, Any]:
     clean_id = _clean_required(secret_id, 'Secret ID')
-    response = _client().get_secret_value(SecretId=clean_id)
+    kwargs = {'SecretId': clean_id}
+    if version_id:
+        kwargs['VersionId'] = version_id
+    if version_stage:
+        kwargs['VersionStage'] = version_stage
+    response = _client().get_secret_value(**kwargs)
     decoded = _decode_secret_value(response)
     return {
         'name': response.get('Name') or clean_id,
@@ -136,3 +141,64 @@ def delete_secret(
         'arn': response.get('ARN'),
         'deletion_date': _json_datetime(response.get('DeletionDate')),
     }
+
+
+def update_secret(secret_id: str, *, description: str = '', kms_key_id: str = '') -> dict[str, Any]:
+    clean_id = _clean_required(secret_id, 'Secret ID')
+    response = _client().update_secret(SecretId=clean_id, Description=str(description or ''), KmsKeyId=str(kms_key_id or ''))
+    return {'name': response.get('Name') or clean_id, 'arn': response.get('ARN'), 'version_id': response.get('VersionId')}
+
+
+def restore_secret(secret_id: str) -> dict[str, Any]:
+    clean_id = _clean_required(secret_id, 'Secret ID')
+    response = _client().restore_secret(SecretId=clean_id)
+    return {'name': response.get('Name') or clean_id, 'arn': response.get('ARN'), 'restored': True}
+
+
+def rotate_secret(secret_id: str, *, rotation_lambda_arn: str = '', rotation_rules: Any = None, rotate_immediately: bool = True) -> dict[str, Any]:
+    clean_id = _clean_required(secret_id, 'Secret ID')
+    kwargs: dict[str, Any] = {'SecretId': clean_id, 'RotateImmediately': bool(rotate_immediately)}
+    if rotation_lambda_arn:
+        kwargs['RotationLambdaARN'] = rotation_lambda_arn
+    if rotation_rules:
+        if not isinstance(rotation_rules, dict):
+            raise ValueError('Rotation rules must be an object')
+        kwargs['RotationRules'] = rotation_rules
+    response = _client().rotate_secret(**kwargs)
+    return {'name': response.get('Name') or clean_id, 'arn': response.get('ARN'), 'version_id': response.get('VersionId')}
+
+
+def tag_secret(secret_id: str, tags: Any) -> dict[str, Any]:
+    clean_id = _clean_required(secret_id, 'Secret ID')
+    if not isinstance(tags, list) or not tags:
+        raise ValueError('At least one tag is required')
+    clean_tags = [{'Key': _clean_required(item.get('Key') or item.get('key'), 'Tag key'), 'Value': str(item.get('Value') if item.get('Value') is not None else item.get('value', ''))} for item in tags if isinstance(item, dict)]
+    _client().tag_resource(SecretId=clean_id, Tags=clean_tags)
+    return {'name': clean_id, 'tags': clean_tags}
+
+
+def untag_secret(secret_id: str, tag_keys: Any) -> dict[str, Any]:
+    clean_id = _clean_required(secret_id, 'Secret ID')
+    keys = [str(item).strip() for item in (tag_keys if isinstance(tag_keys, list) else str(tag_keys or '').split(',')) if str(item).strip()]
+    if not keys:
+        raise ValueError('At least one tag key is required')
+    _client().untag_resource(SecretId=clean_id, TagKeys=keys)
+    return {'name': clean_id, 'tag_keys': keys}
+
+
+def update_version_stage(secret_id: str, version_stage: str, move_to_version_id: str, *, remove_from_version_id: str = '') -> dict[str, Any]:
+    clean_id = _clean_required(secret_id, 'Secret ID')
+    kwargs = {'SecretId': clean_id, 'VersionStage': _clean_required(version_stage, 'Version stage'), 'MoveToVersionId': _clean_required(move_to_version_id, 'Move-to version ID')}
+    if remove_from_version_id:
+        kwargs['RemoveFromVersionId'] = remove_from_version_id
+    response = _client().update_secret_version_stage(**kwargs)
+    return {'name': response.get('Name') or clean_id, 'arn': response.get('ARN'), 'version_stage': version_stage, 'version_id': move_to_version_id}
+
+
+def get_random_password(options: Any = None) -> dict[str, Any]:
+    if options in (None, ''):
+        options = {}
+    if not isinstance(options, dict):
+        raise ValueError('Password options must be an object')
+    response = _client().get_random_password(**options)
+    return {'random_password': response.get('RandomPassword')}

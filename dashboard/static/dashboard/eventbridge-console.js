@@ -27,6 +27,53 @@ const EventBridgeConsole = (() => {
       toast,
     });
 
+  async function mutate(url, payload, message) {
+    const data = await apiJson(url, { method: 'POST', body: JSON.stringify(payload) });
+    toast(message);
+    await refresh();
+    return data;
+  }
+
+  function showCreateBusModal() {
+    const form = el('div');
+    const name = document.createElement('input');
+    name.placeholder = 'application-events';
+    const description = document.createElement('input');
+    form.append(el('label', null, 'Name'), name, el('label', null, 'Description'), description);
+    openModal('Create event bus', form, 'Create bus', async (close) => {
+      await mutate('/api/eventbridge/buses/create/', { name: name.value, description: description.value }, `Event bus ${name.value} created`);
+      state.selectedBusName = name.value.trim(); close(); render();
+    });
+  }
+
+  function showRuleModal(bus, rule = null) {
+    const form = el('div');
+    const name = document.createElement('input'); name.value = rule?.name || ''; name.placeholder = 'order-created';
+    const description = document.createElement('input'); description.value = rule?.description || '';
+    const pattern = document.createElement('textarea'); pattern.value = rule?.event_pattern || '{\n  "source": ["com.example.orders"]\n}';
+    const schedule = document.createElement('input'); schedule.value = rule?.schedule_expression || ''; schedule.placeholder = 'rate(5 minutes)';
+    form.append(el('label', null, 'Rule name'), name, el('label', null, 'Description'), description, el('label', null, 'Event pattern JSON'), pattern, el('label', null, 'Schedule expression (alternative)'), schedule);
+    openModal(rule ? 'Update rule' : 'Create rule', form, rule ? 'Save rule' : 'Create rule', async (close) => {
+      let eventPattern = null;
+      if (pattern.value.trim()) eventPattern = JSON.parse(pattern.value);
+      await mutate('/api/eventbridge/rules/put/', { name: name.value, event_bus_name: busName(bus), description: description.value, event_pattern: eventPattern, schedule_expression: schedule.value, state: rule?.state || 'ENABLED' }, `Rule ${name.value} saved`);
+      close();
+    });
+  }
+
+  function showTargetModal(bus, rule) {
+    const form = el('div');
+    const id = document.createElement('input'); id.placeholder = 'orders-queue';
+    const arn = document.createElement('input'); arn.placeholder = 'arn:aws:sqs:us-east-1:000000000000:orders';
+    const role = document.createElement('input'); role.placeholder = 'Optional execution role ARN';
+    const input = document.createElement('textarea'); input.placeholder = 'Optional constant JSON input';
+    form.append(el('label', null, 'Target ID'), id, el('label', null, 'Target ARN'), arn, el('label', null, 'Role ARN'), role, el('label', null, 'Constant input JSON'), input);
+    openModal('Add or update target', form, 'Save target', async (close) => {
+      await mutate('/api/eventbridge/targets/put/', { rule_name: rule.name, event_bus_name: busName(bus), target_id: id.value, arn: arn.value, role_arn: role.value, input: input.value.trim() ? JSON.parse(input.value) : null }, `Target ${id.value} saved`);
+      close();
+    });
+  }
+
   function buses() {
     return state.inventory?.event_buses || [];
   }
@@ -192,7 +239,7 @@ const EventBridgeConsole = (() => {
     return panel;
   }
 
-  function renderTarget(target) {
+  function renderTarget(bus, rule, target) {
     const card = el('article', 'eventbridge-target');
     card.append(el('h4', null, target.Id || target.id || 'Target'));
     const details = document.createElement('dl');
@@ -200,11 +247,16 @@ const EventBridgeConsole = (() => {
     consoleUi.addField(details, 'Role ARN', target.RoleArn || target.role_arn);
     consoleUi.addField(details, 'Input', target.Input || target.input);
     consoleUi.addField(details, 'Input path', target.InputPath || target.input_path);
-    card.append(details);
+    const remove = btn('Remove target', 'eventbridge-btn-danger', () => {
+      const targetId = target.Id || target.id;
+      if (!window.confirm(`Remove target ${targetId} from ${rule.name}?`)) return;
+      mutate('/api/eventbridge/targets/remove/', { rule_name: rule.name, event_bus_name: busName(bus), target_id: targetId }, `Target ${targetId} removed`).catch((error) => toast(error.message, true));
+    });
+    card.append(details, remove);
     return card;
   }
 
-  function renderRule(rule) {
+  function renderRule(bus, rule) {
     const card = el('article', 'eventbridge-rule');
     const heading = el('div', 'eventbridge-rule-heading');
     heading.append(el('h4', null, rule.name || 'Rule'));
@@ -217,12 +269,22 @@ const EventBridgeConsole = (() => {
     consoleUi.addField(details, 'Schedule', rule.schedule_expression);
     consoleUi.addField(details, 'Event pattern', rule.event_pattern);
     consoleUi.addField(details, 'Targets', rule.target_count || 0);
-    card.append(details);
+    const actions = el('div', 'eventbridge-rule-actions');
+    actions.append(
+      btn('Edit rule', 'eventbridge-btn-secondary', () => showRuleModal(bus, rule)),
+      btn(rule.state === 'ENABLED' ? 'Disable' : 'Enable', 'eventbridge-btn-secondary', () => mutate('/api/eventbridge/rules/state/', { name: rule.name, event_bus_name: busName(bus), enabled: rule.state !== 'ENABLED' }, `Rule ${rule.name} ${rule.state === 'ENABLED' ? 'disabled' : 'enabled'}`).catch((error) => toast(error.message, true))),
+      btn('Add target', 'eventbridge-btn-secondary', () => showTargetModal(bus, rule)),
+      btn('Delete rule', 'eventbridge-btn-danger', () => {
+        if (!window.confirm(`Delete rule ${rule.name}? Remove its targets first.`)) return;
+        mutate('/api/eventbridge/rules/delete/', { name: rule.name, event_bus_name: busName(bus) }, `Rule ${rule.name} deleted`).catch((error) => toast(error.message, true));
+      }),
+    );
+    card.append(details, actions);
 
     const targets = rule.targets || [];
     if (targets.length) {
       const list = el('div', 'eventbridge-target-list');
-      targets.forEach((target) => list.append(renderTarget(target)));
+      targets.forEach((target) => list.append(renderTarget(bus, rule, target)));
       card.append(list);
     }
     return card;
@@ -253,7 +315,7 @@ const EventBridgeConsole = (() => {
         content.append(el('div', 'eventbridge-empty eventbridge-empty-compact', 'No rules on this bus. PutEvents can still accept events, but no target will run.'));
       } else {
         const list = el('div', 'eventbridge-rule-list');
-        rules.forEach((rule) => list.append(renderRule(rule)));
+        rules.forEach((rule) => list.append(renderRule(bus, rule)));
         content.append(list);
       }
 
@@ -289,9 +351,15 @@ const EventBridgeConsole = (() => {
     const container = el('div');
     container.append(toolbar(
       [
+        btn('Create event bus', null, showCreateBusModal),
         btn('Send event', null, () => bus && showPutEventModal(bus)),
+        btn('Create rule', 'eventbridge-btn-secondary', () => bus && showRuleModal(bus)),
+        btn('Refresh', 'eventbridge-btn-secondary', refresh),
       ],
-      [],
+      [bus && busName(bus) !== 'default' ? btn('Delete bus', 'eventbridge-btn-danger', () => {
+        if (!window.confirm(`Delete event bus ${busName(bus)}? Delete its rules first.`)) return;
+        mutate('/api/eventbridge/buses/delete/', { name: busName(bus) }, `Event bus ${busName(bus)} deleted`).catch((error) => toast(error.message, true));
+      }) : null].filter(Boolean),
     ));
 
     const sendButton = container.querySelector('button');

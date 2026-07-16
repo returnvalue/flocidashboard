@@ -1491,38 +1491,45 @@ def elasticbeanstalk_inventory() -> dict[str, Any]:
     applications = _safe_value(lambda: _operation_items(beanstalk, 'describe_applications', 'Applications'), []) if 'DescribeApplications' in operations else []
     environments = _safe_value(lambda: _operation_items(beanstalk, 'describe_environments', 'Environments'), []) if 'DescribeEnvironments' in operations else []
     application_versions = _safe_value(lambda: _operation_items(beanstalk, 'describe_application_versions', 'ApplicationVersions'), []) if 'DescribeApplicationVersions' in operations else []
-    platforms = _safe_value(lambda: _operation_items(beanstalk, 'describe_platforms', 'PlatformSummaryList'), []) if 'DescribePlatforms' in operations else []
     solution_stacks = _safe_value(lambda: beanstalk.list_available_solution_stacks().get('SolutionStacks', []), []) if 'ListAvailableSolutionStacks' in operations else []
+    cleaned_environments = _clean_response(environments)
+    for environment in cleaned_environments:
+        if environment.get('Status') == 'Terminated':
+            environment['OptionSettings'] = []
+            continue
+        settings = _safe_value(lambda env=environment: beanstalk.describe_configuration_settings(
+            ApplicationName=env.get('ApplicationName'), EnvironmentName=env.get('EnvironmentName'),
+        ).get('ConfigurationSettings', []), [])
+        environment['OptionSettings'] = (settings[0].get('OptionSettings', []) if settings else [])
 
     return {
         'summary': {
             'applications': len(applications),
             'environments': len(environments),
             'application_versions': len(application_versions),
-            'platforms': len(platforms),
             'solution_stacks': len(solution_stacks),
-            'available_sdk_operations': len(operations),
         },
         'applications': _clean_response(applications),
-        'environments': _clean_response(environments),
+        'environments': cleaned_environments,
         'application_versions': _clean_response(application_versions),
-        'platforms': _clean_response(platforms),
         'solution_stacks': [{'name': stack} for stack in solution_stacks],
         'supported_from_sdk': [
             operation
             for operation in [
                 'CreateApplication',
                 'DescribeApplications',
+                'UpdateApplication',
                 'DeleteApplication',
                 'CreateApplicationVersion',
                 'DescribeApplicationVersions',
+                'DeleteApplicationVersion',
                 'CreateEnvironment',
                 'DescribeEnvironments',
+                'UpdateEnvironment',
                 'TerminateEnvironment',
-                'DescribePlatforms',
+                'DescribeConfigurationSettings',
+                'CheckDNSAvailability',
                 'ListAvailableSolutionStacks',
-                'ListTagsForResource',
-                'UpdateTagsForResource',
             ]
             if operation in operations
         ],
@@ -1530,7 +1537,8 @@ def elasticbeanstalk_inventory() -> dict[str, Any]:
         'notes': [
             'Floci 1.5.28 adds initial Elastic Beanstalk Query API support.',
             'Floci 1.5.31 persists Elastic Beanstalk applications, versions, and environments across restart.',
-            'This read-only inspector focuses on applications, environments, application versions, platforms, and solution stacks exposed by the local endpoint.',
+            'Environments become Ready and Green immediately; Floci stores management-plane state but does not provision application infrastructure.',
+            'Tags supplied during creation are stored internally but cannot be retrieved or updated through Floci’s supported Elastic Beanstalk operations.',
         ],
     }
 
@@ -2024,9 +2032,17 @@ def kms_inventory() -> dict[str, Any]:
                 lambda: kms.get_key_rotation_status(KeyId=key_id).get('KeyRotationEnabled'),
                 {'NotFoundException', 'UnsupportedOperationException'},
             ),
+            'grants': _kms_optional(
+                lambda: _paginate(kms, 'list_grants', 'Grants', KeyId=key_id),
+                {'NotFoundException'},
+            ),
         }
 
-    detailed_keys = [key_detail(key) for key in keys]
+    if len(keys) > 1:
+        with ThreadPoolExecutor(max_workers=min(8, len(keys))) as executor:
+            detailed_keys = list(executor.map(key_detail, keys))
+    else:
+        detailed_keys = [key_detail(key) for key in keys]
 
     return {
         'summary': {
@@ -2045,6 +2061,7 @@ def kms_inventory() -> dict[str, Any]:
                 and key['metadata'].get('KeyState') == 'PendingDeletion'
             ),
             'rotation_enabled': sum(1 for key in detailed_keys if key.get('rotation_enabled') is True),
+            'grants': sum(len(key.get('grants') or []) for key in detailed_keys if isinstance(key.get('grants'), list)),
         },
         'keys': detailed_keys,
         'aliases': _clean_response(aliases),
@@ -2447,6 +2464,11 @@ def secretsmanager_inventory() -> dict[str, Any]:
 
     def secret_detail(secret: dict[str, Any]) -> dict[str, Any]:
         secret_id = secret.get('ARN') or secret.get('Name')
+        description = _secrets_optional(
+            lambda: client.describe_secret(SecretId=secret_id),
+            {'ResourceNotFoundException'},
+        )
+        metadata = description if isinstance(description, dict) and not description.get('error') else secret
         value = _secrets_optional(
             lambda: client.get_secret_value(SecretId=secret_id),
             {'ResourceNotFoundException', 'InvalidRequestException'},
@@ -2455,39 +2477,38 @@ def secretsmanager_inventory() -> dict[str, Any]:
             lambda: _paginate(client, 'list_secret_version_ids', 'Versions', SecretId=secret_id),
             {'ResourceNotFoundException'},
         )
-        policy = _secrets_optional(
-            lambda: json.loads(client.get_resource_policy(SecretId=secret_id).get('ResourcePolicy', '{}')),
-            {'ResourceNotFoundException', 'ResourcePolicyNotFoundException'},
-        )
-
         return {
-            'name': secret.get('Name'),
-            'arn': secret.get('ARN'),
-            'description': secret.get('Description'),
-            'kms_key_id': secret.get('KmsKeyId'),
-            'created': secret.get('CreatedDate'),
-            'last_changed': secret.get('LastChangedDate'),
-            'last_accessed': secret.get('LastAccessedDate'),
-            'deleted': secret.get('DeletedDate'),
-            'rotation_enabled': secret.get('RotationEnabled'),
-            'rotation_lambda_arn': secret.get('RotationLambdaARN'),
-            'rotation_rules': secret.get('RotationRules'),
-            'version_ids_to_stages': secret.get('SecretVersionsToStages'),
-            'tags': secret.get('Tags', []),
+            'name': metadata.get('Name'),
+            'arn': metadata.get('ARN'),
+            'description': metadata.get('Description'),
+            'kms_key_id': metadata.get('KmsKeyId'),
+            'created': metadata.get('CreatedDate'),
+            'last_changed': metadata.get('LastChangedDate'),
+            'last_accessed': metadata.get('LastAccessedDate'),
+            'last_rotated': metadata.get('LastRotatedDate'),
+            'next_rotation': metadata.get('NextRotationDate'),
+            'deleted': metadata.get('DeletedDate'),
+            'rotation_enabled': metadata.get('RotationEnabled'),
+            'rotation_lambda_arn': metadata.get('RotationLambdaARN'),
+            'rotation_rules': metadata.get('RotationRules'),
+            'version_ids_to_stages': metadata.get('VersionIdsToStages'),
+            'tags': metadata.get('Tags', []),
             'versions': versions,
-            'resource_policy': policy,
             'current_value': _secret_value_preview(value.get('SecretString') if isinstance(value, dict) else None),
             'current_binary_value': _secret_value_preview(value.get('SecretBinary') if isinstance(value, dict) else None),
         }
 
-    detailed_secrets = [secret_detail(secret) for secret in secrets]
+    if len(secrets) > 1:
+        with ThreadPoolExecutor(max_workers=min(8, len(secrets))) as executor:
+            detailed_secrets = list(executor.map(secret_detail, secrets))
+    else:
+        detailed_secrets = [secret_detail(secret) for secret in secrets]
 
     return {
         'summary': {
             'secrets': len(detailed_secrets),
             'scheduled_for_deletion': sum(1 for secret in detailed_secrets if secret.get('deleted')),
             'rotation_enabled': sum(1 for secret in detailed_secrets if secret.get('rotation_enabled')),
-            'with_resource_policy': sum(1 for secret in detailed_secrets if secret.get('resource_policy')),
             'versions': sum(
                 len(secret.get('versions') or [])
                 for secret in detailed_secrets
@@ -2505,9 +2526,9 @@ def secretsmanager_inventory() -> dict[str, Any]:
             'DeleteSecret',
             'RotateSecret',
             'ListSecretVersionIds',
-            'GetResourcePolicy',
-            'PutResourcePolicy',
-            'DeleteResourcePolicy',
+            'RestoreSecret',
+            'UpdateSecretVersionStage',
+            'GetRandomPassword',
             'TagResource',
             'UntagResource',
             'BatchGetSecretValue',
@@ -3077,16 +3098,7 @@ def _cloudtrail_optional(loader: Callable[[], Any], empty_codes: set[str]) -> An
 def cloudtrail_inventory() -> dict[str, Any]:
     cloudtrail = FlociClientFactory().client('cloudtrail')
     operations = set(cloudtrail.meta.service_model.operation_names)
-
-    trail_summaries = _safe_value(
-        lambda: _operation_items(cloudtrail, 'list_trails', 'Trails'),
-        [],
-    ) if 'ListTrails' in operations else []
-    if not trail_summaries and 'DescribeTrails' in operations:
-        trail_summaries = _safe_value(
-            lambda: cloudtrail.describe_trails(includeShadowTrails=False).get('trailList', []),
-            [],
-        )
+    trail_summaries = _safe_value(lambda: cloudtrail.describe_trails(includeShadowTrails=False).get('trailList', []), [])
 
     def trail_name(trail: dict[str, Any]) -> str | None:
         return trail.get('Name') or trail.get('TrailARN') or trail.get('TrailArn')
@@ -3097,54 +3109,24 @@ def cloudtrail_inventory() -> dict[str, Any]:
     def trail_detail(trail: dict[str, Any]) -> dict[str, Any]:
         name = trail_name(trail)
         arn = trail_arn(trail)
-        details = _cloudtrail_optional(
-            lambda: cloudtrail.get_trail(Name=arn or name).get('Trail', {}),
-            {'TrailNotFoundException'},
-        ) if (arn or name) and 'GetTrail' in operations else None
-        if not details and name and 'DescribeTrails' in operations:
-            described = _cloudtrail_optional(
-                lambda: cloudtrail.describe_trails(trailNameList=[name], includeShadowTrails=False).get('trailList', []),
-                {'TrailNotFoundException'},
-            )
-            details = described[0] if isinstance(described, list) and described else described
-
-        described = details if isinstance(details, dict) and not details.get('error') else trail
+        described = trail
         clean_name = described.get('Name') or name
         clean_arn = trail_arn(described) or arn
         status = _cloudtrail_optional(
             lambda: cloudtrail.get_trail_status(Name=clean_arn or clean_name),
             {'TrailNotFoundException'},
         ) if (clean_arn or clean_name) and 'GetTrailStatus' in operations else None
-        event_selectors = _cloudtrail_optional(
-            lambda: cloudtrail.get_event_selectors(TrailName=clean_arn or clean_name),
-            {'TrailNotFoundException'},
-        ) if (clean_arn or clean_name) and 'GetEventSelectors' in operations else None
-        tags = _cloudtrail_optional(
-            lambda: cloudtrail.list_tags(ResourceIdList=[clean_arn]).get('ResourceTagList', []),
-            {'TrailNotFoundException', 'ResourceNotFoundException'},
-        ) if clean_arn and 'ListTags' in operations else None
 
         return {
             'name': clean_name,
             'arn': clean_arn,
             's3_bucket_name': described.get('S3BucketName'),
-            's3_key_prefix': described.get('S3KeyPrefix'),
-            'sns_topic_name': described.get('SnsTopicName'),
-            'sns_topic_arn': described.get('SnsTopicARN') or described.get('SnsTopicArn'),
             'include_global_service_events': described.get('IncludeGlobalServiceEvents'),
             'is_multi_region_trail': described.get('IsMultiRegionTrail'),
             'home_region': described.get('HomeRegion'),
-            'trail_log_group_arn': described.get('CloudWatchLogsLogGroupArn'),
-            'kms_key_id': described.get('KmsKeyId'),
-            'log_file_validation_enabled': described.get('LogFileValidationEnabled'),
-            'has_custom_event_selectors': described.get('HasCustomEventSelectors'),
             'is_organization_trail': described.get('IsOrganizationTrail'),
             'status': status if isinstance(status, dict) and not status.get('error') else None,
-            'event_selectors': event_selectors if isinstance(event_selectors, dict) and not event_selectors.get('error') else None,
-            'tags': tags,
-            'details': details if isinstance(details, dict) and details.get('error') else None,
             'status_details': status if isinstance(status, dict) and status.get('error') else None,
-            'event_selector_details': event_selectors if isinstance(event_selectors, dict) and event_selectors.get('error') else None,
         }
 
     trails = [trail_detail(trail) for trail in trail_summaries]
@@ -3159,7 +3141,6 @@ def cloudtrail_inventory() -> dict[str, Any]:
             'logging': sum(1 for trail in trails if (trail.get('status') or {}).get('IsLogging')),
             'multi_region_trails': sum(1 for trail in trails if trail.get('is_multi_region_trail')),
             'lookup_events': len(lookup_events) if isinstance(lookup_events, list) else 0,
-            'available_sdk_operations': len(operations),
         },
         'trails': trails,
         'lookup_events': lookup_events,
@@ -3169,16 +3150,10 @@ def cloudtrail_inventory() -> dict[str, Any]:
                 'CreateTrail',
                 'DeleteTrail',
                 'DescribeTrails',
-                'GetTrail',
                 'GetTrailStatus',
-                'ListTrails',
                 'StartLogging',
                 'StopLogging',
                 'PutEventSelectors',
-                'GetEventSelectors',
-                'ListTags',
-                'AddTags',
-                'RemoveTags',
                 'LookupEvents',
             ]
             if operation in operations
@@ -3187,7 +3162,8 @@ def cloudtrail_inventory() -> dict[str, Any]:
         'notes': [
             'Floci 1.5.24 adds CloudTrail trail lifecycle support for local audit-log workflows.',
             'Floci 1.5.30 allows empty LookupEvents responses so observability pipelines can poll safely before events exist.',
-            'This inventory page surfaces trail configuration, logging status, event selectors, and tags when the local SDK endpoint exposes them.',
+            'Floci persists trail configuration and logging state but does not record live API activity into trails.',
+            'PutEventSelectors is accepted by Floci but selector payloads are not stored, so the dashboard does not expose that no-op control.',
         ],
     }
 

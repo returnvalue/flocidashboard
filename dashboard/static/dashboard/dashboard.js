@@ -7958,7 +7958,7 @@ const firstClassConsoleGlobals = {
   cloudformation: 'CloudFormationConsole', cloudfront: 'CloudFrontConsole', cloudmap: 'CloudMapConsole', cloudwatch: 'CloudWatchConsole',
   codebuild: 'CodeBuildConsole', codedeploy: 'CodeDeployConsole', cognito: 'CognitoConsole', config: 'ConfigConsole',
   dynamodb: 'DynamoDBConsole', ec2: 'EC2Console', ecr: 'ECRConsole', ecs: 'ECSConsole', eks: 'EKSConsole',
-  elasticache: 'ElastiCacheConsole', elasticloadbalancing: 'ElasticLoadBalancingConsole', eventbridge: 'EventBridgeConsole',
+  elasticache: 'ElastiCacheConsole', elasticbeanstalk: 'ElasticBeanstalkConsole', elasticloadbalancing: 'ElasticLoadBalancingConsole', eventbridge: 'EventBridgeConsole',
   firehose: 'FirehoseConsole', glue: 'GlueConsole', iam: 'IAMConsole', kafka: 'KafkaConsole', kinesis: 'KinesisConsole',
   kms: 'KMSConsole', lambda: 'LambdaConsole', neptune: 'NeptuneConsole', opensearch: 'OpenSearchConsole', pipes: 'PipesConsole',
   rds: 'RDSConsole', resourcegroupstagging: 'ResourceGroupsTaggingConsole', route53: 'Route53Console', s3: 'S3Console',

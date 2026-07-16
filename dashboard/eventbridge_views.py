@@ -6,7 +6,8 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 
 from .actions import handle_action_error, parse_json_body
-from .eventbridge_api import put_event
+from .eventbridge_api import (create_event_bus, delete_event_bus, delete_rule, put_event,
+                              put_rule, put_target, remove_target, set_rule_state)
 
 
 @require_http_methods(['POST'])
@@ -22,3 +23,45 @@ def eventbridge_events_put(request):
         ))
     except Exception as exc:
         return handle_action_error(exc, service='eventbridge', operation='put_event')
+
+
+def _action(request, operation, callback):
+    try:
+        return JsonResponse(callback(parse_json_body(request)))
+    except Exception as exc:
+        return handle_action_error(exc, service='eventbridge', operation=operation)
+
+
+@require_http_methods(['POST'])
+def eventbridge_buses_create(request):
+    return _action(request, 'create_event_bus', lambda b: create_event_bus(b.get('name', ''), description=b.get('description') or ''))
+
+
+@require_http_methods(['POST'])
+def eventbridge_buses_delete(request):
+    return _action(request, 'delete_event_bus', lambda b: delete_event_bus(b.get('name', '')))
+
+
+@require_http_methods(['POST'])
+def eventbridge_rules_put(request):
+    return _action(request, 'put_rule', lambda b: put_rule(b.get('name', ''), b.get('event_bus_name', ''), event_pattern=b.get('event_pattern'), schedule_expression=b.get('schedule_expression') or '', description=b.get('description') or '', state=b.get('state') or 'ENABLED'))
+
+
+@require_http_methods(['POST'])
+def eventbridge_rules_state(request):
+    return _action(request, 'set_rule_state', lambda b: set_rule_state(b.get('name', ''), b.get('event_bus_name', ''), enabled=bool(b.get('enabled'))))
+
+
+@require_http_methods(['POST'])
+def eventbridge_rules_delete(request):
+    return _action(request, 'delete_rule', lambda b: delete_rule(b.get('name', ''), b.get('event_bus_name', '')))
+
+
+@require_http_methods(['POST'])
+def eventbridge_targets_put(request):
+    return _action(request, 'put_target', lambda b: put_target(b.get('rule_name', ''), b.get('event_bus_name', ''), b.get('target_id', ''), b.get('arn', ''), role_arn=b.get('role_arn') or '', input_value=b.get('input')))
+
+
+@require_http_methods(['POST'])
+def eventbridge_targets_remove(request):
+    return _action(request, 'remove_target', lambda b: remove_target(b.get('rule_name', ''), b.get('event_bus_name', ''), b.get('target_id', '')))

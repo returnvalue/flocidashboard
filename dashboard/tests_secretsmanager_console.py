@@ -74,7 +74,7 @@ class SecretsManagerActionsApiTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['json'], {'ok': True})
-        get_mock.assert_called_once_with('/local/app/db')
+        get_mock.assert_called_once_with('/local/app/db', version_id='', version_stage='')
 
     @patch('dashboard.secretsmanager_views.put_secret_value')
     def test_put_secret_value_success(self, put_mock):
@@ -113,3 +113,49 @@ class SecretsManagerActionsApiTests(SimpleTestCase):
             recovery_window_days=7,
             force_delete_without_recovery=False,
         )
+
+    @patch('dashboard.secretsmanager_views.update_secret')
+    def test_update_secret_metadata_success(self, update_mock):
+        update_mock.return_value = {'name': '/local/app/db'}
+        response = self.client.patch(reverse('dashboard:secretsmanager-secret-metadata', kwargs={'secret_id': '/local/app/db'}), data=json.dumps({'description': 'database', 'kms_key_id': 'alias/local'}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        update_mock.assert_called_once_with('/local/app/db', description='database', kms_key_id='alias/local')
+
+    @patch('dashboard.secretsmanager_views.restore_secret')
+    def test_restore_secret_success(self, restore_mock):
+        restore_mock.return_value = {'name': '/local/app/db', 'restored': True}
+        response = self.client.post(reverse('dashboard:secretsmanager-secret-restore', kwargs={'secret_id': '/local/app/db'}))
+        self.assertEqual(response.status_code, 200)
+        restore_mock.assert_called_once_with('/local/app/db')
+
+    @patch('dashboard.secretsmanager_views.rotate_secret')
+    def test_rotate_secret_success(self, rotate_mock):
+        rotate_mock.return_value = {'name': '/local/app/db', 'version_id': 'version-2'}
+        rules = {'AutomaticallyAfterDays': 30}
+        response = self.client.post(reverse('dashboard:secretsmanager-secret-rotate', kwargs={'secret_id': '/local/app/db'}), data=json.dumps({'rotation_lambda_arn': 'arn:lambda:rotate', 'rotation_rules': rules, 'rotate_immediately': True}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        rotate_mock.assert_called_once_with('/local/app/db', rotation_lambda_arn='arn:lambda:rotate', rotation_rules=rules, rotate_immediately=True)
+
+    @patch('dashboard.secretsmanager_views.tag_secret')
+    def test_tag_secret_success(self, tag_mock):
+        tags = [{'Key': 'env', 'Value': 'local'}]; tag_mock.return_value = {'name': '/local/app/db', 'tags': tags}
+        response = self.client.post(reverse('dashboard:secretsmanager-secret-tags', kwargs={'secret_id': '/local/app/db'}), data=json.dumps({'tags': tags}), content_type='application/json')
+        self.assertEqual(response.status_code, 200); tag_mock.assert_called_once_with('/local/app/db', tags)
+
+    @patch('dashboard.secretsmanager_views.untag_secret')
+    def test_untag_secret_success(self, untag_mock):
+        untag_mock.return_value = {'name': '/local/app/db', 'tag_keys': ['env']}
+        response = self.client.delete(reverse('dashboard:secretsmanager-secret-tags', kwargs={'secret_id': '/local/app/db'}), data=json.dumps({'tag_keys': ['env']}), content_type='application/json')
+        self.assertEqual(response.status_code, 200); untag_mock.assert_called_once_with('/local/app/db', ['env'])
+
+    @patch('dashboard.secretsmanager_views.update_version_stage')
+    def test_update_version_stage_success(self, stage_mock):
+        stage_mock.return_value = {'name': '/local/app/db', 'version_stage': 'AWSCURRENT'}
+        response = self.client.post(reverse('dashboard:secretsmanager-secret-version-stage', kwargs={'secret_id': '/local/app/db'}), data=json.dumps({'version_stage': 'AWSCURRENT', 'move_to_version_id': 'v2', 'remove_from_version_id': 'v1'}), content_type='application/json')
+        self.assertEqual(response.status_code, 200); stage_mock.assert_called_once_with('/local/app/db', 'AWSCURRENT', 'v2', remove_from_version_id='v1')
+
+    @patch('dashboard.secretsmanager_views.get_random_password')
+    def test_get_random_password_success(self, password_mock):
+        password_mock.return_value = {'random_password': 'abc123'}
+        response = self.client.post(reverse('dashboard:secretsmanager-random-password'), data=json.dumps({'PasswordLength': 6}), content_type='application/json')
+        self.assertEqual(response.status_code, 200); password_mock.assert_called_once_with({'PasswordLength': 6})

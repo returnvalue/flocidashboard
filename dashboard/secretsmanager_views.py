@@ -6,7 +6,10 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 
 from .actions import handle_action_error, parse_json_body
-from .secretsmanager_api import create_secret, delete_secret, get_secret_value, put_secret_value
+from .secretsmanager_api import (
+    create_secret, delete_secret, get_random_password, get_secret_value, put_secret_value,
+    restore_secret, rotate_secret, tag_secret, untag_secret, update_secret, update_version_stage,
+)
 
 
 @require_http_methods(['POST'])
@@ -27,7 +30,11 @@ def secretsmanager_secrets_create(request):
 def secretsmanager_secret_value(request, secret_id: str):
     try:
         if request.method == 'GET':
-            return JsonResponse(get_secret_value(secret_id))
+            return JsonResponse(get_secret_value(
+                secret_id,
+                version_id=request.GET.get('version_id') or '',
+                version_stage=request.GET.get('version_stage') or '',
+            ))
         body = parse_json_body(request) if request.body else {}
         if request.method == 'PUT':
             return JsonResponse(put_secret_value(secret_id, body.get('value')))
@@ -43,3 +50,58 @@ def secretsmanager_secret_value(request, secret_id: str):
             'DELETE': 'delete_secret',
         }.get(request.method, 'secret_value')
         return handle_action_error(exc, service='secretsmanager', operation=operation)
+
+
+@require_http_methods(['PATCH'])
+def secretsmanager_secret_metadata(request, secret_id: str):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(update_secret(secret_id, description=body.get('description') or '', kms_key_id=body.get('kms_key_id') or ''))
+    except Exception as exc:
+        return handle_action_error(exc, service='secretsmanager', operation='update_secret')
+
+
+@require_http_methods(['POST'])
+def secretsmanager_secret_restore(request, secret_id: str):
+    try:
+        return JsonResponse(restore_secret(secret_id))
+    except Exception as exc:
+        return handle_action_error(exc, service='secretsmanager', operation='restore_secret')
+
+
+@require_http_methods(['POST'])
+def secretsmanager_secret_rotate(request, secret_id: str):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(rotate_secret(secret_id, rotation_lambda_arn=body.get('rotation_lambda_arn') or '', rotation_rules=body.get('rotation_rules') or {}, rotate_immediately=body.get('rotate_immediately', True)))
+    except Exception as exc:
+        return handle_action_error(exc, service='secretsmanager', operation='rotate_secret')
+
+
+@require_http_methods(['POST', 'DELETE'])
+def secretsmanager_secret_tags(request, secret_id: str):
+    try:
+        body = parse_json_body(request)
+        if request.method == 'DELETE':
+            return JsonResponse(untag_secret(secret_id, body.get('tag_keys') or []))
+        return JsonResponse(tag_secret(secret_id, body.get('tags') or []))
+    except Exception as exc:
+        operation = 'untag_resource' if request.method == 'DELETE' else 'tag_resource'
+        return handle_action_error(exc, service='secretsmanager', operation=operation)
+
+
+@require_http_methods(['POST'])
+def secretsmanager_secret_version_stage(request, secret_id: str):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(update_version_stage(secret_id, body.get('version_stage') or '', body.get('move_to_version_id') or '', remove_from_version_id=body.get('remove_from_version_id') or ''))
+    except Exception as exc:
+        return handle_action_error(exc, service='secretsmanager', operation='update_secret_version_stage')
+
+
+@require_http_methods(['POST'])
+def secretsmanager_random_password(request):
+    try:
+        return JsonResponse(get_random_password(parse_json_body(request)))
+    except Exception as exc:
+        return handle_action_error(exc, service='secretsmanager', operation='get_random_password')
