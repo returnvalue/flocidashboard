@@ -13,6 +13,8 @@
 
 ### Console polish
 
+- Promoted EventBridge to a first-class resource console with searchable Event buses, Rules, and Targets views; URL-addressable resource selection; destination deep links; a dedicated event sender; and direct access to the application-spine lab.
+- Promoted EventBridge Scheduler to a first-class resource console with searchable schedule-group and schedule views, URL-addressable detail selection, complete timing fields, target workbench links, group tag management, and direct access to the SQS delivery lab.
 - Simplified S3 and IAM workbenches by removing duplicated read-only detail panels and making summary cards navigate into the interactive inventory.
 - Removed the redundant upper-left service filter, renamed command search to Search, and removed duplicated supported-operation/read-only panels from first-class workbenches.
 - Expanded Lambda into a first-class function console with lifecycle, configuration, code, versions, aliases, triggers, URLs, concurrency, permissions, tags, and relationship views.

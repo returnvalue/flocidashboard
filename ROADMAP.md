@@ -52,6 +52,8 @@ Core architecture files:
 
 ## Completed Recently
 
+- Promoted EventBridge to a first-class resource console with searchable bus, rule, and target inventories, URL-addressable detail selection, scoped lifecycle actions, destination workbench links, event replay, and a direct application-spine lab entry point.
+- Promoted EventBridge Scheduler to a first-class resource console with searchable group and schedule inventories, URL-addressable details, full timing-window configuration, target deep links, scoped lifecycle and tag actions, and a direct SQS delivery lab entry point.
 - Added an EventBridge application-spine capstone that builds API Gateway to Lambda to a custom event bus, fans out through transformed processing and full-envelope audit queues plus a notification Lambda, correlates CloudWatch logs, exercises malformed input, missing permissions, and disabled rules, and resets every owned dependency safely.
 - Added the first shared resource-relationship graph as a live EventBridge capstone visualization, using accessible dependency-free SVG, deterministic serverless columns, evidence-backed edges, workbench deep links, and explicit healthy, disabled, broken, unverified, and unsupported states.
 

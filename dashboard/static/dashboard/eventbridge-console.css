@@ -29,6 +29,115 @@
   margin-top: 16px;
 }
 
+.eventbridge-resource-tabs,
+.eventbridge-action-row,
+.eventbridge-send-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.eventbridge-resource-tabs {
+  padding: 2px;
+}
+
+.eventbridge-tab-active {
+  background: #0972d3;
+  color: #fff;
+}
+
+.eventbridge-lab-link,
+.eventbridge-resource-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 6px 12px;
+  border: 1px solid #0972d3;
+  border-radius: 6px;
+  color: #0972d3;
+  font-size: 0.84rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.eventbridge-lab-link:hover,
+.eventbridge-resource-link:hover {
+  background: #f0f7ff;
+}
+
+.eventbridge-resource-page {
+  display: grid;
+  gap: 14px;
+}
+
+.eventbridge-detail-panel {
+  overflow: hidden;
+  padding: 16px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.eventbridge-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e8ebf1;
+}
+
+.eventbridge-detail-header h3,
+.eventbridge-detail-header p {
+  margin: 0;
+}
+
+.eventbridge-action-row {
+  margin-bottom: 16px;
+}
+
+.eventbridge-facts {
+  display: grid;
+  grid-template-columns: minmax(145px, max-content) minmax(0, 1fr);
+  gap: 8px 16px;
+  margin: 0;
+  font-size: 0.84rem;
+}
+
+.eventbridge-facts dt {
+  color: var(--muted);
+  font-weight: 720;
+}
+
+.eventbridge-facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.eventbridge-send-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.eventbridge-send-controls label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 780;
+  text-transform: uppercase;
+}
+
+.eventbridge-send-controls select {
+  min-width: 240px;
+  padding: 8px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: #fff;
+}
+
 .eventbridge-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -303,7 +412,8 @@
 }
 
 .eventbridge-modal input,
-.eventbridge-modal textarea {
+.eventbridge-modal textarea,
+.eventbridge-modal select {
   width: 100%;
   margin-bottom: 12px;
   padding: 8px 10px;
@@ -370,5 +480,13 @@
   .eventbridge-toolbar-right {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .eventbridge-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .eventbridge-facts dd {
+    margin-bottom: 8px;
   }
 }

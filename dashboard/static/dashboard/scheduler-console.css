@@ -31,6 +31,105 @@
   margin-top: 16px;
 }
 
+.scheduler-resource-tabs,
+.scheduler-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.scheduler-tab-active {
+  background: #0972d3;
+  color: #fff;
+}
+
+.scheduler-lab-link,
+.scheduler-resource-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 6px 12px;
+  border: 1px solid #0972d3;
+  border-radius: 6px;
+  color: #0972d3;
+  font-size: 0.84rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.scheduler-lab-link:hover,
+.scheduler-resource-link:hover {
+  background: #f0f7ff;
+}
+
+.scheduler-resource-page {
+  display: grid;
+  gap: 14px;
+}
+
+.scheduler-detail-panel {
+  overflow: hidden;
+  padding: 16px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.scheduler-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e8ebf1;
+}
+
+.scheduler-detail-header h3,
+.scheduler-detail-header p {
+  margin: 0;
+}
+
+.scheduler-detail-panel .scheduler-action-row {
+  margin-bottom: 16px;
+}
+
+.scheduler-state {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #f2f4f8;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 760;
+}
+
+.scheduler-state-enabled,
+.scheduler-state-active {
+  background: #eef7f2;
+  color: #276642;
+}
+
+.scheduler-state-disabled {
+  background: #fff4e5;
+  color: #8a5300;
+}
+
+.scheduler-boundary-note {
+  margin: 16px 0 0;
+  padding: 12px;
+  border-left: 3px solid #879596;
+  background: #f7f8f9;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.scheduler-schedule-requested {
+  border-color: #0972d3;
+  box-shadow: 0 0 0 2px rgba(9, 114, 211, 0.16);
+}
+
 .scheduler-toolbar,
 .scheduler-panel {
   border: 1px solid var(--panel-border);
@@ -301,5 +400,9 @@
   .scheduler-modal-form-wide,
   .scheduler-facts div {
     grid-template-columns: 1fr;
+  }
+
+  .scheduler-detail-header {
+    align-items: flex-start;
   }
 }
