@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 from botocore.exceptions import ClientError, NoCredentialsError, ProfileNotFound
 from botocore.parsers import ResponseParserError
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import Resolver404, resolve, reverse
 
 from .actions import error_payload, error_status, handle_action_error, json_error
@@ -708,11 +708,16 @@ class DashboardSettingsApiTests(TestCase):
         factory.local_identity_hint.return_value = None
         return factory
 
+    @override_settings(FLOCI_AWS_ENDPOINT_URL='http://localhost:4566')
     @patch('dashboard.settings_views.FlociClientFactory')
     def test_settings_detail_returns_effective_configuration(self, factory_mock):
         factory_mock.return_value = self.factory()
 
-        response = self.client.get(reverse('dashboard:settings-detail'))
+        with patch.dict(os.environ, {
+            'FLOCI_AWS_ENDPOINT_URL': 'http://localhost:4566',
+            'AWS_ENDPOINT_URL': 'http://localhost:4566',
+        }):
+            response = self.client.get(reverse('dashboard:settings-detail'))
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
@@ -1477,6 +1482,7 @@ class FlociClientFactoryTests(SimpleTestCase):
             self.assertEqual(factory.credential_context()['credential_source'], 'local_default')
             self.assertEqual(factory.local_identity_hint()['user_id'], 'test')
 
+    @override_settings(FLOCI_AWS_PROFILE='floci-admin')
     def test_settings_profile_is_used_when_available(self):
         with patch.dict(os.environ, {}, clear=True):
             with patch('dashboard.aws.boto3.Session') as session:

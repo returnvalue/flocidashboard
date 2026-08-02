@@ -1,4 +1,5 @@
 import json
+import os
 import zipfile
 import base64
 import importlib
@@ -11,7 +12,7 @@ from unittest.mock import MagicMock, patch
 
 from botocore.exceptions import ClientError
 from django.core.cache import cache
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, override_settings
 from django.urls import reverse
 
 from .labs import labs_for_service, reset_lab, run_lab_step
@@ -6843,6 +6844,7 @@ class LabsRunnerTests(SimpleTestCase):
         self.assertEqual(cache.get('floci-lab:apigateway:lambda-request:integration-id'), 'int123')
         cache.clear()
 
+    @override_settings(FLOCI_AWS_ENDPOINT_URL='http://localhost:4566')
     @patch('dashboard.labs.urlopen')
     @patch('dashboard.labs._find_apigw_lambda_api')
     def test_apigateway_lab_send_request_records_lambda_echo(
@@ -6859,7 +6861,11 @@ class LabsRunnerTests(SimpleTestCase):
         response_mock.headers.items.return_value = [('Content-Type', 'application/json')]
         urlopen_mock.return_value = response_mock
 
-        result = run_lab_step('apigateway', 'lambda-request', 'send-request')
+        with patch.dict(os.environ, {
+            'FLOCI_AWS_ENDPOINT_URL': 'http://localhost:4566',
+            'AWS_ENDPOINT_URL': 'http://localhost:4566',
+        }):
+            result = run_lab_step('apigateway', 'lambda-request', 'send-request')
 
         request = urlopen_mock.call_args.args[0]
         self.assertEqual(request.get_method(), 'POST')

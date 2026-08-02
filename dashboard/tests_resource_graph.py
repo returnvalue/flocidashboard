@@ -42,7 +42,9 @@ class EventBridgeApplicationGraphTests(SimpleTestCase):
         }
         events.list_targets_by_rule.side_effect = lambda Rule, EventBusName: {'Targets': target_by_rule[Rule]}
         sqs.get_queue_url.side_effect = lambda QueueName: {'QueueUrl': f'http://localhost/{QueueName}'}
-        logs.describe_log_groups.return_value = {'logGroups': [{'logGroupName': 'group'}]}
+        logs.describe_log_groups.side_effect = lambda logGroupNamePrefix, limit: {
+            'logGroups': [{'logGroupName': logGroupNamePrefix}],
+        }
 
         graph = eventbridge_application_graph()
 
@@ -56,6 +58,22 @@ class EventBridgeApplicationGraphTests(SimpleTestCase):
         self.assertIn('does not persist or enforce', dlq_edge['detail'])
         producer = next(node for node in graph['nodes'] if node['id'] == 'producer')
         self.assertEqual(producer['href'], f'/service/lambda/?function={app.PRODUCER_FUNCTION}')
+
+        target_by_rule[app.AUDIT_RULE][0]['Arn'] = app.QUEUE_ARNS[app.PROCESSING_QUEUE]
+        lam.get_function.side_effect = lambda FunctionName: {
+            'Configuration': {'FunctionName': FunctionName, 'Role': 'arn:aws:iam::000000000000:role/wrong-role'},
+        }
+        logs.describe_log_groups.side_effect = lambda logGroupNamePrefix, limit: {
+            'logGroups': [{'logGroupName': f'{logGroupNamePrefix}-old'}],
+        }
+
+        miswired_graph = eventbridge_application_graph()
+
+        miswired_edges = {edge['id']: edge for edge in miswired_graph['edges']}
+        self.assertEqual(miswired_edges['audit-target']['status'], 'broken')
+        self.assertEqual(miswired_edges['producer-role-edge']['status'], 'broken')
+        self.assertEqual(miswired_edges['notifier-role-edge']['status'], 'broken')
+        self.assertEqual(next(node for node in miswired_graph['nodes'] if node['id'] == 'producer-logs')['status'], 'broken')
 
     @patch('dashboard.resource_graph._client')
     def test_absent_resources_are_broken_instead_of_crashing(self, client):

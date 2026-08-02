@@ -56,8 +56,12 @@ def eventbridge_application_graph() -> dict[str, Any]:
     queue_exists = {name: _safe(lambda name=name: sqs.get_queue_url(QueueName=name))[0] for name in (app.PROCESSING_QUEUE, app.AUDIT_QUEUE, app.DLQ)}
     log_exists = {}
     for function in (app.PRODUCER_FUNCTION, app.NOTIFIER_FUNCTION):
+        expected_group = f'/aws/lambda/{function}'
         _, page = _safe(lambda function=function: logs.describe_log_groups(logGroupNamePrefix=f'/aws/lambda/{function}', limit=10))
-        log_exists[function] = bool((page or {}).get('logGroups'))
+        log_exists[function] = any(
+            group.get('logGroupName') == expected_group
+            for group in (page or {}).get('logGroups', [])
+        )
 
     nodes = [
         _node('api', app.API_NAME, 'apigateway', 'HTTP API', 'entrypoint', bool(api_resource), f'/service/apigateway/?api=http:{api_id or ""}'),
@@ -81,17 +85,25 @@ def eventbridge_application_graph() -> dict[str, Any]:
     processing = next((item for item in targets[app.PROCESSING_RULE] if item.get('Id') == 'processing'), {})
     audit = next((item for item in targets[app.AUDIT_RULE] if item.get('Id') == 'audit'), {})
     notification = next((item for item in targets[app.NOTIFICATION_RULE] if item.get('Id') == 'notification'), {})
+    producer_role_matches = ((producer or {}).get('Configuration') or {}).get('Role') == app.PRODUCER_ROLE_ARN
+    notifier_role_matches = ((notifier or {}).get('Configuration') or {}).get('Role') == app.NOTIFIER_ROLE_ARN
+    processing_target_matches = (
+        processing.get('Arn') == app.QUEUE_ARNS[app.PROCESSING_QUEUE]
+        and processing.get('InputTransformer') == app.PROCESSING_TRANSFORMER
+    )
+    audit_target_matches = audit.get('Arn') == app.QUEUE_ARNS[app.AUDIT_QUEUE]
+    notification_target_matches = notification.get('Arn') == app.NOTIFIER_FUNCTION_ARN
     edges = [
         _edge('api-producer', 'api', 'producer', 'invokes', 'IntegrationUri', (integration or {}).get('IntegrationUri'), health('api', 'producer') if integration else 'broken'),
-        _edge('producer-role-edge', 'producer-role', 'producer', 'assumed by', 'Function.Role', ((producer or {}).get('Configuration') or {}).get('Role'), health('producer-role', 'producer')),
+        _edge('producer-role-edge', 'producer-role', 'producer', 'assumed by', 'Function.Role', ((producer or {}).get('Configuration') or {}).get('Role'), health('producer-role', 'producer') if producer_role_matches else 'broken'),
         _edge('producer-bus', 'producer', 'bus', 'PutEvents', 'EVENT_BUS_NAME', app.BUS, health('producer', 'bus')),
     ]
     edges.extend(_edge(f'bus-rule:{name}', 'bus', f'rule:{name}', 'matches through', 'EventPattern', (rules[name] or {}).get('EventPattern'), 'disabled' if (rules[name] or {}).get('State') == 'DISABLED' else health('bus', f'rule:{name}')) for name in (app.PROCESSING_RULE, app.AUDIT_RULE, app.NOTIFICATION_RULE))
     edges.extend([
-        _edge('processing-target', f'rule:{app.PROCESSING_RULE}', 'processing-queue', 'delivers transformed event', 'InputTransformer', processing.get('InputTransformer'), health(f'rule:{app.PROCESSING_RULE}', 'processing-queue') if processing else 'broken'),
-        _edge('audit-target', f'rule:{app.AUDIT_RULE}', 'audit-queue', 'delivers full envelope', 'Target.Arn', audit.get('Arn'), health(f'rule:{app.AUDIT_RULE}', 'audit-queue') if audit else 'broken'),
-        _edge('notification-target', f'rule:{app.NOTIFICATION_RULE}', 'notifier', 'invokes', 'Target.Arn', notification.get('Arn'), health(f'rule:{app.NOTIFICATION_RULE}', 'notifier') if notification else 'broken'),
-        _edge('notifier-role-edge', 'notifier-role', 'notifier', 'assumed by', 'Function.Role', ((notifier or {}).get('Configuration') or {}).get('Role'), health('notifier-role', 'notifier')),
+        _edge('processing-target', f'rule:{app.PROCESSING_RULE}', 'processing-queue', 'delivers transformed event', 'InputTransformer', processing.get('InputTransformer'), health(f'rule:{app.PROCESSING_RULE}', 'processing-queue') if processing_target_matches else 'broken'),
+        _edge('audit-target', f'rule:{app.AUDIT_RULE}', 'audit-queue', 'delivers full envelope', 'Target.Arn', audit.get('Arn'), health(f'rule:{app.AUDIT_RULE}', 'audit-queue') if audit_target_matches else 'broken'),
+        _edge('notification-target', f'rule:{app.NOTIFICATION_RULE}', 'notifier', 'invokes', 'Target.Arn', notification.get('Arn'), health(f'rule:{app.NOTIFICATION_RULE}', 'notifier') if notification_target_matches else 'broken'),
+        _edge('notifier-role-edge', 'notifier-role', 'notifier', 'assumed by', 'Function.Role', ((notifier or {}).get('Configuration') or {}).get('Role'), health('notifier-role', 'notifier') if notifier_role_matches else 'broken'),
         _edge('producer-log-edge', 'producer', 'producer-logs', 'writes logs to', 'Convention', f'/aws/lambda/{app.PRODUCER_FUNCTION}', health('producer', 'producer-logs')),
         _edge('notifier-log-edge', 'notifier', 'notifier-logs', 'writes logs to', 'Convention', f'/aws/lambda/{app.NOTIFIER_FUNCTION}', health('notifier', 'notifier-logs')),
         _edge('processing-dlq', f'rule:{app.PROCESSING_RULE}', 'dlq', 'dead-letters to', 'DeadLetterConfig.Arn', app.DEAD_LETTER_CONFIG['Arn'], 'unsupported', 'This Floci version does not persist or enforce target RetryPolicy and DeadLetterConfig.'),
