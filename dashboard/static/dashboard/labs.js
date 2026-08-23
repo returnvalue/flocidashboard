@@ -22,7 +22,8 @@
 
   function smoothScrollToStep(step) {
     const rect = step.getBoundingClientRect();
-    const targetY = window.pageYOffset + rect.top - (window.innerHeight / 2) + (rect.height / 2);
+    // Position step container 10px below the top of the browser viewport
+    const targetY = window.pageYOffset + rect.top - 10;
     window.scrollTo({
       top: Math.max(0, targetY),
       behavior: 'smooth',
