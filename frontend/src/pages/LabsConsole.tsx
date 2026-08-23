@@ -176,7 +176,7 @@ export const LabsConsole: React.FC = () => {
     const el = stepRefs.current[stepKey];
     if (el) {
       const rect = el.getBoundingClientRect();
-      const offsetTop = window.pageYOffset + rect.top - 10;
+      const offsetTop = window.pageYOffset + rect.top - 14;
       window.scrollTo({ top: Math.max(0, offsetTop), behavior: 'smooth' });
     }
   };
@@ -184,7 +184,6 @@ export const LabsConsole: React.FC = () => {
   const handleRunStep = async (step: LabStep): Promise<boolean> => {
     if (!activeLab) return false;
     setRunningStepKey(step.key);
-    scrollToStep(step.key);
 
     try {
       const data = await runLabStep(activeLab.service, activeLab.key, step.key);
@@ -232,9 +231,16 @@ export const LabsConsole: React.FC = () => {
       const step = steps[i];
       if (stepCompleted[step.key]) continue; // Skip already verified steps
 
+      // 1. Smoothly scroll to the target step and let the camera settle
+      scrollToStep(step.key);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      if (cancelRunAllRef.current) break;
+
+      // 2. Execute step
       await handleRunStep(step);
-      // Short delay for visual clarity before next step
-      await new Promise((resolve) => setTimeout(resolve, 600));
+
+      // 3. Keep step visible and readable before moving to the next step
+      await new Promise((resolve) => setTimeout(resolve, 1400));
     }
 
     setIsRunningAll(false);
