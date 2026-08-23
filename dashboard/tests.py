@@ -94,6 +94,19 @@ class StaticJavaScriptTests(SimpleTestCase):
         self.assertIn("'summary-grid-dense'", shared_source)
         self.assertIn("entries.forEach((entry) => container.append(renderCard(entry)))", shared_source)
 
+    def test_service_console_syntax_highlighting_utilities(self):
+        shared_script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'service-console.js'
+        shared_source = shared_script.read_text()
+
+        self.assertIn('function highlightPython(code)', shared_source)
+        self.assertIn('function highlightHCL(code)', shared_source)
+        self.assertIn('function highlightCLI(code)', shared_source)
+        self.assertIn('function highlightJSON(code)', shared_source)
+        self.assertIn('function highlightAll(root = document)', shared_source)
+        self.assertIn('syntax-keyword', shared_source)
+        self.assertIn('syntax-string', shared_source)
+        self.assertIn('syntax-property', shared_source)
+
     def test_aws_cli_console_exposes_draggable_command_palette(self):
         script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'console.js'
         source = script.read_text()

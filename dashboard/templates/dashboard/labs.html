@@ -120,7 +120,7 @@
           </div>
           <div class="lab-code-panels">
             <div class="lab-code-panel lab-code-panel-active" data-sdk="cli" role="tabpanel">
-              <pre class="lab-command"><code>{{ step.command }}</code></pre>
+              <pre class="lab-command"><code class="language-cli">{{ step.command }}</code></pre>
             </div>
             <div class="lab-code-panel" data-sdk="boto3" role="tabpanel" hidden>
               <pre class="lab-command"><code class="language-python">{{ step.snippets.boto3|default:step.command }}</code></pre>
@@ -136,13 +136,13 @@
           {% if step.artifact %}
             <details class="lab-artifact">
               <summary>{{ step.artifact_label }}</summary>
-              <pre><code>{{ step.artifact }}</code></pre>
+              <pre><code class="language-json">{{ step.artifact }}</code></pre>
             </details>
           {% endif %}
           {% if step.secondary_artifact %}
             <details class="lab-artifact">
               <summary>{{ step.secondary_artifact_label }}</summary>
-              <pre><code>{{ step.secondary_artifact }}</code></pre>
+              <pre><code class="language-json">{{ step.secondary_artifact }}</code></pre>
             </details>
           {% endif %}
           {% if step.status.verified and step.status.verification.message %}

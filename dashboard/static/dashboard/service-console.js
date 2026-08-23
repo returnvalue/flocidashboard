@@ -814,6 +814,189 @@ const ServiceConsole = (() => {
     document.body.append(overlay);
   }
 
+  function escapeHtml(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function highlightPython(code) {
+    const raw = String(code || '');
+    const regex = /(#.*?$)|("""[\s\S]*?"""|'''[\s\S]*?''')|("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')|(\b\d+(?:\.\d+)?\b)|(\b(?:import|from|as|def|class|return|if|else|elif|for|in|while|try|except|with|and|or|not|is|raise|pass|break|continue|lambda|yield|async|await)\b)|(\b(?:True|False|None)\b)|(\b(?:boto3|print|dict|list|set|str|int|float|bool|len|range|enumerate|zip|open|type)\b)|(\b[a-zA-Z_][a-zA-Z0-9_]*(?=\s*\())|(\b[a-zA-Z_][a-zA-Z0-9_]*(?=\s*=))/gm;
+
+    let lastIndex = 0;
+    let match;
+    let html = '';
+
+    while ((match = regex.exec(raw)) !== null) {
+      html += escapeHtml(raw.slice(lastIndex, match.index));
+      const [full, comment, multiStr, str, num, kw, boolVal, builtin, func, param] = match;
+      if (comment) {
+        html += `<span class="syntax-comment">${escapeHtml(comment)}</span>`;
+      } else if (multiStr || str) {
+        html += `<span class="syntax-string">${escapeHtml(multiStr || str)}</span>`;
+      } else if (num) {
+        html += `<span class="syntax-number">${escapeHtml(num)}</span>`;
+      } else if (kw) {
+        html += `<span class="syntax-keyword">${escapeHtml(kw)}</span>`;
+      } else if (boolVal) {
+        html += `<span class="syntax-boolean">${escapeHtml(boolVal)}</span>`;
+      } else if (builtin) {
+        html += `<span class="syntax-type">${escapeHtml(builtin)}</span>`;
+      } else if (func) {
+        html += `<span class="syntax-function">${escapeHtml(func)}</span>`;
+      } else if (param) {
+        html += `<span class="syntax-property">${escapeHtml(param)}</span>`;
+      } else {
+        html += escapeHtml(full);
+      }
+      lastIndex = regex.lastIndex;
+    }
+
+    html += escapeHtml(raw.slice(lastIndex));
+    return html;
+  }
+
+  function highlightHCL(code) {
+    const raw = String(code || '');
+    const regex = /(#.*?$|\/\/.*?$|\/\*[\s\S]*?\*\/)|("(?:\\.|[^"\\])*")|(\b\d+(?:\.\d+)?\b)|(\b(?:resource|data|variable|output|provider|terraform|locals|module|dynamic|content)\b)|(\b(?:string|number|bool|list|map|set|object|any)\b)|(\b(?:true|false|null)\b)|(\b[a-zA-Z0-9_-]+(?=\s*=))|(\b(?:aws_[a-zA-Z0-9_]+)\b)/gm;
+
+    let lastIndex = 0;
+    let match;
+    let html = '';
+
+    while ((match = regex.exec(raw)) !== null) {
+      html += escapeHtml(raw.slice(lastIndex, match.index));
+      const [full, comment, str, num, blockKw, typeKw, boolVal, prop, resourceType] = match;
+      if (comment) {
+        html += `<span class="syntax-comment">${escapeHtml(comment)}</span>`;
+      } else if (str) {
+        html += `<span class="syntax-string">${escapeHtml(str)}</span>`;
+      } else if (num) {
+        html += `<span class="syntax-number">${escapeHtml(num)}</span>`;
+      } else if (blockKw) {
+        html += `<span class="syntax-keyword">${escapeHtml(blockKw)}</span>`;
+      } else if (typeKw) {
+        html += `<span class="syntax-type">${escapeHtml(typeKw)}</span>`;
+      } else if (boolVal) {
+        html += `<span class="syntax-boolean">${escapeHtml(boolVal)}</span>`;
+      } else if (prop) {
+        html += `<span class="syntax-property">${escapeHtml(prop)}</span>`;
+      } else if (resourceType) {
+        html += `<span class="syntax-type">${escapeHtml(resourceType)}</span>`;
+      } else {
+        html += escapeHtml(full);
+      }
+      lastIndex = regex.lastIndex;
+    }
+
+    html += escapeHtml(raw.slice(lastIndex));
+    return html;
+  }
+
+  function highlightCLI(code) {
+    const raw = String(code || '');
+    const regex = /(#.*?$)|("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')|(\baws\b)|(--[a-zA-Z0-9_-]+)|(\b\d+(?:\.\d+)?\b)/gm;
+
+    let lastIndex = 0;
+    let match;
+    let html = '';
+
+    while ((match = regex.exec(raw)) !== null) {
+      html += escapeHtml(raw.slice(lastIndex, match.index));
+      const [full, comment, str, awsCmd, flag, num] = match;
+      if (comment) {
+        html += `<span class="syntax-comment">${escapeHtml(comment)}</span>`;
+      } else if (str) {
+        html += `<span class="syntax-string">${escapeHtml(str)}</span>`;
+      } else if (awsCmd) {
+        html += `<span class="syntax-keyword">${escapeHtml(awsCmd)}</span>`;
+      } else if (flag) {
+        html += `<span class="syntax-property">${escapeHtml(flag)}</span>`;
+      } else if (num) {
+        html += `<span class="syntax-number">${escapeHtml(num)}</span>`;
+      } else {
+        html += escapeHtml(full);
+      }
+      lastIndex = regex.lastIndex;
+    }
+
+    html += escapeHtml(raw.slice(lastIndex));
+    return html;
+  }
+
+  function highlightJSON(code) {
+    const raw = String(code || '');
+    const regex = /("(?:\\.|[^"\\])*")(\s*:)?|(\b\d+(?:\.\d+)?\b)|(\b(?:true|false|null)\b)/gm;
+
+    let lastIndex = 0;
+    let match;
+    let html = '';
+
+    while ((match = regex.exec(raw)) !== null) {
+      html += escapeHtml(raw.slice(lastIndex, match.index));
+      const [full, str, isKey, num, boolVal] = match;
+      if (str && isKey) {
+        html += `<span class="syntax-property">${escapeHtml(str)}</span>:`;
+      } else if (str) {
+        html += `<span class="syntax-string">${escapeHtml(str)}</span>`;
+      } else if (num) {
+        html += `<span class="syntax-number">${escapeHtml(num)}</span>`;
+      } else if (boolVal) {
+        html += `<span class="syntax-boolean">${escapeHtml(boolVal)}</span>`;
+      } else {
+        html += escapeHtml(full);
+      }
+      lastIndex = regex.lastIndex;
+    }
+
+    html += escapeHtml(raw.slice(lastIndex));
+    return html;
+  }
+
+  function highlightCode(code, lang) {
+    const l = (lang || '').toLowerCase();
+    if (l === 'python' || l === 'py' || l === 'boto3') {
+      return highlightPython(code);
+    }
+    if (l === 'hcl' || l === 'terraform' || l === 'tf') {
+      return highlightHCL(code);
+    }
+    if (l === 'cli' || l === 'bash' || l === 'sh' || l === 'aws') {
+      return highlightCLI(code);
+    }
+    if (l === 'json') {
+      return highlightJSON(code);
+    }
+    return escapeHtml(code);
+  }
+
+  function highlightElement(el) {
+    if (!el || el.dataset.highlighted === 'true') return;
+    const raw = el.textContent || '';
+    let lang = el.dataset.lang || '';
+    if (!lang) {
+      const cls = Array.from(el.classList).find((c) => c.startsWith('language-'));
+      if (cls) lang = cls.replace('language-', '');
+    }
+    if (!lang) {
+      if (raw.includes('import boto3') || raw.includes('def ') || raw.includes('client(')) lang = 'python';
+      else if (raw.includes('resource "') || raw.includes('provider "') || raw.includes('variable "')) lang = 'hcl';
+      else if (raw.trim().startsWith('{') || raw.trim().startsWith('[')) lang = 'json';
+      else if (raw.trim().startsWith('aws ')) lang = 'cli';
+    }
+    if (lang) {
+      el.innerHTML = highlightCode(raw, lang);
+      el.dataset.highlighted = 'true';
+    }
+  }
+
+  function highlightAll(root = document) {
+    const targets = root.querySelectorAll('code.language-python, code.language-hcl, code.language-cli, code.language-json, pre.lab-command code, .lab-artifact code');
+    targets.forEach(highlightElement);
+  }
+
   return {
     addField,
     apiJson,
@@ -825,6 +1008,13 @@ const ServiceConsole = (() => {
     formatDate,
     getCsrfToken,
     displayValue,
+    highlightAll,
+    highlightCLI,
+    highlightCode,
+    highlightElement,
+    highlightHCL,
+    highlightJSON,
+    highlightPython,
     kvGrid,
     loadServiceActions,
     loadActivity,

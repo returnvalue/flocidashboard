@@ -188,7 +188,12 @@
       }
 
       responseStatus.textContent = data.verified ? 'Verified' : 'Succeeded';
-      responseBody.textContent = data.stdout || JSON.stringify(data.json || data, null, 2);
+      const outputText = data.stdout || JSON.stringify(data.json || data, null, 2);
+      if (outputText.trim().startsWith('{') || outputText.trim().startsWith('[')) {
+        responseBody.innerHTML = window.ServiceConsole?.highlightJSON(outputText) || outputText;
+      } else {
+        responseBody.textContent = outputText;
+      }
       verification.textContent = data.status_warning || data.verification?.message || '';
       step.classList.toggle('lab-step-complete', Boolean(data.verified));
       button.disabled = Boolean(data.verified);
@@ -397,6 +402,7 @@
     document.querySelectorAll('.lab-step').forEach((step) => {
       setStepSdk(step, sdk);
     });
+    window.ServiceConsole?.highlightAll(shell);
     try {
       window.localStorage.setItem(preferredSdkStorageKey, sdk);
     } catch (e) {}
@@ -412,8 +418,9 @@
     });
   });
 
-  // Apply initial preferred SDK
+  // Apply initial preferred SDK and run syntax highlighting
   applySdkPreference(getPreferredSdk());
+  window.ServiceConsole?.highlightAll(shell);
 
   // Initial progress bar calculation
   updateProgress();

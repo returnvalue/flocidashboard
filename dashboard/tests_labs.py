@@ -8307,8 +8307,10 @@ class MultiSdkSnippetsTests(SimpleTestCase):
         self.assertContains(response, 'class="lab-sdk-tabs"')
         self.assertContains(response, 'data-sdk="cli"')
         self.assertContains(response, 'data-sdk="boto3"')
-        self.assertContains(response, 'data-sdk="terraform"')
         self.assertContains(response, 'class="lab-code-panels"')
         self.assertContains(response, 'Python (boto3)')
         self.assertContains(response, 'Terraform')
+        self.assertContains(response, 'class="language-python"')
+        self.assertContains(response, 'class="language-hcl"')
+        self.assertContains(response, 'class="language-cli"')
 

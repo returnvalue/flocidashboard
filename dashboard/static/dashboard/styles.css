@@ -1596,6 +1596,44 @@ select:focus-visible {
   line-height: 1.5;
 }
 
+/* Cloudscape Code Syntax Highlighting */
+.syntax-keyword {
+  color: #0972d3;
+  font-weight: 700;
+}
+
+.syntax-string {
+  color: #037f0c;
+}
+
+.syntax-comment {
+  color: #687078;
+  font-style: italic;
+}
+
+.syntax-function {
+  color: #7d3ac1;
+  font-weight: 600;
+}
+
+.syntax-property {
+  color: #8c5b00;
+}
+
+.syntax-number {
+  color: #d13212;
+}
+
+.syntax-boolean {
+  color: #b85d19;
+  font-weight: 700;
+}
+
+.syntax-type {
+  color: #008296;
+  font-weight: 600;
+}
+
 .lab-explanation {
   margin-top: 8px;
 }
