@@ -5,9 +5,17 @@ from . import acm_views, apigateway_views, appconfig_views, appsync_views, athen
 app_name = 'dashboard'
 
 urlpatterns = [
-    path('', views.index, name='index'),
+    path('', views.cloudscape_app, name='index'),
     path('app/', views.cloudscape_app, name='cloudscape-app'),
     path('app/<path:subpath>', views.cloudscape_app, name='cloudscape-app-routed'),
+    path('s3/', views.cloudscape_app, name='s3-spa'),
+    path('ec2/', views.cloudscape_app, name='ec2-spa'),
+    path('iam/', views.cloudscape_app, name='iam-spa'),
+    path('dynamodb/', views.cloudscape_app, name='dynamodb-spa'),
+    path('lambda/', views.cloudscape_app, name='lambda-spa'),
+    path('sqs/', views.cloudscape_app, name='sqs-spa'),
+    path('sns/', views.cloudscape_app, name='sns-spa'),
+    path('rds/', views.cloudscape_app, name='rds-spa'),
     path('environment/', views.environment, name='environment'),
     path('activity/', views.activity, name='activity'),
     path('console/', console_views.console_page, name='console'),

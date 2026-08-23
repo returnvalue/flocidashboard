@@ -5,6 +5,11 @@ import { ConsoleHome } from './pages/ConsoleHome';
 import { S3Console } from './pages/S3Console';
 import { EC2Console } from './pages/EC2Console';
 import { IAMConsole } from './pages/IAMConsole';
+import { DynamoDBConsole } from './pages/DynamoDBConsole';
+import { LambdaConsole } from './pages/LambdaConsole';
+import { SQSConsole } from './pages/SQSConsole';
+import { SNSConsole } from './pages/SNSConsole';
+import { RDSConsole } from './pages/RDSConsole';
 import { LabsConsole } from './pages/LabsConsole';
 import { fetchIdentity, fetchServices } from './api/client';
 import { IdentityInfo, ServiceDefinition } from './types';
@@ -13,15 +18,36 @@ import Header from '@cloudscape-design/components/header';
 import SpaceBetween from '@cloudscape-design/components/space-between';
 import Button from '@cloudscape-design/components/button';
 
+function getInitialView(): string {
+  const path = window.location.pathname.replace(/^\/app\/?/, '').replace(/^\//, '').replace(/\/$/, '');
+  if (!path || path === 'app' || path === 'home') return 'home';
+  if (path.startsWith('service/')) return path.replace('service/', '');
+  return path;
+}
+
 export const App: React.FC = () => {
   const [identity, setIdentity] = useState<IdentityInfo | null>(null);
   const [services, setServices] = useState<ServiceDefinition[]>([]);
-  const [currentView, setCurrentView] = useState<string>('home');
+  const [currentView, setCurrentView] = useState<string>(getInitialView);
 
   useEffect(() => {
     fetchIdentity().then(setIdentity);
     fetchServices().then(setServices);
+
+    const handlePopState = () => {
+      setCurrentView(getInitialView());
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  const navigateTo = (view: string) => {
+    setCurrentView(view);
+    const targetPath = view === 'home' ? '/' : `/${view}`;
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState(null, '', targetPath);
+    }
+  };
 
   const getBreadcrumbs = () => {
     if (currentView === 'home') {
@@ -47,7 +73,7 @@ export const App: React.FC = () => {
       { type: 'divider' as const },
       {
         type: 'section' as const,
-        text: 'Core Services',
+        text: 'Core AWS Services',
         items: [
           { type: 'link' as const, text: 'Amazon S3', href: 's3' },
           { type: 'link' as const, text: 'Amazon EC2', href: 'ec2' },
@@ -68,8 +94,8 @@ export const App: React.FC = () => {
         return (
           <ConsoleHome
             services={services}
-            onSelectService={(key) => setCurrentView(key)}
-            onNavigateLabs={() => setCurrentView('labs')}
+            onSelectService={(key) => navigateTo(key)}
+            onNavigateLabs={() => navigateTo('labs')}
           />
         );
       case 's3':
@@ -78,6 +104,16 @@ export const App: React.FC = () => {
         return <EC2Console />;
       case 'iam':
         return <IAMConsole />;
+      case 'dynamodb':
+        return <DynamoDBConsole />;
+      case 'lambda':
+        return <LambdaConsole />;
+      case 'sqs':
+        return <SQSConsole />;
+      case 'sns':
+        return <SNSConsole />;
+      case 'rds':
+        return <RDSConsole />;
       case 'labs':
         return <LabsConsole />;
       default:
@@ -89,8 +125,8 @@ export const App: React.FC = () => {
                 variant="h1"
                 description={svc?.eyebrow || 'Local AWS Service Workbench'}
                 actions={
-                  <Button variant="primary" href={`/service/${currentView}/`}>
-                    Open Dedicated Workbench
+                  <Button variant="primary" onClick={() => navigateTo('labs')}>
+                    Open Guided Labs
                   </Button>
                 }
               >
@@ -100,10 +136,13 @@ export const App: React.FC = () => {
           >
             <SpaceBetween size="m">
               <p>
-                Service <strong>{svc?.title || currentView}</strong> is active in Floci.
+                Service <strong>{svc?.title || currentView}</strong> is active and healthy in Floci.
               </p>
-              <Button href={`/service/${currentView}/labs/`}>
-                Open {svc?.title || currentView} Guided Labs ↗
+              <p>
+                Category: <strong>{svc?.category || 'Database / Compute'}</strong>
+              </p>
+              <Button onClick={() => navigateTo('home')}>
+                ← Return to Console Home
               </Button>
             </SpaceBetween>
           </Container>
@@ -116,16 +155,16 @@ export const App: React.FC = () => {
       <TopNav
         identity={identity}
         services={services}
-        onSelectService={(key) => setCurrentView(key)}
-        onNavigateHome={() => setCurrentView('home')}
-        onNavigateLabs={() => setCurrentView('labs')}
+        onSelectService={(key) => navigateTo(key)}
+        onNavigateHome={() => navigateTo('home')}
+        onNavigateLabs={() => navigateTo('labs')}
       />
       <ConsoleLayout
         breadcrumbs={getBreadcrumbs()}
         sideNavHeader={{ href: 'home', text: 'AWS Console' }}
         sideNavItems={getSideNavItems()}
         activeSideNavHref={currentView}
-        onSideNavFollow={(href) => setCurrentView(href)}
+        onSideNavFollow={(href) => navigateTo(href)}
       >
         {renderContent()}
       </ConsoleLayout>

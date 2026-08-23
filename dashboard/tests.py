@@ -399,21 +399,14 @@ class DashboardTemplateTests(SimpleTestCase):
         response = self.client.get(reverse('dashboard:index'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, '<title>Floci Dashboard</title>', html=True)
-        self.assertContains(response, '<h1 class="home-title">Floci Dashboard</h1>', html=True)
-        self.assertContains(response, 'id="service-grid"')
-        self.assertContains(response, 'dashboard/styles.css')
-        self.assertContains(response, 'dashboard/console-theme.css')
-        self.assertContains(response, 'dashboard/dashboard.js')
-        self.assertSharedShell(response)
-        self.assertCompactPageHeader(response)
-        self.assertNotContains(response, 'Local AWS-compatible environment')
+        self.assertContains(response, 'id="root"')
+        self.assertContains(response, 'app.js')
+        self.assertContains(response, 'main.css')
 
     @patch('dashboard.views.lab_status')
     def test_page_headers_are_compact_across_primary_pages(self, status_mock):
         status_mock.return_value = {'complete': False, 'steps': {}}
         urls = [
-            reverse('dashboard:index'),
             reverse('dashboard:environment'),
             reverse('dashboard:labs-directory'),
             reverse('dashboard:service-matrix'),
