@@ -448,17 +448,17 @@ export const LabsConsole: React.FC = () => {
               header: (item) => {
                 const isComplete = Boolean(completedLabsMap[`${item.service}:${item.key}`]);
                 return (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <Badge color="blue">{item.service.toUpperCase()}</Badge>
+                      {isComplete && <Badge color="green">✓ COMPLETE</Badge>}
+                    </div>
                     <Button variant="inline-link" onClick={() => openLab(item)}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '15px' }}>
                         {isComplete && <StatusIndicator type="success" />}
                         <strong style={{ color: isComplete ? '#4ec9b0' : 'inherit' }}>{item.title}</strong>
                       </span>
                     </Button>
-                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                      {isComplete && <Badge color="green">✓ COMPLETE</Badge>}
-                      <Badge color="blue">{item.service.toUpperCase()}</Badge>
-                    </div>
                   </div>
                 );
               },
