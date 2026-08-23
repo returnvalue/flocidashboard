@@ -31,6 +31,7 @@ urlpatterns = [
     path('service/<slug:service_key>/', views.service_page, name='service-page'),
     path('service/<slug:service_key>/labs/', views.service_labs, name='service-labs'),
     path('api/resource-graph/', resource_graph_views.graph_detail, name='resource-graph-detail'),
+    path('api/labs/<slug:service_key>/<slug:lab_key>/status/', views.api_lab_status, name='lab-status'),
     path('api/labs/<slug:service_key>/<slug:lab_key>/steps/<slug:step_key>/run/', views.lab_step_run, name='lab-step-run'),
     path('api/labs/<slug:service_key>/<slug:lab_key>/reset/', views.lab_reset, name='lab-reset'),
     path('api/labs/catalog/', views.labs_catalog, name='labs-catalog'),

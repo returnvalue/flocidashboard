@@ -104,6 +104,17 @@ export async function fetchLabsCatalog(): Promise<{ services: Array<{ service_ke
   }
 }
 
+export async function fetchLabStatus(serviceKey: string, labKey: string): Promise<{ complete: boolean; steps: Record<string, { verified: boolean; verification?: any }> }> {
+  try {
+    const res = await fetch(`/api/labs/${serviceKey}/${labKey}/status/`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to fetch lab status:', err);
+    return { complete: false, steps: {} };
+  }
+}
+
 export async function runLabStep(
   serviceKey: string,
   labKey: string,

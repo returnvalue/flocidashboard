@@ -137,6 +137,18 @@ class LabsPageTests(SimpleTestCase):
         self.assertIn('labs', data)
         self.assertGreaterEqual(len(data['services']), 17)
 
+    @patch('dashboard.views.lab_status')
+    def test_api_lab_status_returns_live_verification_state(self, status_mock):
+        status_mock.return_value = {
+            'complete': True,
+            'steps': {'create-bucket': {'verified': True, 'verification': {'message': 'Bucket exists'}}},
+        }
+        response = self.client.get(reverse('dashboard:lab-status', kwargs={'service_key': 's3', 'lab_key': 'create-bucket'}))
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['complete'])
+        self.assertTrue(data['steps']['create-bucket']['verified'])
+
     def test_labs_directory_reset_uses_styled_confirmation_modal(self):
         script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'labs-directory.js'
         source = script.read_text()

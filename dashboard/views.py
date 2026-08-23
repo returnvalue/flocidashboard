@@ -499,6 +499,17 @@ def lab_step_run(request, service_key: str, lab_key: str, step_key: str):
         return JsonResponse({'error': str(exc)}, status=400)
 
 
+def api_lab_status(request, service_key: str, lab_key: str):
+    """Return live completion status of all steps in a specific lab."""
+    if not get_lab(service_key, lab_key):
+        raise Http404('Lab not found')
+    try:
+        status = lab_status(service_key, lab_key)
+        return JsonResponse(status)
+    except (BotoCoreError, ClientError, ValueError) as exc:
+        return JsonResponse({'complete': False, 'steps': {}, 'error': str(exc)}, status=200)
+
+
 @require_POST
 def lab_reset(request, service_key: str, lab_key: str):
     if not get_lab(service_key, lab_key):
