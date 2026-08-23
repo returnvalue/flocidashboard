@@ -17,7 +17,27 @@ import { CodeSnippet } from '../components/CodeSnippet';
 
 export const LabsConsole: React.FC = () => {
   const [allLabsList, setAllLabsList] = useState<LabDefinition[]>([]);
-  const [completedLabsMap, setCompletedLabsMap] = useState<Record<string, boolean>>({});
+  const [completedLabsMap, setCompletedLabsMap] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('floci_completed_labs');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const saveCompletedLabState = (service: string, key: string, isComplete: boolean) => {
+    setCompletedLabsMap((prev) => {
+      const next = { ...prev, [`${service}:${key}`]: isComplete };
+      try {
+        localStorage.setItem('floci_completed_labs', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
   const [activeLab, setActiveLab] = useState<LabDefinition | null>(null);
   const [loading, setLoading] = useState(true);
   const [statusLoading, setStatusLoading] = useState(false);
@@ -71,13 +91,21 @@ export const LabsConsole: React.FC = () => {
 
       // Background fetch of completion status for all labs
       fetchLabsProgress().then((prog) => {
-        const map: Record<string, boolean> = {};
-        (prog.labs || []).forEach((l) => {
-          if (l.complete) {
-            map[`${l.service}:${l.key}`] = true;
+        setCompletedLabsMap((prev) => {
+          const map: Record<string, boolean> = { ...prev };
+          (prog.labs || []).forEach((l) => {
+            const labKey = l.key || (l as any).lab;
+            if (labKey) {
+              map[`${l.service}:${labKey}`] = Boolean(l.complete);
+            }
+          });
+          try {
+            localStorage.setItem('floci_completed_labs', JSON.stringify(map));
+          } catch {
+            // ignore
           }
+          return map;
         });
-        setCompletedLabsMap(map);
       });
     } catch (err) {
       console.error(err);
@@ -120,10 +148,7 @@ export const LabsConsole: React.FC = () => {
       setStepOutputs(outputMap);
 
       if (statusData.complete) {
-        setCompletedLabsMap((prev) => ({
-          ...prev,
-          [`${lab.service}:${lab.key}`]: true,
-        }));
+        saveCompletedLabState(lab.service, lab.key, true);
       }
     } catch (err) {
       console.error('Failed to load lab status:', err);
@@ -177,10 +202,7 @@ export const LabsConsole: React.FC = () => {
         const next = { ...prev, [step.key]: isVerified };
         const allDone = activeLab.steps?.every((s) => s.key === step.key ? isVerified : next[s.key]);
         if (allDone) {
-          setCompletedLabsMap((cmap) => ({
-            ...cmap,
-            [`${activeLab.service}:${activeLab.key}`]: true,
-          }));
+          saveCompletedLabState(activeLab.service, activeLab.key, true);
         }
         return next;
       });
@@ -227,10 +249,7 @@ export const LabsConsole: React.FC = () => {
       await resetLab(activeLab.service, activeLab.key);
       setStepCompleted({});
       setStepOutputs({});
-      setCompletedLabsMap((prev) => ({
-        ...prev,
-        [`${activeLab.service}:${activeLab.key}`]: false,
-      }));
+      saveCompletedLabState(activeLab.service, activeLab.key, false);
     } catch (err) {
       console.error(err);
     } finally {

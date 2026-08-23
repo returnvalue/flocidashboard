@@ -189,6 +189,7 @@ def _labs_progress_snapshot():
         lab_progress.append({
             'service': lab['service'],
             'lab': lab['key'],
+            'key': lab['key'],
             'title': lab.get('title'),
             'completed_steps': progress['completed_steps'],
             'total_steps': progress['total_steps'],
