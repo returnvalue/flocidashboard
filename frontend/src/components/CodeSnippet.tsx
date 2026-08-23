@@ -6,62 +6,145 @@ interface CodeSnippetProps {
   language: 'cli' | 'boto3' | 'terraform' | 'json';
 }
 
-function escapeHtml(text: string): string {
-  return text
+function escapeHtml(str: string): string {
+  return String(str || '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 }
 
 function highlightPython(code: string): string {
-  const escaped = escapeHtml(code);
-  return escaped
-    .replace(/(#.*$)/gm, '<span style="color: #6a9955; font-style: italic;">$1</span>')
-    .replace(/(".*?"|'.*?')/g, '<span style="color: #ce9178;">$1</span>')
-    .replace(/\b(import|from|def|return|if|elif|else|for|in|while|try|except|finally|with|as|class|pass|raise|True|False|None)\b/g, '<span style="color: #569cd6; font-weight: 600;">$1</span>')
-    .replace(/\b(boto3|client|resource|Session)\b/g, '<span style="color: #4ec9b0;">$1</span>')
-    .replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)(?=\s*\()/g, '<span style="color: #dcdcaa;">$1</span>')
-    .replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)(?=\s*=)/g, '<span style="color: #9cdcfe;">$1</span>');
+  const raw = String(code || '');
+  const regex = /(#.*?$)|("""[\s\S]*?"""|'''[\s\S]*?''')|("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')|(\b\d+(?:\.\d+)?\b)|(\b(?:import|from|as|def|class|return|if|else|elif|for|in|while|try|except|with|and|or|not|is|raise|pass|break|continue|lambda|yield|async|await)\b)|(\b(?:True|False|None)\b)|(\b(?:boto3|print|dict|list|set|str|int|float|bool|len|range|enumerate|zip|open|type)\b)|(\b[a-zA-Z_][a-zA-Z0-9_]*(?=\s*\())|(\b[a-zA-Z_][a-zA-Z0-9_]*(?=\s*=))/gm;
+
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let html = '';
+
+  while ((match = regex.exec(raw)) !== null) {
+    html += escapeHtml(raw.slice(lastIndex, match.index));
+    const [full, comment, multiStr, str, num, kw, boolVal, builtin, func, param] = match;
+    if (comment) {
+      html += `<span style="color: #6a9955; font-style: italic;">${escapeHtml(comment)}</span>`;
+    } else if (multiStr || str) {
+      html += `<span style="color: #ce9178;">${escapeHtml(multiStr || str)}</span>`;
+    } else if (num) {
+      html += `<span style="color: #b5cea8;">${escapeHtml(num)}</span>`;
+    } else if (kw) {
+      html += `<span style="color: #569cd6; font-weight: 600;">${escapeHtml(kw)}</span>`;
+    } else if (boolVal) {
+      html += `<span style="color: #569cd6;">${escapeHtml(boolVal)}</span>`;
+    } else if (builtin) {
+      html += `<span style="color: #4ec9b0;">${escapeHtml(builtin)}</span>`;
+    } else if (func) {
+      html += `<span style="color: #dcdcaa;">${escapeHtml(func)}</span>`;
+    } else if (param) {
+      html += `<span style="color: #9cdcfe;">${escapeHtml(param)}</span>`;
+    } else {
+      html += escapeHtml(full);
+    }
+    lastIndex = regex.lastIndex;
+  }
+
+  html += escapeHtml(raw.slice(lastIndex));
+  return html;
 }
 
-function highlightTerraform(code: string): string {
-  const escaped = escapeHtml(code);
-  return escaped
-    .replace(/(#.*$|\/\/.*$)/gm, '<span style="color: #6a9955; font-style: italic;">$1</span>')
-    .replace(/(".*?")/g, '<span style="color: #ce9178;">$1</span>')
-    .replace(/\b(resource|data|variable|output|provider|terraform|module|locals)\b/g, '<span style="color: #c586c0; font-weight: 600;">$1</span>')
-    .replace(/\b(true|false|null)\b/g, '<span style="color: #569cd6;">$1</span>')
-    .replace(/\b([a-zA-Z_][a-zA-Z0-9_-]*)(?=\s*=)/g, '<span style="color: #9cdcfe;">$1</span>');
+function highlightHCL(code: string): string {
+  const raw = String(code || '');
+  const regex = /(#.*?$|\/\/.*?$|\/\*[\s\S]*?\*\/)|("(?:\\.|[^"\\])*")|(\b\d+(?:\.\d+)?\b)|(\b(?:resource|data|variable|output|provider|terraform|locals|module|dynamic|content)\b)|(\b(?:string|number|bool|list|map|set|object|any)\b)|(\b(?:true|false|null)\b)|(\b[a-zA-Z0-9_-]+(?=\s*=))|(\b(?:aws_[a-zA-Z0-9_]+)\b)/gm;
+
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let html = '';
+
+  while ((match = regex.exec(raw)) !== null) {
+    html += escapeHtml(raw.slice(lastIndex, match.index));
+    const [full, comment, str, num, blockKw, typeKw, boolVal, prop, resourceType] = match;
+    if (comment) {
+      html += `<span style="color: #6a9955; font-style: italic;">${escapeHtml(comment)}</span>`;
+    } else if (str) {
+      html += `<span style="color: #ce9178;">${escapeHtml(str)}</span>`;
+    } else if (num) {
+      html += `<span style="color: #b5cea8;">${escapeHtml(num)}</span>`;
+    } else if (blockKw) {
+      html += `<span style="color: #c586c0; font-weight: 600;">${escapeHtml(blockKw)}</span>`;
+    } else if (typeKw) {
+      html += `<span style="color: #4ec9b0;">${escapeHtml(typeKw)}</span>`;
+    } else if (boolVal) {
+      html += `<span style="color: #569cd6;">${escapeHtml(boolVal)}</span>`;
+    } else if (prop) {
+      html += `<span style="color: #9cdcfe;">${escapeHtml(prop)}</span>`;
+    } else if (resourceType) {
+      html += `<span style="color: #4ec9b0; font-weight: 600;">${escapeHtml(resourceType)}</span>`;
+    } else {
+      html += escapeHtml(full);
+    }
+    lastIndex = regex.lastIndex;
+  }
+
+  html += escapeHtml(raw.slice(lastIndex));
+  return html;
 }
 
-function highlightCli(code: string): string {
-  const escaped = escapeHtml(code);
-  return escaped
-    .replace(/(#.*$)/gm, '<span style="color: #6a9955; font-style: italic;">$1</span>')
-    .replace(/(".*?"|'.*?')/g, '<span style="color: #ce9178;">$1</span>')
-    .replace(/^(\s*aws\s+[a-z0-9-]+(?:\s+[a-z0-9-]+)?)/g, '<span style="color: #4ec9b0; font-weight: 600;">$1</span>')
-    .replace(/(--[a-zA-Z0-9-]+)/g, '<span style="color: #9cdcfe;">$1</span>')
-    .replace(/(\|\s*[a-z0-9]+)/g, '<span style="color: #c586c0;">$1</span>');
+function highlightCLI(code: string): string {
+  const raw = String(code || '');
+  const regex = /(#.*?$)|("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')|(\baws\b)|(--[a-zA-Z0-9_-]+)|(\b\d+(?:\.\d+)?\b)/gm;
+
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let html = '';
+
+  while ((match = regex.exec(raw)) !== null) {
+    html += escapeHtml(raw.slice(lastIndex, match.index));
+    const [full, comment, str, awsCmd, flag, num] = match;
+    if (comment) {
+      html += `<span style="color: #6a9955; font-style: italic;">${escapeHtml(comment)}</span>`;
+    } else if (str) {
+      html += `<span style="color: #ce9178;">${escapeHtml(str)}</span>`;
+    } else if (awsCmd) {
+      html += `<span style="color: #4ec9b0; font-weight: 600;">${escapeHtml(awsCmd)}</span>`;
+    } else if (flag) {
+      html += `<span style="color: #9cdcfe;">${escapeHtml(flag)}</span>`;
+    } else if (num) {
+      html += `<span style="color: #b5cea8;">${escapeHtml(num)}</span>`;
+    } else {
+      html += escapeHtml(full);
+    }
+    lastIndex = regex.lastIndex;
+  }
+
+  html += escapeHtml(raw.slice(lastIndex));
+  return html;
 }
 
-function highlightJson(code: string): string {
-  const escaped = escapeHtml(code);
-  return escaped
-    .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g, (match) => {
-      let cls = '#b5cea8'; // number
-      if (/^"/.test(match)) {
-        if (/:$/.test(match)) {
-          cls = '#9cdcfe'; // key
-        } else {
-          cls = '#ce9178'; // string
-        }
-      } else if (/true|false/.test(match)) {
-        cls = '#569cd6'; // boolean
-      } else if (/null/.test(match)) {
-        cls = '#569cd6'; // null
-      }
-      return `<span style="color: ${cls};">${match}</span>`;
-    });
+function highlightJSON(code: string): string {
+  const raw = String(code || '');
+  const regex = /("(?:\\.|[^"\\])*")(\s*:)?|(\b\d+(?:\.\d+)?\b)|(\b(?:true|false|null)\b)/gm;
+
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let html = '';
+
+  while ((match = regex.exec(raw)) !== null) {
+    html += escapeHtml(raw.slice(lastIndex, match.index));
+    const [full, str, isKey, num, boolVal] = match;
+    if (str && isKey) {
+      html += `<span style="color: #9cdcfe;">${escapeHtml(str)}</span>:`;
+    } else if (str) {
+      html += `<span style="color: #ce9178;">${escapeHtml(str)}</span>`;
+    } else if (num) {
+      html += `<span style="color: #b5cea8;">${escapeHtml(num)}</span>`;
+    } else if (boolVal) {
+      html += `<span style="color: #569cd6;">${escapeHtml(boolVal)}</span>`;
+    } else {
+      html += escapeHtml(full);
+    }
+    lastIndex = regex.lastIndex;
+  }
+
+  html += escapeHtml(raw.slice(lastIndex));
+  return html;
 }
 
 export const CodeSnippet: React.FC<CodeSnippetProps> = ({ code, language }) => {
@@ -72,11 +155,11 @@ export const CodeSnippet: React.FC<CodeSnippetProps> = ({ code, language }) => {
       case 'boto3':
         return highlightPython(code);
       case 'terraform':
-        return highlightTerraform(code);
+        return highlightHCL(code);
       case 'cli':
-        return highlightCli(code);
+        return highlightCLI(code);
       case 'json':
-        return highlightJson(code);
+        return highlightJSON(code);
       default:
         return escapeHtml(code);
     }
