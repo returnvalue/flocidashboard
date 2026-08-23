@@ -145,9 +145,34 @@ async function resetSettingsEndpoint() {
   }
 }
 
+const settingsFlociResetButton = document.querySelector('#settings-floci-reset');
+
+async function resetFlociState() {
+  const confirmed = window.confirm('Reset all Floci state? This will clear all in-memory and persistent emulator data across all services.');
+  if (!confirmed) {
+    return;
+  }
+  if (settingsFlociResetButton) {
+    settingsFlociResetButton.disabled = true;
+    settingsFlociResetButton.textContent = 'Resetting...';
+  }
+  try {
+    await settingsJson('/api/settings/floci-reset/', { method: 'POST' });
+    renderSettingsAlert('Floci emulator state successfully reset.', 'info');
+  } catch (error) {
+    renderSettingsAlert(`Failed to reset Floci state: ${error.message}`, 'warning');
+  } finally {
+    if (settingsFlociResetButton) {
+      settingsFlociResetButton.disabled = false;
+      settingsFlociResetButton.textContent = 'Reset Floci State';
+    }
+  }
+}
+
 settingsTestButton?.addEventListener('click', testSettingsConnection);
 settingsSaveButton?.addEventListener('click', saveSettingsEndpoint);
 settingsResetButton?.addEventListener('click', resetSettingsEndpoint);
+settingsFlociResetButton?.addEventListener('click', resetFlociState);
 
 if (settingsEndpointInput) {
   loadSettings();

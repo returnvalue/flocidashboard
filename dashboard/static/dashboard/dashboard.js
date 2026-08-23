@@ -626,7 +626,16 @@ function addField(card, label, value) {
   const details = document.createElement('dd');
 
   term.textContent = label;
-  details.textContent = valueText(value);
+  const isStatus = /^(status|state|health|alarm state|execution status|certificate status|table status|sync status)$/i.test(label);
+  if (isStatus && value != null && value !== '') {
+    if (window.ServiceConsole?.statusIndicator) {
+      details.append(window.ServiceConsole.statusIndicator(value));
+    } else {
+      details.textContent = valueText(value);
+    }
+  } else {
+    details.textContent = valueText(value);
+  }
   row.append(term, details);
   card.append(row);
 }
@@ -7723,6 +7732,24 @@ function renderEnvironmentDetails(statusResult = {}) {
   setText('environment-identity-account', identityPayload.account);
   setText('environment-identity-error', identityData.identity_error || identityData.error || 'None');
 
+  if (initResult && initResult.ok && initResult.data) {
+    const completed = initResult.data.completed || {};
+    const scripts = initResult.data.scripts || {};
+    setText('environment-init-boot', completed.boot ? 'Completed' : 'Pending');
+    setText('environment-init-start', completed.start ? 'Completed' : 'Pending');
+    setText('environment-init-ready', completed.ready ? 'Completed' : 'Pending');
+    setText('environment-init-shutdown', completed.shutdown ? 'Started' : 'No');
+
+    const scriptCount = Object.values(scripts).reduce((acc, list) => acc + (Array.isArray(list) ? list.length : 0), 0);
+    setText('environment-init-scripts', `${scriptCount} configured`);
+  } else {
+    setText('environment-init-boot', healthOk ? 'Pending' : 'Unavailable');
+    setText('environment-init-start', healthOk ? 'Pending' : 'Unavailable');
+    setText('environment-init-ready', healthOk ? 'Pending' : 'Unavailable');
+    setText('environment-init-shutdown', healthOk ? 'No' : 'Unavailable');
+    setText('environment-init-scripts', '—');
+  }
+
   if (!healthOk) {
     addEnvironmentAlert(healthData.error || 'Floci is not reachable on the configured local endpoint.');
   }
@@ -7734,6 +7761,16 @@ function renderEnvironmentDetails(statusResult = {}) {
   }
   if (identityData.credential_source === 'local_default') {
     addEnvironmentAlert('Using local test/test credentials because no explicit profile or environment credentials were available.', 'info');
+  }
+}
+
+async function loadInitLifecycle(options = {}) {
+  try {
+    const response = await fetch('/api/init/', fetchOptions(options.force));
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    return { ok: false, error: error.message };
   }
 }
 
@@ -7791,8 +7828,9 @@ async function refreshEnvironment(options = {}) {
   try {
     const statusResult = await loadStatusTiles(options);
     const serviceMetadata = await loadServiceMetadata(options);
+    const initResult = await loadInitLifecycle(options);
     renderGlobalNavigation(serviceMetadata);
-    renderEnvironmentDetails(statusResult);
+    renderEnvironmentDetails(statusResult, initResult);
   } catch (error) {
     renderEnvironmentDetails({
       health: { ok: false, data: { error: error.message } },

@@ -498,7 +498,7 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertContains(response, '<title>Labs - Floci Dashboard</title>', html=True)
         self.assertContains(response, '<h1 class="console-title">Labs</h1>', html=True)
         self.assertSharedShell(response)
-        self.assertContains(response, '14 services with labs')
+        self.assertContains(response, '17 services with labs')
         self.assertNotContains(response, 'Learning paths')
         self.assertNotContains(response, 'Recommended starting point')
         self.assertContains(response, 'Create a local admin user')
@@ -785,6 +785,35 @@ class DashboardSettingsApiTests(TestCase):
         self.assertTrue(payload['health']['ok'])
         self.assertTrue(payload['identity_resolved'])
         self.assertEqual(payload['identity']['account'], '000000000000')
+
+    @patch('dashboard.settings_views.FlociClientFactory')
+    def test_settings_floci_reset_calls_factory_reset_state(self, factory_mock):
+        factory = self.factory()
+        factory.reset_state.return_value = {'ok': True, 'data': {'status': 'OK'}}
+        factory_mock.return_value = factory
+
+        response = self.client.post(reverse('dashboard:settings-floci-reset'))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload['reset_result'], {'ok': True, 'data': {'status': 'OK'}})
+        factory.reset_state.assert_called_once()
+
+    @patch('dashboard.views.FlociClientFactory')
+    def test_init_lifecycle_endpoint_returns_payload(self, factory_mock):
+        factory = self.factory()
+        factory.init_status.return_value = {
+            'ok': True,
+            'data': {'completed': {'boot': True, 'ready': True}, 'scripts': {}},
+        }
+        factory_mock.return_value = factory
+
+        response = self.client.get(reverse('dashboard:init-lifecycle'))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload['ok'])
+        self.assertTrue(payload['data']['completed']['ready'])
 
 
 class RuntimeIdentityFactoryTests(TestCase):
@@ -1466,6 +1495,20 @@ class FlociClientFactoryTests(SimpleTestCase):
 
             self.assertEqual(factory.endpoint_url, 'http://localhost:4566')
             self.assertEqual(factory.endpoint_source, 'AWS_ENDPOINT_URL')
+            self.assertEqual(factory.profile, None)
+            self.assertEqual(factory.credential_context()['credential_source'], 'environment')
+
+    def test_floci_endpoint_env_var_is_accepted_for_sidecar_bootstrap(self):
+        with patch.dict(os.environ, {
+            'FLOCI_ENDPOINT': 'http://host.docker.internal:4566',
+            'AWS_DEFAULT_REGION': 'us-east-1',
+            'AWS_ACCESS_KEY_ID': 'test',
+            'AWS_SECRET_ACCESS_KEY': 'test',
+        }, clear=True):
+            factory = FlociClientFactory()
+
+            self.assertEqual(factory.endpoint_url, 'http://host.docker.internal:4566')
+            self.assertEqual(factory.endpoint_source, 'FLOCI_ENDPOINT')
             self.assertEqual(factory.profile, None)
             self.assertEqual(factory.credential_context()['credential_source'], 'environment')
 
@@ -3688,18 +3731,20 @@ class GuidedEC2LabTests(TestCase):
 
         self.assertTrue(expected.issubset(labs))
         self.assertTrue(all(labs[key]['guided'] for key in expected))
-        self.assertTrue(all(labs[key]['steps'][0]['key'] == 'run-workflow' for key in expected))
+        self.assertTrue(all(len(labs[key]['steps']) >= 3 for key in expected))
 
     @patch('dashboard.labs.ec2_guided.RUNNERS')
     def test_guided_lab_step_uses_runner_and_tracks_duration(self, runners):
         from dashboard.labs.ec2_guided import run_guided_step
 
         runners.__contains__.return_value = True
-        runners.__getitem__.return_value = lambda: {
-            'service': 'ec2', 'lab': 'guided-imds', 'verified': True,
+        runners.__getitem__.return_value = {
+            'launch-instance': lambda: {
+                'service': 'ec2', 'lab': 'guided-imds', 'verified': True,
+            }
         }
 
-        result = run_guided_step('guided-imds', 'run-workflow')
+        result = run_guided_step('guided-imds', 'launch-instance')
 
         self.assertTrue(result['verified'])
         self.assertGreaterEqual(result['duration_ms'], 0)
@@ -3709,23 +3754,25 @@ class GuidedEC2LabTests(TestCase):
         from dashboard.labs.ec2_guided import guided_status
 
         pending = guided_status('guided-ssm-command')
-        cache.set('floci-lab:ec2:guided:guided-ssm-command:complete', True)
+        cache.set('floci-lab:ec2:guided:guided-ssm-command:launch-managed-instance', True)
+        cache.set('floci-lab:ec2:guided:guided-ssm-command:send-ssm-command', True)
+        cache.set('floci-lab:ec2:guided:guided-ssm-command:get-command-invocation', True)
         complete = guided_status('guided-ssm-command')
 
         self.assertFalse(pending['complete'])
         self.assertTrue(complete['complete'])
-        self.assertTrue(complete['steps']['run-workflow']['verified'])
+        self.assertTrue(complete['steps']['launch-managed-instance']['verified'])
 
     @patch('dashboard.labs.ec2_guided._ec2')
     def test_reset_clears_progress_without_resources(self, ec2_client):
         from django.core.cache import cache
         from dashboard.labs.ec2_guided import reset_guided_lab
 
-        cache.set('floci-lab:ec2:guided:guided-ssm-command:complete', True)
+        cache.set('floci-lab:ec2:guided:guided-ssm-command:launch-managed-instance', True)
         result = reset_guided_lab('guided-ssm-command')
 
         self.assertTrue(result['reset'])
-        self.assertIsNone(cache.get('floci-lab:ec2:guided:guided-ssm-command:complete'))
+        self.assertIsNone(cache.get('floci-lab:ec2:guided:guided-ssm-command:launch-managed-instance'))
         ec2_client.assert_called_once_with()
 
     def test_guided_lab_page_exposes_workflow(self):
@@ -3736,7 +3783,7 @@ class GuidedEC2LabTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Launch an instance and inspect IMDS')
-        self.assertContains(response, 'data-step-key="run-workflow"')
+        self.assertContains(response, 'data-step-key="launch-instance"')
 
     def test_imds_command_uses_bash_tcp_instead_of_curl(self):
         from dashboard.labs.ec2_guided import _imds_get_command

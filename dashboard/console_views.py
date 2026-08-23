@@ -39,7 +39,7 @@ def console_page(request):
 def _is_local_endpoint(url: str) -> bool:
     parsed = urlparse(url)
     hostname = (parsed.hostname or '').rstrip('.').lower()
-    allowed_hosts = {'localhost', '127.0.0.1', '::1', 'floci', 'localhost.floci.io', 'localhost.localstack.cloud'}
+    allowed_hosts = {'localhost', '127.0.0.1', '::1', 'floci', 'host.docker.internal', 'localhost.floci.io', 'localhost.localstack.cloud'}
     allowed_suffixes = ('.localhost.floci.io', '.localhost.localstack.cloud')
     return (
         parsed.scheme in {'http', 'https'}

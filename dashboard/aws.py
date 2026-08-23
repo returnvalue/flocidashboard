@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from urllib.error import URLError
 from urllib.parse import urlparse
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 from typing import Any, Callable, Optional
 
 import boto3
@@ -66,8 +66,11 @@ def default_endpoint_url() -> str:
         os.getenv(
             'FLOCI_AWS_ENDPOINT_URL',
             os.getenv(
-                'AWS_ENDPOINT_URL',
-                settings.FLOCI_AWS_ENDPOINT_URL,
+                'FLOCI_ENDPOINT',
+                os.getenv(
+                    'AWS_ENDPOINT_URL',
+                    settings.FLOCI_AWS_ENDPOINT_URL,
+                ),
             ),
         ),
     )
@@ -142,6 +145,7 @@ class FlociClientFactory:
         self.endpoint_source = (
             'runtime_override' if override
             else 'FLOCI_AWS_ENDPOINT_URL' if os.getenv('FLOCI_AWS_ENDPOINT_URL')
+            else 'FLOCI_ENDPOINT' if os.getenv('FLOCI_ENDPOINT')
             else 'AWS_ENDPOINT_URL' if os.getenv('AWS_ENDPOINT_URL')
             else 'settings'
         )
@@ -174,7 +178,7 @@ class FlociClientFactory:
     def _validate_local_endpoint(self) -> None:
         parsed = urlparse(self.endpoint_url)
         hostname = (parsed.hostname or '').rstrip('.').lower()
-        allowed_hosts = {'localhost', '127.0.0.1', '::1', 'floci'}
+        allowed_hosts = {'localhost', '127.0.0.1', '::1', 'floci', 'host.docker.internal'}
         allowed_suffixes = ('.localhost.floci.io', '.localhost.localstack.cloud')
 
         if (
@@ -273,6 +277,55 @@ class FlociClientFactory:
         return {
             'ok': True,
             'url': health_url,
+            'data': data,
+        }
+
+    def init_status(self) -> dict[str, Any]:
+        init_url = f'{self.endpoint_url.rstrip("/")}/_floci/init'
+
+        try:
+            with urlopen(init_url, timeout=2) as response:
+                body = response.read().decode('utf-8')
+        except (URLError, TimeoutError) as exc:
+            return {
+                'ok': False,
+                'url': init_url,
+                'error': str(getattr(exc, 'reason', exc)),
+            }
+
+        try:
+            data = json.loads(body)
+        except json.JSONDecodeError:
+            data = {'raw': body}
+
+        return {
+            'ok': True,
+            'url': init_url,
+            'data': data,
+        }
+
+    def reset_state(self) -> dict[str, Any]:
+        reset_url = f'{self.endpoint_url.rstrip("/")}/_floci/state/reset'
+        req = Request(reset_url, data=b'{}', headers={'Content-Type': 'application/json'})
+
+        try:
+            with urlopen(req, timeout=5) as response:
+                body = response.read().decode('utf-8')
+        except (URLError, TimeoutError) as exc:
+            return {
+                'ok': False,
+                'url': reset_url,
+                'error': str(getattr(exc, 'reason', exc)),
+            }
+
+        try:
+            data = json.loads(body)
+        except json.JSONDecodeError:
+            data = {'status': 'OK'}
+
+        return {
+            'ok': True,
+            'url': reset_url,
             'data': data,
         }
 

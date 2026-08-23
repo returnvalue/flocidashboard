@@ -3630,6 +3630,15 @@ def labs_for_service(service_key: str) -> list[dict[str, Any]]:
         return [SSM_PARAMETER_STORE_LAB]
     if service_key == 'secretsmanager':
         return [SECRETS_MANAGER_SECRET_LIFECYCLE_LAB]
+    if service_key == 'stepfunctions':
+        from .stepfunctions_labs import LABS
+        return LABS
+    if service_key == 'cognito':
+        from .cognito_labs import LABS
+        return LABS
+    if service_key == 'cloudwatch':
+        from .cloudwatch_labs import LABS
+        return LABS
     return []
 
 
@@ -3642,7 +3651,27 @@ LAB_BATCH_ORDER = [
     {
         'service': 's3',
         'title': 'S3 labs',
-        'summary': 'Continue into queueing after storage: buckets, objects, versioning, policies, encryption, lifecycle, notifications, and multipart uploads.',
+        'summary': 'Continue into application encryption and keys after storage: buckets, objects, versioning, policies, encryption, lifecycle, notifications, and multipart uploads.',
+    },
+    {
+        'service': 'kms',
+        'title': 'KMS labs',
+        'summary': 'Continue into application configuration after customer managed keys, aliases, and encrypt/decrypt round trips.',
+    },
+    {
+        'service': 'ssm',
+        'title': 'SSM Parameter Store labs',
+        'summary': 'Continue into secrets management after hierarchical application configuration in Parameter Store.',
+    },
+    {
+        'service': 'secretsmanager',
+        'title': 'Secrets Manager labs',
+        'summary': 'Continue into user identity directories after secret lifecycle creation, reads, and value updates.',
+    },
+    {
+        'service': 'cognito',
+        'title': 'Cognito authentication labs',
+        'summary': 'Continue into asynchronous queueing after user pools, app clients, registration, and JWT token authentication.',
     },
     {
         'service': 'sqs',
@@ -3657,17 +3686,12 @@ LAB_BATCH_ORDER = [
     {
         'service': 'scheduler',
         'title': 'EventBridge Scheduler lab',
-        'summary': 'Continue into infrastructure as code after scheduled SQS delivery through a scoped IAM role.',
+        'summary': 'Continue into database persistence after scheduled SQS delivery through a scoped IAM role.',
     },
     {
-        'service': 'cloudformation',
-        'title': 'CloudFormation lab',
-        'summary': 'Continue into networking after stack validation, provisioning, outputs, events, and dependency-aware teardown.',
-    },
-    {
-        'service': 'ec2',
-        'title': 'EC2 networking labs',
-        'summary': 'Continue into the serverless application spine after VPC routing, security controls, gateway endpoints, and interface endpoints.',
+        'service': 'dynamodb',
+        'title': 'DynamoDB labs',
+        'summary': 'Continue into serverless functions after table CRUD, primary/hash keys, query patterns, and Lambda write foundations.',
     },
     {
         'service': 'lambda',
@@ -3677,45 +3701,49 @@ LAB_BATCH_ORDER = [
     {
         'service': 'apigateway',
         'title': 'API Gateway labs',
-        'summary': 'Continue into data persistence after exposing Lambda through a local HTTP API.',
+        'summary': 'Continue into event-driven architecture after exposing Lambda through a local HTTP API.',
     },
     {
         'service': 'eventbridge',
         'title': 'EventBridge application lab',
-        'summary': 'Build a complete API-to-event fan-out workflow with transformed queues, Lambda notification logs, and failure experiments.',
+        'summary': 'Continue into state machine workflows after building a complete API-to-event fan-out workflow with transformed queues, Lambda notification logs, and failure experiments.',
     },
     {
-        'service': 'dynamodb',
-        'title': 'DynamoDB labs',
-        'summary': 'Continue into app configuration and encryption after table CRUD, query, and Lambda write foundations.',
+        'service': 'stepfunctions',
+        'title': 'Step Functions workflow labs',
+        'summary': 'Continue into observability and incident response after ASL state machines, Choice branching, and Parallel task execution.',
     },
     {
-        'service': 'kms',
-        'title': 'KMS labs',
-        'summary': 'Continue into application configuration after key creation, aliases, and encrypt/decrypt round trips.',
+        'service': 'cloudwatch',
+        'title': 'CloudWatch observability labs',
+        'summary': 'Continue into VPC networking after custom metric data, threshold alarms, Log Groups, and structured event streams.',
     },
     {
-        'service': 'ssm',
-        'title': 'SSM Parameter Store labs',
-        'summary': 'Continue into secrets after hierarchical application configuration in Parameter Store.',
+        'service': 'ec2',
+        'title': 'EC2 networking labs',
+        'summary': 'Continue into declarative infrastructure as code after VPC routing, security controls, gateway endpoints, and interface endpoints.',
     },
     {
-        'service': 'secretsmanager',
-        'title': 'Secrets Manager labs',
-        'summary': 'Continue into Lambda runtime configuration after secret creation, reads, and value updates.',
+        'service': 'cloudformation',
+        'title': 'CloudFormation lab',
+        'summary': 'Complete the core AWS learning path with infrastructure as code: template validation, provisioning S3 + SQS, outputs, events, and dependency-aware teardown.',
     },
 ]
 
 
 NEXT_BUILD_RECOMMENDATIONS = [
-    'Lambda create, invoke, and inspect CloudWatch logs',
-    'Lambda reads configuration and secrets at runtime',
-    'Lambda processes SQS messages through an event source mapping',
-    'API Gateway to Lambda request workflow',
-    'DynamoDB table CRUD and query patterns',
     'KMS key, alias, encrypt, and decrypt workflow',
     'SSM Parameter Store app configuration',
     'Secrets Manager secret lifecycle',
+    'Cognito User Pool user registration and authentication',
+    'SQS dead-letter queue redrive and FIFO deduplication',
+    'DynamoDB table CRUD and query patterns',
+    'Lambda create, invoke, and inspect CloudWatch logs',
+    'Lambda reads configuration and secrets at runtime',
+    'API Gateway to Lambda request workflow',
+    'EventBridge application spine distributed fan-out',
+    'Step Functions order workflow with Choice branching',
+    'CloudWatch custom metrics and alarms',
 ]
 
 
@@ -3728,20 +3756,11 @@ def next_lab_batch(service_key: str, lab_key: str) -> dict[str, Any] | None:
     if service_key not in batch_services:
         return None
 
-    if service_key == 'secretsmanager':
-        return {
-            'title': 'Lambda labs',
-            'summary': 'Continue into runtime configuration by reading SSM parameters and Secrets Manager secrets from Lambda.',
-            'service': 'lambda',
-            'lab': 'runtime-config',
-            'lab_title': LAMBDA_RUNTIME_CONFIG_LAB['title'],
-        }
-
     batch_index = batch_services.index(service_key)
     if batch_index + 1 >= len(LAB_BATCH_ORDER):
         return {
-            'title': 'Serverless application spine',
-            'summary': 'Next best builds: Lambda reads configuration and secrets at runtime.',
+            'title': 'All learning batches complete',
+            'summary': 'You have completed all 17 AWS service lab batches in Floci.',
             'service': None,
             'lab': None,
             'lab_title': None,
@@ -8545,31 +8564,22 @@ def run_lab_step(service_key: str, lab_key: str, step_key: str) -> dict[str, Any
     if service_key == 'eventbridge' and lab_key == 'application-spine':
         from .eventbridge_application import run_step
         return run_step(step_key)
+    if service_key == 'stepfunctions':
+        from .stepfunctions_labs import run_step
+        return run_step(service_key, lab_key, step_key)
+    if service_key == 'cognito':
+        from .cognito_labs import run_step
+        return run_step(service_key, lab_key, step_key)
+    if service_key == 'cloudwatch':
+        from .cloudwatch_labs import run_step
+        return run_step(service_key, lab_key, step_key)
     lab = get_lab(service_key, lab_key)
     if not lab:
         raise ValueError('Lab not found')
 
-    if service_key == 'ec2' and lab_key == 'guided-imds':
+    if service_key == 'ec2' and lab_key.startswith('guided-'):
         from .ec2_guided import run_guided_step
-        if step_key == 'run-workflow': return run_guided_step(lab_key, step_key)
-    if service_key == 'ec2' and lab_key == 'guided-userdata':
-        from .ec2_guided import run_guided_step
-        if step_key == 'run-workflow': return run_guided_step(lab_key, step_key)
-    if service_key == 'ec2' and lab_key == 'guided-instance-role':
-        from .ec2_guided import run_guided_step
-        if step_key == 'run-workflow': return run_guided_step(lab_key, step_key)
-    if service_key == 'ec2' and lab_key == 'guided-web-server':
-        from .ec2_guided import run_guided_step
-        if step_key == 'run-workflow': return run_guided_step(lab_key, step_key)
-    if service_key == 'ec2' and lab_key == 'guided-broken-route':
-        from .ec2_guided import run_guided_step
-        if step_key == 'run-workflow': return run_guided_step(lab_key, step_key)
-    if service_key == 'ec2' and lab_key == 'guided-private-s3':
-        from .ec2_guided import run_guided_step
-        if step_key == 'run-workflow': return run_guided_step(lab_key, step_key)
-    if service_key == 'ec2' and lab_key == 'guided-ssm-command':
-        from .ec2_guided import run_guided_step
-        if step_key == 'run-workflow': return run_guided_step(lab_key, step_key)
+        return run_guided_step(lab_key, step_key)
 
     if service_key == 'iam' and lab_key == 'create-user-alice' and step_key == 'create-user':
         return _run_iam_create_user_alice()
@@ -9267,31 +9277,22 @@ def lab_status(service_key: str, lab_key: str) -> dict[str, Any]:
     if service_key == 'eventbridge' and lab_key == 'application-spine':
         from .eventbridge_application import status
         return status()
+    if service_key == 'stepfunctions':
+        from .stepfunctions_labs import status
+        return status(service_key, lab_key)
+    if service_key == 'cognito':
+        from .cognito_labs import status
+        return status(service_key, lab_key)
+    if service_key == 'cloudwatch':
+        from .cloudwatch_labs import status
+        return status(service_key, lab_key)
     lab = get_lab(service_key, lab_key)
     if not lab:
         raise ValueError('Lab not found')
 
-    if service_key == 'ec2' and lab_key == 'guided-imds':
+    if service_key == 'ec2' and lab_key.startswith('guided-'):
         from .ec2_guided import guided_status
-        step_keys = {'run-workflow': True}; status = guided_status(lab_key); status['steps'].setdefault(next(iter(step_keys)), {}); return status
-    if service_key == 'ec2' and lab_key == 'guided-userdata':
-        from .ec2_guided import guided_status
-        step_keys = {'run-workflow': True}; status = guided_status(lab_key); status['steps'].setdefault(next(iter(step_keys)), {}); return status
-    if service_key == 'ec2' and lab_key == 'guided-instance-role':
-        from .ec2_guided import guided_status
-        step_keys = {'run-workflow': True}; status = guided_status(lab_key); status['steps'].setdefault(next(iter(step_keys)), {}); return status
-    if service_key == 'ec2' and lab_key == 'guided-web-server':
-        from .ec2_guided import guided_status
-        step_keys = {'run-workflow': True}; status = guided_status(lab_key); status['steps'].setdefault(next(iter(step_keys)), {}); return status
-    if service_key == 'ec2' and lab_key == 'guided-broken-route':
-        from .ec2_guided import guided_status
-        step_keys = {'run-workflow': True}; status = guided_status(lab_key); status['steps'].setdefault(next(iter(step_keys)), {}); return status
-    if service_key == 'ec2' and lab_key == 'guided-private-s3':
-        from .ec2_guided import guided_status
-        step_keys = {'run-workflow': True}; status = guided_status(lab_key); status['steps'].setdefault(next(iter(step_keys)), {}); return status
-    if service_key == 'ec2' and lab_key == 'guided-ssm-command':
-        from .ec2_guided import guided_status
-        step_keys = {'run-workflow': True}; status = guided_status(lab_key); status['steps'].setdefault(next(iter(step_keys)), {}); return status
+        return guided_status(lab_key)
 
     if service_key == 'iam' and lab_key == 'create-user-alice':
         verification = _verify_iam_user('Alice')
@@ -11645,29 +11646,20 @@ def reset_lab(service_key: str, lab_key: str) -> dict[str, Any]:
     if service_key == 'eventbridge' and lab_key == 'application-spine':
         from .eventbridge_application import reset
         return reset()
+    if service_key == 'stepfunctions':
+        from .stepfunctions_labs import reset
+        return reset(service_key, lab_key)
+    if service_key == 'cognito':
+        from .cognito_labs import reset
+        return reset(service_key, lab_key)
+    if service_key == 'cloudwatch':
+        from .cloudwatch_labs import reset
+        return reset(service_key, lab_key)
     lab = get_lab(service_key, lab_key)
     if not lab:
         raise ValueError('Lab not found')
 
-    if service_key == 'ec2' and lab_key == 'guided-imds':
-        from .ec2_guided import reset_guided_lab
-        return reset_guided_lab(lab_key)
-    if service_key == 'ec2' and lab_key == 'guided-userdata':
-        from .ec2_guided import reset_guided_lab
-        return reset_guided_lab(lab_key)
-    if service_key == 'ec2' and lab_key == 'guided-instance-role':
-        from .ec2_guided import reset_guided_lab
-        return reset_guided_lab(lab_key)
-    if service_key == 'ec2' and lab_key == 'guided-web-server':
-        from .ec2_guided import reset_guided_lab
-        return reset_guided_lab(lab_key)
-    if service_key == 'ec2' and lab_key == 'guided-broken-route':
-        from .ec2_guided import reset_guided_lab
-        return reset_guided_lab(lab_key)
-    if service_key == 'ec2' and lab_key == 'guided-private-s3':
-        from .ec2_guided import reset_guided_lab
-        return reset_guided_lab(lab_key)
-    if service_key == 'ec2' and lab_key == 'guided-ssm-command':
+    if service_key == 'ec2' and lab_key.startswith('guided-'):
         from .ec2_guided import reset_guided_lab
         return reset_guided_lab(lab_key)
 

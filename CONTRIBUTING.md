@@ -1,0 +1,69 @@
+# Contributing to Floci Dashboard
+
+Thank you for contributing to Floci Dashboard! This guide explains the core architecture, coding standards, and verification steps for adding new features, services, or workflow labs.
+
+---
+
+## Core Architecture
+
+Floci Dashboard is a Django web application that interfaces with a local [Floci](https://floci.io/) AWS-compatible emulator via `boto3`.
+
+### Key Components
+
+- **Service Registry (`dashboard/services.py`)**: Canonical registry of all supported services, maturity stages (`interactive_workbench`, `read_only_inspector`, `inventory_only`), optional custom CSS/JS assets, and action metadata.
+- **Service Inventory (`dashboard/aws.py`)**: Read-only inventory loaders and release-aware service summaries. Always return graceful empty/error shapes when Floci has no resources provisioned.
+- **Interactive Action Endpoints (`dashboard/actions.py` & `dashboard/*_views.py`)**: REST/JSON endpoints for mutating service resources with strict error normalization.
+- **Workflow Labs (`dashboard/labs/`)**: Curated multi-step AWS workflows with live-state verification and multi-SDK (AWS CLI, Python `boto3`, Terraform) code generation.
+- **Shared UI Shell (`dashboard/templates/dashboard/base.html` & `dashboard/static/dashboard/service-console.js`)**: AWS Cloudscape Design System integration, semantic status indicators (`.status-indicator`), key-value grids (`.cloudscape-kv-grid`), and toast notifications.
+
+---
+
+## Adding a New Service Workbench
+
+1. **Register the Service**: Add an entry to `dashboard/services.py` with title, category, maturity, docs URL, and optional CSS/JS assets.
+2. **Implement Inventory Loading**: Add the inventory loader function to `dashboard/aws.py`.
+3. **Add Interactive Console (Optional)**:
+   - Create `dashboard/static/dashboard/<service>-console.js` and `dashboard/static/dashboard/<service>-console.css`.
+   - Use `window.ServiceConsole` helpers (`el`, `button`, `kvGrid`, `statusIndicator`, `toast`) for UI consistency.
+4. **Preserve Educational Context**: Add an `About Floci <Service>` educational accordion to `dashboard/templates/dashboard/service.html`.
+5. **Add Automated Tests**: Add test cases in `dashboard/tests_new_services_inventory.py` or a dedicated test module.
+
+---
+
+## Adding a New Workflow Lab
+
+1. Create a lab module under `dashboard/labs/` (e.g. `<service>_labs.py`).
+2. Define the lab using `WorkflowLab` and `LabStep` structures with descriptive goals, hints, and expected AWS CLI commands.
+3. Multi-SDK code generation (`boto3` and Terraform) will be automatically derived from the CLI command shape via `dashboard/labs/snippets.py`.
+4. Implement the execution runner and live-state verification functions.
+5. Register the batch in `dashboard/labs/registry.py` and update batch progression in `dashboard/views.py`.
+
+---
+
+## Development & Testing Workflow
+
+### Running Tests
+
+Execute the test suite inside the Docker container:
+
+```bash
+docker compose exec -T dashboard python manage.py test
+```
+
+Or from your host virtual environment:
+
+```bash
+python3 manage.py test
+```
+
+### Checking JavaScript Syntax
+
+```bash
+node --check dashboard/static/dashboard/*.js
+```
+
+### System Integrity Checks
+
+```bash
+python3 manage.py check
+```

@@ -16,19 +16,19 @@ def service_model(*operations):
 class NewServiceInventoryPageTests(SimpleTestCase):
     def test_new_service_pages_render_inventory_shells(self):
         cases = [
-            ('batch', 'AWS Batch', 'Compute environments, job queues, definitions, and jobs'),
-            ('amazonmq', 'Amazon MQ', 'RabbitMQ-backed brokers and users'),
-            ('docdb', 'DocumentDB', 'MongoDB-compatible clusters and instances'),
-            ('emr', 'EMR', 'Clusters, instance groups, and steps'),
-            ('memorydb', 'MemoryDB', 'Redis-compatible clusters, users, ACLs, and subnet groups'),
-            ('codepipeline', 'CodePipeline', 'Pipelines, stages, executions, webhooks, and action types'),
-            ('s3vectors', 'S3 Vectors', 'Vector buckets and indexes'),
-            ('iot', 'IoT Core', 'Things, policies, certificates, rules, jobs, and role aliases'),
-            ('rdsdata', 'RDS Data API', 'Serverless SQL statement and transaction calls'),
-            ('wafv2', 'WAF v2', 'Web ACLs, rule groups, IP sets, and regex pattern sets'),
+            ('batch', 'AWS Batch', 'Compute environments, job queues, definitions, and jobs', False),
+            ('amazonmq', 'Amazon MQ', 'RabbitMQ-backed brokers, endpoints, and users', True),
+            ('docdb', 'DocumentDB', 'MongoDB-compatible clusters, instances, and connection endpoints', True),
+            ('emr', 'EMR', 'Clusters, instance groups, and steps', False),
+            ('memorydb', 'MemoryDB', 'Redis-compatible clusters, users, ACLs, and endpoints', True),
+            ('codepipeline', 'CodePipeline', 'Pipelines, stages, executions, webhooks, and action types', False),
+            ('s3vectors', 'S3 Vectors', 'Vector buckets, embeddings, and similarity search indexes', True),
+            ('iot', 'IoT Core', 'Things, device certificates, policies, and MQTT message routing', True),
+            ('rdsdata', 'RDS Data API', 'Serverless SQL statement and transaction calls', False),
+            ('wafv2', 'WAF v2', 'Web ACLs, rule groups, IP sets, and regex pattern sets', True),
         ]
 
-        for key, title, eyebrow in cases:
+        for key, title, eyebrow, has_console_root in cases:
             with self.subTest(service=key):
                 response = self.client.get(reverse('dashboard:service-page', kwargs={'service_key': key}))
 
@@ -37,28 +37,31 @@ class NewServiceInventoryPageTests(SimpleTestCase):
                 self.assertContains(response, eyebrow)
                 self.assertContains(response, f'id="{key}-loaded-at"')
                 self.assertContains(response, f'id="{key}-summary"')
-                self.assertContains(response, f'id="{key}-grid"')
+                if has_console_root:
+                    self.assertContains(response, f'id="{key}-console-root"')
+                else:
+                    self.assertContains(response, f'id="{key}-grid"')
 
-    def test_new_services_are_registered_as_read_only_inspectors(self):
+    def test_new_services_are_registered_with_correct_maturity(self):
         cases = [
-            ('batch', 'Compute'),
-            ('amazonmq', 'Application Integration'),
-            ('docdb', 'Database'),
-            ('emr', 'Analytics'),
-            ('memorydb', 'Database'),
-            ('codepipeline', 'Developer Tools'),
-            ('s3vectors', 'Storage'),
-            ('iot', 'Application Integration'),
-            ('rdsdata', 'Database'),
-            ('wafv2', 'Security'),
+            ('batch', 'Compute', 'read_only_inspector'),
+            ('amazonmq', 'Application Integration', 'interactive_workbench'),
+            ('docdb', 'Database', 'interactive_workbench'),
+            ('emr', 'Analytics', 'read_only_inspector'),
+            ('memorydb', 'Database', 'interactive_workbench'),
+            ('codepipeline', 'Developer Tools', 'read_only_inspector'),
+            ('s3vectors', 'Storage', 'interactive_workbench'),
+            ('iot', 'Application Integration', 'interactive_workbench'),
+            ('rdsdata', 'Database', 'read_only_inspector'),
+            ('wafv2', 'Security', 'interactive_workbench'),
         ]
 
-        for key, category in cases:
+        for key, category, maturity in cases:
             with self.subTest(service=key):
                 service = get_service(key)
 
                 self.assertIsNotNone(service)
-                self.assertEqual(service.maturity, 'read_only_inspector')
+                self.assertEqual(service.maturity, maturity)
                 self.assertEqual(service.api_path, None)
                 self.assertEqual(service.category, category)
 

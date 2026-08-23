@@ -123,3 +123,16 @@ def settings_test_connection(request):
         return JsonResponse(payload)
     except ValueError as exc:
         return JsonResponse({'error': str(exc)}, status=400)
+
+
+@require_POST
+def settings_floci_reset(request):
+    try:
+        factory = FlociClientFactory()
+        result = factory.reset_state()
+        return JsonResponse({
+            **_settings_payload(request),
+            'reset_result': result,
+        })
+    except ValueError as exc:
+        return JsonResponse({'error': str(exc)}, status=400)

@@ -31,83 +31,17 @@
     <div class="section-heading">
       <div>
         <h2>{{ service.title }} inventory</h2>
-        {% if service.key == 'acm' %}
-          <nav id="acm-breadcrumbs" class="acm-breadcrumbs" aria-label="ACM navigation"></nav>
-        {% elif service.key == 's3' %}
-          <nav id="s3-breadcrumbs" class="s3-breadcrumbs" aria-label="S3 navigation"></nav>
-        {% elif service.key == 'iam' %}
-          <nav id="iam-breadcrumbs" class="iam-breadcrumbs-console" aria-label="IAM navigation"></nav>
-        {% elif service.key == 'sqs' %}
-          <nav id="sqs-breadcrumbs" class="sqs-breadcrumbs" aria-label="SQS navigation"></nav>
-        {% elif service.key == 'sns' %}
-          <nav id="sns-breadcrumbs" class="sns-breadcrumbs" aria-label="SNS navigation"></nav>
-        {% elif service.key == 'lambda' %}
-          <nav id="lambda-breadcrumbs" class="lambda-breadcrumbs" aria-label="Lambda navigation"></nav>
-        {% elif service.key == 'dynamodb' %}
-          <nav id="dynamodb-breadcrumbs" class="dynamodb-breadcrumbs" aria-label="DynamoDB navigation"></nav>
-        {% elif service.key == 'cloudwatch' %}
-          <nav id="cloudwatch-breadcrumbs" class="cloudwatch-breadcrumbs" aria-label="CloudWatch navigation"></nav>
-        {% elif service.key == 'cloudformation' %}
-          <nav id="cloudformation-breadcrumbs" class="cloudformation-breadcrumbs" aria-label="CloudFormation navigation"></nav>
-        {% elif service.key == 'cognito' %}
-          <nav id="cognito-breadcrumbs" class="cognito-breadcrumbs" aria-label="Cognito navigation"></nav>
-        {% elif service.key == 'stepfunctions' %}
-          <nav id="stepfunctions-breadcrumbs" class="stepfunctions-breadcrumbs" aria-label="Step Functions navigation"></nav>
-        {% elif service.key == 'eventbridge' %}
-          <nav id="eventbridge-breadcrumbs" class="eventbridge-breadcrumbs" aria-label="EventBridge navigation"></nav>
-        {% elif service.key == 'ec2' %}
-          <nav id="ec2-breadcrumbs" class="ec2-breadcrumbs" aria-label="EC2 navigation"></nav>
-        {% elif service.key == 'ecr' %}
-          <nav id="ecr-breadcrumbs" class="ecr-breadcrumbs" aria-label="ECR navigation"></nav>
-        {% elif service.key == 'ecs' %}
-          <nav id="ecs-breadcrumbs" class="ecs-breadcrumbs" aria-label="ECS navigation"></nav>
-        {% elif service.key == 'eks' %}
-          <nav id="eks-breadcrumbs" class="eks-breadcrumbs" aria-label="EKS navigation"></nav>
-        {% elif service.key == 'elasticache' %}
-          <nav id="elasticache-breadcrumbs" class="elasticache-breadcrumbs" aria-label="ElastiCache navigation"></nav>
-        {% elif service.key == 'elasticbeanstalk' %}
-          <nav id="elasticbeanstalk-breadcrumbs" class="elasticbeanstalk-breadcrumbs" aria-label="Elastic Beanstalk navigation"></nav>
-        {% elif service.key == 'opensearch' %}
-          <nav id="opensearch-breadcrumbs" class="opensearch-breadcrumbs" aria-label="OpenSearch navigation"></nav>
-        {% elif service.key == 'athena' %}
-          <nav id="athena-breadcrumbs" class="athena-breadcrumbs" aria-label="Athena navigation"></nav>
-        {% elif service.key == 'apigateway' %}
-          <nav id="apigateway-breadcrumbs" class="apigateway-breadcrumbs" aria-label="API Gateway navigation"></nav>
-        {% elif service.key == 'kinesis' %}
-          <nav id="kinesis-breadcrumbs" class="kinesis-breadcrumbs" aria-label="Kinesis navigation"></nav>
-        {% elif service.key == 'kms' %}
-          <nav id="kms-breadcrumbs" class="kms-breadcrumbs" aria-label="KMS navigation"></nav>
-        {% elif service.key == 'secretsmanager' %}
-          <nav id="secretsmanager-breadcrumbs" class="secretsmanager-breadcrumbs" aria-label="Secrets Manager navigation"></nav>
-        {% elif service.key == 'cloudtrail' %}
-          <nav id="cloudtrail-breadcrumbs" class="cloudtrail-breadcrumbs" aria-label="CloudTrail navigation"></nav>
-        {% elif service.key == 'ssm' %}
-          <nav id="ssm-breadcrumbs" class="ssm-breadcrumbs" aria-label="SSM navigation"></nav>
-        {% elif service.key == 'rds' %}
-          <nav id="rds-breadcrumbs" class="rds-breadcrumbs" aria-label="RDS navigation"></nav>
-        {% elif service.key == 'autoscaling' %}
-          <nav id="autoscaling-breadcrumbs" class="autoscaling-breadcrumbs" aria-label="Auto Scaling navigation"></nav>
-        {% elif service.key == 'elasticloadbalancing' %}
-          <nav id="elasticloadbalancing-breadcrumbs" class="elasticloadbalancing-breadcrumbs" aria-label="Elastic Load Balancing navigation"></nav>
-        {% elif service.key == 'cloudfront' %}
-          <nav id="cloudfront-breadcrumbs" class="cloudfront-breadcrumbs" aria-label="CloudFront navigation"></nav>
-        {% elif service.key == 'route53' %}
-          <nav id="route53-breadcrumbs" class="route53-breadcrumbs" aria-label="Route 53 navigation"></nav>
-        {% elif service.key == 'scheduler' %}
-          <nav id="scheduler-breadcrumbs" class="scheduler-breadcrumbs" aria-label="EventBridge Scheduler navigation"></nav>
-        {% elif service.key == 'pipes' %}
-          <nav id="pipes-breadcrumbs" class="pipes-breadcrumbs" aria-label="EventBridge Pipes navigation"></nav>
-        {% elif service.key == 'config' %}
-          <nav id="config-breadcrumbs" class="config-breadcrumbs" aria-label="AWS Config navigation"></nav>
-        {% elif service.key == 'appsync' %}
-          <nav id="appsync-breadcrumbs" class="appsync-breadcrumbs" aria-label="AppSync navigation"></nav>
-        {% endif %}
+        <nav id="{{ service.key }}-breadcrumbs" class="{{ service.key }}-breadcrumbs {{ service.key }}-breadcrumbs-console" aria-label="{{ service.title }} navigation"></nav>
       </div>
       <span id="{{ service.key }}-loaded-at"></span>
     </div>
     <div id="{{ service.key }}-summary" class="summary-grid"></div>
+    {% if service.console_js %}
+      <div id="{{ service.key }}-console-root" class="{{ service.key }}-console-root" aria-live="polite"></div>
+    {% else %}
+      <div id="{{ service.key }}-grid" class="iam-grid"></div>
+    {% endif %}
     {% if service.key == 'acm' %}
-      <div id="acm-console-root" class="acm-console-root" aria-live="polite"></div>
       <details class="acm-about-floci">
         <summary>About Floci ACM</summary>
         <p>Local ACM stores AWS-compatible certificate metadata and issues requested certificates immediately for local emulation.</p>
@@ -115,7 +49,6 @@
         <p>Certificates use real RSA or EC keys and valid X.509 structure. Validation is emulator-friendly, and only PRIVATE certificates can be exported with an encrypted private key.</p>
       </details>
     {% elif service.key == 's3' %}
-      <div id="s3-console-root" class="s3-console-root" aria-live="polite"></div>
       <details class="s3-about-floci">
         <summary>About Floci S3</summary>
         <p>S3 is the object storage layer for local AWS work: buckets hold durable objects, keys give those objects names, metadata and tags describe them, and URLs or SDK calls move bytes in and out. Floci S3 gives you a fast local place to build that storage model before your app points at AWS.</p>
@@ -131,7 +64,6 @@
         <p>Useful local test cases include upload and download paths, overwrite behavior, empty bucket cleanup, versioning changes, object tagging, copy operations, prefix browsing, presigned URL flows, and app behavior when a bucket or object does not exist. Bucket policy and ACL authorization is optional: set <code>FLOCI_SERVICES_S3_ENFORCE_AUTH=true</code> to enforce public/private reads and reject unknown signed access keys. Replication execution, access logging, and inventory are not available. Floci 1.5.32 also returns the AWS-compatible default SSE-S3 configuration for buckets without an explicit encryption rule.</p>
       </details>
     {% elif service.key == 'iam' %}
-      <div id="iam-console-root" class="iam-console-root" aria-live="polite"></div>
       <details class="iam-about-floci">
         <summary>About Floci IAM</summary>
         <p>IAM is the control layer for local AWS work: it answers who is making a request, which credentials they are using, and whether a policy allows the action. Floci IAM gives you a safe local place to build that model before you wire it into an app.</p>
@@ -148,7 +80,6 @@
         <p>Useful local test cases include missing permissions, explicit deny behavior, incorrect trust policies, inactive access keys, group policy inheritance, session-policy constraints, permission boundaries, and role-session credential wiring. Floci 1.5.29 routes assumed-role credentials to the target account.</p>
       </details>
     {% elif service.key == 'sqs' %}
-      <div id="sqs-console-root" class="sqs-console-root" aria-live="polite"></div>
       <details class="sqs-about-floci">
         <summary>About Floci SQS</summary>
         <p>Local SQS emulator for queue-driven workflows. Polling messages makes them temporarily invisible until the visibility timeout expires or they are deleted. Floci 1.5.25 aligns MaximumMessageSize with AWS at 1 MB and reports delayed-message counts in queue attributes.</p>
@@ -156,7 +87,6 @@
         <p>Common local test cases include producer message format, consumer retry behavior, visibility timeout handling, delete-after-success behavior, purge cleanup, FIFO ordering, duplicate handling, and dead-letter queue flows.</p>
       </details>
     {% elif service.key == 'ses' %}
-      <div id="ses-console-root" class="ses-console-root" aria-live="polite"></div>
       <details class="ses-about-floci">
         <summary>About Floci SES</summary>
         <p>Local SES supports the classic Query API and a subset of SES v2 REST JSON. Identity verification succeeds immediately, so test senders and recipients can be created without DNS or inbox verification.</p>
@@ -164,7 +94,6 @@
         <p>SES v1 and v2 share identity, template, configuration set, and sent-message state in Floci. Floci 1.5.25 preserves SES v2 configuration set inline options and tightens MAIL FROM and identity-notification attribute behavior.</p>
       </details>
     {% elif service.key == 'sns' %}
-      <div id="sns-console-root" class="sns-console-root" aria-live="polite"></div>
       <details class="sns-about-floci">
         <summary>About Floci SNS</summary>
         <p>Local SNS emulator for topic-based pub/sub workflows. Published messages are delivered immediately to supported local subscriptions, including SQS queues.</p>
@@ -172,7 +101,6 @@
         <p>Common local test cases include message shape, attributes, subject handling, subscription filter policies, FIFO group and deduplication behavior, SNS-to-SQS fanout, and mocked iOS or Android mobile push endpoints added in Floci 1.5.22.</p>
       </details>
     {% elif service.key == 'lambda' %}
-      <div id="lambda-console-root" class="lambda-console-root" aria-live="polite"></div>
       <details class="lambda-about-floci">
         <summary>About Floci Lambda</summary>
         <p>Local Lambda runs function code in Docker-backed execution environments. Invocations can return response payloads, function errors, and a tail of execution logs.</p>
@@ -180,7 +108,6 @@
         <p>Common local test cases include handler payload parsing, environment variables, timeout behavior, function errors, event-source integration payloads, and log output.</p>
       </details>
     {% elif service.key == 'kms' %}
-      <div id="kms-console-root" class="kms-console-root" aria-live="polite"></div>
       <details class="kms-about-floci">
         <summary>About Floci KMS</summary>
         <p>Local KMS stores symmetric and asymmetric keys, aliases, tags, policies, rotation state, deletion state, and grant records through the AWS-compatible JSON 1.1 API.</p>
@@ -188,7 +115,6 @@
         <p>Grant lifecycle APIs are stored and queryable in Floci, but grants are not evaluated for cryptographic authorization. The reserved creation-time tag floci:override-id can make deterministic local key IDs for tests.</p>
       </details>
     {% elif service.key == 'dynamodb' %}
-      <div id="dynamodb-console-root" class="dynamodb-console-root" aria-live="polite"></div>
       <details class="dynamodb-about-floci">
         <summary>About Floci DynamoDB</summary>
         <p>Local DynamoDB stores application state in tables with AWS-compatible key, index, stream, and item APIs. PartiQL SELECT support is available in Floci 1.5.17 and newer.</p>
@@ -196,7 +122,6 @@
         <p>Common local test cases include key design, item shape, stream enablement, TTL configuration, index projections, and app behavior when records are missing or malformed.</p>
       </details>
     {% elif service.key == 'cloudwatch' %}
-      <div id="cloudwatch-console-root" class="cloudwatch-console-root" aria-live="polite"></div>
       <details class="cloudwatch-about-floci">
         <summary>About Floci CloudWatch Logs</summary>
         <p>Local CloudWatch Logs captures log groups, log streams, and log events produced by services such as Lambda. This viewer focuses on recent logs for local debugging rather than the full CloudWatch Console surface.</p>
@@ -204,7 +129,6 @@
         <p>Common local test cases include handler errors, async event processing, retry behavior, missing environment configuration, and log messages emitted by background workers.</p>
       </details>
     {% elif service.key == 'stepfunctions' %}
-      <div id="stepfunctions-console-root" class="stepfunctions-console-root" aria-live="polite"></div>
       <details class="stepfunctions-about-floci">
         <summary>About Floci Step Functions</summary>
         <p>Local Step Functions runs state machine workflows through the AWS-compatible Amazon States API. This workbench focuses on starting executions and inspecting their status, input, output, and recent history.</p>
@@ -213,7 +137,6 @@
         <p>Common local test cases include input shape, Choice state routing, Lambda task payloads, retry and catch paths, timeout behavior, failure output, and task-token callback flows.</p>
       </details>
     {% elif service.key == 'cloudformation' %}
-      <div id="cloudformation-console-root" class="cloudformation-console-root" aria-live="polite"></div>
       <details class="cloudformation-about-floci">
         <summary>About Floci CloudFormation</summary>
         <p>Local CloudFormation deploys templates through the AWS-compatible Query XML API and provisions supported local resources such as S3 buckets, SQS queues, SNS topics, DynamoDB tables, Lambda functions, Lambda layer versions, IAM identities, EC2 VPCs and subnets, SSM parameters, KMS keys, Secrets Manager secrets, API Gateway resources, EventBridge rules, ECS resources, ELBv2 resources, and more.</p>
@@ -221,7 +144,6 @@
         <p>Unsupported resource types are accepted and assigned synthetic physical IDs so broader templates can deploy while you focus on the local services that Floci emulates.</p>
       </details>
     {% elif service.key == 'cognito' %}
-      <div id="cognito-console-root" class="cognito-console-root" aria-live="polite"></div>
       <details class="cognito-about-floci">
         <summary>About Floci Cognito</summary>
         <p>Local Cognito stores user pools, app clients, resource servers, users, groups, and tags for AWS-compatible auth workflows. Floci also serves pool-specific discovery and JWKS endpoints for local JWT validation.</p>
@@ -229,7 +151,6 @@
         <p>The OAuth token endpoint is emulator-friendly: it supports client_credentials without requiring a Cognito domain and returns local RS256-signed access tokens. Floci 1.5.25 also includes USERNAME in SRP PASSWORD_VERIFIER challenges for SDK parity.</p>
       </details>
     {% elif service.key == 'eventbridge' %}
-      <div id="eventbridge-console-root" class="eventbridge-console-root" aria-live="polite"></div>
       <details class="eventbridge-about-floci">
         <summary>About Floci EventBridge</summary>
         <p>Local EventBridge routes application events from event buses through rules and targets such as Lambda, SQS, SNS, and Step Functions.</p>
@@ -237,7 +158,6 @@
         <p>Common local test cases include event source naming, detail-type conventions, event pattern matching, disabled rules, target wiring, and app behavior when events are accepted but no rule matches.</p>
       </details>
     {% elif service.key == 'ec2' %}
-      <div id="ec2-console-root" class="ec2-console-root" aria-live="polite"></div>
       <details class="ec2-about-floci">
         <summary>About Floci EC2</summary>
         <p>Local EC2 can launch Docker-backed instances, manage lifecycle state, inject imported SSH public keys, run UserData, and expose IMDS-compatible metadata for local compute workflows.</p>
@@ -249,7 +169,6 @@
         <p>Common local test cases include UserData bootstrapping, IMDSv1 and IMDSv2 calls, IAM instance profile credential wiring, SSM commands, tag-based discovery, VPC routing, endpoint placement, security group ingress, and app behavior across stop/start or termination.</p>
       </details>
     {% elif service.key == 'ecr' %}
-      <div id="ecr-console-root" class="ecr-console-root" aria-live="polite"></div>
       <details class="ecr-about-floci">
         <summary>About Floci ECR</summary>
         <p>Local ECR combines an AWS-compatible control plane with a real OCI Distribution v2 registry sidecar for Docker push and pull workflows.</p>
@@ -257,7 +176,6 @@
         <p>Lifecycle and repository policies are stored for API compatibility but are not enforced. Deleted image blobs are reclaimed by the local garbage-collection admin endpoint.</p>
       </details>
     {% elif service.key == 'ecs' %}
-      <div id="ecs-console-root" class="ecs-console-root" aria-live="polite"></div>
       <details class="ecs-about-floci">
         <summary>About Floci ECS</summary>
         <p>Local ECS stores clusters, task definitions, tasks, services, task sets, container instances, capacity providers, account settings, attributes, and tags through the AWS-compatible JSON API.</p>
@@ -265,7 +183,6 @@
         <p>By default tasks launch as real Docker containers and need Docker socket access. Set FLOCI_SERVICES_ECS_MOCK=true when tests or CI should run without Docker. Recent Floci releases honor task hostPort mappings, mount EFS task volumes as shared local volumes, persist ECS resources, and validate Fargate task network mode and resource requirements more closely.</p>
       </details>
     {% elif service.key == 'apigateway' %}
-      <div id="apigateway-console-root" class="apigateway-console-root" aria-live="polite"></div>
       <details class="apigateway-about-floci">
         <summary>About Floci API Gateway</summary>
         <p>Local API Gateway supports REST APIs and HTTP APIs for testing request routing, integrations, stages, and local application entry points.</p>
@@ -273,7 +190,6 @@
         <p>Common local test cases include method and path matching, stage selection, JSON payload parsing, integration status codes, headers, query strings, and behavior when a route is missing.</p>
       </details>
     {% elif service.key == 'kinesis' %}
-      <div id="kinesis-console-root" class="kinesis-console-root" aria-live="polite"></div>
       <details class="kinesis-about-floci">
         <summary>About Floci Kinesis</summary>
         <p>Local Kinesis stores stream records by shard so producers and consumers can test event payloads, partition keys, sequence numbers, and shard iteration behavior.</p>
@@ -281,7 +197,6 @@
         <p>Common local test cases include partition key choice, malformed payloads, consumer checkpointing, sequence-number handling, and downstream Lambda or EventBridge Pipes integrations.</p>
       </details>
     {% elif service.key == 'kafka' %}
-      <div id="kafka-console-root" class="kafka-console-root" aria-live="polite"></div>
       <details class="kafka-about-floci">
         <summary>About Floci MSK</summary>
         <p>Local MSK orchestrates Redpanda containers for Kafka-compatible clusters while keeping the AWS-compatible MSK management API local.</p>
@@ -289,7 +204,6 @@
         <p>A good learning flow is to create a one-broker cluster, refresh until it becomes ACTIVE, load bootstrap brokers, test a Kafka client against the returned localhost endpoint, then delete the cluster when the scenario is done.</p>
       </details>
     {% elif service.key == 'firehose' %}
-      <div id="firehose-console-root" class="firehose-console-root" aria-live="polite"></div>
       <details class="firehose-about-floci">
         <summary>About Floci Data Firehose</summary>
         <p>Local Data Firehose accepts records through the AWS-compatible JSON 1.1 API and buffers them for delivery to S3.</p>
@@ -297,7 +211,6 @@
         <p>A good learning flow is to create a delivery stream, put one representative JSON record, send a small batch to trigger a flush, then inspect the destination bucket for newline-delimited output.</p>
       </details>
     {% elif service.key == 'secretsmanager' %}
-      <div id="secretsmanager-console-root" class="secretsmanager-console-root" aria-live="polite"></div>
       <details class="secretsmanager-about-floci">
         <summary>About Floci Secrets Manager</summary>
         <p>Local Secrets Manager stores application secrets and versions for AWS-compatible development workflows. Read-only inventory keeps values masked, while this workbench can explicitly reveal a selected local value for debugging.</p>
@@ -305,7 +218,6 @@
         <p>Common local test cases include missing secrets, malformed JSON values, stale credentials, scheduled deletion, KMS key wiring, and application behavior after secret rotation or update.</p>
       </details>
     {% elif service.key == 'ssm' %}
-      <div id="ssm-console-root" class="ssm-console-root" aria-live="polite"></div>
       <details class="ssm-about-floci">
         <summary>About Floci SSM Parameter Store</summary>
         <p>Local SSM includes Parameter Store metadata plus broader SSM inventory. This workbench focuses on parameters for application configuration, feature flags, endpoints, and non-secret runtime settings.</p>
@@ -313,7 +225,6 @@
         <p>Common local test cases include missing parameters, stale config versions, malformed JSON values, SecureString decryption, overwrite behavior, application reloads after updates, and Floci 1.5.26 SendCommand execution in EC2 containers.</p>
       </details>
     {% elif service.key == 'rds' %}
-      <div id="rds-console-root" class="rds-console-root" aria-live="polite"></div>
       <details class="rds-about-floci">
         <summary>About Floci RDS</summary>
         <p>Local RDS manages real PostgreSQL, MySQL, and MariaDB Docker containers through the AWS-compatible management API, then exposes each database through a localhost TCP proxy port.</p>
@@ -321,7 +232,6 @@
         <p>Each DB instance or cluster gets its own Docker volume. In memory mode volumes are removed on delete; persistent modes retain data for manual recovery unless pruning is enabled.</p>
       </details>
     {% elif service.key == 'backup' %}
-      <div id="backup-console-root" class="backup-console-root" aria-live="polite"></div>
       <details class="backup-about-floci">
         <summary>About Floci AWS Backup</summary>
         <p>Local AWS Backup stores backup vaults, plans, selections, simulated backup jobs, recovery points, protected resources, and tags through the AWS-compatible REST JSON API.</p>
@@ -329,7 +239,6 @@
         <p>A good learning flow is to create a vault, create a plan, add a resource selection, start an on-demand backup job, refresh until it completes, then inspect or delete the generated recovery point.</p>
       </details>
     {% elif service.key == 'transfer' %}
-      <div id="transfer-console-root" class="transfer-console-root" aria-live="polite"></div>
       <details class="transfer-about-floci">
         <summary>About Floci Transfer Family</summary>
         <p>Local Transfer Family covers the management-plane API for servers, users, SSH public keys, and tags through the AWS-compatible JSON 1.1 API.</p>
@@ -337,7 +246,6 @@
         <p>A good learning flow is to create an SFTP server, create a user with an IAM role and home directory, import an SSH public key, tag the server, then stop and delete the server when testing is complete.</p>
       </details>
     {% elif service.key == 'textract' %}
-      <div id="textract-console-root" class="textract-console-root" aria-live="polite"></div>
       <details class="textract-about-floci">
         <summary>About Floci Textract</summary>
         <p>Local Textract emulates the AWS JSON 1.1 API with fixed stub responses. Document bytes and S3 document references are accepted but not parsed.</p>
@@ -345,7 +253,6 @@
         <p>Async StartDocumentTextDetection and StartDocumentAnalysis return in-memory job IDs that are immediately SUCCEEDED. Job IDs are not persisted across restarts.</p>
       </details>
     {% elif service.key == 'transcribe' %}
-      <div id="transcribe-console-root" class="transcribe-console-root" aria-live="polite"></div>
       <details class="transcribe-about-floci">
         <summary>About Floci Transcribe</summary>
         <p>Local Transcribe is a small AWS-compatible control-plane stub for transcription jobs and custom vocabularies. No real audio parsing or speech-to-text processing is performed.</p>
@@ -353,7 +260,6 @@
         <p>LanguageCode defaults to en-US and MediaFormat defaults to mp4. Floci 1.5.29 persists vocabularies across restart, while transcription job execution remains a control-plane stub.</p>
       </details>
     {% elif service.key == 'bedrockruntime' %}
-      <div id="bedrockruntime-console-root" class="bedrockruntime-console-root" aria-live="polite"></div>
       <details class="bedrockruntime-about-floci">
         <summary>About Floci Bedrock Runtime</summary>
         <p>Local Bedrock Runtime emulates Converse and InvokeModel with AWS-compatible fixed stub responses. No real model inference is performed.</p>
@@ -361,7 +267,6 @@
         <p>InvokeModel accepts the request body as opaque bytes and returns an Anthropic-shaped body for Anthropic model IDs or a generic outputs body otherwise. Streaming and the Bedrock management plane are out of scope.</p>
       </details>
     {% elif service.key == 'appconfig' %}
-      <div id="appconfig-console-root" class="appconfig-console-root" aria-live="polite"></div>
       <details class="appconfig-about-floci">
         <summary>About Floci AppConfig</summary>
         <p>Local AppConfig supports the management-plane workflow for applications, environments, configuration profiles, hosted versions, deployment strategies, and deployments.</p>
@@ -369,7 +274,6 @@
         <p>A good learning flow is to create an application hierarchy, add a JSON hosted version, create an immediate deployment strategy, deploy the version, then retrieve it through the data plane. Floci 1.5.25 prevents AppConfig routing from hijacking S3 buckets named configuration.</p>
       </details>
     {% elif service.key == 'appsync' %}
-      <div id="appsync-console-root" class="appsync-console-root" aria-live="polite"></div>
       <details class="appsync-about-floci">
         <summary>About Floci AppSync</summary>
         <p>Floci supports AppSync management APIs for provisioning and configuring GraphQL APIs, with phased resolver support through the Phase 4 VTL engine added in Floci 1.5.29.</p>
@@ -377,7 +281,6 @@
         <p>The workbench focuses on management-plane resources and resolver configuration so local GraphQL infrastructure can be inspected alongside its backing data sources.</p>
       </details>
     {% elif service.key == 'cloudmap' %}
-      <div id="cloudmap-console-root" class="cloudmap-console-root" aria-live="polite"></div>
       <details class="cloudmap-about-floci">
         <summary>About Floci Cloud Map</summary>
         <p>Floci 1.5.24 supports Cloud Map service discovery management APIs for namespaces, services, registered instances, discovery calls, async operations, custom health status, and tags.</p>
@@ -385,7 +288,6 @@
         <p>Registered instance attributes are the discovery payload your local services can query during integration tests.</p>
       </details>
     {% elif service.key == 'resourcegroupstagging' %}
-      <div id="resourcegroupstagging-console-root" class="resourcegroupstagging-console-root" aria-live="polite"></div>
       <details class="resourcegroupstagging-about-floci">
         <summary>About Floci Resource Groups Tagging</summary>
         <p>Local Resource Groups Tagging provides centralized tag discovery across arbitrary AWS-shaped resource ARNs. Referenced resources do not need to exist in another emulated service.</p>
@@ -393,7 +295,6 @@
         <p>Tags are stored in process and do not persist across Floci restarts. AWS Organizations tag policies and compliance enforcement are out of scope.</p>
       </details>
     {% elif service.key == 'neptune' %}
-      <div id="neptune-console-root" class="neptune-console-root" aria-live="polite"></div>
       <details class="neptune-about-floci">
         <summary>About Floci Neptune</summary>
         <p>Local Neptune manages real Apache TinkerPop Gremlin Server containers through the AWS-compatible Query management API.</p>
@@ -401,7 +302,6 @@
         <p>A good learning flow is to create a cluster, create an instance in it, copy the Gremlin WebSocket endpoint, add a vertex with gremlin-python, then delete the instance and cluster when the graph scenario is done.</p>
       </details>
     {% elif service.key == 'autoscaling' %}
-      <div id="autoscaling-console-root" class="autoscaling-console-root" aria-live="polite"></div>
       <details class="autoscaling-about-floci">
         <summary>About Floci Auto Scaling</summary>
         <p>Local Auto Scaling stores launch configurations, groups, lifecycle hooks, policies, target group attachments, and activity history through the AWS-compatible Query API.</p>
@@ -409,7 +309,6 @@
         <p>Attached ELB v2 target groups are registered as instances become InService, and scale-in deregisters targets before terminating instances. Floci 1.5.26 adds group reconciliation and refresh behavior plus mixed-instances parity improvements.</p>
       </details>
     {% elif service.key == 'elasticloadbalancing' %}
-      <div id="elasticloadbalancing-console-root" class="elasticloadbalancing-console-root" aria-live="polite"></div>
       <details class="elasticloadbalancing-about-floci">
         <summary>About Floci ELB v2</summary>
         <p>Local ELBv2 supports the Application Load Balancer and Network Load Balancer control plane: load balancers, target groups, targets, listeners, listener rules, tags, SSL policy metadata, and account limits.</p>
@@ -417,7 +316,6 @@
         <p>A good learning flow is to create a load balancer, create a target group, register local EC2 or IP targets, create a listener with a default forward action, then add a path-based rule.</p>
       </details>
     {% elif service.key == 'eks' %}
-      <div id="eks-console-root" class="eks-console-root" aria-live="polite"></div>
       <details class="eks-about-floci">
         <summary>About Floci EKS</summary>
         <p>Local EKS uses the AWS-compatible REST JSON API for cluster metadata, tags, and cluster lifecycle calls.</p>
@@ -425,7 +323,6 @@
         <p>Floci 1.5.24 adds managed node group support, so this workbench covers cluster lifecycle, node group lifecycle, endpoint metadata, and resource tags.</p>
       </details>
     {% elif service.key == 'elasticache' %}
-      <div id="elasticache-console-root" class="elasticache-console-root" aria-live="polite"></div>
       <details class="elasticache-about-floci">
         <summary>About Floci ElastiCache</summary>
         <p>Local ElastiCache uses the AWS-compatible Query management API and runs real Valkey or Redis Docker containers behind TCP proxy ports.</p>
@@ -433,7 +330,6 @@
         <p>Floci also supports ElastiCache users and IAM auth token validation. In Floci 1.5.25, persisted STS session secret keys make IAM-authenticated cache tokens validate across requests.</p>
       </details>
     {% elif service.key == 'opensearch' %}
-      <div id="opensearch-console-root" class="opensearch-console-root" aria-live="polite"></div>
       <details class="opensearch-about-floci">
         <summary>About Floci OpenSearch</summary>
         <p>Local OpenSearch uses the AWS-compatible REST JSON management API. In mock mode, domain metadata is stored in-process; in real mode, Floci starts one OpenSearch or Elasticsearch container per domain.</p>
@@ -441,7 +337,6 @@
         <p>Floci validates supported engine versions and exposes instance type details so SDK clients and infrastructure tools can inspect realistic domain metadata while the runtime stays local.</p>
       </details>
     {% elif service.key == 'athena' %}
-      <div id="athena-console-root" class="athena-console-root" aria-live="polite"></div>
       <details class="athena-about-floci">
         <summary>About Floci Athena</summary>
         <p>Local Athena uses the AWS-compatible JSON 1.1 API and runs SQL through a floci-duck sidecar powered by DuckDB.</p>
@@ -449,7 +344,6 @@
         <p>Mock mode skips DuckDB execution and immediately returns successful empty results, which is useful when tests only need the Athena query state machine. Floci 1.5.25 aligns GetWorkGroup behavior with AWS.</p>
       </details>
     {% elif service.key == 'glue' %}
-      <div id="glue-console-root" class="glue-console-root" aria-live="polite"></div>
       <details class="glue-about-floci">
         <summary>About Floci Glue</summary>
         <p>Local Glue emulates the Data Catalog and Schema Registry so local data lake metadata, schema compatibility workflows, and Athena table resolution can be tested through AWS-compatible APIs.</p>
@@ -457,7 +351,6 @@
         <p>The Schema Registry flow supports AVRO, JSON, and PROTOBUF definitions with the compatibility modes exposed by Floci, making it useful for testing event producer and consumer schema-version workflows.</p>
       </details>
     {% elif service.key == 'codebuild' %}
-      <div id="codebuild-console-root" class="codebuild-console-root" aria-live="polite"></div>
       <details class="codebuild-about-floci">
         <summary>About Floci CodeBuild</summary>
         <p>Local CodeBuild stores project, report-group, and source-credential configuration and executes builds inside real Docker containers.</p>
@@ -465,7 +358,6 @@
         <p>A good learning flow is to create a NO_SOURCE project with a lightweight image, start a build using an inline buildspec override, poll until buildComplete, then inspect its phases, logs, and artifacts.</p>
       </details>
     {% elif service.key == 'codedeploy' %}
-      <div id="codedeploy-console-root" class="codedeploy-console-root" aria-live="polite"></div>
       <details class="codedeploy-about-floci">
         <summary>About Floci CodeDeploy</summary>
         <p>Local CodeDeploy stores applications, deployment groups, deployment configs, deployments, tags, and on-premises no-op metadata through the AWS-compatible JSON 1.1 API.</p>
@@ -473,7 +365,6 @@
         <p>A good learning flow is to create a Lambda or ECS application, create a deployment group, submit an AppSpecContent revision, then poll the deployment and inspect deployment targets or hook status.</p>
       </details>
     {% elif service.key == 'cloudfront' %}
-      <div id="cloudfront-console-root" class="cloudfront-console-root" aria-live="polite"></div>
       <details class="cloudfront-about-floci">
         <summary>About Floci CloudFront</summary>
         <p>Local CloudFront emulates the management plane for distributions, invalidations, cache policies, origin request policies, response headers policies, origin access identities, origin access controls, functions, and tags.</p>
@@ -481,7 +372,6 @@
         <p>A good learning flow is to create a distribution for an S3-style origin, update its enabled state or comment, create a cache invalidation, then inspect the generated domain name and global ARN.</p>
       </details>
     {% elif service.key == 'route53' %}
-      <div id="route53-console-root" class="route53-console-root" aria-live="polite"></div>
       <details class="route53-about-floci">
         <summary>About Floci Route 53</summary>
         <p>Local Route 53 emulates the management plane for hosted zones, record-set changes, health checks, change tracking, and tags.</p>
@@ -489,7 +379,6 @@
         <p>A good learning flow is to create a hosted zone, add an A or CNAME record, inspect the immediate INSYNC change, create a health check, then tag the zone or health check.</p>
       </details>
     {% elif service.key == 'scheduler' %}
-      <div id="scheduler-console-root" class="scheduler-console-root" aria-live="polite"></div>
       <details class="scheduler-about-floci">
         <summary>About Floci EventBridge Scheduler</summary>
         <p>Local EventBridge Scheduler stores schedule groups and schedules through the AWS-compatible REST JSON API. When invocation is enabled, a local dispatcher fires due schedules on a short polling interval.</p>
@@ -497,7 +386,6 @@
         <p>Supported expressions include at, rate, and six-field cron. Retry policy and dead-letter config are stored for compatibility, but failed-invocation retry behavior is not enforced yet.</p>
       </details>
     {% elif service.key == 'pipes' %}
-      <div id="pipes-console-root" class="pipes-console-root" aria-live="polite"></div>
       <details class="pipes-about-floci">
         <summary>About Floci EventBridge Pipes</summary>
         <p>Local EventBridge Pipes stores pipe definitions that connect supported sources to supported targets, with optional enrichment and parameter blocks for service-specific behavior.</p>
@@ -505,29 +393,108 @@
         <p>Supported sources include SQS queues, Kinesis streams, DynamoDB streams, and Kafka topics. Supported targets include Lambda, SQS, SNS, Kinesis, and Step Functions.</p>
       </details>
     {% elif service.key == 'elasticbeanstalk' %}
-      <div id="elasticbeanstalk-console-root" class="elasticbeanstalk-console-root" aria-live="polite"></div>
       <details class="elasticbeanstalk-about-floci">
         <summary>About Floci Elastic Beanstalk</summary>
         <p>Floci stores Elastic Beanstalk applications, application versions, source-bundle references, environments, platform selections, and configuration option settings.</p>
         <p>Environments become Ready and Green immediately. No application infrastructure is provisioned and the generated local endpoint is metadata, so this workbench focuses on management-plane workflows.</p>
       </details>
     {% elif service.key == 'cloudtrail' %}
-      <div id="cloudtrail-console-root" class="cloudtrail-console-root" aria-live="polite"></div>
       <details class="cloudtrail-about-floci">
         <summary>About Floci CloudTrail</summary>
         <p>Local CloudTrail persists trail configuration and logging state for AWS-compatible management-plane testing.</p>
         <p>Floci does not record live API activity into trails, so event lookup remains empty. Event-selector requests are accepted but selector payloads are not stored; this workbench intentionally omits that no-op control.</p>
       </details>
     {% elif service.key == 'config' %}
-      <div id="config-console-root" class="config-console-root" aria-live="polite"></div>
       <details class="config-about-floci">
         <summary>About Floci AWS Config</summary>
         <p>Local AWS Config stores configuration recorders, delivery channels, config rules, conformance packs, tags, and compliance metadata through the AWS-compatible JSON 1.1 API.</p>
         <p>Config is most useful for testing local compliance setup and infrastructure automation. In Floci, a good learning flow is to create a recorder, add a delivery channel, start recording, create a rule, then trigger a rule evaluation.</p>
         <p>Compliance status always returns INSUFFICIENT_DATA because Floci stores the management-plane resources but does not perform real resource evaluation or configuration recording.</p>
       </details>
-    {% else %}
-      <div id="{{ service.key }}-grid" class="iam-grid"></div>
+    {% elif service.key == 'docdb' %}
+      <details class="docdb-about-floci">
+        <summary>About Floci DocumentDB</summary>
+        <p>Local Amazon DocumentDB stores cluster and instance metadata with AWS-compatible lifecycle APIs. In mock mode, Floci emulates management-plane cluster provisioning; when container execution is enabled, it can spin up a local MongoDB-compatible database engine.</p>
+        <p>DocumentDB is commonly used for document-oriented database workloads requiring high availability. In Floci, a good workflow is to create a cluster, add DB instances, configure security groups and subnet groups, and test connection string generation.</p>
+      </details>
+    {% elif service.key == 'memorydb' %}
+      <details class="memorydb-about-floci">
+        <summary>About Floci MemoryDB</summary>
+        <p>Local Amazon MemoryDB for Redis manages Redis-compatible in-memory cluster configurations, ACL users, subnet groups, parameter groups, and snapshot records.</p>
+        <p>MemoryDB provides ultra-fast primary database storage with durable transaction logging. In Floci, use this workbench to test cluster provisioning metadata, user ACL authentication wiring, and snapshot export automation.</p>
+      </details>
+    {% elif service.key == 'amazonmq' %}
+      <details class="amazonmq-about-floci">
+        <summary>About Floci Amazon MQ</summary>
+        <p>Local Amazon MQ models message broker provisioning for RabbitMQ and Apache ActiveMQ engines with user credential management and endpoint discovery.</p>
+        <p>Amazon MQ is ideal for hybrid migrations and legacy AMQP/STOMP/MQTT messaging. In Floci, test broker lifecycle state transitions, security group attachments, and multi-user configuration.</p>
+      </details>
+    {% elif service.key == 'iot' %}
+      <details class="iot-about-floci">
+        <summary>About Floci IoT Core</summary>
+        <p>Local AWS IoT Core stores IoT Thing registries, thing types, policy attachments, device certificates, and MQTT topic rule definitions.</p>
+        <p>IoT Core connects physical and simulated devices to AWS services. In Floci, use this workbench to register local device identities, attach granular IoT access policies, and test message routing rule structures.</p>
+      </details>
+    {% elif service.key == 'wafv2' %}
+      <details class="wafv2-about-floci">
+        <summary>About Floci WAF v2</summary>
+        <p>Local AWS WAF v2 stores WebACL rule groups, IP sets, regex pattern sets, and resource association metadata for API Gateway, Application Load Balancers, and AppSync.</p>
+        <p>WAF protects web applications from common exploits and bots. In Floci, test WebACL rule configurations, rate-based limits, IP allowlisting/blocklisting rules, and CloudWatch metrics naming.</p>
+      </details>
+    {% elif service.key == 's3vectors' %}
+      <details class="s3vectors-about-floci">
+        <summary>About Floci S3 Vectors</summary>
+        <p>Local S3 Vectors models vector embedding index storage and semantic search metadata layered on top of S3 object storage.</p>
+        <p>S3 Vectors enables vector database and retrieval-augmented generation (RAG) experiments. In Floci, test embedding index registration, vector dimension configuration, and similarity metric metadata.</p>
+      </details>
+    {% elif service.key == 'batch' %}
+      <details class="batch-about-floci">
+        <summary>About Floci AWS Batch</summary>
+        <p>Local AWS Batch manages containerized batch computing pipelines: compute environments, job queues, job definitions, and job execution states.</p>
+        <p>Batch automatically provisions compute resources for parallel jobs. In Floci, test job submission payloads, container environment variable overrides, retry strategies, and queue priority routing.</p>
+      </details>
+    {% elif service.key == 'cloudcontrol' %}
+      <details class="cloudcontrol-about-floci">
+        <summary>About Floci Cloud Control API</summary>
+        <p>Local AWS Cloud Control API provides a standard CRUDL interface (Create, Read, Update, Delete, List) for supported AWS and third-party resource schemas.</p>
+        <p>Cloud Control standardizes infrastructure operations. In Floci, inspect resource type registration, request status tracking, and structured JSON patch updates.</p>
+      </details>
+    {% elif service.key == 'codepipeline' %}
+      <details class="codepipeline-about-floci">
+        <summary>About Floci CodePipeline</summary>
+        <p>Local AWS CodePipeline manages continuous delivery pipeline declarations, stage transitions, artifact stores, and webhook triggers.</p>
+        <p>CodePipeline automates release workflows across build, test, and deployment stages. In Floci, validate pipeline structure definitions, stage action configurations, and service role bindings.</p>
+      </details>
+    {% elif service.key == 'rdsdata' %}
+      <details class="rdsdata-about-floci">
+        <summary>About Floci RDS Data API</summary>
+        <p>Local RDS Data API executes SQL queries and transactional statements against Aurora Serverless clusters using HTTP/JSON requests without requiring persistent connection pools.</p>
+        <p>RDS Data API simplifies serverless database access from Lambda. In Floci, test parameterized SQL execution, batch statement formatting, and transaction commit/rollback flows.</p>
+      </details>
+    {% elif service.key == 'pricing' %}
+      <details class="pricing-about-floci">
+        <summary>About Floci AWS Price List</summary>
+        <p>Local AWS Price List API indexes AWS service codes, pricing attribute definitions, and product price lists for local cost modeling and infrastructure budgeting.</p>
+        <p>Price List APIs allow programmatic exploration of AWS service pricing attributes across regions and instance families.</p>
+      </details>
+    {% elif service.key == 'costexplorer' %}
+      <details class="costexplorer-about-floci">
+        <summary>About Floci Cost Explorer</summary>
+        <p>Local AWS Cost Explorer models cost allocation dimensions, tag-based cost categorization, and cost forecast queries.</p>
+        <p>Cost Explorer helps track and visualize cloud expenditures. In Floci, test cost categorization rules, dimension filtering, and budget monitoring schemas.</p>
+      </details>
+    {% elif service.key == 'cur' %}
+      <details class="cur-about-floci">
+        <summary>About Floci Cost and Usage Reports</summary>
+        <p>Local AWS Cost and Usage Reports (CUR) manages report definitions, S3 delivery bucket configurations, compression formats, and report versioning settings.</p>
+        <p>CUR delivers detailed hourly/daily billing data to S3. In Floci, test report creation schemas, prefix naming rules, and Athena/Redshift integration flags.</p>
+      </details>
+    {% elif service.key == 'bcmdataexports' %}
+      <details class="bcmdataexports-about-floci">
+        <summary>About Floci BCM Data Exports</summary>
+        <p>Local Billing and Cost Management Data Exports manages SQL-queried data export tables and automated S3 delivery configurations.</p>
+        <p>BCM Data Exports provides custom billing data pipelines. In Floci, test data table export definitions, delivery schedule settings, and S3 destination configurations.</p>
+      </details>
     {% endif %}
   </section>
 
@@ -535,9 +502,6 @@
 {% endblock %}
 
 {% block extrascripts %}
-  {% if service.shared_console %}
-    <script src="{% static 'dashboard/service-console.js' %}?v={{ service.asset_version }}"></script>
-  {% endif %}
   {% if service.console_js %}
     <script src="{% static service.console_js %}?v={{ service.asset_version }}"></script>
   {% endif %}

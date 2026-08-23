@@ -2,34 +2,36 @@
 
 ## Current Curriculum Status
 
-The current curriculum is complete through the first messaging, infrastructure, networking, serverless compute, data, encryption, and application configuration sequences:
+The curriculum comprises **63 labs across 17 services (349 total runnable steps)**:
 
-- eleven IAM labs,
-- twelve S3 labs,
-- nine SQS labs,
-- two SNS labs,
-- one EventBridge Scheduler lab,
-- one EventBridge application capstone,
-- one CloudFormation lab,
-- four EC2 networking labs,
-- three Lambda labs,
-- one API Gateway lab,
-- two DynamoDB labs,
-- one KMS lab,
-- one SSM Parameter Store lab,
-- one Secrets Manager lab,
-- shared breadcrumb navigation from labs to the service page or dashboard homepage,
-- live-state completion for reload-safe progress,
-- lab-owned cleanup and reset behavior,
-- completion-only next-batch recommendations after the final lab in a service batch,
-- end-to-end verification against local Floci.
+- **11 IAM labs** (admin bootstrap, users, policies, access keys, groups, roles, STS session policies, instance profiles, switched dashboard identities, and permission-enforcement checks)
+- **12 S3 labs** (buckets, objects, prefixes, metadata, tags, versioning, presigned URLs, security, encryption, lifecycle retention, CORS, S3-to-SQS notifications, and multipart uploads)
+- **1 KMS lab** (key lifecycle, alias creation, envelope encryption, and decryption round trips)
+- **1 SSM Parameter Store lab** (hierarchical application configuration and secure string storage)
+- **1 Secrets Manager lab** (secret creation, runtime retrieval, and secret rotation updates)
+- **2 Cognito labs** (User Pools, App Clients, authentication flows, user groups, and custom attributes)
+- **9 SQS labs** (queue inspection, message lifecycle, visibility timeouts, delayed delivery, batch operations, dead-letter queues, managed redrive, FIFO ordering, duplicate suppression, and purge)
+- **2 SNS labs** (SNS-to-SQS fan-out, resource policies, raw delivery, and subscription filter policies)
+- **1 EventBridge Scheduler lab** (scheduled SQS delivery through scoped IAM execution roles)
+- **2 DynamoDB labs** (table schema definitions, item CRUD, Partition/Sort keys, query/scan filters, and Lambda write integration)
+- **3 Lambda labs** (function creation, synchronous/asynchronous invocation, SSM/Secrets reads, SQS event source mappings, and CloudWatch log tailing)
+- **1 API Gateway lab** (HTTP API route creation, integrations, and live request proxying to Lambda)
+- **1 EventBridge application capstone** (API Gateway, Lambda, custom event bus, transformed SQS targets, notification handlers, and failure simulations)
+- **2 Step Functions labs** (State Machine Choice branching workflows and Parallel execution branches)
+- **2 CloudWatch labs** (custom metric filters, CloudWatch Alarms, and Log Group streams)
+- **11 EC2 labs** (public/private VPC routing, stateful security groups, network ACLs, VPC endpoints, guest IMDS inspection, UserData validation, IAM instance roles, web server SG routing, broken route repair, private S3 gateway endpoints, and SSM RunCommand dispatch)
+- **1 CloudFormation lab** (template validation, change set creation, stack provisioning, and resource lifecycle management)
+- **Multi-SDK Code Tabs**: dynamic code generation across AWS CLI, Python `boto3`, and Terraform HCL for every step card with persistent user preference storage
+- **"Run All Steps" Play-Through Runner**: automated step execution with live progress tracking, auto-scrolling, speed regulation, and contextual explanations
+- Shared breadcrumb navigation from labs to the service page or dashboard homepage
+- Live-state completion for reload-safe progress
+- Lab-owned cleanup and reset behavior
+- Completion-only next-batch recommendations after the final lab in a service batch (ordered practical progression)
+- End-to-end verification against local Floci container
 
-Continue with deeper endpoint and hybrid-connectivity scenarios when local support makes them useful.
-Continue the serverless application spine with deeper runtime scenarios, such as parameter history, secret restore flows, or configuration-driven API behavior when local support makes them useful.
+The EventBridge application capstone joins API Gateway, Lambda, a custom event bus, two SQS destinations, a notification Lambda, input transformation, multiple event patterns, resource permissions, correlation logs, and controlled malformed-input, missing-permission, and disabled-rule experiments.
 
-The EventBridge application capstone joins API Gateway, Lambda, a custom event bus, two SQS destinations, a notification Lambda, input transformation, multiple event patterns, resource permissions, correlation logs, and controlled malformed-input, missing-permission, and disabled-rule experiments. Current Floci executes matching, transformation, and delivery; target `RetryPolicy` and `DeadLetterConfig` remain visible AWS teaching artifacts until the emulator persists and enforces them.
-
-The dashboard also exposes `/labs/`, a registry-driven directory of every service with active labs. The homepage links to it between Environment and Service Matrix. Keep this page as a catalog; guidance belongs on the service lab page only when a user completes the last lab in a batch.
+The dashboard also exposes `/labs/`, a registry-driven directory of every service with active labs. The homepage links to it between Environment and Service Matrix.
 
 The dashboard also exposes `/activity/`, a browser-local recent activity page for replayable or prefillable developer actions from API Gateway, EventBridge, Lambda, and SQS workbenches. Labs should continue deriving progress from live Floci state; use Activity as a companion surface for manual follow-up testing after a lab creates useful resources, not as the source of lab completion.
 

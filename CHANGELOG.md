@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.1.4 — 2026-08-23
+
+### Curriculum & Workflow Labs
+- Expanded catalog to **63 labs across 17 services (349 total steps)**, adding Step Functions (Choice & Parallel workflows), Cognito (User Pools, App Clients, auth), and CloudWatch (metrics, alarms, logs).
+- Built multi-SDK code generation for every lab step: instantly toggle between **AWS CLI**, **Python `boto3`**, and **Terraform HCL** with persistent `localStorage` selection.
+- Added **"Run All Steps" Play Through** automation with real-time progress indicators, paced auto-scrolling, and contextual step explanations.
+- Deepened all 7 guided EC2 scenarios into multi-step interactive workflows (IMDS guest socket retrieval, UserData, IAM instance roles, web server SG routing, broken route fix, private S3 gateway endpoints, and SSM RunCommand dispatch).
+- Re-ordered curriculum progression to follow best-practice cloud architecture paths (IAM $\rightarrow$ S3 $\rightarrow$ KMS $\rightarrow$ SSM $\rightarrow$ Secrets Manager $\rightarrow$ Cognito $\rightarrow$ SQS $\rightarrow$ SNS $\rightarrow$ Scheduler $\rightarrow$ DynamoDB $\rightarrow$ Lambda $\rightarrow$ API Gateway $\rightarrow$ EventBridge $\rightarrow$ Step Functions $\rightarrow$ CloudWatch $\rightarrow$ EC2 $\rightarrow$ CloudFormation).
+
+### Cloudscape Design System & Dashboard Hygiene
+- Consolidated CSS tokens and styles with the **AWS Cloudscape Design System** (Squid ink `#16191f`, crisp container radii, 2–4 column key-value attribute grids).
+- Universal semantic status indicators (🟢 Positive, 🟡 Warning, 🔴 Negative, 🔵 Info, ⚪ Inactive) auto-rendered across all table status columns and inventory cards.
+- 100% pedagogical guide coverage: structured `About Floci <Service>` accordions added across all 65 registered services.
+- Promoted 8 services to interactive workbenches:
+  - **DocumentDB**: MongoDB-compatible URI generation and instance inspection.
+  - **MemoryDB**: Redis CLI connection commands, shard status, and ACL user tabs.
+  - **Amazon MQ**: Multi-protocol endpoint strips (AMQP, MQTT, STOMP, RabbitMQ Web Console).
+  - **WAF v2**: WebACL rule list with actions and interactive WAF Request Evaluator Simulator.
+  - **IoT Core**: Registered thing cards, topic rules, and interactive MQTT Test Client simulator.
+  - **S3 Vectors**: Vector embedding dimension metrics and interactive Similarity Search simulator.
+  - **Cost Explorer**: KPI summary tiles, daily stacked cost/usage bar chart, and anomaly watchers.
+  - **AWS Pricing Calculator**: Interactive monthly cost modeler for EC2, S3, Lambda, and RDS.
+
+### Quality & Tests
+- Expanded test suite to **1,080 passing tests** covering multi-SDK code translation, lab runners, AST integrity, and service rendering.
+
 ## 0.1.3 — 2026-07-15
 
 ### Floci 1.5.32 compatibility

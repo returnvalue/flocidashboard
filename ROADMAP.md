@@ -52,6 +52,11 @@ Core architecture files:
 
 ## Completed Recently
 
+- **Multi-SDK Code Tabs & Preference Sync**: Built dynamic code generation across AWS CLI, Python `boto3`, and Terraform HCL for all 63 guided labs with persistent user preference storage.
+- **Automated "Run All Steps" Play-Through**: Added an automated step runner with visual progress tracking, smooth auto-scrolling, speed regulation, and real-time step explanations.
+- **Curriculum Expansion (63 Labs, 349 Steps across 17 Services)**: Added Step Functions (Choice & Parallel workflows), Cognito (User Pools, App Clients, auth), CloudWatch (metrics, alarms, logs), and deepened all 7 EC2 guided compute scenarios into multi-step interactive workflows.
+- **Cloudscape Design System & Hygiene Sweep**: Standardized styling with AWS Cloudscape design tokens, semantic status indicators (🟢/🟡/🔴/🔵/⚪), 2–4 column key-value attribute grids, and 100% educational guide coverage across all 65 services.
+- **Promoted 8 Interactive Workbenches**: Elevated DocumentDB (MongoDB connection copier), MemoryDB (Redis CLI & ACL tabs), Amazon MQ (multi-protocol endpoints), WAF v2 (WAF Request Evaluator Simulator), IoT Core (MQTT Ingest Test Client), S3 Vectors (Similarity Search Simulator), Cost Explorer (Daily Stacked Bar Chart & Anomaly Watchers), and AWS Price List (AWS Pricing Calculator Simulator).
 - Promoted EventBridge to a first-class resource console with searchable bus, rule, and target inventories, URL-addressable detail selection, scoped lifecycle actions, destination workbench links, event replay, and a direct application-spine lab entry point.
 - Promoted EventBridge Scheduler to a first-class resource console with searchable group and schedule inventories, URL-addressable details, full timing-window configuration, target deep links, scoped lifecycle and tag actions, and a direct SQS delivery lab entry point.
 - Added an EventBridge application-spine capstone that builds API Gateway to Lambda to a custom event bus, fans out through transformed processing and full-envelope audit queues plus a notification Lambda, correlates CloudWatch logs, exercises malformed input, missing permissions, and disabled rules, and resets every owned dependency safely.

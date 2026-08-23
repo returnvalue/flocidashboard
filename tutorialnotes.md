@@ -27,12 +27,13 @@ The updated format follows this reasoning:
 7. Assume the Docker-first quickstart has already handled startup.
    Service tutorials should teach the service workflow, not repeat container setup. Mention Docker or endpoints only when the service behavior depends on them.
 
-This tutorial format is now the target for high-value service notes:
+This tutorial format is now implemented across **all 65 services** in the Floci catalog:
 
 - explain the service's mental model,
 - provide an ordered local workflow,
 - point to concrete workbench actions,
 - describe what to test,
 - name local Floci limits or behavior differences,
-- connect the workbench to labs when the service has them.
+- connect the workbench to labs when the service has them,
 - avoid repeating Docker setup unless runtime topology affects the lesson.
+

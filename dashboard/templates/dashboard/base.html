@@ -42,6 +42,7 @@
       {% block content %}{% endblock %}
     </main>
 
+    <script src="{% static 'dashboard/service-console.js' %}?v={{ dashboard_js_version }}"></script>
     <script src="{% static 'dashboard/dashboard.js' %}?v={{ dashboard_js_version }}"></script>
     {% block extrascripts %}{% endblock %}
   </body>

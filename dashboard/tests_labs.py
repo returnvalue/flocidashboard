@@ -45,6 +45,12 @@ class LabsRegistryAuditTests(SimpleTestCase):
     def _branch_source(self, source: str, service_key: str, lab_key: str) -> str:
         marker = f"service_key == '{service_key}' and lab_key == '{lab_key}'"
         start = source.find(marker)
+        if start == -1 and service_key == 'ec2' and lab_key.startswith('guided-'):
+            marker = "service_key == 'ec2' and lab_key.startswith('guided-')"
+            start = source.find(marker)
+        if start == -1:
+            marker = f"service_key == '{service_key}'"
+            start = source.find(marker)
         self.assertNotEqual(
             start,
             -1,
@@ -59,7 +65,7 @@ class LabsRegistryAuditTests(SimpleTestCase):
 
     def _expanded_branch_source(self, source: str, service_key: str, lab_key: str) -> str:
         branch = self._branch_source(source, service_key, lab_key)
-        delegated = re.search(r'from \.([a-z0-9_]+) import (?:run_step|status|reset)', branch)
+        delegated = re.search(r'from \.([a-z0-9_]+) import', branch)
         if delegated:
             module = importlib.import_module(f'dashboard.labs.{delegated.group(1)}')
             return f'{branch}\n{inspect.getsource(module)}'
@@ -103,7 +109,7 @@ class LabsRegistryAuditTests(SimpleTestCase):
 class LabsPageTests(SimpleTestCase):
     def test_labs_package_facades_preserve_public_api(self):
         self.assertIs(facade_run_lab_step, run_lab_step)
-        self.assertEqual(len(all_labs()), 57)
+        self.assertEqual(len(all_labs()), 63)
         self.assertTrue(labs_for_service('iam'))
         self.assertTrue(issubclass(Lab, dict))
         self.assertTrue(issubclass(LabStep, dict))
@@ -134,6 +140,30 @@ class LabsPageTests(SimpleTestCase):
         self.assertIn('Keep labs', source)
         self.assertIn('resetButton.hidden = completedLabCount === 0', source)
         self.assertIn('resetButton.hidden = true', source)
+
+    @patch('dashboard.views.lab_status')
+    def test_service_labs_page_renders_run_all_and_progress_bar(self, status_mock):
+        status_mock.return_value = {'complete': False, 'steps': {}}
+        response = self.client.get(reverse('dashboard:service-labs', kwargs={'service_key': 's3'}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="lab-run-all"')
+        self.assertContains(response, 'Run all steps')
+        self.assertContains(response, 'id="lab-progress-container"')
+        self.assertContains(response, 'id="lab-progress-bar"')
+        self.assertContains(response, 'id="lab-progress-fill"')
+        self.assertContains(response, 'id="lab-progress-text"')
+
+    def test_labs_js_implements_auto_runner_and_progress_tracking(self):
+        script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'labs.js'
+        source = script.read_text()
+
+        self.assertIn('const runAllButton = document.querySelector(\'#lab-run-all\');', source)
+        self.assertIn('function updateProgress()', source)
+        self.assertIn('async function runAllSteps()', source)
+        self.assertIn('lab-step-active', source)
+        self.assertIn('smoothScrollToStep', source)
+        self.assertIn('activeGuide', source)
 
     @patch('dashboard.views.all_labs')
     @patch('dashboard.views.lab_status')
@@ -1114,7 +1144,7 @@ class LabsPageTests(SimpleTestCase):
         response = self.client.get(
             reverse(
                 'dashboard:service-labs',
-                kwargs={'service_key': 'cloudwatch'},
+                kwargs={'service_key': 'athena'},
             ),
         )
 
@@ -8102,3 +8132,170 @@ class LabsRunnerTests(SimpleTestCase):
         self.assertEqual(payload['completed_lab_count'], 1)
         self.assertEqual(payload['reset_lab_count'], 1)
         reset_mock.assert_called_once_with('iam', 'create-user-alice')
+
+
+class StepFunctionsLabRunnerTests(SimpleTestCase):
+    @patch('dashboard.labs.stepfunctions_labs.client')
+    def test_stepfunctions_order_processing_and_parallel_runners(self, client_mock):
+        cache.clear()
+        mock_sfn = MagicMock()
+        mock_iam = MagicMock()
+        client_mock.side_effect = lambda name: mock_sfn if name == 'stepfunctions' else mock_iam
+
+        mock_iam.create_role.return_value = {'Role': {'RoleName': 'FlociStepFunctionsExecutionRole'}}
+        mock_sfn.create_state_machine.return_value = {'stateMachineArn': 'arn:aws:states:us-east-1:000000000000:stateMachine:lab-order-processing-workflow'}
+        mock_sfn.start_execution.return_value = {'executionArn': 'arn:aws:states:us-east-1:000000000000:execution:lab-order-processing-workflow:vip-1'}
+        mock_sfn.describe_execution.return_value = {'status': 'SUCCEEDED', 'output': '{"status":"VIP_PROCESSED"}'}
+        mock_sfn.describe_state_machine.return_value = {'status': 'ACTIVE'}
+
+        from dashboard.labs.stepfunctions_labs import run_step, status, reset
+
+        res1 = run_step('stepfunctions', 'order-processing-workflow', 'create-execution-role')
+        self.assertTrue(res1['verified'])
+
+        res2 = run_step('stepfunctions', 'order-processing-workflow', 'create-choice-state-machine')
+        self.assertTrue(res2['verified'])
+
+        res3 = run_step('stepfunctions', 'order-processing-workflow', 'start-vip-execution')
+        self.assertTrue(res3['verified'])
+
+        res4 = run_step('stepfunctions', 'order-processing-workflow', 'start-standard-execution')
+        self.assertTrue(res4['verified'])
+
+        res5 = run_step('stepfunctions', 'order-processing-workflow', 'inspect-execution-history')
+        self.assertTrue(res5['verified'])
+
+        st = status('stepfunctions', 'order-processing-workflow')
+        self.assertTrue(st['complete'])
+
+        rst = reset('stepfunctions', 'order-processing-workflow')
+        self.assertTrue(rst['reset'])
+
+
+class CognitoLabRunnerTests(SimpleTestCase):
+    @patch('dashboard.labs.cognito_labs.client')
+    def test_cognito_user_pool_and_group_runners(self, client_mock):
+        cache.clear()
+        mock_cog = MagicMock()
+        client_mock.return_value = mock_cog
+
+        mock_cog.list_user_pools.return_value = {'UserPools': []}
+        mock_cog.create_user_pool.return_value = {'UserPool': {'Id': 'us-east-1_mock123', 'Name': 'lab-auth-user-pool'}}
+        mock_cog.list_user_pool_clients.return_value = {'UserPoolClients': []}
+        mock_cog.create_user_pool_client.return_value = {'UserPoolClient': {'ClientId': 'client_mock123', 'ClientName': 'lab-web-app-client'}}
+        mock_cog.admin_create_user.return_value = {'User': {'Username': 'developer@floci.local'}}
+        mock_cog.admin_get_user.return_value = {'Username': 'developer@floci.local', 'UserStatus': 'CONFIRMED'}
+        mock_cog.admin_initiate_auth.return_value = {'AuthenticationResult': {'IdToken': 'mock.id.token', 'AccessToken': 'mock.access.token', 'TokenType': 'Bearer'}}
+        mock_cog.create_group.return_value = {'Group': {'GroupName': 'Developers'}}
+        mock_cog.admin_list_groups_for_user.return_value = {'Groups': [{'GroupName': 'Developers'}]}
+
+        from dashboard.labs.cognito_labs import run_step, status, reset
+
+        res1 = run_step('cognito', 'user-pool-signup-auth', 'create-user-pool')
+        self.assertTrue(res1['verified'])
+
+        res2 = run_step('cognito', 'user-pool-signup-auth', 'create-app-client')
+        self.assertTrue(res2['verified'])
+
+        res3 = run_step('cognito', 'user-pool-signup-auth', 'sign-up-user')
+        self.assertTrue(res3['verified'])
+
+        res4 = run_step('cognito', 'user-pool-signup-auth', 'confirm-set-password')
+        self.assertTrue(res4['verified'])
+
+        res5 = run_step('cognito', 'user-pool-signup-auth', 'authenticate-user')
+        self.assertTrue(res5['verified'])
+
+        st = status('cognito', 'user-pool-signup-auth')
+        self.assertTrue(st['complete'])
+
+        rst = reset('cognito', 'user-pool-signup-auth')
+        self.assertTrue(rst['reset'])
+
+
+class CloudWatchLabRunnerTests(SimpleTestCase):
+    @patch('dashboard.labs.cloudwatch_labs.client')
+    def test_cloudwatch_metrics_and_logs_runners(self, client_mock):
+        cache.clear()
+        mock_cw = MagicMock()
+        mock_logs = MagicMock()
+        client_mock.side_effect = lambda name: mock_cw if name == 'cloudwatch' else mock_logs
+
+        mock_cw.put_metric_data.return_value = {}
+        mock_cw.put_metric_alarm.return_value = {}
+        mock_cw.set_alarm_state.return_value = {}
+        mock_cw.describe_alarms.return_value = {'MetricAlarms': [{'AlarmName': 'lab-order-error-alarm', 'StateValue': 'ALARM'}]}
+
+        mock_logs.create_log_group.return_value = {}
+        mock_logs.create_log_stream.return_value = {}
+        mock_logs.put_log_events.return_value = {}
+        mock_logs.get_log_events.return_value = {'events': [{'timestamp': 1700000000000, 'message': 'HTTP 500'}]}
+
+        from dashboard.labs.cloudwatch_labs import run_step, status, reset
+
+        res1 = run_step('cloudwatch', 'metric-alarms', 'put-metric-data')
+        self.assertTrue(res1['verified'])
+
+        res2 = run_step('cloudwatch', 'metric-alarms', 'create-metric-alarm')
+        self.assertTrue(res2['verified'])
+
+        res3 = run_step('cloudwatch', 'metric-alarms', 'trigger-alarm-state')
+        self.assertTrue(res3['verified'])
+
+        res4 = run_step('cloudwatch', 'metric-alarms', 'describe-alarms')
+        self.assertTrue(res4['verified'])
+
+        st = status('cloudwatch', 'metric-alarms')
+        self.assertTrue(st['complete'])
+
+        rst = reset('cloudwatch', 'metric-alarms')
+        self.assertTrue(rst['reset'])
+
+
+class MultiSdkSnippetsTests(SimpleTestCase):
+    def test_generate_boto3_snippet_for_simple_command(self):
+        from dashboard.labs.snippets import generate_boto3_snippet
+
+        snippet = generate_boto3_snippet('aws s3api create-bucket --bucket demo-bucket')
+        self.assertIn("import boto3", snippet)
+        self.assertIn("s3 = boto3.client('s3')", snippet)
+        self.assertIn("create_bucket", snippet)
+        self.assertIn("Bucket='demo-bucket'", snippet)
+
+    def test_generate_terraform_snippet_for_s3_and_sqs(self):
+        from dashboard.labs.snippets import generate_terraform_snippet
+
+        s3_tf = generate_terraform_snippet('aws s3api create-bucket --bucket orders-bucket')
+        self.assertIn('resource "aws_s3_bucket" "lab_bucket"', s3_tf)
+        self.assertIn('bucket        = "orders-bucket"', s3_tf)
+
+        sqs_tf = generate_terraform_snippet('aws sqs create-queue --queue-name orders-queue.fifo')
+        self.assertIn('resource "aws_sqs_queue" "lab_queue"', sqs_tf)
+        self.assertIn('fifo_queue                  = true', sqs_tf)
+
+    def test_get_step_snippets_returns_all_three_targets(self):
+        from dashboard.labs.snippets import get_step_snippets
+
+        step = {
+            'key': 'create-user',
+            'command': 'aws iam create-user --user-name Alice',
+        }
+        snippets = get_step_snippets(step, 'iam')
+        self.assertEqual(snippets['cli'], 'aws iam create-user --user-name Alice')
+        self.assertIn('iam = boto3.client(\'iam\')', snippets['boto3'])
+        self.assertIn('resource "aws_iam_user"', snippets['terraform'])
+
+    @patch('dashboard.views.lab_status')
+    def test_service_labs_page_renders_sdk_tabs_and_code_panels(self, status_mock):
+        status_mock.return_value = {'complete': False, 'steps': {}}
+        response = self.client.get(reverse('dashboard:service-labs', kwargs={'service_key': 's3'}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="lab-sdk-tabs"')
+        self.assertContains(response, 'data-sdk="cli"')
+        self.assertContains(response, 'data-sdk="boto3"')
+        self.assertContains(response, 'data-sdk="terraform"')
+        self.assertContains(response, 'class="lab-code-panels"')
+        self.assertContains(response, 'Python (boto3)')
+        self.assertContains(response, 'Terraform')
+

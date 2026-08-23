@@ -98,6 +98,73 @@ const ServiceConsole = (() => {
     return date.toLocaleString();
   }
 
+  function statusIndicator(status, options = {}) {
+    const raw = String(status || '').trim();
+    if (!raw || raw === '—' || raw === 'null' || raw === 'undefined') {
+      return el('span', 'status-indicator status-indicator-empty', '—');
+    }
+
+    const lower = raw.toLowerCase();
+    let variant = 'info';
+
+    if (
+      /^(available|active|running|issued|success|enabled|ready|completed|online|ok|in-sync|healthy|passed|true)$/.test(lower) ||
+      lower.includes('available') ||
+      lower.includes('active') ||
+      lower.includes('running') ||
+      lower.includes('success') ||
+      lower.includes('issued')
+    ) {
+      variant = 'positive';
+    } else if (
+      /^(pending|creating|updating|in-progress|in_progress|modifying|rebooting|delayed|deleting|backing-up)$/.test(lower) ||
+      lower.includes('pending') ||
+      lower.includes('creating') ||
+      lower.includes('updating')
+    ) {
+      variant = 'warning';
+    } else if (
+      /^(failed|stopped|terminated|error|alarm|denied|unhealthy|disabled|false|rejected)$/.test(lower) ||
+      lower.includes('failed') ||
+      lower.includes('error') ||
+      lower.includes('stopped') ||
+      lower.includes('alarm') ||
+      lower.includes('terminated')
+    ) {
+      variant = 'negative';
+    } else if (
+      /^(inactive|empty|none|draft|deleted|unknown|not configured)$/.test(lower) ||
+      lower.includes('inactive')
+    ) {
+      variant = 'inactive';
+    }
+
+    const node = el('span', `status-indicator status-indicator-${variant}`);
+    const dot = el('span', `status-indicator-dot status-indicator-dot-${variant}`);
+    const text = el('span', 'status-indicator-text', options.label || raw);
+    node.append(dot, text);
+    return node;
+  }
+
+  function kvGrid(attributes, options = {}) {
+    const grid = el('div', options.className || 'cloudscape-kv-grid');
+    (attributes || []).forEach(({ label, value, isStatus }) => {
+      const item = el('div', 'cloudscape-kv-item');
+      const lbl = el('span', 'cloudscape-kv-label', label);
+      const val = el('span', 'cloudscape-kv-value');
+      if (isStatus) {
+        val.append(statusIndicator(value));
+      } else if (value instanceof Node) {
+        val.append(value);
+      } else {
+        val.textContent = displayValue(label, value);
+      }
+      item.append(lbl, val);
+      grid.append(item);
+    });
+    return grid;
+  }
+
   function loadActivity() {
     try {
       const parsed = JSON.parse(window.localStorage.getItem(ACTIVITY_STORAGE_KEY) || '[]');
@@ -602,6 +669,11 @@ const ServiceConsole = (() => {
           link.href = href || '#';
           link.textContent = valueText(value || rowKey);
           td.append(link);
+        } else if (
+          column.type === 'status' ||
+          /^(status|state|alarm_state|execution_status|instance_state|certificate_status|table_status|vault_state|health)$/i.test(String(column.key || column.label || ''))
+        ) {
+          td.append(statusIndicator(value));
         } else {
           td.textContent = valueText(value);
         }
@@ -753,6 +825,7 @@ const ServiceConsole = (() => {
     formatDate,
     getCsrfToken,
     displayValue,
+    kvGrid,
     loadServiceActions,
     loadActivity,
     openModal,
@@ -765,6 +838,7 @@ const ServiceConsole = (() => {
     renderSummary,
     sectionIdForLabel,
     sectionSlug,
+    statusIndicator,
     toast,
     toolbar,
     valueText,
