@@ -380,12 +380,25 @@ def service_labs(request, service_key: str):
         ],
     }
 
+    enriched_labs = []
+    for lab in labs:
+        lab_data = {**lab}
+        if lab.get('key') == active_lab.get('key'):
+            lab_data['complete'] = bool(status.get('complete'))
+        else:
+            try:
+                other_status = lab_status(service_key, lab['key'])
+                lab_data['complete'] = bool(other_status.get('complete'))
+            except Exception:
+                lab_data['complete'] = False
+        enriched_labs.append(lab_data)
+
     return render(
         request,
         'dashboard/labs.html',
         {
             'service': service_definition.as_dict(),
-            'labs': labs,
+            'labs': enriched_labs,
             'active_lab': active_lab,
             'lab_status': status,
             'lab_status_error': lab_status_error,

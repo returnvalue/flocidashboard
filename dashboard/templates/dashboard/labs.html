@@ -33,7 +33,7 @@
         <button id="labs-sidebar-toggle" class="global-nav-collapse-toggle labs-sidebar-toggle" type="button" aria-label="Collapse labs navigation" aria-expanded="true">&lt;</button>
       </div>
       {% for lab in labs %}
-        <a class="lab-picker{% if lab.key == active_lab.key %} lab-picker-active{% endif %}" href="?lab={{ lab.key }}" data-lab-key="{{ lab.key }}">
+        <a class="lab-picker{% if lab.key == active_lab.key %} lab-picker-active{% endif %}{% if lab.complete %} lab-picker-complete{% endif %}" href="?lab={{ lab.key }}" data-lab-key="{{ lab.key }}">
           {{ lab.title }}
         </a>
       {% endfor %}

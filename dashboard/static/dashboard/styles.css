@@ -1265,6 +1265,35 @@ select:focus-visible {
   box-shadow: inset 3px 0 0 var(--border-selected);
 }
 
+.lab-picker-complete {
+  border-color: color-mix(in srgb, var(--status-success) 42%, var(--panel-border));
+  border-left-color: var(--status-success);
+  background: var(--ok-bg);
+  color: var(--text);
+}
+
+.lab-picker-complete::after {
+  content: "✓";
+  margin-left: auto;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--status-success);
+  padding-left: 6px;
+}
+
+.lab-picker-complete:hover {
+  border-color: var(--status-success);
+  background: color-mix(in srgb, var(--status-success) 12%, var(--surface-selected));
+  color: var(--text);
+}
+
+.lab-picker-complete.lab-picker-active {
+  border-color: var(--status-success);
+  background: color-mix(in srgb, var(--status-success) 16%, var(--surface-selected));
+  box-shadow: inset 3px 0 0 var(--status-success);
+  color: var(--text);
+}
+
 .labs-detail {
   padding: 18px;
 }

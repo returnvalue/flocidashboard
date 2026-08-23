@@ -94,6 +94,12 @@
         labState.textContent = completed > 0 ? 'In progress' : 'Not started';
       }
     }
+
+    const activeLabKey = shell.dataset.lab;
+    const activePicker = document.querySelector(`.lab-picker[data-lab-key="${activeLabKey}"]`) || document.querySelector('.lab-picker-active');
+    if (activePicker) {
+      activePicker.classList.toggle('lab-picker-complete', completed === total);
+    }
   }
 
   function removeNextBatchCard() {

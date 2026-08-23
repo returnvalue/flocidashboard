@@ -154,6 +154,18 @@ class LabsPageTests(SimpleTestCase):
         self.assertContains(response, 'id="lab-progress-fill"')
         self.assertContains(response, 'id="lab-progress-text"')
 
+    @patch('dashboard.views.lab_status')
+    def test_service_labs_page_renders_completed_lab_picker_class(self, status_mock):
+        def mock_status(service_key, lab_key):
+            if lab_key == 'create-bucket':
+                return {'complete': True, 'steps': {'create-bucket': {'verified': True}}}
+            return {'complete': False, 'steps': {}}
+        status_mock.side_effect = mock_status
+        response = self.client.get(reverse('dashboard:service-labs', kwargs={'service_key': 's3'}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'lab-picker-complete')
+
     def test_labs_js_implements_auto_runner_and_progress_tracking(self):
         script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'labs.js'
         source = script.read_text()
@@ -164,6 +176,7 @@ class LabsPageTests(SimpleTestCase):
         self.assertIn('lab-step-active', source)
         self.assertIn('smoothScrollToStep', source)
         self.assertIn('activeGuide', source)
+        self.assertIn('lab-picker-complete', source)
 
     @patch('dashboard.views.all_labs')
     @patch('dashboard.views.lab_status')
