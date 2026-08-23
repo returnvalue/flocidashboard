@@ -8,3 +8,5 @@ moreawslike.md
 ec2.md
 .env
 data/
+frontend/node_modules/
+frontend/dist/

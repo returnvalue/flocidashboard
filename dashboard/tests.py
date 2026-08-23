@@ -3847,3 +3847,18 @@ class GuidedEC2LabTests(TestCase):
             ec2_client.return_value.run_instances.call_args.kwargs['UserData'],
             script,
         )
+
+    def test_cloudscape_app_page_renders_spa_root(self):
+        response = self.client.get(reverse('dashboard:cloudscape-app'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="root"')
+        self.assertContains(response, 'app.js')
+        self.assertContains(response, 'main.css')
+
+    def test_api_services_catalog_returns_json(self):
+        response = self.client.get(reverse('dashboard:services'))
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn('services', data)
+        self.assertGreaterEqual(len(data['services']), 65)
+

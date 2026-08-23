@@ -1002,3 +1002,14 @@ def resources(request):
         )
     except (BotoCoreError, ClientError, ResponseParserError, ValueError) as exc:
         return JsonResponse({'resources': [], 'error': str(exc)}, status=502)
+
+
+def cloudscape_app(request, **kwargs):
+    """Mount point for the React 18 Cloudscape Console SPA."""
+    return render(
+        request,
+        'dashboard/console_spa.html',
+        {
+            'title': 'AWS Management Console (Floci)',
+        },
+    )

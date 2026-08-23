@@ -6,6 +6,8 @@ app_name = 'dashboard'
 
 urlpatterns = [
     path('', views.index, name='index'),
+    path('app/', views.cloudscape_app, name='cloudscape-app'),
+    path('app/<path:subpath>', views.cloudscape_app, name='cloudscape-app-routed'),
     path('environment/', views.environment, name='environment'),
     path('activity/', views.activity, name='activity'),
     path('console/', console_views.console_page, name='console'),
