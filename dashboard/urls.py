@@ -19,13 +19,15 @@ urlpatterns = [
     path('sqs/', views.cloudscape_app, name='sqs-spa'),
     path('sns/', views.cloudscape_app, name='sns-spa'),
     path('rds/', views.cloudscape_app, name='rds-spa'),
+    path('inspector/', views.cloudscape_app, name='inspector'),
+    path('inspector', views.cloudscape_app),
 
     # Legacy SSR pages & templates
     path('environment/', views.environment, name='environment'),
     path('activity/', views.activity, name='activity'),
     path('console/', console_views.console_page, name='console'),
     path('settings/', views.settings_page, name='settings'),
-    path('inspector/', inspector_views.inspector_page, name='inspector'),
+    path('legacy/inspector/', inspector_views.inspector_page, name='legacy-inspector'),
     path('legacy/labs/', views.labs_directory, name='labs-directory'),
     path('services/', views.service_matrix, name='service-matrix'),
     path('service/<slug:service_key>/', views.service_page, name='service-page'),

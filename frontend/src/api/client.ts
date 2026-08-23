@@ -147,13 +147,72 @@ export async function runLabStep(
 export async function resetLab(serviceKey: string, labKey: string): Promise<any> {
   const res = await fetch(`/api/labs/${serviceKey}/${labKey}/reset/`, {
     method: 'POST',
-    headers: {
-      'X-CSRFToken': getCsrfToken(),
-    },
+    headers: { 'X-CSRFToken': getCsrfToken() },
   });
-  const data = await res.json();
-  if (!res.ok || data.error) {
-    throw new Error(data.error || 'Reset failed');
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return await res.json();
+}
+
+export async function fetchSesMessages(): Promise<{ mailbox_url: string; messages: any[]; raw: any }> {
+  try {
+    const res = await fetch('/api/inspector/ses/messages/');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to fetch SES messages:', err);
+    return { mailbox_url: '', messages: [], raw: {} };
   }
-  return data;
+}
+
+export async function clearSesMessages(): Promise<any> {
+  const res = await fetch('/api/inspector/ses/messages/clear/', {
+    method: 'DELETE',
+    headers: { 'X-CSRFToken': getCsrfToken() },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return await res.json();
+}
+
+export async function fetchInspectorSqsQueues(): Promise<{ queues: Array<{ name: string; url: string; arn: string; available: number; in_flight: number }> }> {
+  try {
+    const res = await fetch('/api/inspector/sqs/queues/');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to fetch SQS queues:', err);
+    return { queues: [] };
+  }
+}
+
+export async function fetchInspectorSqsMessages(queueUrl: string, maxNumber: number = 10): Promise<{ queue_url: string; queue_name: string; messages: any[] }> {
+  try {
+    const res = await fetch(`/api/inspector/sqs/messages/?queue_url=${encodeURIComponent(queueUrl)}&max_number=${maxNumber}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to fetch SQS messages:', err);
+    return { queue_url: queueUrl, queue_name: '', messages: [] };
+  }
+}
+
+export async function fetchInspectorLogGroups(): Promise<{ log_groups: Array<{ logGroupName: string; creationTime: number; storedBytes: number }> }> {
+  try {
+    const res = await fetch('/api/inspector/lambda/log-groups/');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to fetch Lambda log groups:', err);
+    return { log_groups: [] };
+  }
+}
+
+export async function fetchInspectorLogEvents(logGroupName: string, limit: number = 50): Promise<{ log_group_name: string; streams: any[]; events: Array<{ timestamp: number; message: string; ingestionTime: number; logStreamName: string }> }> {
+  try {
+    const res = await fetch(`/api/inspector/lambda/log-events/?log_group_name=${encodeURIComponent(logGroupName)}&limit=${limit}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to fetch Lambda log events:', err);
+    return { log_group_name: logGroupName, streams: [], events: [] };
+  }
 }

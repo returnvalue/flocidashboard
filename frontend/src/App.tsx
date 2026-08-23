@@ -11,6 +11,7 @@ import { SQSConsole } from './pages/SQSConsole';
 import { SNSConsole } from './pages/SNSConsole';
 import { RDSConsole } from './pages/RDSConsole';
 import { LabsConsole } from './pages/LabsConsole';
+import { InspectorConsole } from './pages/InspectorConsole';
 import { fetchIdentity, fetchServices } from './api/client';
 import { IdentityInfo, ServiceDefinition } from './types';
 import Container from '@cloudscape-design/components/container';
@@ -22,6 +23,7 @@ function getInitialView(): string {
   const path = window.location.pathname.replace(/^\/app\/?/, '').replace(/^\//, '').replace(/\/$/, '');
   if (!path || path === 'app' || path === 'home') return 'home';
   if (path === 'labs' || path.endsWith('/labs') || path.startsWith('labs/')) return 'labs';
+  if (path === 'inspector' || path.endsWith('/inspector') || path.startsWith('inspector/')) return 'inspector';
   if (path.startsWith('service/')) {
     const parts = path.split('/');
     return parts[1] || 'home';
@@ -63,6 +65,12 @@ export const App: React.FC = () => {
         { text: 'Workflow Labs', href: 'labs' },
       ];
     }
+    if (currentView === 'inspector') {
+      return [
+        { text: 'AWS Management Console', href: 'home' },
+        { text: 'Local Developer Inspector Inbox', href: 'inspector' },
+      ];
+    }
     const svc = services.find((s) => s.key === currentView);
     return [
       { text: 'AWS Management Console', href: 'home' },
@@ -74,6 +82,7 @@ export const App: React.FC = () => {
     return [
       { type: 'link' as const, text: 'Console Home', href: 'home' },
       { type: 'link' as const, text: 'Workflow Labs (63)', href: 'labs' },
+      { type: 'link' as const, text: 'Local Inspector Inbox', href: 'inspector' },
       { type: 'divider' as const },
       {
         type: 'section' as const,
@@ -100,6 +109,7 @@ export const App: React.FC = () => {
             services={services}
             onSelectService={(key) => navigateTo(key)}
             onNavigateLabs={() => navigateTo('labs')}
+            onNavigateInspector={() => navigateTo('inspector')}
           />
         );
       case 's3':
@@ -120,6 +130,8 @@ export const App: React.FC = () => {
         return <RDSConsole />;
       case 'labs':
         return <LabsConsole />;
+      case 'inspector':
+        return <InspectorConsole />;
       default:
         const svc = services.find((s) => s.key === currentView);
         return (

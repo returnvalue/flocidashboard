@@ -15,12 +15,14 @@ interface ConsoleHomeProps {
   services: ServiceDefinition[];
   onSelectService: (serviceKey: string) => void;
   onNavigateLabs: () => void;
+  onNavigateInspector?: () => void;
 }
 
 export const ConsoleHome: React.FC<ConsoleHomeProps> = ({
   services,
   onSelectService,
   onNavigateLabs,
+  onNavigateInspector,
 }) => {
   const [filterText, setFilterText] = useState('');
 
@@ -47,8 +49,8 @@ export const ConsoleHome: React.FC<ConsoleHomeProps> = ({
                 <Button variant="primary" onClick={onNavigateLabs}>
                   Launch Workflow Labs (63)
                 </Button>
-                <Button href="/inspector/" target="_blank">
-                  Open Inspector
+                <Button onClick={onNavigateInspector || (() => onSelectService('inspector'))}>
+                  Open Inspector Inbox
                 </Button>
               </SpaceBetween>
             }
