@@ -295,9 +295,7 @@ export const LabsConsole: React.FC = () => {
 
         <SpaceBetween size="m">
           <style>{`
-            .lab-step-completed > div,
-            .lab-step-completed [class*="awsui_root"],
-            .lab-step-completed [class*="awsui_container"] {
+            .lab-step-completed > div {
               border-color: #1d8102 !important;
               box-shadow: 0 0 0 1px #1d8102 !important;
             }
