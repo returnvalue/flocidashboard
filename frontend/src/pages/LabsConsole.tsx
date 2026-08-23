@@ -24,7 +24,27 @@ export const LabsConsole: React.FC = () => {
   const [filterText, setFilterText] = useState('');
   const [runningStepKey, setRunningStepKey] = useState<string | null>(null);
   const [isRunningAll, setIsRunningAll] = useState(false);
-  const [activeSdk, setActiveSdk] = useState<'cli' | 'boto3' | 'terraform'>('cli');
+  const [activeSdk, setActiveSdkState] = useState<'cli' | 'boto3' | 'terraform'>(() => {
+    try {
+      const saved = localStorage.getItem('floci_labs_active_sdk');
+      if (saved === 'cli' || saved === 'boto3' || saved === 'terraform') {
+        return saved;
+      }
+    } catch {
+      // ignore
+    }
+    return 'cli';
+  });
+
+  const handleSdkChange = (sdk: 'cli' | 'boto3' | 'terraform') => {
+    setActiveSdkState(sdk);
+    try {
+      localStorage.setItem('floci_labs_active_sdk', sdk);
+    } catch {
+      // ignore
+    }
+  };
+
   const [stepOutputs, setStepOutputs] = useState<Record<string, { status: string; body: string }>>({});
   const [stepCompleted, setStepCompleted] = useState<Record<string, boolean>>({});
 
@@ -314,7 +334,7 @@ export const LabsConsole: React.FC = () => {
                   <SpaceBetween size="m">
                     <Tabs
                       activeTabId={activeSdk}
-                      onChange={({ detail }) => setActiveSdk(detail.activeTabId as any)}
+                      onChange={({ detail }) => handleSdkChange(detail.activeTabId as any)}
                       tabs={[
                         {
                           label: 'AWS CLI',
