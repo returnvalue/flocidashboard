@@ -275,6 +275,72 @@ def labs_progress(request):
     return JsonResponse({**snapshot, 'cached': cached})
 
 
+def labs_catalog(request):
+    """Instant catalog of all registered labs without slow botocore polling."""
+    labs = all_labs()
+    service_hint = request.GET.get('service')
+    if service_hint:
+        labs = [l for l in labs if l.get('service') == service_hint]
+
+    services_map: dict[str, list[dict]] = {}
+    for lab in labs:
+        svc = lab.get('service', '')
+        services_map.setdefault(svc, []).append({
+            'key': lab.get('key'),
+            'service': svc,
+            'title': lab.get('title'),
+            'description': lab.get('description'),
+            'step_count': len(lab.get('steps', [])),
+            'steps': [
+                {
+                    'key': s.get('key'),
+                    'title': s.get('title'),
+                    'command': s.get('command'),
+                    'explanation': s.get('explanation'),
+                    'artifact': s.get('artifact'),
+                    'artifact_label': s.get('artifact_label'),
+                    'snippets': get_step_snippets(s, svc),
+                }
+                for s in lab.get('steps', [])
+            ],
+        })
+
+    return JsonResponse({
+        'total_labs': len(labs),
+        'services': [
+            {
+                'service_key': svc,
+                'service_title': (get_service(svc).title if get_service(svc) else svc.upper()),
+                'lab_count': len(svc_labs),
+                'labs': svc_labs,
+            }
+            for svc, svc_labs in services_map.items()
+        ],
+        'labs': [
+            {
+                'key': lab.get('key'),
+                'service': lab.get('service'),
+                'title': lab.get('title'),
+                'description': lab.get('description'),
+                'step_count': len(lab.get('steps', [])),
+                'steps': [
+                    {
+                        'key': s.get('key'),
+                        'title': s.get('title'),
+                        'command': s.get('command'),
+                        'explanation': s.get('explanation'),
+                        'artifact': s.get('artifact'),
+                        'artifact_label': s.get('artifact_label'),
+                        'snippets': get_step_snippets(s, lab.get('service')),
+                    }
+                    for s in lab.get('steps', [])
+                ],
+            }
+            for lab in labs
+        ],
+    })
+
+
 def service_matrix(request):
     rows = []
     maturity_counts: dict[str, int] = {}

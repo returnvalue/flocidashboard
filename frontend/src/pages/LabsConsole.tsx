@@ -5,28 +5,37 @@ import Button from '@cloudscape-design/components/button';
 import SpaceBetween from '@cloudscape-design/components/space-between';
 import ProgressBar from '@cloudscape-design/components/progress-bar';
 import Tabs from '@cloudscape-design/components/tabs';
-import Select from '@cloudscape-design/components/select';
-import FormField from '@cloudscape-design/components/form-field';
+import TextFilter from '@cloudscape-design/components/text-filter';
+import Cards from '@cloudscape-design/components/cards';
+import Badge from '@cloudscape-design/components/badge';
 import ExpandableSection from '@cloudscape-design/components/expandable-section';
-import { fetchLabs, runLabStep, resetLab } from '../api/client';
+import Box from '@cloudscape-design/components/box';
+import { fetchLabsCatalog, runLabStep, resetLab } from '../api/client';
 import { LabDefinition, LabStep } from '../types';
 
 export const LabsConsole: React.FC = () => {
-  const [labs, setLabs] = useState<LabDefinition[]>([]);
-  const [selectedLabKey, setSelectedLabKey] = useState<string>('create-bucket');
+  const [allLabsList, setAllLabsList] = useState<LabDefinition[]>([]);
+  const [activeLab, setActiveLab] = useState<LabDefinition | null>(null);
   const [loading, setLoading] = useState(true);
+  const [filterText, setFilterText] = useState('');
   const [runningStepKey, setRunningStepKey] = useState<string | null>(null);
   const [activeSdk, setActiveSdk] = useState<'cli' | 'boto3' | 'terraform'>('cli');
   const [stepOutputs, setStepOutputs] = useState<Record<string, { status: string; body: string }>>({});
   const [stepCompleted, setStepCompleted] = useState<Record<string, boolean>>({});
 
-  const loadLabs = async () => {
+  const loadData = async () => {
     setLoading(true);
     try {
-      const list = await fetchLabs();
-      setLabs(list);
-      if (list.length > 0 && !list.find((l) => l.key === selectedLabKey)) {
-        setSelectedLabKey(list[0].key);
+      const data = await fetchLabsCatalog();
+      const flattened = (data.services || []).flatMap((s) => s.labs);
+      setAllLabsList(flattened);
+
+      // Check URL query parameters for direct lab link
+      const params = new URLSearchParams(window.location.search);
+      const urlLabKey = params.get('lab');
+      if (urlLabKey) {
+        const found = flattened.find((l) => l.key === urlLabKey);
+        if (found) setActiveLab(found);
       }
     } catch (err) {
       console.error(err);
@@ -36,12 +45,24 @@ export const LabsConsole: React.FC = () => {
   };
 
   useEffect(() => {
-    loadLabs();
+    loadData();
   }, []);
 
-  const activeLab = labs.find((l) => l.key === selectedLabKey) || labs[0];
+  const openLab = (lab: LabDefinition) => {
+    setActiveLab(lab);
+    setStepOutputs({});
+    setStepCompleted({});
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const closeLab = () => {
+    setActiveLab(null);
+    setStepOutputs({});
+    setStepCompleted({});
+  };
 
   const handleRunStep = async (step: LabStep) => {
+    if (!activeLab) return;
     setRunningStepKey(step.key);
     try {
       const data = await runLabStep(activeLab.service, activeLab.key, step.key);
@@ -75,7 +96,6 @@ export const LabsConsole: React.FC = () => {
       await resetLab(activeLab.service, activeLab.key);
       setStepCompleted({});
       setStepOutputs({});
-      await loadLabs();
     } catch (err) {
       console.error(err);
     }
@@ -85,56 +105,45 @@ export const LabsConsole: React.FC = () => {
   const totalCount = activeLab?.steps?.length || 1;
   const percentComplete = Math.round((completedCount / totalCount) * 100);
 
-  return (
-    <SpaceBetween size="l">
-      <Container
-        header={
-          <Header
-            variant="h1"
-            description="Hands-on interactive cloud architecture lessons running directly against Floci."
-            actions={
-              <SpaceBetween direction="horizontal" size="xs">
-                <Button iconName="refresh" onClick={loadLabs} loading={loading}>
-                  Refresh labs
-                </Button>
-                <Button onClick={handleResetLab}>Reset lab</Button>
-              </SpaceBetween>
-            }
-          >
-            Workflow Labs (63 Curated Lessons)
-          </Header>
-        }
-      >
-        <SpaceBetween size="m">
-          <FormField label="Select Lab Lesson">
-            <Select
-              selectedOption={{
-                label: activeLab ? `${activeLab.service.toUpperCase()}: ${activeLab.title}` : 'Select a lab...',
-                value: activeLab?.key || '',
-              }}
-              onChange={({ detail }) => setSelectedLabKey(detail.selectedOption.value || '')}
-              options={labs.map((l) => ({
-                label: `[${l.service.toUpperCase()}] ${l.title}`,
-                value: l.key,
-              }))}
-            />
-          </FormField>
+  const filteredLabs = allLabsList.filter(
+    (l) =>
+      l.title.toLowerCase().includes(filterText.toLowerCase()) ||
+      l.service.toLowerCase().includes(filterText.toLowerCase()) ||
+      l.description.toLowerCase().includes(filterText.toLowerCase())
+  );
 
+  // If a lab is open, show the active Lab Studio
+  if (activeLab) {
+    return (
+      <SpaceBetween size="l">
+        <Container
+          header={
+            <Header
+              variant="h1"
+              description={activeLab.description}
+              actions={
+                <SpaceBetween direction="horizontal" size="xs">
+                  <Button onClick={closeLab}>← Back to Labs Directory</Button>
+                  <Button onClick={handleResetLab}>Reset lab</Button>
+                </SpaceBetween>
+              }
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Badge color="blue">{activeLab.service.toUpperCase()}</Badge>
+                <span>{activeLab.title}</span>
+              </div>
+            </Header>
+          }
+        >
           <ProgressBar
             value={percentComplete}
-            label="Lab Progress"
+            label="Lab Step Completion"
             description={`${completedCount} of ${totalCount} steps complete (${percentComplete}%)`}
             status={percentComplete === 100 ? 'success' : 'in-progress'}
           />
-        </SpaceBetween>
-      </Container>
+        </Container>
 
-      {activeLab && (
         <SpaceBetween size="m">
-          <Container header={<Header variant="h2">{activeLab.title}</Header>}>
-            <p>{activeLab.description}</p>
-          </Container>
-
           {activeLab.steps?.map((step, idx) => {
             const isDone = stepCompleted[step.key] || step.status?.verified;
             const output = stepOutputs[step.key];
@@ -212,7 +221,76 @@ export const LabsConsole: React.FC = () => {
             );
           })}
         </SpaceBetween>
-      )}
+      </SpaceBetween>
+    );
+  }
+
+  // Otherwise, render the instant Labs Directory view
+  return (
+    <SpaceBetween size="l">
+      <Container
+        header={
+          <Header
+            variant="h1"
+            description="Choose from 63 hands-on local cloud architecture lessons across 17 AWS services."
+            actions={
+              <Button iconName="refresh" onClick={loadData} loading={loading}>
+                Refresh catalog
+              </Button>
+            }
+          >
+            AWS Workflow Labs Directory (63 Lessons)
+          </Header>
+        }
+      >
+        <SpaceBetween size="m">
+          <TextFilter
+            filteringText={filterText}
+            filteringPlaceholder="Filter labs by service (e.g. S3, IAM, EC2, Lambda) or title..."
+            onChange={({ detail }) => setFilterText(detail.filteringText)}
+          />
+
+          <Cards
+            cardDefinition={{
+              header: (item) => (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Button variant="inline-link" onClick={() => openLab(item)}>
+                    <strong>{item.title}</strong>
+                  </Button>
+                  <Badge color="blue">{item.service.toUpperCase()}</Badge>
+                </div>
+              ),
+              sections: [
+                {
+                  id: 'description',
+                  content: (item) => item.description,
+                },
+                {
+                  id: 'steps',
+                  header: 'Runnable Steps',
+                  content: (item) => `${item.step_count || item.steps?.length || 1} steps (CLI / Boto3 / Terraform)`,
+                },
+                {
+                  id: 'action',
+                  content: (item) => (
+                    <Button variant="primary" iconName="caret-right-filled" onClick={() => openLab(item)}>
+                      Start Lab Lesson
+                    </Button>
+                  ),
+                },
+              ],
+            }}
+            items={filteredLabs}
+            cardsPerRow={[{ cards: 1 }, { minWidth: 600, cards: 3 }]}
+            empty={
+              <Box textAlign="center" color="inherit">
+                <b>No matching labs found</b>
+                <p>Try searching for a different keyword or service.</p>
+              </Box>
+            }
+          />
+        </SpaceBetween>
+      </Container>
     </SpaceBetween>
   );
 };

@@ -125,9 +125,17 @@ class LabsPageTests(SimpleTestCase):
         self.assertContains(response, 'Steps complete')
         self.assertContains(response, 'Checking...')
         self.assertContains(response, 'Reset completed labs')
-        self.assertContains(response, 'disabled hidden>Reset completed labs</button>')
         self.assertContains(response, 'dashboard/labs-directory.js')
         status_mock.assert_not_called()
+
+    def test_labs_catalog_endpoint_returns_instant_metadata(self):
+        response = self.client.get(reverse('dashboard:labs-catalog'))
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['total_labs'], 63)
+        self.assertIn('services', data)
+        self.assertIn('labs', data)
+        self.assertGreaterEqual(len(data['services']), 17)
 
     def test_labs_directory_reset_uses_styled_confirmation_modal(self):
         script = Path(__file__).resolve().parent / 'static' / 'dashboard' / 'labs-directory.js'

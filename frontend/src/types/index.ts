@@ -66,6 +66,7 @@ export interface LabDefinition {
   title: string;
   description: string;
   steps: LabStep[];
+  step_count?: number;
   complete?: boolean;
 }
 

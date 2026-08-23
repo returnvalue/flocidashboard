@@ -82,7 +82,7 @@ export async function executeServiceAction(
 
 export async function fetchLabs(serviceKey?: string): Promise<LabDefinition[]> {
   try {
-    const url = serviceKey ? `/api/labs/?service=${serviceKey}` : '/api/labs/progress/';
+    const url = serviceKey ? `/api/labs/catalog/?service=${serviceKey}` : '/api/labs/catalog/';
     const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
@@ -90,6 +90,17 @@ export async function fetchLabs(serviceKey?: string): Promise<LabDefinition[]> {
   } catch (err) {
     console.error('Failed to fetch labs:', err);
     return [];
+  }
+}
+
+export async function fetchLabsCatalog(): Promise<{ services: Array<{ service_key: string; service_title: string; lab_count: number; labs: LabDefinition[] }>; total_labs: number }> {
+  try {
+    const res = await fetch('/api/labs/catalog/');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to fetch labs catalog:', err);
+    return { services: [], total_labs: 0 };
   }
 }
 
