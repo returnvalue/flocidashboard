@@ -11,12 +11,13 @@ import Badge from '@cloudscape-design/components/badge';
 import ExpandableSection from '@cloudscape-design/components/expandable-section';
 import Box from '@cloudscape-design/components/box';
 import StatusIndicator from '@cloudscape-design/components/status-indicator';
-import { fetchLabsCatalog, fetchLabStatus, runLabStep, resetLab } from '../api/client';
+import { fetchLabsCatalog, fetchLabsProgress, fetchLabStatus, runLabStep, resetLab } from '../api/client';
 import { LabDefinition, LabStep } from '../types';
 import { CodeSnippet } from '../components/CodeSnippet';
 
 export const LabsConsole: React.FC = () => {
   const [allLabsList, setAllLabsList] = useState<LabDefinition[]>([]);
+  const [completedLabsMap, setCompletedLabsMap] = useState<Record<string, boolean>>({});
   const [activeLab, setActiveLab] = useState<LabDefinition | null>(null);
   const [loading, setLoading] = useState(true);
   const [statusLoading, setStatusLoading] = useState(false);
@@ -47,6 +48,17 @@ export const LabsConsole: React.FC = () => {
           openLab(found);
         }
       }
+
+      // Background fetch of completion status for all labs
+      fetchLabsProgress().then((prog) => {
+        const map: Record<string, boolean> = {};
+        (prog.labs || []).forEach((l) => {
+          if (l.complete) {
+            map[`${l.service}:${l.key}`] = true;
+          }
+        });
+        setCompletedLabsMap(map);
+      });
     } catch (err) {
       console.error(err);
     } finally {
@@ -86,6 +98,13 @@ export const LabsConsole: React.FC = () => {
       });
       setStepCompleted(completedMap);
       setStepOutputs(outputMap);
+
+      if (statusData.complete) {
+        setCompletedLabsMap((prev) => ({
+          ...prev,
+          [`${lab.service}:${lab.key}`]: true,
+        }));
+      }
     } catch (err) {
       console.error('Failed to load lab status:', err);
     } finally {
@@ -134,10 +153,17 @@ export const LabsConsole: React.FC = () => {
           body: outputBody,
         },
       }));
-      setStepCompleted((prev) => ({
-        ...prev,
-        [step.key]: isVerified,
-      }));
+      setStepCompleted((prev) => {
+        const next = { ...prev, [step.key]: isVerified };
+        const allDone = activeLab.steps?.every((s) => s.key === step.key ? isVerified : next[s.key]);
+        if (allDone) {
+          setCompletedLabsMap((cmap) => ({
+            ...cmap,
+            [`${activeLab.service}:${activeLab.key}`]: true,
+          }));
+        }
+        return next;
+      });
       return isVerified;
     } catch (err: any) {
       setStepOutputs((prev) => ({
@@ -181,6 +207,10 @@ export const LabsConsole: React.FC = () => {
       await resetLab(activeLab.service, activeLab.key);
       setStepCompleted({});
       setStepOutputs({});
+      setCompletedLabsMap((prev) => ({
+        ...prev,
+        [`${activeLab.service}:${activeLab.key}`]: false,
+      }));
     } catch (err) {
       console.error(err);
     } finally {
@@ -191,7 +221,7 @@ export const LabsConsole: React.FC = () => {
   const completedCount = activeLab?.steps?.filter((s) => stepCompleted[s.key] || s.status?.verified).length || 0;
   const totalCount = activeLab?.steps?.length || 1;
   const percentComplete = Math.round((completedCount / totalCount) * 100);
-  const isLabComplete = completedCount === totalCount && totalCount > 0;
+  const isLabComplete = (completedCount === totalCount && totalCount > 0) || Boolean(completedLabsMap[`${activeLab?.service}:${activeLab?.key}`]);
 
   const filteredLabs = allLabsList.filter(
     (l) =>
@@ -370,18 +400,41 @@ export const LabsConsole: React.FC = () => {
 
           <Cards
             cardDefinition={{
-              header: (item) => (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Button variant="inline-link" onClick={() => openLab(item)}>
-                    <strong>{item.title}</strong>
-                  </Button>
-                  <Badge color="blue">{item.service.toUpperCase()}</Badge>
-                </div>
-              ),
+              header: (item) => {
+                const isComplete = Boolean(completedLabsMap[`${item.service}:${item.key}`]);
+                return (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Button variant="inline-link" onClick={() => openLab(item)}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        {isComplete && <StatusIndicator type="success" />}
+                        <strong style={{ color: isComplete ? '#4ec9b0' : 'inherit' }}>{item.title}</strong>
+                      </span>
+                    </Button>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      {isComplete && <Badge color="green">✓ COMPLETE</Badge>}
+                      <Badge color="blue">{item.service.toUpperCase()}</Badge>
+                    </div>
+                  </div>
+                );
+              },
               sections: [
                 {
                   id: 'description',
-                  content: (item) => item.description,
+                  content: (item) => {
+                    const isComplete = Boolean(completedLabsMap[`${item.service}:${item.key}`]);
+                    return (
+                      <div
+                        style={{
+                          borderRadius: '6px',
+                          padding: isComplete ? '8px 10px' : undefined,
+                          border: isComplete ? '1px solid #1d8102' : undefined,
+                          background: isComplete ? 'rgba(29, 129, 2, 0.08)' : undefined,
+                        }}
+                      >
+                        {item.description}
+                      </div>
+                    );
+                  },
                 },
                 {
                   id: 'steps',
@@ -390,11 +443,18 @@ export const LabsConsole: React.FC = () => {
                 },
                 {
                   id: 'action',
-                  content: (item) => (
-                    <Button variant="primary" iconName="caret-right-filled" onClick={() => openLab(item)}>
-                      Start Lab Lesson
-                    </Button>
-                  ),
+                  content: (item) => {
+                    const isComplete = Boolean(completedLabsMap[`${item.service}:${item.key}`]);
+                    return (
+                      <Button
+                        variant={isComplete ? 'normal' : 'primary'}
+                        iconName={isComplete ? 'status-positive' : 'caret-right-filled'}
+                        onClick={() => openLab(item)}
+                      >
+                        {isComplete ? 'Review Completed Lab' : 'Start Lab Lesson'}
+                      </Button>
+                    );
+                  },
                 },
               ],
             }}
