@@ -294,6 +294,14 @@ export const LabsConsole: React.FC = () => {
         </Container>
 
         <SpaceBetween size="m">
+          <style>{`
+            .lab-step-completed > div,
+            .lab-step-completed [class*="awsui_root"],
+            .lab-step-completed [class*="awsui_container"] {
+              border-color: #1d8102 !important;
+              box-shadow: 0 0 0 1px #1d8102 !important;
+            }
+          `}</style>
           {activeLab.steps?.map((step, idx) => {
             const isDone = Boolean(stepCompleted[step.key] || step.status?.verified);
             const output = stepOutputs[step.key];
@@ -302,10 +310,10 @@ export const LabsConsole: React.FC = () => {
               <div
                 key={step.key}
                 ref={(el) => (stepRefs.current[step.key] = el)}
+                className={isDone ? 'lab-step-completed' : 'lab-step-pending'}
                 style={{
-                  borderRadius: '8px',
-                  border: isDone ? '2px solid #1d8102' : '1px solid #232f3e',
-                  transition: 'border 0.3s ease',
+                  borderRadius: '16px',
+                  transition: 'all 0.2s ease',
                 }}
               >
                 <Container
