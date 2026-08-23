@@ -5,9 +5,12 @@ from . import acm_views, apigateway_views, appconfig_views, appsync_views, athen
 app_name = 'dashboard'
 
 urlpatterns = [
+    # Primary Floci 2.0 Cloudscape Console SPA routes
     path('', views.cloudscape_app, name='index'),
     path('app/', views.cloudscape_app, name='cloudscape-app'),
     path('app/<path:subpath>', views.cloudscape_app, name='cloudscape-app-routed'),
+    path('labs/', views.cloudscape_app, name='labs'),
+    path('labs', views.cloudscape_app),
     path('s3/', views.cloudscape_app, name='s3-spa'),
     path('ec2/', views.cloudscape_app, name='ec2-spa'),
     path('iam/', views.cloudscape_app, name='iam-spa'),
@@ -16,16 +19,18 @@ urlpatterns = [
     path('sqs/', views.cloudscape_app, name='sqs-spa'),
     path('sns/', views.cloudscape_app, name='sns-spa'),
     path('rds/', views.cloudscape_app, name='rds-spa'),
+
+    # Legacy SSR pages & templates
     path('environment/', views.environment, name='environment'),
     path('activity/', views.activity, name='activity'),
     path('console/', console_views.console_page, name='console'),
     path('settings/', views.settings_page, name='settings'),
-    path('api/resource-graph/', resource_graph_views.graph_detail, name='resource-graph-detail'),
     path('inspector/', inspector_views.inspector_page, name='inspector'),
-    path('labs/', views.labs_directory, name='labs-directory'),
+    path('legacy/labs/', views.labs_directory, name='labs-directory'),
     path('services/', views.service_matrix, name='service-matrix'),
     path('service/<slug:service_key>/', views.service_page, name='service-page'),
     path('service/<slug:service_key>/labs/', views.service_labs, name='service-labs'),
+    path('api/resource-graph/', resource_graph_views.graph_detail, name='resource-graph-detail'),
     path('api/labs/<slug:service_key>/<slug:lab_key>/steps/<slug:step_key>/run/', views.lab_step_run, name='lab-step-run'),
     path('api/labs/<slug:service_key>/<slug:lab_key>/reset/', views.lab_reset, name='lab-reset'),
     path('api/labs/catalog/', views.labs_catalog, name='labs-catalog'),

@@ -21,7 +21,11 @@ import Button from '@cloudscape-design/components/button';
 function getInitialView(): string {
   const path = window.location.pathname.replace(/^\/app\/?/, '').replace(/^\//, '').replace(/\/$/, '');
   if (!path || path === 'app' || path === 'home') return 'home';
-  if (path.startsWith('service/')) return path.replace('service/', '');
+  if (path === 'labs' || path.endsWith('/labs') || path.startsWith('labs/')) return 'labs';
+  if (path.startsWith('service/')) {
+    const parts = path.split('/');
+    return parts[1] || 'home';
+  }
   return path;
 }
 
