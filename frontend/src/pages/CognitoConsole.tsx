@@ -25,12 +25,24 @@ import {
 } from '../api/client';
 import { CodeSnippet } from '../components/CodeSnippet';
 
-export const CognitoConsole: React.FC = () => {
+interface CognitoConsoleProps {
+  activeTab?: string;
+  onTabChange?: (tabId: string) => void;
+}
+
+export const CognitoConsole: React.FC<CognitoConsoleProps> = ({ activeTab, onTabChange }) => {
   const [data, setData] = useState<any>({ user_pools: [] });
   const [loading, setLoading] = useState(true);
   const [selectedPools, setSelectedPools] = useState<any[]>([]);
   const [filterText, setFilterText] = useState('');
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [selectedTabId, setSelectedTabId] = useState(activeTab || 'users');
+
+  useEffect(() => {
+    if (activeTab) {
+      setSelectedTabId(activeTab);
+    }
+  }, [activeTab]);
 
   // Create User Pool Modal
   const [createPoolOpen, setCreatePoolOpen] = useState(false);
@@ -309,6 +321,11 @@ export const CognitoConsole: React.FC = () => {
           }
         >
           <Tabs
+            activeTabId={selectedTabId}
+            onChange={({ detail }) => {
+              setSelectedTabId(detail.activeTabId);
+              onTabChange?.(detail.activeTabId);
+            }}
             tabs={[
               {
                 label: `Users (${activePool.users?.length ?? 0})`,

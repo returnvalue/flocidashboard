@@ -36,12 +36,24 @@ interface TableItem {
   SortKey?: string;
 }
 
-export const DynamoDBConsole: React.FC = () => {
+interface DynamoDBConsoleProps {
+  activeTab?: string;
+  onTabChange?: (tabId: string) => void;
+}
+
+export const DynamoDBConsole: React.FC<DynamoDBConsoleProps> = ({ activeTab, onTabChange }) => {
   const [tables, setTables] = useState<TableItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTables, setSelectedTables] = useState<TableItem[]>([]);
   const [tableFilter, setTableFilter] = useState('');
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [selectedTabId, setSelectedTabId] = useState(activeTab || 'items');
+
+  useEffect(() => {
+    if (activeTab) {
+      setSelectedTabId(activeTab);
+    }
+  }, [activeTab]);
 
   // Create Table Modal
   const [createTableOpen, setCreateTableOpen] = useState(false);
@@ -361,6 +373,11 @@ export const DynamoDBConsole: React.FC = () => {
           }
         >
           <Tabs
+            activeTabId={selectedTabId}
+            onChange={({ detail }) => {
+              setSelectedTabId(detail.activeTabId);
+              onTabChange?.(detail.activeTabId);
+            }}
             tabs={[
               {
                 label: `Explore Items (${tableItems.length})`,

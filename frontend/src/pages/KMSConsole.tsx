@@ -19,12 +19,24 @@ import Tabs from '@cloudscape-design/components/tabs';
 import { fetchInventory, executeServiceAction } from '../api/client';
 import { CodeSnippet } from '../components/CodeSnippet';
 
-export const KMSConsole: React.FC = () => {
+interface KMSConsoleProps {
+  activeTab?: string;
+  onTabChange?: (tabId: string) => void;
+}
+
+export const KMSConsole: React.FC<KMSConsoleProps> = ({ activeTab, onTabChange }) => {
   const [data, setData] = useState<any>({ keys: [], aliases: [] });
   const [loading, setLoading] = useState(true);
   const [filterText, setFilterText] = useState('');
   const [selectedKeys, setSelectedKeys] = useState<any[]>([]);
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [selectedTabId, setSelectedTabId] = useState(activeTab || 'keys');
+
+  useEffect(() => {
+    if (activeTab) {
+      setSelectedTabId(activeTab);
+    }
+  }, [activeTab]);
 
   // Create Key Modal
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -200,6 +212,11 @@ export const KMSConsole: React.FC = () => {
 
       {/* Tabs */}
       <Tabs
+        activeTabId={selectedTabId}
+        onChange={({ detail }) => {
+          setSelectedTabId(detail.activeTabId);
+          onTabChange?.(detail.activeTabId);
+        }}
         tabs={[
           {
             label: `KMS Keys (${keysList.length})`,

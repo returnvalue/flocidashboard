@@ -25,12 +25,24 @@ import {
 } from '../api/client';
 import { CodeSnippet } from '../components/CodeSnippet';
 
-export const ApiGatewayConsole: React.FC = () => {
+interface ApiGatewayConsoleProps {
+  activeTab?: string;
+  onTabChange?: (tabId: string) => void;
+}
+
+export const ApiGatewayConsole: React.FC<ApiGatewayConsoleProps> = ({ activeTab, onTabChange }) => {
   const [data, setData] = useState<any>({ apis: [] });
   const [loading, setLoading] = useState(true);
   const [selectedApis, setSelectedApis] = useState<any[]>([]);
   const [filterText, setFilterText] = useState('');
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [selectedTabId, setSelectedTabId] = useState(activeTab || 'test');
+
+  useEffect(() => {
+    if (activeTab) {
+      setSelectedTabId(activeTab);
+    }
+  }, [activeTab]);
 
   // Create API Modal
   const [createApiOpen, setCreateApiOpen] = useState(false);
@@ -271,6 +283,11 @@ export const ApiGatewayConsole: React.FC = () => {
           }
         >
           <Tabs
+            activeTabId={selectedTabId}
+            onChange={({ detail }) => {
+              setSelectedTabId(detail.activeTabId);
+              onTabChange?.(detail.activeTabId);
+            }}
             tabs={[
               {
                 label: 'Test Request Runner',

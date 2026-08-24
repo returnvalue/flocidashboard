@@ -44,12 +44,24 @@ interface FunctionItem {
   LastModified?: string;
 }
 
-export const LambdaConsole: React.FC = () => {
+interface LambdaConsoleProps {
+  activeTab?: string;
+  onTabChange?: (tabId: string) => void;
+}
+
+export const LambdaConsole: React.FC<LambdaConsoleProps> = ({ activeTab, onTabChange }) => {
   const [functions, setFunctions] = useState<FunctionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedFunctions, setSelectedFunctions] = useState<FunctionItem[]>([]);
   const [filterText, setFilterText] = useState('');
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [selectedTabId, setSelectedTabId] = useState(activeTab || 'code');
+
+  useEffect(() => {
+    if (activeTab) {
+      setSelectedTabId(activeTab);
+    }
+  }, [activeTab]);
 
   // Create Function Modal
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -393,6 +405,11 @@ export const LambdaConsole: React.FC = () => {
           }
         >
           <Tabs
+            activeTabId={selectedTabId}
+            onChange={({ detail }) => {
+              setSelectedTabId(detail.activeTabId);
+              onTabChange?.(detail.activeTabId);
+            }}
             tabs={[
               {
                 label: 'Code Preview',

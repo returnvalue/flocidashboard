@@ -113,12 +113,24 @@ const TRUST_TEMPLATES: Record<string, { label: string; doc: any }> = {
   },
 };
 
-export const IAMConsole: React.FC = () => {
+interface IAMConsoleProps {
+  activeTab?: string;
+  onTabChange?: (tabId: string) => void;
+}
+
+export const IAMConsole: React.FC<IAMConsoleProps> = ({ activeTab, onTabChange }) => {
   const [users, setUsers] = useState<UserItem[]>([]);
   const [roles, setRoles] = useState<RoleItem[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [selectedTabId, setSelectedTabId] = useState(activeTab || 'roles');
+
+  useEffect(() => {
+    if (activeTab) {
+      setSelectedTabId(activeTab);
+    }
+  }, [activeTab]);
 
   // Selected Items
   const [selectedUsers, setSelectedUsers] = useState<UserItem[]>([]);
@@ -356,6 +368,11 @@ export const IAMConsole: React.FC = () => {
 
       {/* Main Tabs */}
       <Tabs
+        activeTabId={selectedTabId}
+        onChange={({ detail }) => {
+          setSelectedTabId(detail.activeTabId);
+          onTabChange?.(detail.activeTabId);
+        }}
         tabs={[
           {
             label: `Users (${users.length})`,

@@ -46,9 +46,21 @@ interface InstanceItem {
   SecurityGroups?: Array<{ GroupId: string; GroupName: string }>;
 }
 
-export const EC2Console: React.FC = () => {
+interface EC2ConsoleProps {
+  activeTab?: string;
+  onTabChange?: (tabId: string) => void;
+}
+
+export const EC2Console: React.FC<EC2ConsoleProps> = ({ activeTab, onTabChange }) => {
   const [loading, setLoading] = useState(true);
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [selectedTabId, setSelectedTabId] = useState(activeTab || 'instances');
+
+  useEffect(() => {
+    if (activeTab) {
+      setSelectedTabId(activeTab);
+    }
+  }, [activeTab]);
 
   // Instances State
   const [instances, setInstances] = useState<InstanceItem[]>([]);
@@ -391,6 +403,11 @@ export const EC2Console: React.FC = () => {
 
       {/* Main Tabs */}
       <Tabs
+        activeTabId={selectedTabId}
+        onChange={({ detail }) => {
+          setSelectedTabId(detail.activeTabId);
+          onTabChange?.(detail.activeTabId);
+        }}
         tabs={[
           {
             label: `Instances (${instances.length})`,

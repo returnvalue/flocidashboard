@@ -24,12 +24,24 @@ import {
   deleteSsmParameter,
 } from '../api/client';
 
-export const SSMConsole: React.FC = () => {
+interface SSMConsoleProps {
+  activeTab?: string;
+  onTabChange?: (tabId: string) => void;
+}
+
+export const SSMConsole: React.FC<SSMConsoleProps> = ({ activeTab, onTabChange }) => {
   const [data, setData] = useState<any>({ parameters: [] });
   const [loading, setLoading] = useState(true);
   const [selectedParams, setSelectedParams] = useState<any[]>([]);
   const [filterText, setFilterText] = useState('');
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [selectedTabId, setSelectedTabId] = useState(activeTab || 'val');
+
+  useEffect(() => {
+    if (activeTab) {
+      setSelectedTabId(activeTab);
+    }
+  }, [activeTab]);
 
   // Create Parameter Modal
   const [createParamOpen, setCreateParamOpen] = useState(false);
@@ -279,6 +291,11 @@ export const SSMConsole: React.FC = () => {
           }
         >
           <Tabs
+            activeTabId={selectedTabId}
+            onChange={({ detail }) => {
+              setSelectedTabId(detail.activeTabId);
+              onTabChange?.(detail.activeTabId);
+            }}
             tabs={[
               {
                 label: 'Value & Decryption',

@@ -17,12 +17,24 @@ import TextFilter from '@cloudscape-design/components/text-filter';
 import Tabs from '@cloudscape-design/components/tabs';
 import { fetchInventory, executeServiceAction, fetchInspectorLogGroups, fetchInspectorLogEvents } from '../api/client';
 
-export const CloudWatchConsole: React.FC = () => {
+interface CloudWatchConsoleProps {
+  activeTab?: string;
+  onTabChange?: (tabId: string) => void;
+}
+
+export const CloudWatchConsole: React.FC<CloudWatchConsoleProps> = ({ activeTab, onTabChange }) => {
   const [data, setData] = useState<any>({ metric_alarms: [] });
   const [loading, setLoading] = useState(true);
   const [filterText, setFilterText] = useState('');
   const [selectedAlarms, setSelectedAlarms] = useState<any[]>([]);
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [selectedTabId, setSelectedTabId] = useState(activeTab || 'alarms');
+
+  useEffect(() => {
+    if (activeTab) {
+      setSelectedTabId(activeTab);
+    }
+  }, [activeTab]);
 
   // Create Alarm Modal
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -195,6 +207,11 @@ export const CloudWatchConsole: React.FC = () => {
 
       {/* Tabs */}
       <Tabs
+        activeTabId={selectedTabId}
+        onChange={({ detail }) => {
+          setSelectedTabId(detail.activeTabId);
+          onTabChange?.(detail.activeTabId);
+        }}
         tabs={[
           {
             label: `Metric Alarms (${alarmsList.length})`,

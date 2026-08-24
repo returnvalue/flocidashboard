@@ -41,12 +41,24 @@ interface BucketItem {
   Size?: number;
 }
 
-export const S3Console: React.FC = () => {
+interface S3ConsoleProps {
+  activeTab?: string;
+  onTabChange?: (tabId: string) => void;
+}
+
+export const S3Console: React.FC<S3ConsoleProps> = ({ activeTab, onTabChange }) => {
   const [buckets, setBuckets] = useState<BucketItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBuckets, setSelectedBuckets] = useState<BucketItem[]>([]);
   const [filterText, setFilterText] = useState('');
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [selectedTabId, setSelectedTabId] = useState(activeTab || 'objects');
+
+  useEffect(() => {
+    if (activeTab) {
+      setSelectedTabId(activeTab);
+    }
+  }, [activeTab]);
 
   // Create Bucket Modal
   const [createBucketOpen, setCreateBucketOpen] = useState(false);
@@ -449,6 +461,11 @@ export const S3Console: React.FC = () => {
           }
         >
           <Tabs
+            activeTabId={selectedTabId}
+            onChange={({ detail }) => {
+              setSelectedTabId(detail.activeTabId);
+              onTabChange?.(detail.activeTabId);
+            }}
             tabs={[
               {
                 label: `Objects (${objects.length})`,
