@@ -142,23 +142,22 @@ export const FavoritesBar: React.FC<FavoritesBarProps> = ({
           whiteSpace: 'nowrap',
           zIndex: 90,
           boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+          fontFamily: 'inherit',
         }}
       >
-        <div
+        <span
           style={{
-            display: 'flex',
+            color: '#ec7211',
+            fontSize: '13px',
+            marginRight: '8px',
+            display: 'inline-flex',
             alignItems: 'center',
-            gap: '6px',
-            color: '#879596',
-            fontSize: '11px',
-            marginRight: '10px',
             userSelect: 'none',
           }}
+          title="Favorites"
         >
-          <span style={{ color: '#ec7211', fontSize: '13px' }}>★</span>
-          <span style={{ fontWeight: 600, letterSpacing: '0.5px' }}>FAVORITES</span>
-          <span style={{ color: '#344258' }}>|</span>
-        </div>
+          ★
+        </span>
 
         <div
           style={{
@@ -186,7 +185,8 @@ export const FavoritesBar: React.FC<FavoritesBarProps> = ({
                   gap: '6px',
                   padding: '3px 8px',
                   borderRadius: '3px',
-                  fontSize: '12px',
+                  fontSize: '13px',
+                  fontFamily: 'inherit',
                   fontWeight: isActive ? 600 : 400,
                   color: isActive ? '#58a6ff' : '#d1d5db',
                   background: isActive ? 'rgba(9, 114, 211, 0.2)' : 'transparent',
@@ -220,7 +220,8 @@ export const FavoritesBar: React.FC<FavoritesBarProps> = ({
             background: 'transparent',
             border: 'none',
             color: '#879596',
-            fontSize: '11px',
+            fontSize: '12px',
+            fontFamily: 'inherit',
             cursor: 'pointer',
             padding: '4px 8px',
             borderRadius: '3px',
