@@ -11,7 +11,9 @@ import Badge from '@cloudscape-design/components/badge';
 import ExpandableSection from '@cloudscape-design/components/expandable-section';
 import Box from '@cloudscape-design/components/box';
 import StatusIndicator from '@cloudscape-design/components/status-indicator';
-import { fetchLabsCatalog, fetchLabsProgress, fetchLabStatus, runLabStep, resetLab } from '../api/client';
+import Modal from '@cloudscape-design/components/modal';
+import Alert from '@cloudscape-design/components/alert';
+import { fetchLabsCatalog, fetchLabsProgress, fetchLabStatus, runLabStep, resetLab, resetAllLabs } from '../api/client';
 import { LabDefinition, LabStep } from '../types';
 import { CodeSnippet } from '../components/CodeSnippet';
 
@@ -263,6 +265,35 @@ export const LabsConsole: React.FC = () => {
     }
   };
 
+  const [resetAllModalOpen, setResetAllModalOpen] = useState(false);
+  const [resettingAll, setResettingAll] = useState(false);
+  const [resetResultMessage, setResetResultMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handleResetAllLabs = async () => {
+    setResettingAll(true);
+    setResetResultMessage(null);
+    try {
+      const res = await resetAllLabs();
+      try {
+        localStorage.removeItem('floci_completed_labs');
+      } catch {}
+      setCompletedLabsMap({});
+      setResetResultMessage({
+        type: 'success',
+        text: `Successfully reset all ${res.reset_lab_count || 63} labs in the system.`,
+      });
+      setResetAllModalOpen(false);
+      await loadCatalog();
+    } catch (err: any) {
+      setResetResultMessage({
+        type: 'error',
+        text: err.message || 'Failed to reset all labs',
+      });
+    } finally {
+      setResettingAll(false);
+    }
+  };
+
   const completedCount = activeLab?.steps?.filter((s) => stepCompleted[s.key] || s.status?.verified).length || 0;
   const totalCount = activeLab?.steps?.length || 1;
   const percentComplete = Math.round((completedCount / totalCount) * 100);
@@ -427,15 +458,35 @@ export const LabsConsole: React.FC = () => {
   // Otherwise, render the instant Labs Directory view
   return (
     <SpaceBetween size="l">
+      {resetResultMessage && (
+        <Alert
+          type={resetResultMessage.type}
+          dismissible
+          onDismiss={() => setResetResultMessage(null)}
+        >
+          {resetResultMessage.text}
+        </Alert>
+      )}
+
       <Container
         header={
           <Header
             variant="h1"
             description="Choose from 63 hands-on local cloud architecture lessons across 17 AWS services."
             actions={
-              <Button iconName="refresh" onClick={loadCatalog} loading={loading}>
-                Refresh catalog
-              </Button>
+              <SpaceBetween direction="horizontal" size="xs">
+                <Button
+                  variant="normal"
+                  iconName="remove"
+                  onClick={() => setResetAllModalOpen(true)}
+                  loading={resettingAll}
+                >
+                  Reset All
+                </Button>
+                <Button iconName="refresh" onClick={loadCatalog} loading={loading}>
+                  Refresh catalog
+                </Button>
+              </SpaceBetween>
             }
           >
             AWS Workflow Labs Directory (63 Lessons)
@@ -520,6 +571,32 @@ export const LabsConsole: React.FC = () => {
           />
         </SpaceBetween>
       </Container>
+
+      {/* Reset All Confirmation Modal */}
+      <Modal
+        visible={resetAllModalOpen}
+        onDismiss={() => !resettingAll && setResetAllModalOpen(false)}
+        header="Reset All 63 Workflow Labs"
+        footer={
+          <Box float="right">
+            <SpaceBetween direction="horizontal" size="xs">
+              <Button variant="link" onClick={() => setResetAllModalOpen(false)} disabled={resettingAll}>
+                Cancel
+              </Button>
+              <Button variant="primary" onClick={handleResetAllLabs} loading={resettingAll}>
+                Reset All Labs
+              </Button>
+            </SpaceBetween>
+          </Box>
+        }
+      >
+        <SpaceBetween size="m">
+          <Alert type="warning">
+            This will tear down all lab-created AWS resources across all 17 services (S3 buckets, DynamoDB tables, Lambda functions, IAM roles/users, SQS queues, etc.) and clear completion progress for all 63 lessons.
+          </Alert>
+          <p>Are you sure you want to reset every lab in the system?</p>
+        </SpaceBetween>
+      </Modal>
     </SpaceBetween>
   );
 };

@@ -47,6 +47,7 @@ urlpatterns = [
     path('api/labs/catalog/', views.labs_catalog, name='labs-catalog'),
     path('api/labs/progress/', views.labs_progress, name='labs-progress'),
     path('api/labs/reset-completed/', views.labs_global_reset, name='labs-global-reset'),
+    path('api/labs/reset-all/', views.labs_global_reset, name='labs-reset-all'),
     path('api/settings/', settings_views.settings_detail, name='settings-detail'),
     path('api/settings/endpoint/', settings_views.settings_endpoint_save, name='settings-endpoint'),
     path('api/settings/endpoint/reset/', settings_views.settings_endpoint_reset, name='settings-endpoint-reset'),

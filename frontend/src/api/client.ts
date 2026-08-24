@@ -132,6 +132,19 @@ export async function resetLab(serviceKey: string, labKey: string): Promise<any>
   return await res.json();
 }
 
+export async function resetAllLabs(): Promise<any> {
+  const res = await fetch('/api/labs/reset-all/', {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCsrfToken(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ all: true }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return await res.json();
+}
+
 export async function fetchSesMessages(): Promise<{ mailbox_url: string; messages: any[]; raw: any }> {
   try {
     const res = await fetch('/api/inspector/ses/messages/');

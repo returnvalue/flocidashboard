@@ -526,24 +526,39 @@ def lab_reset(request, service_key: str, lab_key: str):
 
 @require_POST
 def labs_global_reset(request):
+    is_reset_all = request.path.rstrip('/').endswith('reset-all') or request.GET.get('all') == 'true'
+    if not is_reset_all and request.body:
+        try:
+            body = json.loads(request.body.decode('utf-8'))
+            is_reset_all = body.get('all') is True
+        except Exception:
+            pass
+
     completed = []
     skipped_errors = []
-    for lab in all_labs():
-        try:
-            status = lab_status(lab['service'], lab['key'])
-        except (BotoCoreError, ClientError, ValueError) as exc:
-            skipped_errors.append({
-                'service': lab['service'],
-                'lab': lab['key'],
-                'message': str(exc),
-            })
-            continue
-        if status.get('complete'):
-            completed.append(lab)
+
+    if is_reset_all:
+        target_labs = all_labs()
+        completed_count = len(target_labs)
+    else:
+        for lab in all_labs():
+            try:
+                status = lab_status(lab['service'], lab['key'])
+            except (BotoCoreError, ClientError, ValueError) as exc:
+                skipped_errors.append({
+                    'service': lab['service'],
+                    'lab': lab['key'],
+                    'message': str(exc),
+                })
+                continue
+            if status.get('complete'):
+                completed.append(lab)
+        target_labs = completed
+        completed_count = len(completed)
 
     reset_results = []
     reset_errors = []
-    for lab in reversed(completed):
+    for lab in reversed(target_labs):
         try:
             result = reset_lab(lab['service'], lab['key'])
             reset_results.append({
@@ -552,7 +567,7 @@ def labs_global_reset(request):
                 'title': lab.get('title'),
                 'result': result,
             })
-        except (BotoCoreError, ClientError, ValueError) as exc:
+        except Exception as exc:
             reset_errors.append({
                 'service': lab['service'],
                 'lab': lab['key'],
@@ -563,7 +578,9 @@ def labs_global_reset(request):
     cache.delete(_labs_progress_cache_key())
     return JsonResponse({
         'reset': not reset_errors,
-        'completed_lab_count': len(completed),
+        'is_reset_all': is_reset_all,
+        'completed_lab_count': completed_count,
+        'target_lab_count': len(target_labs),
         'reset_lab_count': len(reset_results),
         'skipped_error_count': len(skipped_errors),
         'reset_error_count': len(reset_errors),
