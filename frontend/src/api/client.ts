@@ -687,3 +687,132 @@ export async function publishLambdaVersion(functionName: string, description: st
   if (!res.ok || data.error) throw new Error(data.error || `Failed to publish version`);
   return data;
 }
+
+// Cognito Deepening APIs
+export async function createCognitoUserPool(name: string): Promise<any> {
+  const res = await fetch('/api/cognito/user-pools/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({ name }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || 'Failed to create user pool');
+  return data;
+}
+
+export async function createCognitoUser(userPoolId: string, username: string, password: string = 'TempPass123!', email?: string): Promise<any> {
+  const res = await fetch(`/api/cognito/user-pools/${encodeURIComponent(userPoolId)}/users/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({
+      username,
+      temporary_password: password,
+      user_attributes: email ? [{ Name: 'email', Value: email }] : [],
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || 'Failed to create Cognito user');
+  return data;
+}
+
+export async function createCognitoAppClient(userPoolId: string, clientName: string): Promise<any> {
+  const res = await fetch(`/api/cognito/user-pools/${encodeURIComponent(userPoolId)}/clients/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({ client_name: clientName }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || 'Failed to create app client');
+  return data;
+}
+
+export async function initiateCognitoAuth(clientId: string, username: string, password: string): Promise<any> {
+  const res = await fetch('/api/cognito/auth/initiate/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({
+      client_id: clientId,
+      username,
+      password,
+      auth_flow: 'USER_PASSWORD_AUTH',
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || 'Authentication failed');
+  return data;
+}
+
+export async function deleteCognitoUser(userPoolId: string, username: string): Promise<any> {
+  const res = await fetch(`/api/cognito/user-pools/${encodeURIComponent(userPoolId)}/users/${encodeURIComponent(username)}/`, {
+    method: 'DELETE',
+    headers: { 'X-CSRFToken': getCsrfToken() },
+  });
+  return await res.json();
+}
+
+// API Gateway Deepening APIs
+export async function createApiGatewayApi(name: string, protocolType: string = 'HTTP', description: string = ''): Promise<any> {
+  const res = await fetch('/api/apigateway/apis/create/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({ name, protocol_type: protocolType, description }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || 'Failed to create API');
+  return data;
+}
+
+export async function deleteApiGatewayApi(apiId: string): Promise<any> {
+  const res = await fetch('/api/apigateway/apis/delete/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({ api_id: apiId }),
+  });
+  return await res.json();
+}
+
+export async function testApiGatewayRequest(apiId: string, path: string, method: string = 'GET', headers: any = {}, body: any = null): Promise<any> {
+  const res = await fetch('/api/apigateway/requests/test/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({
+      api_id: apiId,
+      path: path.startsWith('/') ? path : `/${path}`,
+      http_method: method,
+      headers,
+      body,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+// SSM Parameter Store Deepening APIs
+export async function putSsmParameter(name: string, value: string, type: 'String' | 'StringList' | 'SecureString' = 'String', description: string = ''): Promise<any> {
+  const res = await fetch('/api/ssm/parameters/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({
+      name,
+      value,
+      type,
+      description,
+      overwrite: true,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || 'Failed to put parameter');
+  return data;
+}
+
+export async function getSsmParameterValue(name: string, withDecryption: boolean = true): Promise<any> {
+  const cleanName = name.startsWith('/') ? name.substring(1) : name;
+  const res = await fetch(`/api/ssm/parameters/${encodeURIComponent(cleanName)}/value/?with_decryption=${withDecryption}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return await res.json();
+}
+
+export async function deleteSsmParameter(name: string): Promise<any> {
+  return await executeServiceAction('ssm', 'delete_parameter', { name });
+}

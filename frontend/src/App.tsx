@@ -23,6 +23,9 @@ import { Route53Console } from './pages/Route53Console';
 import { EventBridgeConsole } from './pages/EventBridgeConsole';
 import { CloudWatchConsole } from './pages/CloudWatchConsole';
 import { StepFunctionsConsole } from './pages/StepFunctionsConsole';
+import { CognitoConsole } from './pages/CognitoConsole';
+import { ApiGatewayConsole } from './pages/ApiGatewayConsole';
+import { SSMConsole } from './pages/SSMConsole';
 import { GenericServiceWorkbench } from './pages/GenericServiceWorkbench';
 import { fetchIdentity, fetchServices } from './api/client';
 import { IdentityInfo, ServiceDefinition } from './types';
@@ -154,6 +157,9 @@ export const App: React.FC = () => {
           { type: 'link' as const, text: 'Amazon EventBridge', href: 'eventbridge' },
           { type: 'link' as const, text: 'Amazon CloudWatch', href: 'cloudwatch' },
           { type: 'link' as const, text: 'AWS Step Functions', href: 'stepfunctions' },
+          { type: 'link' as const, text: 'Amazon Cognito', href: 'cognito' },
+          { type: 'link' as const, text: 'Amazon API Gateway', href: 'apigateway' },
+          { type: 'link' as const, text: 'AWS Systems Manager (SSM)', href: 'ssm' },
         ],
       },
     ];
@@ -200,6 +206,12 @@ export const App: React.FC = () => {
         return <CloudWatchConsole />;
       case 'stepfunctions':
         return <StepFunctionsConsole />;
+      case 'cognito':
+        return <CognitoConsole />;
+      case 'apigateway':
+        return <ApiGatewayConsole />;
+      case 'ssm':
+        return <SSMConsole />;
       case 'labs':
         return <LabsConsole />;
       case 'inspector':
