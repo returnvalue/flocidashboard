@@ -10,6 +10,7 @@ import TextFilter from '@cloudscape-design/components/text-filter';
 import Badge from '@cloudscape-design/components/badge';
 import Box from '@cloudscape-design/components/box';
 import { ServiceDefinition } from '../types';
+import { AwsServiceIcon } from '../components/AwsServiceIcons';
 
 interface ConsoleHomeProps {
   services: ServiceDefinition[];
@@ -94,24 +95,24 @@ export const ConsoleHome: React.FC<ConsoleHomeProps> = ({
         <Cards
           cardDefinition={{
             header: (item) => (
-              <Button variant="inline-link" onClick={() => onSelectService(item.key)}>
-                {item.title}
-              </Button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <AwsServiceIcon service={item.key} size={28} />
+                <Button variant="inline-link" onClick={() => onSelectService(item.key)}>
+                  <strong>{item.title}</strong>
+                </Button>
+              </div>
             ),
             sections: [
               {
                 id: 'category',
-                header: 'Category',
                 content: (item) => <Badge color="blue">{item.category}</Badge>,
               },
               {
                 id: 'eyebrow',
-                header: 'Description',
                 content: (item) => item.eyebrow,
               },
               {
                 id: 'status',
-                header: 'Status',
                 content: () => <StatusIndicator type="success">Interactive Workbench</StatusIndicator>,
               },
             ],
@@ -142,9 +143,12 @@ export const ConsoleHome: React.FC<ConsoleHomeProps> = ({
             cardDefinition={{
               header: (item) => (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Button variant="inline-link" onClick={() => onSelectService(item.key)}>
-                    <strong>{item.title}</strong>
-                  </Button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <AwsServiceIcon service={item.key} size={24} />
+                    <Button variant="inline-link" onClick={() => onSelectService(item.key)}>
+                      <strong>{item.title}</strong>
+                    </Button>
+                  </div>
                   <Badge color={item.maturity === 'interactive_workbench' ? 'green' : 'grey'}>
                     {item.category}
                   </Badge>

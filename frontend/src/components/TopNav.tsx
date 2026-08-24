@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import TopNavigation from '@cloudscape-design/components/top-navigation';
 import { IdentityInfo, ServiceDefinition } from '../types';
+import { AwsServiceIcon } from './AwsServiceIcons';
 
 interface TopNavProps {
   identity: IdentityInfo | null;
@@ -93,11 +94,14 @@ export const TopNav: React.FC<TopNavProps> = ({
                     onMouseEnter={(e) => (e.currentTarget.style.background = '#232f3e')}
                     onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                   >
-                    <div>
-                      <strong style={{ color: '#fff', fontSize: '13px' }}>{s.title}</strong>
-                      <span style={{ color: '#879596', fontSize: '11px', marginLeft: '8px' }}>
-                        {s.category}
-                      </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <AwsServiceIcon service={s.key} size={20} />
+                      <div>
+                        <strong style={{ color: '#fff', fontSize: '13px' }}>{s.title}</strong>
+                        <span style={{ color: '#879596', fontSize: '11px', marginLeft: '8px' }}>
+                          {s.category}
+                        </span>
+                      </div>
                     </div>
                     <span style={{ color: '#ec7211', fontSize: '11px', fontWeight: 600 }}>
                       Open ↗

@@ -28,6 +28,7 @@ import { ApiGatewayConsole } from './pages/ApiGatewayConsole';
 import { SSMConsole } from './pages/SSMConsole';
 import { ResourceGraphConsole } from './pages/ResourceGraphConsole';
 import { GenericServiceWorkbench } from './pages/GenericServiceWorkbench';
+import { AwsServiceIcon } from './components/AwsServiceIcons';
 import { fetchIdentity, fetchServices } from './api/client';
 import { IdentityInfo, ServiceDefinition } from './types';
 import Container from '@cloudscape-design/components/container';
@@ -109,34 +110,30 @@ export const App: React.FC = () => {
         { text: 'Activity & Audit Log', href: 'activity' },
       ];
     }
-    if (currentView === 'console') {
-      return [
-        { text: 'AWS Management Console', href: 'home' },
-        { text: 'AWS CLI Terminal Sandbox', href: 'console' },
-      ];
+    const crumbs = [{ text: 'AWS Management Console', href: 'home' }];
+    if (currentView !== 'home') {
+      const svc = services.find((s) => s.key === currentView);
+      const title = svc ? svc.title : currentView.toUpperCase();
+      crumbs.push({ text: title, href: currentView });
     }
-    const svc = services.find((s) => s.key === currentView);
-    return [
-      { text: 'AWS Management Console', href: 'home' },
-      { text: svc ? svc.title : currentView.toUpperCase(), href: currentView },
-    ];
+    return crumbs;
   };
 
   const getSideNavItems = () => {
     return [
-      { type: 'link' as const, text: 'Console Home', href: 'home' },
-      { type: 'link' as const, text: 'Workflow Labs (63)', href: 'labs' },
-      { type: 'link' as const, text: 'Local Inspector Inbox', href: 'inspector' },
+      { type: 'link' as const, text: 'Console Home', href: 'home', icon: <AwsServiceIcon service="aws" size={18} /> },
+      { type: 'link' as const, text: 'Workflow Labs (63)', href: 'labs', icon: <AwsServiceIcon service="labs" size={18} /> },
+      { type: 'link' as const, text: 'Local Inspector Inbox', href: 'inspector', icon: <AwsServiceIcon service="inspector" size={18} /> },
       { type: 'divider' as const },
       {
         type: 'section' as const,
         text: 'Developer Tools & Management',
         items: [
-          { type: 'link' as const, text: 'Architecture Topology Graph', href: 'topology' },
-          { type: 'link' as const, text: 'AWS CLI Terminal', href: 'console' },
-          { type: 'link' as const, text: 'Activity Audit Log', href: 'activity' },
-          { type: 'link' as const, text: 'Session Identity & STS', href: 'environment' },
-          { type: 'link' as const, text: 'Dashboard Settings', href: 'settings' },
+          { type: 'link' as const, text: 'Architecture Topology Graph', href: 'topology', icon: <AwsServiceIcon service="topology" size={18} /> },
+          { type: 'link' as const, text: 'AWS CLI Terminal', href: 'console', icon: <AwsServiceIcon service="aws" size={18} /> },
+          { type: 'link' as const, text: 'Activity Audit Log', href: 'activity', icon: <AwsServiceIcon service="cloudwatch" size={18} /> },
+          { type: 'link' as const, text: 'Session Identity & STS', href: 'environment', icon: <AwsServiceIcon service="iam" size={18} /> },
+          { type: 'link' as const, text: 'Dashboard Settings', href: 'settings', icon: <AwsServiceIcon service="ssm" size={18} /> },
         ],
       },
       { type: 'divider' as const },
@@ -144,24 +141,24 @@ export const App: React.FC = () => {
         type: 'section' as const,
         text: 'Core AWS Services',
         items: [
-          { type: 'link' as const, text: 'Amazon S3', href: 's3' },
-          { type: 'link' as const, text: 'Amazon EC2', href: 'ec2' },
-          { type: 'link' as const, text: 'AWS IAM', href: 'iam' },
-          { type: 'link' as const, text: 'Amazon DynamoDB', href: 'dynamodb' },
-          { type: 'link' as const, text: 'AWS Lambda', href: 'lambda' },
-          { type: 'link' as const, text: 'Amazon SQS', href: 'sqs' },
-          { type: 'link' as const, text: 'Amazon SNS', href: 'sns' },
-          { type: 'link' as const, text: 'Amazon RDS', href: 'rds' },
-          { type: 'link' as const, text: 'AWS KMS', href: 'kms' },
-          { type: 'link' as const, text: 'AWS Secrets Manager', href: 'secretsmanager' },
-          { type: 'link' as const, text: 'AWS CloudFormation', href: 'cloudformation' },
-          { type: 'link' as const, text: 'Amazon Route 53', href: 'route53' },
-          { type: 'link' as const, text: 'Amazon EventBridge', href: 'eventbridge' },
-          { type: 'link' as const, text: 'Amazon CloudWatch', href: 'cloudwatch' },
-          { type: 'link' as const, text: 'AWS Step Functions', href: 'stepfunctions' },
-          { type: 'link' as const, text: 'Amazon Cognito', href: 'cognito' },
-          { type: 'link' as const, text: 'Amazon API Gateway', href: 'apigateway' },
-          { type: 'link' as const, text: 'AWS Systems Manager (SSM)', href: 'ssm' },
+          { type: 'link' as const, text: 'Amazon S3', href: 's3', icon: <AwsServiceIcon service="s3" size={18} /> },
+          { type: 'link' as const, text: 'Amazon EC2', href: 'ec2', icon: <AwsServiceIcon service="ec2" size={18} /> },
+          { type: 'link' as const, text: 'AWS IAM', href: 'iam', icon: <AwsServiceIcon service="iam" size={18} /> },
+          { type: 'link' as const, text: 'Amazon DynamoDB', href: 'dynamodb', icon: <AwsServiceIcon service="dynamodb" size={18} /> },
+          { type: 'link' as const, text: 'AWS Lambda', href: 'lambda', icon: <AwsServiceIcon service="lambda" size={18} /> },
+          { type: 'link' as const, text: 'Amazon SQS', href: 'sqs', icon: <AwsServiceIcon service="sqs" size={18} /> },
+          { type: 'link' as const, text: 'Amazon SNS', href: 'sns', icon: <AwsServiceIcon service="sns" size={18} /> },
+          { type: 'link' as const, text: 'Amazon RDS', href: 'rds', icon: <AwsServiceIcon service="rds" size={18} /> },
+          { type: 'link' as const, text: 'AWS KMS', href: 'kms', icon: <AwsServiceIcon service="kms" size={18} /> },
+          { type: 'link' as const, text: 'AWS Secrets Manager', href: 'secretsmanager', icon: <AwsServiceIcon service="secretsmanager" size={18} /> },
+          { type: 'link' as const, text: 'AWS CloudFormation', href: 'cloudformation', icon: <AwsServiceIcon service="cloudformation" size={18} /> },
+          { type: 'link' as const, text: 'Amazon Route 53', href: 'route53', icon: <AwsServiceIcon service="route53" size={18} /> },
+          { type: 'link' as const, text: 'Amazon EventBridge', href: 'eventbridge', icon: <AwsServiceIcon service="eventbridge" size={18} /> },
+          { type: 'link' as const, text: 'Amazon CloudWatch', href: 'cloudwatch', icon: <AwsServiceIcon service="cloudwatch" size={18} /> },
+          { type: 'link' as const, text: 'AWS Step Functions', href: 'stepfunctions', icon: <AwsServiceIcon service="stepfunctions" size={18} /> },
+          { type: 'link' as const, text: 'Amazon Cognito', href: 'cognito', icon: <AwsServiceIcon service="cognito" size={18} /> },
+          { type: 'link' as const, text: 'Amazon API Gateway', href: 'apigateway', icon: <AwsServiceIcon service="apigateway" size={18} /> },
+          { type: 'link' as const, text: 'AWS Systems Manager (SSM)', href: 'ssm', icon: <AwsServiceIcon service="ssm" size={18} /> },
         ],
       },
     ];
