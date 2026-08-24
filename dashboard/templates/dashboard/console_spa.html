@@ -6,9 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{{ title|default:"AWS Management Console (Floci)" }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'dashboard/dist/assets/main.css' %}">
   </head>
-  <body style="margin: 0; padding: 0; background: #0f1b2a;">
+  <body style="margin: 0; padding: 0; background: #0f1b2a; font-family: 'Open Sans', 'Helvetica Neue', Roboto, Arial, sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;">
     <div id="root"></div>
     <script type="module" src="{% static 'dashboard/dist/assets/app.js' %}"></script>
   </body>

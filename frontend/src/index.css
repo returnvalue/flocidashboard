@@ -1,0 +1,29 @@
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&display=swap');
+
+html,
+body,
+button,
+input,
+select,
+textarea,
+div,
+span,
+a,
+p {
+  font-family: "Open Sans", "Helvetica Neue", Roboto, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* AWS Console Favorites Bar styling */
+.aws-favorites-bar {
+  font-family: "Open Sans", "Helvetica Neue", Roboto, Arial, sans-serif !important;
+  font-size: 13px !important;
+}
+
+.aws-favorites-pill {
+  font-family: "Open Sans", "Helvetica Neue", Roboto, Arial, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  line-height: 18px !important;
+}
