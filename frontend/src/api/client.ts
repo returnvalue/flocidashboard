@@ -417,3 +417,139 @@ export async function executeServiceAction(
   }
   return data;
 }
+
+// S3 Deepening APIs
+export async function fetchS3Objects(bucketName: string, prefix: string = ''): Promise<{ contents: any[]; folders: any[]; count: number }> {
+  try {
+    const res = await fetch(`/api/s3/buckets/${encodeURIComponent(bucketName)}/objects/?prefix=${encodeURIComponent(prefix)}&delimiter=`);
+    if (!res.ok) return { contents: [], folders: [], count: 0 };
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to fetch S3 objects:', err);
+    return { contents: [], folders: [], count: 0 };
+  }
+}
+
+export async function presignS3Object(bucketName: string, key: string, expiresIn: number = 3600): Promise<{ url: string; expires_in: number }> {
+  const res = await fetch(`/api/s3/buckets/${encodeURIComponent(bucketName)}/objects/presign/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({ key, expires_in: expiresIn }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || `Failed to generate presigned URL`);
+  return data;
+}
+
+export async function fetchS3Website(bucketName: string): Promise<any> {
+  try {
+    const res = await fetch(`/api/s3/buckets/${encodeURIComponent(bucketName)}/website/`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.configuration || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function putS3Website(bucketName: string, config: { IndexDocument: { Suffix: string }; ErrorDocument?: { Key: string } }): Promise<any> {
+  const res = await fetch(`/api/s3/buckets/${encodeURIComponent(bucketName)}/website/`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({ configuration: config }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || `Failed to update website configuration`);
+  return data;
+}
+
+export async function deleteS3Website(bucketName: string): Promise<any> {
+  const res = await fetch(`/api/s3/buckets/${encodeURIComponent(bucketName)}/website/`, {
+    method: 'DELETE',
+    headers: { 'X-CSRFToken': getCsrfToken() },
+  });
+  return await res.json();
+}
+
+export async function fetchS3Notifications(bucketName: string): Promise<any> {
+  try {
+    const res = await fetch(`/api/s3/buckets/${encodeURIComponent(bucketName)}/notifications/`);
+    if (!res.ok) return {};
+    return await res.json();
+  } catch {
+    return {};
+  }
+}
+
+export async function putS3Notifications(bucketName: string, config: any): Promise<any> {
+  const res = await fetch(`/api/s3/buckets/${encodeURIComponent(bucketName)}/notifications/`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify(config),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || `Failed to update notifications`);
+  return data;
+}
+
+export async function deleteS3Object(bucketName: string, key: string): Promise<any> {
+  const res = await fetch(`/api/s3/buckets/${encodeURIComponent(bucketName)}/objects/`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({ keys: [{ Key: key }] }),
+  });
+  return await res.json();
+}
+
+export async function createS3Folder(bucketName: string, folder: string): Promise<any> {
+  const res = await fetch(`/api/s3/buckets/${encodeURIComponent(bucketName)}/folders/`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({ folder }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || `Failed to create folder`);
+  return data;
+}
+
+// IAM Deepening APIs
+export async function createIamRole(roleName: string, trustTemplate: string = 'lambda', trustPolicy?: any): Promise<any> {
+  const res = await fetch('/api/iam/roles/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({ role_name: roleName, trust_template: trustTemplate, trust_policy: trustPolicy }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || `Failed to create IAM role`);
+  return data;
+}
+
+export async function deleteIamRole(roleName: string): Promise<any> {
+  const res = await fetch(`/api/iam/roles/${encodeURIComponent(roleName)}/`, {
+    method: 'DELETE',
+    headers: { 'X-CSRFToken': getCsrfToken() },
+  });
+  return await res.json();
+}
+
+export async function createIamGroup(groupName: string): Promise<any> {
+  const res = await fetch('/api/iam/groups/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({ group_name: groupName }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || `Failed to create IAM group`);
+  return data;
+}
+
+export async function simulateIamPolicy(principalArn: string, actionNames: string[], resourceArns: string[] = ['*']): Promise<any> {
+  const res = await fetch('/api/iam/policy-simulation/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({ principal_arn: principalArn, action_names: actionNames, resource_arns: resourceArns }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || `Policy simulation failed`);
+  return data;
+}
