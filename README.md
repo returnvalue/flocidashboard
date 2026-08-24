@@ -1,8 +1,19 @@
-# Floci Dashboard
+# Floci Dashboard 2.0
 
-A small Django UI for inspecting, testing, and learning against a local [Floci](https://floci.io/) AWS-compatible environment. The dashboard uses an AWS-adjacent console style and shows Floci health, endpoint/profile/identity details, selectable service cards, resource counts, service-specific inventory pages, interactive workbenches, and one-click local AWS workflow labs.
+**Floci Dashboard 2.0** is an official AWS Cloudscape-powered Single Page Application for inspecting, testing, and learning against a local [Floci](https://floci.io/) AWS-compatible environment. Built with **React 18**, **TypeScript**, **Vite**, and AWS’s official **`@cloudscape-design/components`** design system, Floci Dashboard 2.0 provides production-grade AWS management consoles, real-time developer inspection tools, interactive workflow labs, and universal dynamic workbenches for all **65 supported AWS mock services**.
 
 ![Floci Dashboard UI](./flocidashboard.png)
+
+## Architecture & Features in Version 2.0
+
+- **Official AWS Cloudscape Design System**: Global Top Navigation, collapsible Side Navigation, deep breadcrumb navigation, and AWS design fidelity.
+- **17 Dedicated High-Priority Consoles**: Bespoke consoles for **Amazon S3**, **Amazon EC2**, **AWS IAM**, **Amazon DynamoDB**, **AWS Lambda**, **Amazon SQS**, **Amazon SNS**, **Amazon RDS**, **AWS KMS**, **AWS Secrets Manager**, **AWS CloudFormation**, **Amazon Route 53**, **Amazon EventBridge**, **Amazon CloudWatch**, **AWS Step Functions**, **Developer Inspector Inbox**, and **Workflow Labs**.
+- **Universal Dynamic Action Runner**: Dynamic, schema-driven Cloudscape consoles powering all **65 AWS mock services** with zero legacy fallbacks.
+- **Zero-Latency Workflow Labs (63 Labs / 349 Steps)**: 0ms catalog metadata load across 17 services, synchronized code generation for **AWS CLI v2**, **Python (`boto3`)**, and **Terraform (`HCL`)**, live state verification, and automated sequential runner.
+- **Developer Inspection Inbox**: Local SES email inbox viewer, non-destructive SQS message peeker (`VisibilityTimeout=0`), and real-time Lambda CloudWatch log streams.
+- **Interactive AWS CLI Sandbox**: In-browser command runner with quick presets, shortcut execution (`Cmd+Enter`/`Ctrl+Enter`), and destructive command guardrails.
+- **Session Identity & STS Assumer**: Switch between Admin, IAM Users, and temporary assumed roles (`sts:AssumeRole`) with live caller ARN diagnostics.
+- **Activity & Audit Log**: Real-time stream of incoming AWS operations recorded with expandable JSON payloads.
 
 ## Quickstart
 
