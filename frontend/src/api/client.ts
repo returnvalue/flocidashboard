@@ -57,6 +57,8 @@ export async function fetchServiceInventory(serviceKey: string): Promise<any> {
   }
 }
 
+export const fetchInventory = fetchServiceInventory;
+
 export async function fetchLabs(serviceKey?: string): Promise<LabDefinition[]> {
   try {
     const url = serviceKey ? `/api/labs/catalog/?service=${serviceKey}` : '/api/labs/catalog/';

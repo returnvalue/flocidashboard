@@ -16,6 +16,13 @@ import { SettingsConsole } from './pages/SettingsConsole';
 import { EnvironmentConsole } from './pages/EnvironmentConsole';
 import { ActivityConsole } from './pages/ActivityConsole';
 import { CliConsole } from './pages/CliConsole';
+import { KMSConsole } from './pages/KMSConsole';
+import { SecretsManagerConsole } from './pages/SecretsManagerConsole';
+import { CloudFormationConsole } from './pages/CloudFormationConsole';
+import { Route53Console } from './pages/Route53Console';
+import { EventBridgeConsole } from './pages/EventBridgeConsole';
+import { CloudWatchConsole } from './pages/CloudWatchConsole';
+import { StepFunctionsConsole } from './pages/StepFunctionsConsole';
 import { GenericServiceWorkbench } from './pages/GenericServiceWorkbench';
 import { fetchIdentity, fetchServices } from './api/client';
 import { IdentityInfo, ServiceDefinition } from './types';
@@ -140,6 +147,13 @@ export const App: React.FC = () => {
           { type: 'link' as const, text: 'Amazon SQS', href: 'sqs' },
           { type: 'link' as const, text: 'Amazon SNS', href: 'sns' },
           { type: 'link' as const, text: 'Amazon RDS', href: 'rds' },
+          { type: 'link' as const, text: 'AWS KMS', href: 'kms' },
+          { type: 'link' as const, text: 'AWS Secrets Manager', href: 'secretsmanager' },
+          { type: 'link' as const, text: 'AWS CloudFormation', href: 'cloudformation' },
+          { type: 'link' as const, text: 'Amazon Route 53', href: 'route53' },
+          { type: 'link' as const, text: 'Amazon EventBridge', href: 'eventbridge' },
+          { type: 'link' as const, text: 'Amazon CloudWatch', href: 'cloudwatch' },
+          { type: 'link' as const, text: 'AWS Step Functions', href: 'stepfunctions' },
         ],
       },
     ];
@@ -172,6 +186,20 @@ export const App: React.FC = () => {
         return <SNSConsole />;
       case 'rds':
         return <RDSConsole />;
+      case 'kms':
+        return <KMSConsole />;
+      case 'secretsmanager':
+        return <SecretsManagerConsole />;
+      case 'cloudformation':
+        return <CloudFormationConsole />;
+      case 'route53':
+        return <Route53Console />;
+      case 'eventbridge':
+        return <EventBridgeConsole />;
+      case 'cloudwatch':
+        return <CloudWatchConsole />;
+      case 'stepfunctions':
+        return <StepFunctionsConsole />;
       case 'labs':
         return <LabsConsole />;
       case 'inspector':
