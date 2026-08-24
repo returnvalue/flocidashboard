@@ -8,6 +8,7 @@ from .resource_graph import resource_graph
 @require_GET
 def graph_detail(request):
     try:
-        return JsonResponse(resource_graph(request.GET.get('scenario', '')))
+        scenario = request.GET.get('scenario') or 'eventbridge-application-spine'
+        return JsonResponse(resource_graph(scenario))
     except Exception as exc:
         return handle_action_error(exc, service='resource-graph', operation='discover')

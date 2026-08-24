@@ -816,3 +816,95 @@ export async function getSsmParameterValue(name: string, withDecryption: boolean
 export async function deleteSsmParameter(name: string): Promise<any> {
   return await executeServiceAction('ssm', 'delete_parameter', { name });
 }
+
+// EC2 Networking & Security Groups APIs
+export async function createEc2Vpc(cidrBlock: string, name?: string): Promise<any> {
+  const res = await fetch('/api/ec2/vpcs/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({ cidr_block: cidrBlock, name }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || 'Failed to create VPC');
+  return data;
+}
+
+export async function deleteEc2Vpc(vpcId: string): Promise<any> {
+  const res = await fetch(`/api/ec2/vpcs/${encodeURIComponent(vpcId)}/`, {
+    method: 'DELETE',
+    headers: { 'X-CSRFToken': getCsrfToken() },
+  });
+  return await res.json();
+}
+
+export async function createEc2Subnet(vpcId: string, cidrBlock: string, az?: string, name?: string): Promise<any> {
+  const res = await fetch('/api/ec2/subnets/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({ vpc_id: vpcId, cidr_block: cidrBlock, availability_zone: az, name }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || 'Failed to create subnet');
+  return data;
+}
+
+export async function deleteEc2Subnet(subnetId: string): Promise<any> {
+  const res = await fetch(`/api/ec2/subnets/${encodeURIComponent(subnetId)}/`, {
+    method: 'DELETE',
+    headers: { 'X-CSRFToken': getCsrfToken() },
+  });
+  return await res.json();
+}
+
+export async function createEc2SecurityGroup(name: string, description: string, vpcId: string): Promise<any> {
+  const res = await fetch('/api/ec2/security-groups/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({ name, description, vpc_id: vpcId }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || 'Failed to create security group');
+  return data;
+}
+
+export async function deleteEc2SecurityGroup(groupId: string): Promise<any> {
+  const res = await fetch(`/api/ec2/security-groups/${encodeURIComponent(groupId)}/`, {
+    method: 'DELETE',
+    headers: { 'X-CSRFToken': getCsrfToken() },
+  });
+  return await res.json();
+}
+
+export async function changeEc2SecurityGroupRule(groupId: string, direction: 'ingress' | 'egress', rule: any, revoke: boolean = false): Promise<any> {
+  const res = await fetch(`/api/ec2/security-groups/${encodeURIComponent(groupId)}/rules/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({ direction, rule, revoke }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || 'Failed to update security group rule');
+  return data;
+}
+
+export async function runEc2InstanceCommand(instanceId: string, command: string): Promise<any> {
+  const res = await fetch(`/api/ec2/instances/${encodeURIComponent(instanceId)}/commands/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({ command }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || 'Failed to execute SSM command on instance');
+  return data;
+}
+
+// Resource Graph APIs
+export async function fetchResourceGraph(scenario: string = 'eventbridge-application-spine'): Promise<any> {
+  try {
+    const res = await fetch(`/api/resource-graph/?scenario=${encodeURIComponent(scenario)}`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to fetch resource graph:', err);
+    return null;
+  }
+}

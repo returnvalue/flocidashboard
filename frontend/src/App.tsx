@@ -26,6 +26,7 @@ import { StepFunctionsConsole } from './pages/StepFunctionsConsole';
 import { CognitoConsole } from './pages/CognitoConsole';
 import { ApiGatewayConsole } from './pages/ApiGatewayConsole';
 import { SSMConsole } from './pages/SSMConsole';
+import { ResourceGraphConsole } from './pages/ResourceGraphConsole';
 import { GenericServiceWorkbench } from './pages/GenericServiceWorkbench';
 import { fetchIdentity, fetchServices } from './api/client';
 import { IdentityInfo, ServiceDefinition } from './types';
@@ -131,6 +132,7 @@ export const App: React.FC = () => {
         type: 'section' as const,
         text: 'Developer Tools & Management',
         items: [
+          { type: 'link' as const, text: 'Architecture Topology Graph', href: 'topology' },
           { type: 'link' as const, text: 'AWS CLI Terminal', href: 'console' },
           { type: 'link' as const, text: 'Activity Audit Log', href: 'activity' },
           { type: 'link' as const, text: 'Session Identity & STS', href: 'environment' },
@@ -224,6 +226,8 @@ export const App: React.FC = () => {
         return <ActivityConsole onNavigateService={(s) => navigateTo(s)} />;
       case 'console':
         return <CliConsole />;
+      case 'topology':
+        return <ResourceGraphConsole onNavigateService={(s) => navigateTo(s)} />;
       default:
         const svc = services.find((s) => s.key === currentView);
         if (svc) {

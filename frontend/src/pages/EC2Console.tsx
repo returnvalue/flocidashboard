@@ -5,17 +5,32 @@ import Table from '@cloudscape-design/components/table';
 import Button from '@cloudscape-design/components/button';
 import SpaceBetween from '@cloudscape-design/components/space-between';
 import TextFilter from '@cloudscape-design/components/text-filter';
-import Pagination from '@cloudscape-design/components/pagination';
 import Tabs from '@cloudscape-design/components/tabs';
 import Modal from '@cloudscape-design/components/modal';
 import FormField from '@cloudscape-design/components/form-field';
 import Input from '@cloudscape-design/components/input';
+import Textarea from '@cloudscape-design/components/textarea';
 import Select from '@cloudscape-design/components/select';
 import StatusIndicator from '@cloudscape-design/components/status-indicator';
 import KeyValuePairs from '@cloudscape-design/components/key-value-pairs';
 import ButtonDropdown from '@cloudscape-design/components/button-dropdown';
+import Grid from '@cloudscape-design/components/grid';
 import Box from '@cloudscape-design/components/box';
-import { fetchServiceInventory, executeServiceAction } from '../api/client';
+import Badge from '@cloudscape-design/components/badge';
+import Alert from '@cloudscape-design/components/alert';
+import {
+  fetchServiceInventory,
+  executeServiceAction,
+  createEc2Vpc,
+  deleteEc2Vpc,
+  createEc2Subnet,
+  deleteEc2Subnet,
+  createEc2SecurityGroup,
+  deleteEc2SecurityGroup,
+  changeEc2SecurityGroupRule,
+  runEc2InstanceCommand,
+} from '../api/client';
+import { CodeSnippet } from '../components/CodeSnippet';
 
 interface InstanceItem {
   InstanceId: string;
@@ -26,28 +41,72 @@ interface InstanceItem {
   PrivateIpAddress?: string;
   KeyName?: string;
   LaunchTime?: string;
+  VpcId?: string;
+  SubnetId?: string;
   SecurityGroups?: Array<{ GroupId: string; GroupName: string }>;
 }
 
 export const EC2Console: React.FC = () => {
-  const [instances, setInstances] = useState<InstanceItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedItems, setSelectedItems] = useState<InstanceItem[]>([]);
-  const [filterText, setFilterText] = useState('');
+  const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Instances State
+  const [instances, setInstances] = useState<InstanceItem[]>([]);
+  const [selectedInstances, setSelectedInstances] = useState<InstanceItem[]>([]);
+  const [instanceFilter, setInstanceFilter] = useState('');
   const [launchModalOpen, setLaunchModalOpen] = useState(false);
-  const [instanceType, setInstanceType] = useState<{ label: string; value: string }>({
-    label: 't3.micro (2 vCPU, 1 GiB RAM)',
-    value: 't3.micro',
-  });
+  const [instanceType, setInstanceType] = useState({ label: 't3.micro (2 vCPU, 1 GiB RAM)', value: 't3.micro' });
   const [instanceName, setInstanceName] = useState('web-server-01');
   const [launching, setLaunching] = useState(false);
-  const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Run Command (SSM) Modal
+  const [runCommandOpen, setRunCommandOpen] = useState(false);
+  const [commandScript, setCommandScript] = useState('echo "Hello from Floci EC2 instance $(hostname)"\nuname -a\nuptime');
+  const [commandOutput, setCommandOutput] = useState<any | null>(null);
+  const [runningCommand, setRunningCommand] = useState(false);
+
+  // VPCs & Subnets State
+  const [vpcs, setVpcs] = useState<any[]>([]);
+  const [subnets, setSubnets] = useState<any[]>([]);
+  const [createVpcOpen, setCreateVpcOpen] = useState(false);
+  const [vpcCidr, setVpcCidr] = useState('10.0.0.0/16');
+  const [vpcName, setVpcName] = useState('production-vpc');
+  const [creatingVpc, setCreatingVpc] = useState(false);
+
+  const [createSubnetOpen, setCreateSubnetOpen] = useState(false);
+  const [subnetCidr, setSubnetCidr] = useState('10.0.1.0/24');
+  const [subnetAz, setSubnetAz] = useState('us-east-1a');
+  const [subnetVpcId, setSubnetVpcId] = useState('');
+  const [subnetName, setSubnetName] = useState('public-subnet-1a');
+  const [creatingSubnet, setCreatingSubnet] = useState(false);
+
+  // Security Groups State
+  const [securityGroups, setSecurityGroups] = useState<any[]>([]);
+  const [selectedSgs, setSelectedSgs] = useState<any[]>([]);
+  const [createSgOpen, setCreateSgOpen] = useState(false);
+  const [sgName, setSgName] = useState('web-dmz-sg');
+  const [sgDescription, setSgDescription] = useState('Allow HTTP and HTTPS inbound traffic');
+  const [sgVpcId, setSgVpcId] = useState('');
+  const [creatingSg, setCreatingSg] = useState(false);
+
+  // Add Rule Modal
+  const [addRuleOpen, setAddRuleOpen] = useState(false);
+  const [ruleType, setRuleType] = useState<{ label: string; value: string; port: number; proto: string }>({
+    label: 'HTTP (80)',
+    value: 'http',
+    port: 80,
+    proto: 'tcp',
+  });
+  const [ruleCidr, setRuleCidr] = useState('0.0.0.0/0');
+  const [savingRule, setSavingRule] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const data = await fetchServiceInventory('ec2');
-      const list = (data.instances || data.Reservations?.flatMap((r: any) => r.Instances) || []).map((inst: any) => ({
+      const ec2Data = await fetchServiceInventory('ec2');
+
+      // Map instances
+      const instList = (ec2Data.instances || ec2Data.Reservations?.flatMap((r: any) => r.Instances) || []).map((inst: any) => ({
         InstanceId: inst.InstanceId || inst.id || 'i-0123456789abcdef0',
         Name: inst.Tags?.find((t: any) => t.Key === 'Name')?.Value || inst.Name || 'web-server',
         State: typeof inst.State === 'object' ? inst.State : { Name: inst.State || 'running', Code: 16 },
@@ -56,9 +115,51 @@ export const EC2Console: React.FC = () => {
         PrivateIpAddress: inst.PrivateIpAddress || '172.31.10.20',
         KeyName: inst.KeyName || 'floci-dev-key',
         LaunchTime: inst.LaunchTime || new Date().toISOString(),
+        VpcId: inst.VpcId || 'vpc-default01',
+        SubnetId: inst.SubnetId || 'subnet-default01',
         SecurityGroups: inst.SecurityGroups || [{ GroupId: 'sg-0123456', GroupName: 'default-web' }],
       }));
-      setInstances(list);
+      setInstances(instList);
+      if (instList.length > 0 && selectedInstances.length === 0) {
+        setSelectedInstances([instList[0]]);
+      }
+
+      // Map VPCs and Subnets
+      const vpcList = ec2Data.vpcs || ec2Data.Vpcs || [
+        { VpcId: 'vpc-0a1b2c3d4e5f', CidrBlock: '10.0.0.0/16', State: 'available', IsDefault: true, Name: 'default-vpc' },
+      ];
+      setVpcs(vpcList);
+      if (vpcList.length > 0) {
+        setSubnetVpcId(vpcList[0].VpcId || vpcList[0].id);
+        setSgVpcId(vpcList[0].VpcId || vpcList[0].id);
+      }
+
+      const subnetList = ec2Data.subnets || ec2Data.Subnets || [
+        { SubnetId: 'subnet-0a1b2c3d', VpcId: 'vpc-0a1b2c3d4e5f', CidrBlock: '10.0.1.0/24', AvailabilityZone: 'us-east-1a', State: 'available' },
+      ];
+      setSubnets(subnetList);
+
+      // Map Security Groups
+      const sgList = ec2Data.security_groups || ec2Data.SecurityGroups || [
+        {
+          GroupId: 'sg-0123456789abcdef0',
+          GroupName: 'default-web-sg',
+          Description: 'Default HTTP/HTTPS Web traffic security group',
+          VpcId: 'vpc-0a1b2c3d4e5f',
+          IpPermissions: [
+            { IpProtocol: 'tcp', FromPort: 80, ToPort: 80, IpRanges: [{ CidrIp: '0.0.0.0/0' }] },
+            { IpProtocol: 'tcp', FromPort: 443, ToPort: 443, IpRanges: [{ CidrIp: '0.0.0.0/0' }] },
+            { IpProtocol: 'tcp', FromPort: 22, ToPort: 22, IpRanges: [{ CidrIp: '192.168.1.0/24' }] },
+          ],
+          IpPermissionsEgress: [
+            { IpProtocol: '-1', IpRanges: [{ CidrIp: '0.0.0.0/0' }] },
+          ],
+        },
+      ];
+      setSecurityGroups(sgList);
+      if (sgList.length > 0 && selectedSgs.length === 0) {
+        setSelectedSgs([sgList[0]]);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -70,8 +171,12 @@ export const EC2Console: React.FC = () => {
     loadData();
   }, []);
 
+  const activeInstance = selectedInstances[0];
+  const activeSg = selectedSgs[0];
+
   const handleLaunchInstance = async () => {
     setLaunching(true);
+    setActionMessage(null);
     try {
       await executeServiceAction('ec2', 'run_instances', {
         InstanceType: instanceType.value,
@@ -96,256 +201,709 @@ export const EC2Console: React.FC = () => {
   };
 
   const handleInstanceState = async (action: 'start' | 'stop' | 'terminate' | 'reboot') => {
-    if (!selectedItems.length) return;
-    const inst = selectedItems[0];
+    if (!activeInstance) return;
     try {
-      await executeServiceAction('ec2', `${action}_instances`, {
-        InstanceIds: [inst.InstanceId],
-      });
-      setActionMessage({ type: 'success', text: `Instance ${inst.InstanceId} ${action} request sent.` });
+      if (action === 'start') await executeServiceAction('ec2', 'start_instances', { InstanceIds: [activeInstance.InstanceId] });
+      if (action === 'stop') await executeServiceAction('ec2', 'stop_instances', { InstanceIds: [activeInstance.InstanceId] });
+      if (action === 'terminate') await executeServiceAction('ec2', 'terminate_instances', { InstanceIds: [activeInstance.InstanceId] });
+      if (action === 'reboot') await executeServiceAction('ec2', 'reboot_instances', { InstanceIds: [activeInstance.InstanceId] });
+
+      setActionMessage({ type: 'success', text: `Instance ${activeInstance.InstanceId} action "${action}" dispatched.` });
       await loadData();
     } catch (err: any) {
       setActionMessage({ type: 'error', text: err.message || `Failed to ${action} instance` });
     }
   };
 
-  const filteredInstances = instances.filter(
-    (i) =>
-      i.InstanceId.toLowerCase().includes(filterText.toLowerCase()) ||
-      (i.Name && i.Name.toLowerCase().includes(filterText.toLowerCase()))
-  );
-
-  const activeInstance = selectedItems[0];
-
-  const getStateIndicator = (stateName: string) => {
-    switch (stateName.toLowerCase()) {
-      case 'running':
-        return <StatusIndicator type="success">Running</StatusIndicator>;
-      case 'stopped':
-        return <StatusIndicator type="stopped">Stopped</StatusIndicator>;
-      case 'pending':
-        return <StatusIndicator type="in-progress">Pending</StatusIndicator>;
-      case 'terminated':
-        return <StatusIndicator type="error">Terminated</StatusIndicator>;
-      default:
-        return <StatusIndicator type="info">{stateName}</StatusIndicator>;
+  const handleRunCommand = async () => {
+    if (!activeInstance || !commandScript.trim()) return;
+    setRunningCommand(true);
+    setCommandOutput(null);
+    try {
+      const res = await runEc2InstanceCommand(activeInstance.InstanceId, commandScript.trim());
+      setCommandOutput(res);
+      setActionMessage({ type: 'success', text: 'Command executed on instance.' });
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to execute command' });
+    } finally {
+      setRunningCommand(false);
     }
   };
 
+  const handleCreateVpc = async () => {
+    if (!vpcCidr.trim()) return;
+    setCreatingVpc(true);
+    try {
+      await createEc2Vpc(vpcCidr.trim(), vpcName.trim() || undefined);
+      setActionMessage({ type: 'success', text: `VPC created with CIDR ${vpcCidr.trim()}.` });
+      setCreateVpcOpen(false);
+      await loadData();
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to create VPC' });
+    } finally {
+      setCreatingVpc(false);
+    }
+  };
+
+  const handleDeleteVpc = async (vpcId: string) => {
+    try {
+      await deleteEc2Vpc(vpcId);
+      setActionMessage({ type: 'success', text: `VPC ${vpcId} deleted.` });
+      await loadData();
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to delete VPC' });
+    }
+  };
+
+  const handleCreateSubnet = async () => {
+    if (!subnetVpcId || !subnetCidr.trim()) return;
+    setCreatingSubnet(true);
+    try {
+      await createEc2Subnet(subnetVpcId, subnetCidr.trim(), subnetAz, subnetName.trim() || undefined);
+      setActionMessage({ type: 'success', text: `Subnet created with CIDR ${subnetCidr.trim()}.` });
+      setCreateSubnetOpen(false);
+      await loadData();
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to create subnet' });
+    } finally {
+      setCreatingSubnet(false);
+    }
+  };
+
+  const handleDeleteSubnet = async (subnetId: string) => {
+    try {
+      await deleteEc2Subnet(subnetId);
+      setActionMessage({ type: 'success', text: `Subnet ${subnetId} deleted.` });
+      await loadData();
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to delete subnet' });
+    }
+  };
+
+  const handleCreateSg = async () => {
+    if (!sgName.trim() || !sgVpcId) return;
+    setCreatingSg(true);
+    try {
+      await createEc2SecurityGroup(sgName.trim(), sgDescription.trim(), sgVpcId);
+      setActionMessage({ type: 'success', text: `Security Group "${sgName.trim()}" created.` });
+      setCreateSgOpen(false);
+      await loadData();
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to create security group' });
+    } finally {
+      setCreatingSg(false);
+    }
+  };
+
+  const handleDeleteSg = async (groupId: string) => {
+    try {
+      await deleteEc2SecurityGroup(groupId);
+      setActionMessage({ type: 'success', text: `Security Group ${groupId} deleted.` });
+      await loadData();
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to delete security group' });
+    }
+  };
+
+  const handleAddRule = async () => {
+    if (!activeSg) return;
+    setSavingRule(true);
+    try {
+      const ruleObj = {
+        IpProtocol: ruleType.proto,
+        FromPort: ruleType.port,
+        ToPort: ruleType.port,
+        IpRanges: [{ CidrIp: ruleCidr.trim() }],
+      };
+      await changeEc2SecurityGroupRule(activeSg.GroupId, 'ingress', ruleObj, false);
+      setActionMessage({ type: 'success', text: 'Inbound rule added to security group.' });
+      setAddRuleOpen(false);
+      await loadData();
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to add rule' });
+    } finally {
+      setSavingRule(false);
+    }
+  };
+
+  const filteredInstances = instances.filter((i) =>
+    `${i.Name} ${i.InstanceId} ${i.InstanceType}`.toLowerCase().includes(instanceFilter.toLowerCase())
+  );
+
   return (
     <SpaceBetween size="l">
-      {actionMessage && (
-        <StatusIndicator type={actionMessage.type === 'success' ? 'success' : 'error'}>
-          {actionMessage.text}
-        </StatusIndicator>
-      )}
-
-      <Table
+      {/* Header */}
+      <Container
         header={
           <Header
             variant="h1"
-            counter={`(${instances.length})`}
-            description="Virtual servers running locally inside the Floci compute engine."
+            description="Virtual servers, VPC networking, and security groups in the cloud."
             actions={
               <SpaceBetween direction="horizontal" size="xs">
                 <Button iconName="refresh" onClick={loadData} loading={loading}>
                   Refresh
                 </Button>
-                <ButtonDropdown
-                  items={[
-                    { id: 'start', text: 'Start instance' },
-                    { id: 'stop', text: 'Stop instance' },
-                    { id: 'reboot', text: 'Reboot instance' },
-                    { id: 'terminate', text: 'Terminate instance' },
-                  ]}
-                  disabled={!selectedItems.length}
-                  onItemClick={({ detail }) => handleInstanceState(detail.id as any)}
-                >
-                  Instance state
-                </ButtonDropdown>
-                <Button
-                  variant="primary"
-                  iconName="add-plus"
-                  onClick={() => setLaunchModalOpen(true)}
-                >
-                  Launch instances
+                <Button variant="primary" iconName="add-plus" onClick={() => setLaunchModalOpen(true)}>
+                  Launch Instance
                 </Button>
               </SpaceBetween>
             }
           >
-            Instances
+            Amazon EC2 & Virtual Private Cloud (VPC)
           </Header>
         }
-        columnDefinitions={[
+      >
+        {actionMessage && (
+          <Box margin={{ bottom: 'm' }}>
+            <Alert type={actionMessage.type} dismissible onDismiss={() => setActionMessage(null)}>
+              {actionMessage.text}
+            </Alert>
+          </Box>
+        )}
+
+        <Grid gridDefinition={[{ colspan: { default: 12, s: 3 } }, { colspan: { default: 12, s: 3 } }, { colspan: { default: 12, s: 3 } }, { colspan: { default: 12, s: 3 } }]}>
+          <Box padding="m" textAlign="center">
+            <Box variant="awsui-key-label">Instances</Box>
+            <Box variant="h1" color="text-status-info">
+              {instances.length}
+            </Box>
+          </Box>
+          <Box padding="m" textAlign="center">
+            <Box variant="awsui-key-label">VPCs</Box>
+            <Box variant="h1" color="text-status-info">
+              {vpcs.length}
+            </Box>
+          </Box>
+          <Box padding="m" textAlign="center">
+            <Box variant="awsui-key-label">Subnets</Box>
+            <Box variant="h1" color="text-status-info">
+              {subnets.length}
+            </Box>
+          </Box>
+          <Box padding="m" textAlign="center">
+            <Box variant="awsui-key-label">Security Groups</Box>
+            <Box variant="h1" color="text-status-info">
+              {securityGroups.length}
+            </Box>
+          </Box>
+        </Grid>
+      </Container>
+
+      {/* Main Tabs */}
+      <Tabs
+        tabs={[
           {
-            id: 'name',
-            header: 'Name',
-            cell: (item) => <strong>{item.Name || '—'}</strong>,
-          },
-          {
-            id: 'instanceId',
-            header: 'Instance ID',
-            cell: (item) => (
-              <Button variant="inline-link" onClick={() => setSelectedItems([item])}>
-                {item.InstanceId}
-              </Button>
+            label: `Instances (${instances.length})`,
+            id: 'instances',
+            content: (
+              <SpaceBetween size="m">
+                <TextFilter
+                  filteringText={instanceFilter}
+                  filteringPlaceholder="Find instances by ID, name..."
+                  onChange={({ detail }) => setInstanceFilter(detail.filteringText)}
+                />
+
+                <Table
+                  columnDefinitions={[
+                    {
+                      id: 'name',
+                      header: 'Name',
+                      cell: (item) => <strong>{item.Name || '—'}</strong>,
+                    },
+                    {
+                      id: 'id',
+                      header: 'Instance ID',
+                      cell: (item) => <code>{item.InstanceId}</code>,
+                      width: 200,
+                    },
+                    {
+                      id: 'state',
+                      header: 'Instance State',
+                      cell: (item) => (
+                        <StatusIndicator type={item.State.Name === 'running' ? 'success' : 'stopped'}>
+                          {item.State.Name}
+                        </StatusIndicator>
+                      ),
+                      width: 150,
+                    },
+                    {
+                      id: 'type',
+                      header: 'Instance Type',
+                      cell: (item) => <Badge color="blue">{item.InstanceType}</Badge>,
+                      width: 140,
+                    },
+                    {
+                      id: 'public_ip',
+                      header: 'Public IPv4',
+                      cell: (item) => <code>{item.PublicIpAddress}</code>,
+                      width: 160,
+                    },
+                    {
+                      id: 'private_ip',
+                      header: 'Private IPv4',
+                      cell: (item) => <code>{item.PrivateIpAddress}</code>,
+                      width: 160,
+                    },
+                  ]}
+                  items={filteredInstances}
+                  selectionType="single"
+                  selectedItems={selectedInstances}
+                  onSelectionChange={({ detail }) => setSelectedInstances(detail.selectedItems)}
+                  empty={<Box textAlign="center">No EC2 instances running.</Box>}
+                />
+
+                {activeInstance && (
+                  <Container
+                    header={
+                      <Header
+                        variant="h2"
+                        actions={
+                          <SpaceBetween direction="horizontal" size="xs">
+                            <ButtonDropdown
+                              items={[
+                                { id: 'start', text: 'Start Instance', disabled: activeInstance.State.Name === 'running' },
+                                { id: 'stop', text: 'Stop Instance', disabled: activeInstance.State.Name === 'stopped' },
+                                { id: 'reboot', text: 'Reboot Instance' },
+                                { id: 'terminate', text: 'Terminate Instance' },
+                              ]}
+                              onItemClick={({ detail }) => handleInstanceState(detail.id as any)}
+                            >
+                              Instance State
+                            </ButtonDropdown>
+                            <Button variant="primary" iconName="contact" onClick={() => setRunCommandOpen(true)}>
+                              Execute Shell Script (SSM)
+                            </Button>
+                          </SpaceBetween>
+                        }
+                      >
+                        Instance: {activeInstance.InstanceId} ({activeInstance.Name})
+                      </Header>
+                    }
+                  >
+                    <KeyValuePairs
+                      columns={3}
+                      items={[
+                        { label: 'Instance ID', value: activeInstance.InstanceId },
+                        { label: 'Instance Type', value: activeInstance.InstanceType },
+                        { label: 'State', value: activeInstance.State.Name },
+                        { label: 'Public IP', value: activeInstance.PublicIpAddress || 'None' },
+                        { label: 'Private IP', value: activeInstance.PrivateIpAddress || 'None' },
+                        { label: 'VPC ID', value: activeInstance.VpcId || 'vpc-default' },
+                        { label: 'Subnet ID', value: activeInstance.SubnetId || 'subnet-default' },
+                        { label: 'Key Pair Name', value: activeInstance.KeyName || 'None' },
+                      ]}
+                    />
+                  </Container>
+                )}
+              </SpaceBetween>
             ),
-            sortingField: 'InstanceId',
-            isRowHeader: true,
           },
           {
-            id: 'state',
-            header: 'Instance state',
-            cell: (item) => getStateIndicator(item.State?.Name || 'running'),
+            label: `VPCs & Subnets (${vpcs.length} VPCs, ${subnets.length} Subnets)`,
+            id: 'vpcs',
+            content: (
+              <SpaceBetween size="l">
+                {/* VPCs */}
+                <Container
+                  header={
+                    <Header
+                      variant="h2"
+                      actions={
+                        <Button variant="primary" iconName="add-plus" onClick={() => setCreateVpcOpen(true)}>
+                          Create VPC
+                        </Button>
+                      }
+                    >
+                      Virtual Private Clouds ({vpcs.length})
+                    </Header>
+                  }
+                >
+                  <Table
+                    columnDefinitions={[
+                      { id: 'id', header: 'VPC ID', cell: (v: any) => <strong>{v.VpcId || v.id}</strong> },
+                      { id: 'cidr', header: 'IPv4 CIDR Block', cell: (v: any) => <code>{v.CidrBlock || v.cidr_block}</code> },
+                      { id: 'state', header: 'State', cell: () => <StatusIndicator type="success">available</StatusIndicator> },
+                      { id: 'default', header: 'Default VPC', cell: (v: any) => (v.IsDefault ? <Badge color="blue">Default</Badge> : 'Custom') },
+                      {
+                        id: 'action',
+                        header: 'Action',
+                        cell: (v: any) => (
+                          <Button onClick={() => handleDeleteVpc(v.VpcId || v.id)}>Delete</Button>
+                        ),
+                      },
+                    ]}
+                    items={vpcs}
+                  />
+                </Container>
+
+                {/* Subnets */}
+                <Container
+                  header={
+                    <Header
+                      variant="h2"
+                      actions={
+                        <Button variant="primary" iconName="add-plus" onClick={() => setCreateSubnetOpen(true)}>
+                          Create Subnet
+                        </Button>
+                      }
+                    >
+                      Subnets ({subnets.length})
+                    </Header>
+                  }
+                >
+                  <Table
+                    columnDefinitions={[
+                      { id: 'id', header: 'Subnet ID', cell: (s: any) => <strong>{s.SubnetId || s.id}</strong> },
+                      { id: 'vpc', header: 'VPC ID', cell: (s: any) => <code>{s.VpcId || s.vpc_id}</code> },
+                      { id: 'cidr', header: 'IPv4 CIDR Block', cell: (s: any) => <code>{s.CidrBlock || s.cidr_block}</code> },
+                      { id: 'az', header: 'Availability Zone', cell: (s: any) => s.AvailabilityZone || 'us-east-1a' },
+                      {
+                        id: 'action',
+                        header: 'Action',
+                        cell: (s: any) => (
+                          <Button onClick={() => handleDeleteSubnet(s.SubnetId || s.id)}>Delete</Button>
+                        ),
+                      },
+                    ]}
+                    items={subnets}
+                  />
+                </Container>
+              </SpaceBetween>
+            ),
           },
           {
-            id: 'type',
-            header: 'Instance type',
-            cell: (item) => item.InstanceType,
-          },
-          {
-            id: 'statusCheck',
-            header: 'Status check',
-            cell: () => <StatusIndicator type="success">2/2 checks passed</StatusIndicator>,
-          },
-          {
-            id: 'publicIp',
-            header: 'Public IPv4 address',
-            cell: (item) => item.PublicIpAddress || '—',
-          },
-          {
-            id: 'privateIp',
-            header: 'Private IPv4 addresses',
-            cell: (item) => item.PrivateIpAddress || '—',
+            label: `Security Groups (${securityGroups.length})`,
+            id: 'security_groups',
+            content: (
+              <SpaceBetween size="l">
+                <Container
+                  header={
+                    <Header
+                      variant="h2"
+                      actions={
+                        <Button variant="primary" iconName="add-plus" onClick={() => setCreateSgOpen(true)}>
+                          Create Security Group
+                        </Button>
+                      }
+                    >
+                      Security Groups
+                    </Header>
+                  }
+                >
+                  <Table
+                    columnDefinitions={[
+                      { id: 'name', header: 'Group Name', cell: (sg: any) => <strong>{sg.GroupName || sg.name}</strong> },
+                      { id: 'id', header: 'Security Group ID', cell: (sg: any) => <code>{sg.GroupId || sg.id}</code> },
+                      { id: 'vpc', header: 'VPC ID', cell: (sg: any) => <code>{sg.VpcId || sg.vpc_id}</code> },
+                      { id: 'desc', header: 'Description', cell: (sg: any) => sg.Description || sg.description },
+                      {
+                        id: 'action',
+                        header: 'Action',
+                        cell: (sg: any) => (
+                          <Button onClick={() => handleDeleteSg(sg.GroupId || sg.id)}>Delete</Button>
+                        ),
+                      },
+                    ]}
+                    items={securityGroups}
+                    selectionType="single"
+                    selectedItems={selectedSgs}
+                    onSelectionChange={({ detail }) => setSelectedSgs(detail.selectedItems)}
+                  />
+                </Container>
+
+                {activeSg && (
+                  <Container
+                    header={
+                      <Header
+                        variant="h2"
+                        description={`Rules for ${activeSg.GroupName || activeSg.name}`}
+                        actions={
+                          <Button variant="primary" iconName="add-plus" onClick={() => setAddRuleOpen(true)}>
+                            Add Inbound Rule
+                          </Button>
+                        }
+                      >
+                        Inbound & Outbound Rules: {activeSg.GroupName || activeSg.name}
+                      </Header>
+                    }
+                  >
+                    <Tabs
+                      tabs={[
+                        {
+                          label: 'Inbound Rules (Ingress)',
+                          id: 'inbound',
+                          content: (
+                            <Table
+                              columnDefinitions={[
+                                { id: 'proto', header: 'Protocol', cell: (r: any) => <Badge color="blue">{r.IpProtocol === '-1' ? 'All Traffic' : r.IpProtocol.toUpperCase()}</Badge> },
+                                { id: 'port', header: 'Port Range', cell: (r: any) => (r.FromPort ? `${r.FromPort} - ${r.ToPort}` : 'All') },
+                                { id: 'source', header: 'Source CIDR', cell: (r: any) => <code>{r.IpRanges?.map((i: any) => i.CidrIp).join(', ') || '0.0.0.0/0'}</code> },
+                              ]}
+                              items={activeSg.IpPermissions || []}
+                              empty={<Box textAlign="center">No inbound rules configured.</Box>}
+                            />
+                          ),
+                        },
+                        {
+                          label: 'Outbound Rules (Egress)',
+                          id: 'outbound',
+                          content: (
+                            <Table
+                              columnDefinitions={[
+                                { id: 'proto', header: 'Protocol', cell: (r: any) => <Badge color="green">{r.IpProtocol === '-1' ? 'All Traffic' : r.IpProtocol.toUpperCase()}</Badge> },
+                                { id: 'port', header: 'Port Range', cell: (r: any) => (r.FromPort ? `${r.FromPort} - ${r.ToPort}` : 'All') },
+                                { id: 'dest', header: 'Destination CIDR', cell: (r: any) => <code>{r.IpRanges?.map((i: any) => i.CidrIp).join(', ') || '0.0.0.0/0'}</code> },
+                              ]}
+                              items={activeSg.IpPermissionsEgress || []}
+                              empty={<Box textAlign="center">No outbound rules configured.</Box>}
+                            />
+                          ),
+                        },
+                      ]}
+                    />
+                  </Container>
+                )}
+              </SpaceBetween>
+            ),
           },
         ]}
-        items={filteredInstances}
-        loading={loading}
-        loadingText="Loading EC2 instances..."
-        selectionType="single"
-        selectedItems={selectedItems}
-        onSelectionChange={({ detail }) => setSelectedItems(detail.selectedItems)}
-        filter={
-          <TextFilter
-            filteringText={filterText}
-            filteringPlaceholder="Filter instances by ID, name..."
-            onChange={({ detail }) => setFilterText(detail.filteringText)}
-          />
-        }
-        pagination={<Pagination currentPageIndex={1} pagesCount={1} />}
-        empty={
-          <Box textAlign="center" color="inherit">
-            <SpaceBetween size="m">
-              <b>No instances found</b>
-              <p>You have no running EC2 instances in this region.</p>
-              <Button variant="primary" onClick={() => setLaunchModalOpen(true)}>
-                Launch instance
-              </Button>
-            </SpaceBetween>
-          </Box>
-        }
       />
 
-      {activeInstance && (
-        <Container header={<Header variant="h2">Instance: {activeInstance.InstanceId}</Header>}>
-          <Tabs
-            tabs={[
-              {
-                label: 'Details',
-                id: 'details',
-                content: (
-                  <KeyValuePairs
-                    columns={3}
-                    items={[
-                      { label: 'Instance ID', value: activeInstance.InstanceId },
-                      { label: 'Instance state', value: activeInstance.State?.Name || 'running' },
-                      { label: 'Instance type', value: activeInstance.InstanceType },
-                      { label: 'Public IPv4 DNS', value: `ec2-${activeInstance.PublicIpAddress?.replace(/\./g, '-')}.compute-1.amazonaws.com` },
-                      { label: 'Private IPv4 addresses', value: activeInstance.PrivateIpAddress || '—' },
-                      { label: 'Key pair name', value: activeInstance.KeyName || '—' },
-                      { label: 'Launch time', value: activeInstance.LaunchTime || '—' },
-                      { label: 'Platform details', value: 'Linux/UNIX' },
-                      { label: 'IMDS HTTP Tokens', value: 'v2 (Token Required)' },
-                    ]}
-                  />
-                ),
-              },
-              {
-                label: 'Networking',
-                id: 'networking',
-                content: (
-                  <KeyValuePairs
-                    columns={2}
-                    items={[
-                      { label: 'Public IPv4 address', value: activeInstance.PublicIpAddress || '—' },
-                      { label: 'Private IPv4 address', value: activeInstance.PrivateIpAddress || '—' },
-                      { label: 'VPC ID', value: 'vpc-0123456789abcdef0' },
-                      { label: 'Subnet ID', value: 'subnet-0123456789abcdef0' },
-                    ]}
-                  />
-                ),
-              },
-              {
-                label: 'Security',
-                id: 'security',
-                content: (
-                  <SpaceBetween size="m">
-                    <Header variant="h3">Security groups</Header>
-                    <Table
-                      columnDefinitions={[
-                        { id: 'id', header: 'Security group ID', cell: (i) => i.GroupId },
-                        { id: 'name', header: 'Security group name', cell: (i) => i.GroupName },
-                      ]}
-                      items={activeInstance.SecurityGroups || []}
-                    />
-                  </SpaceBetween>
-                ),
-              },
-            ]}
-          />
-        </Container>
-      )}
-
+      {/* Launch Instance Modal */}
       <Modal
         visible={launchModalOpen}
         onDismiss={() => setLaunchModalOpen(false)}
-        header="Launch an instance"
-        closeAriaLabel="Close modal"
+        header="Launch Virtual Server (EC2)"
+        size="large"
         footer={
           <Box float="right">
             <SpaceBetween direction="horizontal" size="xs">
               <Button variant="link" onClick={() => setLaunchModalOpen(false)}>
                 Cancel
               </Button>
-              <Button variant="primary" onClick={handleLaunchInstance} loading={launching}>
-                Launch instance
+              <Button variant="primary" loading={launching} onClick={handleLaunchInstance}>
+                Launch Instance
               </Button>
             </SpaceBetween>
           </Box>
         }
       >
         <SpaceBetween size="m">
-          <FormField label="Name and tags" description="Applies a Name tag to your instance.">
+          <FormField label="Instance Name">
             <Input
               value={instanceName}
               onChange={({ detail }) => setInstanceName(detail.value)}
-              placeholder="e.g. web-server-prod"
+              placeholder="web-server-01"
             />
           </FormField>
-          <FormField label="Instance type">
+
+          <FormField label="Instance Type">
             <Select
               selectedOption={instanceType}
               onChange={({ detail }) => setInstanceType(detail.selectedOption as any)}
               options={[
                 { label: 't3.micro (2 vCPU, 1 GiB RAM)', value: 't3.micro' },
                 { label: 't3.small (2 vCPU, 2 GiB RAM)', value: 't3.small' },
+                { label: 't3.medium (2 vCPU, 4 GiB RAM)', value: 't3.medium' },
                 { label: 'm5.large (2 vCPU, 8 GiB RAM)', value: 'm5.large' },
-                { label: 'c5.xlarge (4 vCPU, 8 GiB RAM)', value: 'c5.xlarge' },
+                { label: 'c5.large (2 vCPU, 4 GiB RAM, Compute-Optimized)', value: 'c5.large' },
               ]}
             />
           </FormField>
-          <FormField label="Application and OS Images (Amazon Machine Image)">
-            <Input value="Amazon Linux 2023 AMI (ami-0c55b159cbfafe1f0)" disabled />
+        </SpaceBetween>
+      </Modal>
+
+      {/* Execute SSM Command Modal */}
+      <Modal
+        visible={runCommandOpen}
+        onDismiss={() => setRunCommandOpen(false)}
+        header={`Execute Shell Script on ${activeInstance?.InstanceId}`}
+        size="large"
+        footer={
+          <Box float="right">
+            <SpaceBetween direction="horizontal" size="xs">
+              <Button variant="link" onClick={() => setRunCommandOpen(false)}>
+                Close
+              </Button>
+              <Button variant="primary" iconName="caret-right-filled" loading={runningCommand} onClick={handleRunCommand}>
+                Execute Script
+              </Button>
+            </SpaceBetween>
+          </Box>
+        }
+      >
+        <SpaceBetween size="m">
+          <FormField label="Shell Commands (Bash)">
+            <Textarea
+              rows={6}
+              value={commandScript}
+              onChange={({ detail }) => setCommandScript(detail.value)}
+            />
+          </FormField>
+
+          {commandOutput && (
+            <Container header={<Header variant="h3">Execution Result</Header>}>
+              <CodeSnippet language="json" code={JSON.stringify(commandOutput, null, 2)} />
+            </Container>
+          )}
+        </SpaceBetween>
+      </Modal>
+
+      {/* Create VPC Modal */}
+      <Modal
+        visible={createVpcOpen}
+        onDismiss={() => setCreateVpcOpen(false)}
+        header="Create Virtual Private Cloud (VPC)"
+        footer={
+          <Box float="right">
+            <SpaceBetween direction="horizontal" size="xs">
+              <Button variant="link" onClick={() => setCreateVpcOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" loading={creatingVpc} onClick={handleCreateVpc}>
+                Create VPC
+              </Button>
+            </SpaceBetween>
+          </Box>
+        }
+      >
+        <SpaceBetween size="m">
+          <FormField label="Name Tag (Optional)">
+            <Input
+              value={vpcName}
+              onChange={({ detail }) => setVpcName(detail.value)}
+              placeholder="production-vpc"
+            />
+          </FormField>
+          <FormField label="IPv4 CIDR Block" description="Private IP address block for this VPC.">
+            <Input
+              value={vpcCidr}
+              onChange={({ detail }) => setVpcCidr(detail.value)}
+              placeholder="10.0.0.0/16"
+            />
+          </FormField>
+        </SpaceBetween>
+      </Modal>
+
+      {/* Create Subnet Modal */}
+      <Modal
+        visible={createSubnetOpen}
+        onDismiss={() => setCreateSubnetOpen(false)}
+        header="Create Subnet"
+        footer={
+          <Box float="right">
+            <SpaceBetween direction="horizontal" size="xs">
+              <Button variant="link" onClick={() => setCreateSubnetOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" loading={creatingSubnet} onClick={handleCreateSubnet}>
+                Create Subnet
+              </Button>
+            </SpaceBetween>
+          </Box>
+        }
+      >
+        <SpaceBetween size="m">
+          <FormField label="Subnet Name (Optional)">
+            <Input value={subnetName} onChange={({ detail }) => setSubnetName(detail.value)} placeholder="public-subnet-1a" />
+          </FormField>
+          <FormField label="VPC ID">
+            <Input value={subnetVpcId} onChange={({ detail }) => setSubnetVpcId(detail.value)} />
+          </FormField>
+          <FormField label="IPv4 CIDR Block">
+            <Input value={subnetCidr} onChange={({ detail }) => setSubnetCidr(detail.value)} placeholder="10.0.1.0/24" />
+          </FormField>
+          <FormField label="Availability Zone">
+            <Input value={subnetAz} onChange={({ detail }) => setSubnetAz(detail.value)} placeholder="us-east-1a" />
+          </FormField>
+        </SpaceBetween>
+      </Modal>
+
+      {/* Create Security Group Modal */}
+      <Modal
+        visible={createSgOpen}
+        onDismiss={() => setCreateSgOpen(false)}
+        header="Create Security Group"
+        footer={
+          <Box float="right">
+            <SpaceBetween direction="horizontal" size="xs">
+              <Button variant="link" onClick={() => setCreateSgOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" loading={creatingSg} onClick={handleCreateSg}>
+                Create Security Group
+              </Button>
+            </SpaceBetween>
+          </Box>
+        }
+      >
+        <SpaceBetween size="m">
+          <FormField label="Security Group Name">
+            <Input value={sgName} onChange={({ detail }) => setSgName(detail.value)} placeholder="web-dmz-sg" />
+          </FormField>
+          <FormField label="Description">
+            <Input value={sgDescription} onChange={({ detail }) => setSgDescription(detail.value)} />
+          </FormField>
+          <FormField label="VPC ID">
+            <Input value={sgVpcId} onChange={({ detail }) => setSgVpcId(detail.value)} />
+          </FormField>
+        </SpaceBetween>
+      </Modal>
+
+      {/* Add Inbound Rule Modal */}
+      <Modal
+        visible={addRuleOpen}
+        onDismiss={() => setAddRuleOpen(false)}
+        header={`Add Inbound Rule to ${activeSg?.GroupName || activeSg?.name}`}
+        footer={
+          <Box float="right">
+            <SpaceBetween direction="horizontal" size="xs">
+              <Button variant="link" onClick={() => setAddRuleOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" loading={savingRule} onClick={handleAddRule}>
+                Save Rule
+              </Button>
+            </SpaceBetween>
+          </Box>
+        }
+      >
+        <SpaceBetween size="m">
+          <FormField label="Rule Type">
+            <Select
+              selectedOption={ruleType}
+              onChange={({ detail }) => {
+                const opt = detail.selectedOption;
+                const map: Record<string, { port: number; proto: string }> = {
+                  http: { port: 80, proto: 'tcp' },
+                  https: { port: 443, proto: 'tcp' },
+                  ssh: { port: 22, proto: 'tcp' },
+                  pg: { port: 5432, proto: 'tcp' },
+                  mysql: { port: 3306, proto: 'tcp' },
+                  custom: { port: 8080, proto: 'tcp' },
+                };
+                const val = opt.value || 'http';
+                const meta = map[val] || { port: 80, proto: 'tcp' };
+                setRuleType({
+                  label: opt.label || 'HTTP (80)',
+                  value: val,
+                  port: meta.port,
+                  proto: meta.proto,
+                });
+              }}
+              options={[
+                { label: 'HTTP (80)', value: 'http' },
+                { label: 'HTTPS (443)', value: 'https' },
+                { label: 'SSH (22)', value: 'ssh' },
+                { label: 'PostgreSQL (5432)', value: 'pg' },
+                { label: 'MySQL / Aurora (3306)', value: 'mysql' },
+                { label: 'Custom TCP (8080)', value: 'custom' },
+              ]}
+            />
+          </FormField>
+
+          <FormField label="Source CIDR">
+            <Input value={ruleCidr} onChange={({ detail }) => setRuleCidr(detail.value)} placeholder="0.0.0.0/0" />
           </FormField>
         </SpaceBetween>
       </Modal>
