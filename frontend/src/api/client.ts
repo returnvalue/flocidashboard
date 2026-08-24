@@ -553,3 +553,137 @@ export async function simulateIamPolicy(principalArn: string, actionNames: strin
   if (!res.ok || data.error) throw new Error(data.error || `Policy simulation failed`);
   return data;
 }
+
+// DynamoDB Deepening APIs
+export async function fetchDynamoDbTableScan(tableName: string, limit: number = 50, startKey?: any): Promise<{ items: any[]; count: number; scanned_count: number; last_evaluated_key?: any }> {
+  try {
+    const res = await fetch(`/api/dynamodb/tables/${encodeURIComponent(tableName)}/scan/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+      body: JSON.stringify({ limit, exclusive_start_key: startKey }),
+    });
+    if (!res.ok) return { items: [], count: 0, scanned_count: 0 };
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to scan DynamoDB table:', err);
+    return { items: [], count: 0, scanned_count: 0 };
+  }
+}
+
+export async function executeDynamoDbPartiQL(statement: string, limit: number = 50): Promise<{ items: any[]; count: number }> {
+  const res = await fetch('/api/dynamodb/partiql/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({ statement, limit }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || `PartiQL query failed`);
+  return data;
+}
+
+export async function putDynamoDbItem(tableName: string, item: Record<string, any>): Promise<any> {
+  return await executeServiceAction('dynamodb', 'put_item', {
+    table_name: tableName,
+    item,
+  });
+}
+
+export async function deleteDynamoDbItem(tableName: string, key: Record<string, any>): Promise<any> {
+  return await executeServiceAction('dynamodb', 'delete_item', {
+    table_name: tableName,
+    key,
+  });
+}
+
+// Lambda Deepening APIs
+export async function fetchLambdaFunctionUrl(functionName: string): Promise<any> {
+  try {
+    const res = await fetch(`/api/lambda/functions/${encodeURIComponent(functionName)}/url/`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function createLambdaFunctionUrl(functionName: string, authType: 'NONE' | 'AWS_IAM' = 'NONE', cors?: any): Promise<any> {
+  const res = await fetch(`/api/lambda/functions/${encodeURIComponent(functionName)}/url/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({
+      options: {
+        AuthType: authType,
+        Cors: cors || { AllowOrigins: ['*'], AllowMethods: ['*'] },
+      },
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || `Failed to create Function URL`);
+  return data;
+}
+
+export async function deleteLambdaFunctionUrl(functionName: string): Promise<any> {
+  const res = await fetch(`/api/lambda/functions/${encodeURIComponent(functionName)}/url/`, {
+    method: 'DELETE',
+    headers: { 'X-CSRFToken': getCsrfToken() },
+  });
+  return await res.json();
+}
+
+export async function fetchLambdaEventSourceMappings(functionName: string): Promise<any[]> {
+  try {
+    const res = await fetch(`/api/lambda/functions/${encodeURIComponent(functionName)}/event-source-mappings/`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.EventSourceMappings || data.mappings || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function createLambdaEventSourceMapping(functionName: string, eventSourceArn: string, batchSize: number = 10): Promise<any> {
+  const res = await fetch(`/api/lambda/functions/${encodeURIComponent(functionName)}/event-source-mappings/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({
+      options: {
+        EventSourceArn: eventSourceArn,
+        BatchSize: batchSize,
+        StartingPosition: 'LATEST',
+      },
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || `Failed to add event source mapping trigger`);
+  return data;
+}
+
+export async function deleteLambdaEventSourceMapping(uuid: string): Promise<any> {
+  const res = await fetch(`/api/lambda/event-source-mappings/${encodeURIComponent(uuid)}/`, {
+    method: 'DELETE',
+    headers: { 'X-CSRFToken': getCsrfToken() },
+  });
+  return await res.json();
+}
+
+export async function fetchLambdaVersions(functionName: string): Promise<any[]> {
+  try {
+    const res = await fetch(`/api/lambda/functions/${encodeURIComponent(functionName)}/versions/`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.Versions || data.versions || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function publishLambdaVersion(functionName: string, description: string = ''): Promise<any> {
+  const res = await fetch(`/api/lambda/functions/${encodeURIComponent(functionName)}/versions/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({ description }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || `Failed to publish version`);
+  return data;
+}
