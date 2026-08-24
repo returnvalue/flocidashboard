@@ -41,5 +41,5 @@ class Floci1532CompatibilityTests(SimpleTestCase):
         self.assertContains(response, '<code>Assign</code>', html=True)
 
     def test_environment_exposes_s3_auth_mode(self):
-        response = self.client.get(reverse('dashboard:environment'))
+        response = self.client.get(reverse('dashboard:legacy-environment'))
         self.assertContains(response, 'id="environment-s3-auth"')

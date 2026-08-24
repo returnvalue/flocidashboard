@@ -407,7 +407,7 @@ class DashboardTemplateTests(SimpleTestCase):
     def test_page_headers_are_compact_across_primary_pages(self, status_mock):
         status_mock.return_value = {'complete': False, 'steps': {}}
         urls = [
-            reverse('dashboard:environment'),
+            reverse('dashboard:legacy-environment'),
             reverse('dashboard:labs-directory'),
             reverse('dashboard:service-matrix'),
             reverse('dashboard:service-page', kwargs={'service_key': 's3'}),
@@ -426,6 +426,13 @@ class DashboardTemplateTests(SimpleTestCase):
         response = self.client.get(reverse('dashboard:environment'))
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="root"')
+        self.assertContains(response, 'app.js')
+
+    def test_legacy_environment_page_renders_diagnostics_shell(self):
+        response = self.client.get(reverse('dashboard:legacy-environment'))
+
+        self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<title>Environment - Floci Dashboard</title>', html=True)
         self.assertContains(response, '<h1 class="console-title">Environment</h1>', html=True)
         self.assertContains(response, 'id="environment-refresh"')
@@ -439,6 +446,13 @@ class DashboardTemplateTests(SimpleTestCase):
         response = self.client.get(reverse('dashboard:settings'))
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="root"')
+        self.assertContains(response, 'app.js')
+
+    def test_legacy_settings_page_renders_runtime_configuration_shell(self):
+        response = self.client.get(reverse('dashboard:legacy-settings'))
+
+        self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<title>Settings - Floci Dashboard</title>', html=True)
         self.assertContains(response, '<h1 class="console-title">Settings</h1>', html=True)
         self.assertContains(response, 'id="settings-endpoint-url"')
@@ -449,6 +463,13 @@ class DashboardTemplateTests(SimpleTestCase):
 
     def test_activity_page_renders_recent_activity_shell(self):
         response = self.client.get(reverse('dashboard:activity'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="root"')
+        self.assertContains(response, 'app.js')
+
+    def test_legacy_activity_page_renders_recent_activity_shell(self):
+        response = self.client.get(reverse('dashboard:legacy-activity'))
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<title>Activity - Floci Dashboard</title>', html=True)
@@ -467,6 +488,13 @@ class DashboardTemplateTests(SimpleTestCase):
 
     def test_console_page_renders_aws_cli_console_shell(self):
         response = self.client.get(reverse('dashboard:console'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="root"')
+        self.assertContains(response, 'app.js')
+
+    def test_legacy_console_page_renders_aws_cli_console_shell(self):
+        response = self.client.get(reverse('dashboard:legacy-console'))
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<title>AWS CLI Console - Floci Dashboard</title>', html=True)

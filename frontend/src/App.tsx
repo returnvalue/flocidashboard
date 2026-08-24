@@ -12,6 +12,10 @@ import { SNSConsole } from './pages/SNSConsole';
 import { RDSConsole } from './pages/RDSConsole';
 import { LabsConsole } from './pages/LabsConsole';
 import { InspectorConsole } from './pages/InspectorConsole';
+import { SettingsConsole } from './pages/SettingsConsole';
+import { EnvironmentConsole } from './pages/EnvironmentConsole';
+import { ActivityConsole } from './pages/ActivityConsole';
+import { CliConsole } from './pages/CliConsole';
 import { fetchIdentity, fetchServices } from './api/client';
 import { IdentityInfo, ServiceDefinition } from './types';
 import Container from '@cloudscape-design/components/container';
@@ -24,6 +28,10 @@ function getInitialView(): string {
   if (!path || path === 'app' || path === 'home') return 'home';
   if (path === 'labs' || path.endsWith('/labs') || path.startsWith('labs/')) return 'labs';
   if (path === 'inspector' || path.endsWith('/inspector') || path.startsWith('inspector/')) return 'inspector';
+  if (path === 'settings' || path.endsWith('/settings') || path.startsWith('settings/')) return 'settings';
+  if (path === 'environment' || path.endsWith('/environment') || path.startsWith('environment/')) return 'environment';
+  if (path === 'activity' || path.endsWith('/activity') || path.startsWith('activity/')) return 'activity';
+  if (path === 'console' || path.endsWith('/console') || path.startsWith('console/')) return 'console';
   if (path.startsWith('service/')) {
     const parts = path.split('/');
     return parts[1] || 'home';
@@ -71,6 +79,30 @@ export const App: React.FC = () => {
         { text: 'Local Developer Inspector Inbox', href: 'inspector' },
       ];
     }
+    if (currentView === 'settings') {
+      return [
+        { text: 'AWS Management Console', href: 'home' },
+        { text: 'Settings & Endpoint Configuration', href: 'settings' },
+      ];
+    }
+    if (currentView === 'environment') {
+      return [
+        { text: 'AWS Management Console', href: 'home' },
+        { text: 'Session Identity & Environment', href: 'environment' },
+      ];
+    }
+    if (currentView === 'activity') {
+      return [
+        { text: 'AWS Management Console', href: 'home' },
+        { text: 'Activity & Audit Log', href: 'activity' },
+      ];
+    }
+    if (currentView === 'console') {
+      return [
+        { text: 'AWS Management Console', href: 'home' },
+        { text: 'AWS CLI Terminal Sandbox', href: 'console' },
+      ];
+    }
     const svc = services.find((s) => s.key === currentView);
     return [
       { text: 'AWS Management Console', href: 'home' },
@@ -83,6 +115,17 @@ export const App: React.FC = () => {
       { type: 'link' as const, text: 'Console Home', href: 'home' },
       { type: 'link' as const, text: 'Workflow Labs (63)', href: 'labs' },
       { type: 'link' as const, text: 'Local Inspector Inbox', href: 'inspector' },
+      { type: 'divider' as const },
+      {
+        type: 'section' as const,
+        text: 'Developer Tools & Management',
+        items: [
+          { type: 'link' as const, text: 'AWS CLI Terminal', href: 'console' },
+          { type: 'link' as const, text: 'Activity Audit Log', href: 'activity' },
+          { type: 'link' as const, text: 'Session Identity & STS', href: 'environment' },
+          { type: 'link' as const, text: 'Dashboard Settings', href: 'settings' },
+        ],
+      },
       { type: 'divider' as const },
       {
         type: 'section' as const,
@@ -132,6 +175,14 @@ export const App: React.FC = () => {
         return <LabsConsole />;
       case 'inspector':
         return <InspectorConsole />;
+      case 'settings':
+        return <SettingsConsole />;
+      case 'environment':
+        return <EnvironmentConsole />;
+      case 'activity':
+        return <ActivityConsole onNavigateService={(s) => navigateTo(s)} />;
+      case 'console':
+        return <CliConsole />;
       default:
         const svc = services.find((s) => s.key === currentView);
         return (

@@ -130,10 +130,16 @@ export const TopNav: React.FC<TopNavProps> = ({
           text: identity ? `${identity.user_id} @ ${identity.account_id}` : 'Floci Admin',
           description: identity?.arn || 'arn:aws:iam::000000000000:root',
           iconName: 'user-profile',
+          onItemClick: ({ detail }) => {
+            if (['environment', 'settings', 'console', 'activity'].includes(detail.id)) {
+              onSelectService(detail.id);
+            }
+          },
           items: [
-            { id: 'account', text: 'Account settings' },
-            { id: 'switch-role', text: 'Switch IAM Role (Alice / Admin)' },
-            { id: 'classic-dashboard', text: 'Switch to Classic Dashboard', href: '/' },
+            { id: 'environment', text: 'Session Identity & STS Assumer', iconName: 'user-profile' },
+            { id: 'settings', text: 'Dashboard Settings & Endpoints', iconName: 'settings' },
+            { id: 'console', text: 'AWS CLI Terminal Sandbox', iconName: 'script' },
+            { id: 'activity', text: 'Activity & Audit Log', iconName: 'status-info' },
           ],
         },
       ]}

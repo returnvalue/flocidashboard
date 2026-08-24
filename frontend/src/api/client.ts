@@ -216,3 +216,119 @@ export async function fetchInspectorLogEvents(logGroupName: string, limit: numbe
     return { log_group_name: logGroupName, streams: [], events: [] };
   }
 }
+
+export async function fetchSettings(): Promise<any> {
+  try {
+    const res = await fetch('/api/settings/');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to fetch settings:', err);
+    return {};
+  }
+}
+
+export async function saveEndpoint(endpointUrl: string): Promise<any> {
+  const res = await fetch('/api/settings/endpoint/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({ endpoint_url: endpointUrl }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || 'Failed to save endpoint');
+  return data;
+}
+
+export async function resetEndpoint(): Promise<any> {
+  const res = await fetch('/api/settings/endpoint/reset/', {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCsrfToken() },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return await res.json();
+}
+
+export async function testConnection(endpointUrl?: string): Promise<any> {
+  const res = await fetch('/api/settings/test-connection/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify(endpointUrl ? { endpoint_url: endpointUrl } : {}),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || 'Connection test failed');
+  return data;
+}
+
+export async function resetFlociState(): Promise<any> {
+  const res = await fetch('/api/settings/floci-reset/', {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCsrfToken() },
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || 'Floci reset failed');
+  return data;
+}
+
+export async function fetchIdentityDetail(): Promise<any> {
+  try {
+    const res = await fetch('/api/session-identity/');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to fetch identity detail:', err);
+    return {};
+  }
+}
+
+export async function useAdminIdentity(): Promise<any> {
+  const res = await fetch('/api/session-identity/use-admin/', {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCsrfToken() },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return await res.json();
+}
+
+export async function useUserIdentity(userName: string, rotateAccessKeys: boolean = false): Promise<any> {
+  const res = await fetch('/api/session-identity/use-user/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({ user_name: userName, rotate_access_keys: rotateAccessKeys }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || 'Failed to switch user identity');
+  return data;
+}
+
+export async function assumeRoleIdentity(roleName: string, sessionName?: string, accountId?: string): Promise<any> {
+  const res = await fetch('/api/session-identity/assume-role/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({ role_name: roleName, session_name: sessionName, account_id: accountId }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || 'Failed to assume role');
+  return data;
+}
+
+export async function clearSessionIdentity(): Promise<any> {
+  const res = await fetch('/api/session-identity/clear/', {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCsrfToken() },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return await res.json();
+}
+
+export async function runCliCommand(command: string, confirmed: boolean = false): Promise<any> {
+  const res = await fetch('/api/console/run/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({ command, confirmed }),
+  });
+  const data = await res.json();
+  if (!res.ok && !data.confirmation_required) {
+    throw new Error(data.error || `HTTP ${res.status}`);
+  }
+  return data;
+}
