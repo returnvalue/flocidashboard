@@ -29,6 +29,7 @@ import { SSMConsole } from './pages/SSMConsole';
 import { ResourceGraphConsole } from './pages/ResourceGraphConsole';
 import { GenericServiceWorkbench } from './pages/GenericServiceWorkbench';
 import { AwsServiceIcon } from './components/AwsServiceIcons';
+import { FavoritesBar } from './components/FavoritesBar';
 import { fetchIdentity, fetchServices } from './api/client';
 import { IdentityInfo, ServiceDefinition } from './types';
 import Container from '@cloudscape-design/components/container';
@@ -262,6 +263,11 @@ export const App: React.FC = () => {
         onSelectService={(key) => navigateTo(key)}
         onNavigateHome={() => navigateTo('home')}
         onNavigateLabs={() => navigateTo('labs')}
+      />
+      <FavoritesBar
+        activeService={currentView}
+        onSelectService={(key) => navigateTo(key)}
+        allServices={services}
       />
       <ConsoleLayout
         breadcrumbs={getBreadcrumbs()}
