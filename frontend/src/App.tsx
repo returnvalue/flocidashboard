@@ -16,6 +16,7 @@ import { SettingsConsole } from './pages/SettingsConsole';
 import { EnvironmentConsole } from './pages/EnvironmentConsole';
 import { ActivityConsole } from './pages/ActivityConsole';
 import { CliConsole } from './pages/CliConsole';
+import { GenericServiceWorkbench } from './pages/GenericServiceWorkbench';
 import { fetchIdentity, fetchServices } from './api/client';
 import { IdentityInfo, ServiceDefinition } from './types';
 import Container from '@cloudscape-design/components/container';
@@ -185,29 +186,24 @@ export const App: React.FC = () => {
         return <CliConsole />;
       default:
         const svc = services.find((s) => s.key === currentView);
+        if (svc) {
+          return (
+            <GenericServiceWorkbench
+              service={svc}
+              onNavigateLabs={() => navigateTo('labs')}
+            />
+          );
+        }
         return (
           <Container
             header={
-              <Header
-                variant="h1"
-                description={svc?.eyebrow || 'Local AWS Service Workbench'}
-                actions={
-                  <Button variant="primary" onClick={() => navigateTo('labs')}>
-                    Open Guided Labs
-                  </Button>
-                }
-              >
-                {svc ? svc.title : currentView.toUpperCase()}
+              <Header variant="h1" description="Service Not Found">
+                {currentView.toUpperCase()}
               </Header>
             }
           >
             <SpaceBetween size="m">
-              <p>
-                Service <strong>{svc?.title || currentView}</strong> is active and healthy in Floci.
-              </p>
-              <p>
-                Category: <strong>{svc?.category || 'Database / Compute'}</strong>
-              </p>
+              <p>The requested service was not found or is not registered.</p>
               <Button onClick={() => navigateTo('home')}>
                 ← Return to Console Home
               </Button>

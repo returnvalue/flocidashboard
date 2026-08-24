@@ -1,22 +1,22 @@
-export interface ServiceActionParam {
+export interface ActionField {
   name: string;
   label: string;
-  type: string;
   required?: boolean;
-  default?: any;
-  placeholder?: string;
-  help?: string;
-  choices?: Array<{ value: string; label: string }>;
+  field_type?: string;
+  help_text?: string;
 }
 
 export interface ServiceAction {
-  key: string;
+  name: string;
   label: string;
+  method: string;
+  path: string;
+  kind: 'read' | 'create' | 'update' | 'delete' | 'execute';
+  safety?: 'safe' | 'mutating' | 'destructive';
   description?: string;
-  method?: string;
-  path?: string;
-  category?: string;
-  params?: ServiceActionParam[];
+  fields?: ActionField[];
+  confirm?: string;
+  success_message?: string;
 }
 
 export interface ServiceDefinition {

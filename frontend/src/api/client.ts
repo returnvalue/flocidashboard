@@ -1,4 +1,4 @@
-import { IdentityInfo, LabDefinition, ServiceDefinition } from '../types';
+import { IdentityInfo, LabDefinition, ServiceAction, ServiceDefinition } from '../types';
 
 function getCsrfToken(): string {
   const meta = document.querySelector('meta[name="csrf-token"]');
@@ -55,29 +55,6 @@ export async function fetchServiceInventory(serviceKey: string): Promise<any> {
     console.error(`Failed to fetch inventory for ${serviceKey}:`, err);
     return {};
   }
-}
-
-export async function executeServiceAction(
-  serviceKey: string,
-  actionKey: string,
-  payload: Record<string, any>
-): Promise<any> {
-  const res = await fetch(`/api/${serviceKey}/`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': getCsrfToken(),
-    },
-    body: JSON.stringify({
-      action: actionKey,
-      ...payload,
-    }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.error) {
-    throw new Error(data.error || `Action failed with status ${res.status}`);
-  }
-  return data;
 }
 
 export async function fetchLabs(serviceKey?: string): Promise<LabDefinition[]> {
@@ -329,6 +306,112 @@ export async function runCliCommand(command: string, confirmed: boolean = false)
   const data = await res.json();
   if (!res.ok && !data.confirmation_required) {
     throw new Error(data.error || `HTTP ${res.status}`);
+  }
+  return data;
+}
+
+export function executeServiceAction(
+  serviceKey: string,
+  actionKey: string,
+  payload: Record<string, any>
+): Promise<any>;
+export function executeServiceAction(
+  action: ServiceAction,
+  formValues: Record<string, any>,
+  fileValues?: Record<string, File>
+): Promise<any>;
+export async function executeServiceAction(
+  actionOrServiceKey: string | ServiceAction,
+  actionKeyOrFormValues: string | Record<string, any>,
+  payloadOrFileValues: Record<string, any> = {}
+): Promise<any> {
+  if (typeof actionOrServiceKey === 'string') {
+    const serviceKey = actionOrServiceKey;
+    const actionKey = actionKeyOrFormValues as string;
+    const payload = payloadOrFileValues as Record<string, any>;
+    const res = await fetch(`/api/${serviceKey}/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCsrfToken(),
+      },
+      body: JSON.stringify({
+        action: actionKey,
+        ...payload,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.error) {
+      throw new Error(data.error || `Action failed with status ${res.status}`);
+    }
+    return data;
+  }
+
+  const action = actionOrServiceKey;
+  const formValues = (actionKeyOrFormValues || {}) as Record<string, any>;
+  const fileValues = (payloadOrFileValues || {}) as Record<string, File>;
+
+  let targetPath = action.path;
+  const queryParams = new URLSearchParams();
+  const payload: Record<string, any> = {};
+  const hasFiles = Object.keys(fileValues).length > 0;
+
+  // Substitute {param} in path or populate payload
+  (action.fields || []).forEach((f) => {
+    const value = formValues[f.name];
+    if (targetPath.includes(`{${f.name}}`)) {
+      targetPath = targetPath.replace(`{${f.name}}`, encodeURIComponent(value != null ? String(value) : ''));
+    } else if (value !== undefined && value !== '') {
+      if (action.method === 'GET') {
+        queryParams.set(f.name, String(value));
+      } else {
+        if (f.field_type === 'number') {
+          payload[f.name] = Number(value);
+        } else if (f.field_type === 'boolean') {
+          payload[f.name] = Boolean(value);
+        } else if (f.field_type === 'object' || f.field_type === 'array') {
+          try {
+            payload[f.name] = typeof value === 'string' ? JSON.parse(value) : value;
+          } catch {
+            payload[f.name] = value;
+          }
+        } else {
+          payload[f.name] = value;
+        }
+      }
+    }
+  });
+
+  const queryString = queryParams.toString();
+  const fullUrl = queryString ? `${targetPath}?${queryString}` : targetPath;
+
+  const options: RequestInit = {
+    method: action.method || 'POST',
+    headers: {
+      'X-CSRFToken': getCsrfToken(),
+    },
+  };
+
+  if (action.method !== 'GET') {
+    if (hasFiles) {
+      const formData = new FormData();
+      Object.entries(payload).forEach(([k, v]) => {
+        formData.append(k, typeof v === 'object' ? JSON.stringify(v) : String(v));
+      });
+      Object.entries(fileValues).forEach(([k, file]) => {
+        formData.append(k, file);
+      });
+      options.body = formData;
+    } else {
+      (options.headers as Record<string, string>)['Content-Type'] = 'application/json';
+      options.body = JSON.stringify(payload);
+    }
+  }
+
+  const res = await fetch(fullUrl, options);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.error) {
+    throw new Error(data.error || `HTTP ${res.status}: ${res.statusText}`);
   }
   return data;
 }
