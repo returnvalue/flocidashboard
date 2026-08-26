@@ -189,3 +189,35 @@ class OpenSearchActionsApiTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         limits_mock.assert_called_once_with('OpenSearch_2.19', 'm5.large.search')
+
+    @patch('dashboard.opensearch_views.execute_domain_request')
+    def test_devtools_request_success(self, devtools_mock):
+        devtools_mock.return_value = {
+            'domain_name': 'my-search',
+            'method': 'GET',
+            'path': '/_cluster/health',
+            'status_code': 200,
+            'latency_ms': 5.4,
+            'json': {'status': 'green'},
+        }
+
+        response = self.client.post(
+            reverse('dashboard:opensearch-devtools-request'),
+            data=json.dumps({
+                'domain_name': 'my-search',
+                'method': 'GET',
+                'path': '/_cluster/health',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['status_code'], 200)
+        devtools_mock.assert_called_once_with(
+            domain_name='my-search',
+            method='GET',
+            path='/_cluster/health',
+            body=None,
+            headers=None,
+            endpoint_url=None,
+        )

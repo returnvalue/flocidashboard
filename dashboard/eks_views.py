@@ -13,6 +13,7 @@ from .eks_api import (
     delete_cluster,
     delete_fargate_profile,
     delete_nodegroup,
+    get_kubeconfig,
     list_tags,
     tag_resource,
     untag_resource,
@@ -116,3 +117,15 @@ def eks_tags_list(request):
         return JsonResponse(list_tags(body.get('resource_arn') or ''))
     except Exception as exc:
         return handle_action_error(exc, service='eks', operation='list_tags_for_resource')
+
+
+@require_http_methods(['GET', 'POST'])
+def eks_cluster_kubeconfig(request, cluster_name: str = ''):
+    try:
+        if not cluster_name:
+            body = parse_json_body(request) if request.method == 'POST' else {}
+            cluster_name = body.get('cluster_name') or body.get('name') or request.GET.get('cluster_name') or ''
+        region = request.GET.get('region', 'us-east-1')
+        return JsonResponse(get_kubeconfig(cluster_name, region=region))
+    except Exception as exc:
+        return handle_action_error(exc, service='eks', operation='get_kubeconfig')

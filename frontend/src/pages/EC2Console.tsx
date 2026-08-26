@@ -80,6 +80,9 @@ export const EC2Console: React.FC<EC2ConsoleProps> = ({ activeTab, onTabChange }
   // VPCs & Subnets State
   const [vpcs, setVpcs] = useState<any[]>([]);
   const [subnets, setSubnets] = useState<any[]>([]);
+  const [routeTables, setRouteTables] = useState<any[]>([]);
+  const [internetGateways, setInternetGateways] = useState<any[]>([]);
+  const [vpcEndpoints, setVpcEndpoints] = useState<any[]>([]);
   const [createVpcOpen, setCreateVpcOpen] = useState(false);
   const [vpcCidr, setVpcCidr] = useState('10.0.0.0/16');
   const [vpcName, setVpcName] = useState('production-vpc');
@@ -150,6 +153,10 @@ export const EC2Console: React.FC<EC2ConsoleProps> = ({ activeTab, onTabChange }
         { SubnetId: 'subnet-0a1b2c3d', VpcId: 'vpc-0a1b2c3d4e5f', CidrBlock: '10.0.1.0/24', AvailabilityZone: 'us-east-1a', State: 'available' },
       ];
       setSubnets(subnetList);
+
+      setRouteTables(ec2Data.route_tables || ec2Data.RouteTables || []);
+      setInternetGateways(ec2Data.internet_gateways || ec2Data.InternetGateways || []);
+      setVpcEndpoints(ec2Data.vpc_endpoints || ec2Data.VpcEndpoints || []);
 
       // Map Security Groups
       const sgList = ec2Data.security_groups || ec2Data.SecurityGroups || [
@@ -585,6 +592,53 @@ export const EC2Console: React.FC<EC2ConsoleProps> = ({ activeTab, onTabChange }
                     items={subnets}
                   />
                 </Container>
+
+                {/* Route Tables */}
+                <Container
+                  header={
+                    <Header variant="h2">
+                      Route Tables ({routeTables.length})
+                    </Header>
+                  }
+                >
+                  <Table
+                    columnDefinitions={[
+                      { id: 'id', header: 'Route Table ID', cell: (rt: any) => <strong>{rt.RouteTableId || rt.id}</strong> },
+                      { id: 'vpc', header: 'VPC ID', cell: (rt: any) => <code>{rt.VpcId || rt.vpc_id}</code> },
+                      { id: 'routes', header: 'Routes Count', cell: (rt: any) => (rt.Routes?.length || 0) },
+                      { id: 'associations', header: 'Associations', cell: (rt: any) => (rt.Associations?.length ? `${rt.Associations.length} Subnet(s)` : 'Main') },
+                    ]}
+                    items={routeTables}
+                    empty={<Box textAlign="center" color="inherit">No route tables found</Box>}
+                  />
+                </Container>
+
+                {/* Internet Gateways & Endpoints Grid */}
+                <Grid gridDefinition={[{ colspan: 6 }, { colspan: 6 }]}>
+                  <Container header={<Header variant="h3">Internet Gateways ({internetGateways.length})</Header>}>
+                    <Table
+                      columnDefinitions={[
+                        { id: 'id', header: 'IGW ID', cell: (igw: any) => <strong>{igw.InternetGatewayId || igw.id}</strong> },
+                        { id: 'vpc', header: 'Attached VPC', cell: (igw: any) => <code>{igw.Attachments?.[0]?.VpcId || 'Detached'}</code> },
+                        { id: 'state', header: 'State', cell: (igw: any) => <StatusIndicator type="success">{igw.Attachments?.[0]?.State || 'available'}</StatusIndicator> },
+                      ]}
+                      items={internetGateways}
+                      empty={<Box textAlign="center" color="inherit">No internet gateways found</Box>}
+                    />
+                  </Container>
+
+                  <Container header={<Header variant="h3">VPC Endpoints ({vpcEndpoints.length})</Header>}>
+                    <Table
+                      columnDefinitions={[
+                        { id: 'id', header: 'Endpoint ID', cell: (vpce: any) => <strong>{vpce.VpcEndpointId || vpce.id}</strong> },
+                        { id: 'svc', header: 'Service Name', cell: (vpce: any) => <code>{vpce.ServiceName}</code> },
+                        { id: 'type', header: 'Type', cell: (vpce: any) => <Badge color="blue">{vpce.VpcEndpointType || 'Gateway'}</Badge> },
+                      ]}
+                      items={vpcEndpoints}
+                      empty={<Box textAlign="center" color="inherit">No VPC endpoints found</Box>}
+                    />
+                  </Container>
+                </Grid>
               </SpaceBetween>
             ),
           },

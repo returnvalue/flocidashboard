@@ -370,3 +370,59 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+.ecr-os-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 2px solid var(--panel-border);
+  padding-bottom: 4px;
+  margin-bottom: 12px;
+}
+
+.ecr-os-tab {
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.ecr-os-tab:hover { background: #f1f5f9; color: var(--foreground); }
+.ecr-os-tab-active { background: #eef2ff; color: var(--accent); border-bottom: 2px solid var(--accent); }
+
+.ecr-push-commands-box {
+  background: #0f172a;
+  color: #f8fafc;
+  padding: 14px;
+  border-radius: 6px;
+  display: grid;
+  gap: 10px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.ecr-cmd-comment {
+  color: #94a3b8;
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.ecr-cmd-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 6px 10px;
+  border-radius: 4px;
+}
+
+.ecr-cmd-row code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+  color: #38bdf8;
+  word-break: break-all;
+}

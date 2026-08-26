@@ -256,3 +256,116 @@ def run_garbage_collection() -> dict[str, Any]:
     except json.JSONDecodeError:
         payload = {'output': raw}
     return {'endpoint': f'{endpoint}/_floci/ecr/gc', 'result': payload}
+
+
+def get_push_commands(
+    repository_name: str,
+    *,
+    registry_id: str | None = None,
+    region: str = 'us-east-1',
+) -> dict[str, Any]:
+    repo = _required(repository_name, 'Repository name')
+    endpoint_url = FlociClientFactory().endpoint_url
+    domain = endpoint_url.replace('http://', '').replace('https://', '').rstrip('/')
+    registry_uri = f'{domain}/ecr/{repo}'
+
+    commands = {
+        'mac_linux': [
+            f'# 1. Retrieve an authentication token and authenticate your Docker client to your registry.',
+            f'aws ecr get-login-password --region {region} | docker login --username AWS --password-stdin {endpoint_url}',
+            f'# 2. Build your Docker image using the following command.',
+            f'docker build -t {repo} .',
+            f'# 3. After the build completes, tag your image so you can push the image to this repository.',
+            f'docker tag {repo}:latest {registry_uri}:latest',
+            f'# 4. Run the following command to push this image to your newly created AWS repository.',
+            f'docker push {registry_uri}:latest',
+        ],
+        'windows_powershell': [
+            f'# 1. Authenticate Docker client',
+            f'(Get-ECRLoginCommand).Password | docker login --username AWS --password-stdin {endpoint_url}',
+            f'# 2. Build image',
+            f'docker build -t {repo} .',
+            f'# 3. Tag image',
+            f'docker tag {repo}:latest {registry_uri}:latest',
+            f'# 4. Push image',
+            f'docker push {registry_uri}:latest',
+        ],
+        'podman': [
+            f'# 1. Authenticate Podman client',
+            f'aws ecr get-login-password --region {region} | podman login -u AWS --password-stdin {endpoint_url}',
+            f'# 2. Build image',
+            f'podman build -t {repo} .',
+            f'# 3. Tag and push',
+            f'podman tag {repo}:latest {registry_uri}:latest',
+            f'podman push {registry_uri}:latest',
+        ],
+    }
+
+    return {
+        'repository_name': repo,
+        'registry_uri': registry_uri,
+        'commands': commands,
+    }
+
+
+def put_mock_image(
+    repository_name: str,
+    *,
+    image_tag: str = 'latest',
+    image_digest: str | None = None,
+    image_manifest: str | None = None,
+) -> dict[str, Any]:
+    import hashlib
+    repo = _required(repository_name, 'Repository name')
+    clean_tag = image_tag.strip() if image_tag else 'latest'
+
+    if not image_manifest:
+        manifest_dict = {
+            'schemaVersion': 2,
+            'mediaType': 'application/vnd.docker.distribution.manifest.v2+json',
+            'config': {
+                'mediaType': 'application/vnd.docker.container.image.v1+json',
+                'size': 1420,
+                'digest': 'sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+            },
+            'layers': [
+                {
+                    'mediaType': 'application/vnd.docker.image.rootfs.diff.tar.gzip',
+                    'size': 28140200,
+                    'digest': 'sha256:' + hashlib.sha256(f'{repo}:{clean_tag}'.encode()).hexdigest(),
+                }
+            ],
+        }
+        image_manifest = json.dumps(manifest_dict)
+
+    kwargs: dict[str, Any] = {
+        'repositoryName': repo,
+        'imageManifest': image_manifest,
+        'imageTag': clean_tag,
+    }
+    if image_digest:
+        kwargs['imageDigest'] = image_digest.strip()
+
+    try:
+        response = _client().put_image(**kwargs)
+        image_data = _clean_response(response.get('image', {}))
+    except Exception as exc:
+        digest = image_digest or ('sha256:' + hashlib.sha256(f'{repo}:{clean_tag}'.encode()).hexdigest())
+        image_data = {
+            'repositoryName': repo,
+            'imageId': {
+                'imageTag': clean_tag,
+                'imageDigest': digest,
+            },
+            'imageManifest': image_manifest,
+            'imageSizeInBytes': 28141620,
+            'simulated': True,
+            'note': 'Image tag simulated locally in workbench',
+        }
+
+    return {
+        'repository_name': repo,
+        'image_tag': clean_tag,
+        'image': image_data,
+    }
+

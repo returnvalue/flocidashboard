@@ -595,6 +595,39 @@ const EKSConsole = (() => {
     return panel;
   }
 
+  
+  function showKubeconfigModal(cluster) {
+    const cName = clusterName(cluster);
+    const form = el('div', 'eks-modal-form');
+
+    const cliBox = el('div', 'eks-kubeconfig-cli-box');
+    const yamlPre = el('pre', 'eks-kubeconfig-pre', 'Generating kubeconfig...');
+
+    apiJson(`/api/eks/clusters/${encodeURIComponent(cName)}/kubeconfig/`).then((data) => {
+      cliBox.textContent = '';
+      const cmdCode = el('code', null, data.aws_cli_command || `aws eks update-kubeconfig --name ${cName}`);
+      const copyBtn = btn('Copy AWS CLI Command', 'primary-button', () => {
+        navigator.clipboard.writeText(data.aws_cli_command);
+        toast('Command copied to clipboard');
+      });
+      cliBox.append(cmdCode, copyBtn);
+
+      yamlPre.textContent = data.kubeconfig_yaml || '';
+    }).catch((err) => {
+      yamlPre.textContent = `Error: ${err.message}`;
+    });
+
+    form.append(
+      el('p', null, `Connect to your local EKS cluster "${cName}":`),
+      el('label', null, '1. Update your local kubeconfig via AWS CLI:'),
+      cliBox,
+      el('label', null, '2. Direct Kubeconfig YAML file:'),
+      yamlPre,
+    );
+
+    openModal(`Kubeconfig & Connect: ${cName}`, form, 'Done', (close) => close());
+  }
+
   function renderWorkbench() {
     const workbench = el('div', 'eks-workbench');
     const cluster = selectedCluster();

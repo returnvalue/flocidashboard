@@ -65,3 +65,25 @@ def eventbridge_targets_put(request):
 @require_http_methods(['POST'])
 def eventbridge_targets_remove(request):
     return _action(request, 'remove_target', lambda b: remove_target(b.get('rule_name', ''), b.get('event_bus_name', ''), b.get('target_id', '')))
+
+
+@require_http_methods(['POST'])
+def eventbridge_pattern_test(request):
+    try:
+        from .eventbridge_api import test_event_pattern
+        body = parse_json_body(request)
+        return JsonResponse(test_event_pattern(
+            event_pattern=body.get('event_pattern'),
+            event=body.get('event'),
+        ))
+    except Exception as exc:
+        return handle_action_error(exc, service='eventbridge', operation='test_event_pattern')
+
+
+@require_http_methods(['GET'])
+def eventbridge_sample_events(request):
+    try:
+        from .eventbridge_api import get_sample_events
+        return JsonResponse(get_sample_events())
+    except Exception as exc:
+        return handle_action_error(exc, service='eventbridge', operation='get_sample_events')

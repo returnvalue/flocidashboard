@@ -63,7 +63,7 @@ class SQSQueuesApiTests(SimpleTestCase):
 
         response = self.client.post(
             reverse('dashboard:sqs-messages-send', kwargs={'queue_name': 'orders'}),
-            data=json.dumps({'body': 'hello'}),
+            data=json.dumps({'body': 'hello', 'message_attributes': {'TraceId': 't-123'}}),
             content_type='application/json',
         )
 
@@ -75,6 +75,39 @@ class SQSQueuesApiTests(SimpleTestCase):
             delay_seconds=None,
             message_group_id=None,
             message_deduplication_id=None,
+            message_attributes={'TraceId': 't-123'},
+        )
+
+    @patch('dashboard.sqs_views.set_queue_attributes')
+    def test_set_queue_attributes_success(self, attr_mock):
+        attr_mock.return_value = {'queue': 'orders', 'updated': True}
+
+        response = self.client.post(
+            reverse('dashboard:sqs-queue-attributes', kwargs={'queue_name': 'orders'}),
+            data=json.dumps({'VisibilityTimeout': '45'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['updated'])
+        attr_mock.assert_called_once_with('orders', {'VisibilityTimeout': '45'})
+
+    @patch('dashboard.sqs_views.start_message_move_task')
+    def test_start_message_move_task_success(self, move_mock):
+        move_mock.return_value = {'task_handle': 'task-1001', 'status': 'RUNNING'}
+
+        response = self.client.post(
+            reverse('dashboard:sqs-queue-redrive', kwargs={'queue_name': 'orders'}),
+            data=json.dumps({'source_arn': 'arn:aws:sqs:us-east-1:000000000000:orders'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['task_handle'], 'task-1001')
+        move_mock.assert_called_once_with(
+            source_arn='arn:aws:sqs:us-east-1:000000000000:orders',
+            destination_arn=None,
+            max_number_of_messages_per_second=None,
         )
 
     @patch('dashboard.sqs_views.receive_messages')

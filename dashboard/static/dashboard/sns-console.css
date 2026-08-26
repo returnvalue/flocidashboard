@@ -60,6 +60,23 @@
   background: #f0f4fc;
 }
 
+.sns-btn-danger {
+  background: #dc2626;
+  color: #fff;
+}
+
+.sns-btn-danger:hover {
+  background: #b91c1c;
+}
+
+.sns-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
 .sns-toolbar button:disabled {
   opacity: 0.45;
   cursor: not-allowed;

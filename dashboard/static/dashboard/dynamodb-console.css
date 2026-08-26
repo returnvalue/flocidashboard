@@ -65,6 +65,33 @@
   background: #f0f4fc;
 }
 
+.dynamodb-btn-danger {
+  background: #dc2626;
+  color: #fff;
+}
+
+.dynamodb-btn-danger:hover {
+  background: #b91c1c;
+}
+
+.dynamodb-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 14px;
+}
+
+.dynamodb-form select,
+.dynamodb-form input,
+.dynamodb-form textarea {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+}
+
 .dynamodb-workbench {
   display: grid;
   grid-template-columns: minmax(260px, 0.85fr) minmax(0, 1.65fr);

@@ -401,3 +401,28 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+.eks-kubeconfig-cli-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  background: #0f172a;
+  color: #38bdf8;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+}
+
+.eks-kubeconfig-pre {
+  background: #0f172a;
+  color: #f8fafc;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  max-height: 250px;
+  overflow: auto;
+  white-space: pre-wrap;
+}

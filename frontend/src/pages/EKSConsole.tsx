@@ -1,0 +1,829 @@
+import React, { useState, useEffect } from 'react';
+import Container from '@cloudscape-design/components/container';
+import Header from '@cloudscape-design/components/header';
+import Table from '@cloudscape-design/components/table';
+import Button from '@cloudscape-design/components/button';
+import SpaceBetween from '@cloudscape-design/components/space-between';
+import TextFilter from '@cloudscape-design/components/text-filter';
+import Tabs from '@cloudscape-design/components/tabs';
+import Modal from '@cloudscape-design/components/modal';
+import FormField from '@cloudscape-design/components/form-field';
+import Input from '@cloudscape-design/components/input';
+import Select from '@cloudscape-design/components/select';
+import StatusIndicator from '@cloudscape-design/components/status-indicator';
+import KeyValuePairs from '@cloudscape-design/components/key-value-pairs';
+import Box from '@cloudscape-design/components/box';
+import Badge from '@cloudscape-design/components/badge';
+import Alert from '@cloudscape-design/components/alert';
+import Grid from '@cloudscape-design/components/grid';
+import ColumnLayout from '@cloudscape-design/components/column-layout';
+import {
+  fetchInventory,
+  createEksCluster,
+  deleteEksCluster,
+  createEksNodegroup,
+  deleteEksNodegroup,
+  createEksFargateProfile,
+  deleteEksFargateProfile,
+  fetchEksKubeconfig,
+} from '../api/client';
+import { CodeSnippet } from '../components/CodeSnippet';
+
+interface ClusterItem {
+  name: string;
+  arn?: string;
+  status: string;
+  version?: string;
+  endpoint?: string;
+  roleArn?: string;
+  createdAt?: string;
+  resourcesVpcConfig?: {
+    subnetIds?: string[];
+    securityGroupIds?: string[];
+    vpcId?: string;
+  };
+  nodegroups?: any[];
+  fargate_profiles?: any[];
+}
+
+interface EKSConsoleProps {
+  activeTab?: string;
+  onTabChange?: (tabId: string) => void;
+}
+
+const K8S_VERSIONS = [
+  { label: '1.30 (Latest)', value: '1.30' },
+  { label: '1.29', value: '1.29' },
+  { label: '1.28', value: '1.28' },
+  { label: '1.27', value: '1.27' },
+];
+
+export const EKSConsole: React.FC<EKSConsoleProps> = ({ activeTab, onTabChange }) => {
+  const [clusters, setClusters] = useState<ClusterItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedClusters, setSelectedClusters] = useState<ClusterItem[]>([]);
+  const [filterText, setFilterText] = useState('');
+  const [selectedTabId, setSelectedTabId] = useState(activeTab || 'clusters');
+  const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+
+  useEffect(() => {
+    if (activeTab) {
+      setSelectedTabId(activeTab);
+    }
+  }, [activeTab]);
+
+  // Create Cluster Modal
+  const [createClusterOpen, setCreateClusterOpen] = useState(false);
+  const [clusterName, setClusterName] = useState('');
+  const [clusterRoleArn, setClusterRoleArn] = useState('arn:aws:iam::000000000000:role/eks-cluster-role');
+  const [clusterVersion, setClusterVersion] = useState(K8S_VERSIONS[0]);
+  const [subnetIds, setSubnetIds] = useState('subnet-01234567,subnet-89abcdef');
+  const [securityGroupIds, setSecurityGroupIds] = useState('sg-01234567');
+  const [creatingCluster, setCreatingCluster] = useState(false);
+
+  // Delete Cluster Modal
+  const [deleteClusterOpen, setDeleteClusterOpen] = useState(false);
+  const [deletingCluster, setDeletingCluster] = useState(false);
+
+  // Create Node Group Modal
+  const [createNodegroupOpen, setCreateNodegroupOpen] = useState(false);
+  const [nodegroupName, setNodegroupName] = useState('');
+  const [nodeRoleArn, setNodeRoleArn] = useState('arn:aws:iam::000000000000:role/eks-node-role');
+  const [ngSubnets, setNgSubnets] = useState('subnet-01234567,subnet-89abcdef');
+  const [minSize, setMinSize] = useState('1');
+  const [maxSize, setMaxSize] = useState('4');
+  const [desiredSize, setDesiredSize] = useState('2');
+  const [instanceType, setInstanceType] = useState('t3.medium');
+  const [creatingNodegroup, setCreatingNodegroup] = useState(false);
+
+  // Create Fargate Profile Modal
+  const [createFargateOpen, setCreateFargateOpen] = useState(false);
+  const [fargateProfileName, setFargateProfileName] = useState('');
+  const [fargatePodRole, setFargatePodRole] = useState('arn:aws:iam::000000000000:role/eks-fargate-pod-role');
+  const [fargateNamespace, setFargateNamespace] = useState('default');
+  const [fargateSubnets, setFargateSubnets] = useState('subnet-01234567');
+  const [creatingFargate, setCreatingFargate] = useState(false);
+
+  // Kubeconfig Modal / Inspector State
+  const [kubeconfigData, setKubeconfigData] = useState<any | null>(null);
+
+  const activeCluster = selectedClusters[0] || clusters[0] || null;
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const res = await fetchInventory('eks');
+      const rawClusters = res.clusters || [];
+      const list: ClusterItem[] = rawClusters.map((c: any) => ({
+        name: c.name || c.Name || (typeof c === 'string' ? c : 'eks-cluster'),
+        arn: c.arn || c.Arn || `arn:aws:eks:us-east-1:000000000000:cluster/${c.name || c.Name || c}`,
+        status: c.status || c.Status || 'ACTIVE',
+        version: c.version || c.Version || '1.30',
+        endpoint: c.endpoint || c.Endpoint || `https://000000000000.gr7.us-east-1.eks.localhost:4566`,
+        roleArn: c.roleArn || c.RoleArn || 'arn:aws:iam::000000000000:role/eks-cluster-role',
+        createdAt: c.createdAt || c.CreatedAt || new Date().toISOString(),
+        resourcesVpcConfig: c.resourcesVpcConfig || {
+          subnetIds: ['subnet-01234567', 'subnet-89abcdef'],
+          securityGroupIds: ['sg-01234567'],
+          vpcId: 'vpc-01234567',
+        },
+        nodegroups: c.nodegroups || [],
+        fargate_profiles: c.fargate_profiles || [],
+      }));
+      setClusters(list);
+      if (list.length > 0 && selectedClusters.length === 0) {
+        setSelectedClusters([list[0]]);
+      }
+    } catch (err: any) {
+      console.error('Failed to load EKS inventory:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadKubeconfig = async (name: string) => {
+    if (!name) return;
+    try {
+      const data = await fetchEksKubeconfig(name);
+      setKubeconfigData(data);
+    } catch (err: any) {
+      console.error('Failed to fetch kubeconfig:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (activeCluster?.name) {
+      loadKubeconfig(activeCluster.name);
+    }
+  }, [activeCluster?.name]);
+
+  const handleCreateCluster = async () => {
+    if (!clusterName.trim()) return;
+    setCreatingCluster(true);
+    setActionMessage(null);
+    try {
+      const subnets = subnetIds.split(',').map((s) => s.trim()).filter(Boolean);
+      const sgs = securityGroupIds.split(',').map((s) => s.trim()).filter(Boolean);
+      await createEksCluster(
+        clusterName.trim(),
+        clusterRoleArn.trim(),
+        clusterVersion.value,
+        subnets,
+        sgs,
+        { Environment: 'LocalDev', ManagedBy: 'Floci' }
+      );
+      setActionMessage({ type: 'success', text: `EKS Cluster "${clusterName.trim()}" created successfully.` });
+      setCreateClusterOpen(false);
+      setClusterName('');
+      await loadData();
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to create cluster' });
+    } finally {
+      setCreatingCluster(false);
+    }
+  };
+
+  const handleDeleteCluster = async () => {
+    if (!activeCluster) return;
+    setDeletingCluster(true);
+    setActionMessage(null);
+    try {
+      await deleteEksCluster(activeCluster.name);
+      setActionMessage({ type: 'info', text: `EKS Cluster "${activeCluster.name}" scheduled for deletion.` });
+      setDeleteClusterOpen(false);
+      setSelectedClusters([]);
+      await loadData();
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to delete cluster' });
+    } finally {
+      setDeletingCluster(false);
+    }
+  };
+
+  const handleCreateNodegroup = async () => {
+    if (!activeCluster || !nodegroupName.trim()) return;
+    setCreatingNodegroup(true);
+    setActionMessage(null);
+    try {
+      const subnets = ngSubnets.split(',').map((s) => s.trim()).filter(Boolean);
+      await createEksNodegroup(
+        activeCluster.name,
+        nodegroupName.trim(),
+        nodeRoleArn.trim(),
+        subnets,
+        {
+          minSize: parseInt(minSize, 10) || 1,
+          maxSize: parseInt(maxSize, 10) || 4,
+          desiredSize: parseInt(desiredSize, 10) || 2,
+        },
+        [instanceType],
+        'AL2_x86_64',
+        'ON_DEMAND',
+        20,
+        { role: 'worker-node' }
+      );
+      setActionMessage({ type: 'success', text: `Node Group "${nodegroupName.trim()}" created in cluster ${activeCluster.name}.` });
+      setCreateNodegroupOpen(false);
+      setNodegroupName('');
+      await loadData();
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to create node group' });
+    } finally {
+      setCreatingNodegroup(false);
+    }
+  };
+
+  const handleDeleteNodegroup = async (ngName: string) => {
+    if (!activeCluster || !ngName) return;
+    setActionMessage(null);
+    try {
+      await deleteEksNodegroup(activeCluster.name, ngName);
+      setActionMessage({ type: 'info', text: `Node Group "${ngName}" deleted.` });
+      await loadData();
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to delete node group' });
+    }
+  };
+
+  const handleCreateFargateProfile = async () => {
+    if (!activeCluster || !fargateProfileName.trim()) return;
+    setCreatingFargate(true);
+    setActionMessage(null);
+    try {
+      const subnets = fargateSubnets.split(',').map((s) => s.trim()).filter(Boolean);
+      await createEksFargateProfile(
+        activeCluster.name,
+        fargateProfileName.trim(),
+        fargatePodRole.trim(),
+        subnets,
+        [{ namespace: fargateNamespace.trim() || 'default' }]
+      );
+      setActionMessage({ type: 'success', text: `Fargate Profile "${fargateProfileName.trim()}" created.` });
+      setCreateFargateOpen(false);
+      setFargateProfileName('');
+      await loadData();
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to create Fargate profile' });
+    } finally {
+      setCreatingFargate(false);
+    }
+  };
+
+  const handleDeleteFargateProfile = async (profileName: string) => {
+    if (!activeCluster || !profileName) return;
+    setActionMessage(null);
+    try {
+      await deleteEksFargateProfile(activeCluster.name, profileName);
+      setActionMessage({ type: 'info', text: `Fargate Profile "${profileName}" deleted.` });
+      await loadData();
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to delete Fargate profile' });
+    }
+  };
+
+  const filteredClusters = clusters.filter(
+    (c) =>
+      c.name.toLowerCase().includes(filterText.toLowerCase()) ||
+      (c.version && c.version.toLowerCase().includes(filterText.toLowerCase())) ||
+      (c.status && c.status.toLowerCase().includes(filterText.toLowerCase()))
+  );
+
+  return (
+    <SpaceBetween size="l">
+      {actionMessage && (
+        <Alert
+          type={actionMessage.type}
+          dismissible
+          onDismiss={() => setActionMessage(null)}
+        >
+          {actionMessage.text}
+        </Alert>
+      )}
+
+      <Table
+        header={
+          <Header
+            variant="h1"
+            description="Manage Kubernetes control planes, managed node groups, Fargate profiles, and local kubeconfig integration."
+            actions={
+              <SpaceBetween direction="horizontal" size="xs">
+                <Button iconName="refresh" onClick={loadData} loading={loading} />
+                <Button
+                  variant="normal"
+                  disabled={!activeCluster}
+                  onClick={() => setDeleteClusterOpen(true)}
+                >
+                  Delete cluster
+                </Button>
+                <Button
+                  variant="primary"
+                  iconName="add-plus"
+                  onClick={() => setCreateClusterOpen(true)}
+                >
+                  Create cluster
+                </Button>
+              </SpaceBetween>
+            }
+          >
+            EKS Clusters
+          </Header>
+        }
+        columnDefinitions={[
+          {
+            id: 'name',
+            header: 'Cluster name',
+            cell: (c) => <strong>{c.name}</strong>,
+            sortingField: 'name',
+          },
+          {
+            id: 'status',
+            header: 'Status',
+            cell: (c) => (
+              <StatusIndicator type={c.status === 'ACTIVE' ? 'success' : 'in-progress'}>
+                {c.status}
+              </StatusIndicator>
+            ),
+          },
+          {
+            id: 'version',
+            header: 'Kubernetes version',
+            cell: (c) => <Badge color="blue">v{c.version}</Badge>,
+          },
+          {
+            id: 'endpoint',
+            header: 'API Server Endpoint',
+            cell: (c) => <code>{c.endpoint}</code>,
+          },
+          {
+            id: 'role',
+            header: 'Cluster Role ARN',
+            cell: (c) => <code style={{ fontSize: '0.85em' }}>{c.roleArn}</code>,
+          },
+        ]}
+        items={filteredClusters}
+        loading={loading}
+        loadingText="Loading EKS clusters..."
+        selectionType="single"
+        selectedItems={selectedClusters}
+        onSelectionChange={({ detail }) => setSelectedClusters(detail.selectedItems as ClusterItem[])}
+        filter={
+          <TextFilter
+            filteringText={filterText}
+            onChange={({ detail }) => setFilterText(detail.filteringText)}
+            filteringPlaceholder="Find clusters by name or version"
+          />
+        }
+        empty={
+          <Box textAlign="center" color="inherit">
+            <b>No EKS clusters</b>
+            <Box variant="p" color="inherit">
+              Create an EKS cluster to get started with Kubernetes workloads on Floci.
+            </Box>
+            <Button onClick={() => setCreateClusterOpen(true)}>Create cluster</Button>
+          </Box>
+        }
+      />
+
+      {activeCluster && (
+        <Container
+          header={
+            <Header
+              variant="h2"
+              description={`Cluster ARN: ${activeCluster.arn}`}
+            >
+              Cluster: {activeCluster.name}
+            </Header>
+          }
+        >
+          <Tabs
+            activeTabId={selectedTabId}
+            onChange={({ detail }) => {
+              setSelectedTabId(detail.activeTabId);
+              if (onTabChange) onTabChange(detail.activeTabId);
+            }}
+            tabs={[
+              {
+                id: 'overview',
+                label: 'Overview & Config',
+                content: (
+                  <SpaceBetween size="m">
+                    <ColumnLayout columns={3} variant="text-grid">
+                      <KeyValuePairs
+                        items={[
+                          { label: 'Cluster Name', value: activeCluster.name },
+                          { label: 'Status', value: <StatusIndicator type="success">{activeCluster.status}</StatusIndicator> },
+                          { label: 'Kubernetes Version', value: `v${activeCluster.version}` },
+                        ]}
+                      />
+                      <KeyValuePairs
+                        items={[
+                          { label: 'Role ARN', value: <code>{activeCluster.roleArn}</code> },
+                          { label: 'Created At', value: activeCluster.createdAt },
+                          { label: 'Platform Version', value: 'eks.1' },
+                        ]}
+                      />
+                      <KeyValuePairs
+                        items={[
+                          { label: 'API Endpoint', value: <code>{activeCluster.endpoint}</code> },
+                          { label: 'Subnets', value: activeCluster.resourcesVpcConfig?.subnetIds?.join(', ') || 'Default' },
+                          { label: 'Security Groups', value: activeCluster.resourcesVpcConfig?.securityGroupIds?.join(', ') || 'Default' },
+                        ]}
+                      />
+                    </ColumnLayout>
+                  </SpaceBetween>
+                ),
+              },
+              {
+                id: 'nodegroups',
+                label: `Node Groups (${activeCluster.nodegroups?.length || 0})`,
+                content: (
+                  <SpaceBetween size="m">
+                    <Table
+                      header={
+                        <Header
+                          variant="h3"
+                          description="EC2 managed compute instances running container pods for this EKS cluster."
+                          actions={
+                            <Button
+                              variant="primary"
+                              iconName="add-plus"
+                              onClick={() => setCreateNodegroupOpen(true)}
+                            >
+                              Add node group
+                            </Button>
+                          }
+                        >
+                          Managed Node Groups
+                        </Header>
+                      }
+                      columnDefinitions={[
+                        {
+                          id: 'name',
+                          header: 'Node Group Name',
+                          cell: (ng: any) => <strong>{ng.nodegroupName || ng.name || ng}</strong>,
+                        },
+                        {
+                          id: 'status',
+                          header: 'Status',
+                          cell: (ng: any) => (
+                            <StatusIndicator type="success">{ng.status || 'ACTIVE'}</StatusIndicator>
+                          ),
+                        },
+                        {
+                          id: 'instances',
+                          header: 'Instance Type',
+                          cell: (ng: any) => ng.instanceTypes?.join(', ') || 't3.medium',
+                        },
+                        {
+                          id: 'scaling',
+                          header: 'Scaling (Min / Desired / Max)',
+                          cell: (ng: any) =>
+                            ng.scalingConfig
+                              ? `${ng.scalingConfig.minSize} / ${ng.scalingConfig.desiredSize} / ${ng.scalingConfig.maxSize}`
+                              : '1 / 2 / 4',
+                        },
+                        {
+                          id: 'action',
+                          header: 'Actions',
+                          cell: (ng: any) => (
+                            <Button
+                              variant="link"
+                              onClick={() => handleDeleteNodegroup(ng.nodegroupName || ng.name || ng)}
+                            >
+                              Delete
+                            </Button>
+                          ),
+                        },
+                      ]}
+                      items={activeCluster.nodegroups || []}
+                      empty={
+                        <Box textAlign="center" color="inherit">
+                          <b>No node groups found</b>
+                          <Box variant="p" color="inherit">
+                            Add a managed node group to provide EC2 worker capacity.
+                          </Box>
+                          <Button onClick={() => setCreateNodegroupOpen(true)}>Add node group</Button>
+                        </Box>
+                      }
+                    />
+                  </SpaceBetween>
+                ),
+              },
+              {
+                id: 'fargate',
+                label: `Fargate Profiles (${activeCluster.fargate_profiles?.length || 0})`,
+                content: (
+                  <SpaceBetween size="m">
+                    <Table
+                      header={
+                        <Header
+                          variant="h3"
+                          description="Serverless compute engine allowing Kubernetes pods to run without managing EC2 instances."
+                          actions={
+                            <Button
+                              variant="primary"
+                              iconName="add-plus"
+                              onClick={() => setCreateFargateOpen(true)}
+                            >
+                              Create Fargate profile
+                            </Button>
+                          }
+                        >
+                          Fargate Profiles
+                        </Header>
+                      }
+                      columnDefinitions={[
+                        {
+                          id: 'name',
+                          header: 'Profile Name',
+                          cell: (fp: any) => <strong>{fp.fargateProfileName || fp.name || fp}</strong>,
+                        },
+                        {
+                          id: 'status',
+                          header: 'Status',
+                          cell: (fp: any) => (
+                            <StatusIndicator type="success">{fp.status || 'ACTIVE'}</StatusIndicator>
+                          ),
+                        },
+                        {
+                          id: 'role',
+                          header: 'Pod Execution Role',
+                          cell: (fp: any) => <code style={{ fontSize: '0.85em' }}>{fp.podExecutionRoleArn || 'eks-fargate-pod-role'}</code>,
+                        },
+                        {
+                          id: 'selectors',
+                          header: 'Selectors (Namespace)',
+                          cell: (fp: any) =>
+                            fp.selectors?.map((s: any) => s.namespace).join(', ') || 'default',
+                        },
+                        {
+                          id: 'action',
+                          header: 'Actions',
+                          cell: (fp: any) => (
+                            <Button
+                              variant="link"
+                              onClick={() => handleDeleteFargateProfile(fp.fargateProfileName || fp.name || fp)}
+                            >
+                              Delete
+                            </Button>
+                          ),
+                        },
+                      ]}
+                      items={activeCluster.fargate_profiles || []}
+                      empty={
+                        <Box textAlign="center" color="inherit">
+                          <b>No Fargate profiles found</b>
+                          <Box variant="p" color="inherit">
+                            Run serverless Kubernetes pods by attaching a Fargate profile.
+                          </Box>
+                          <Button onClick={() => setCreateFargateOpen(true)}>Create Fargate profile</Button>
+                        </Box>
+                      }
+                    />
+                  </SpaceBetween>
+                ),
+              },
+              {
+                id: 'kubeconfig',
+                label: 'Kubeconfig & CLI Setup',
+                content: (
+                  <SpaceBetween size="m">
+                    <Alert header="Configure Local kubectl Access">
+                      Run the AWS CLI command below or copy the kubeconfig YAML into <code>~/.kube/config</code> to interact with this cluster via <code>kubectl</code>.
+                    </Alert>
+
+                    {kubeconfigData && (
+                      <SpaceBetween size="m">
+                        <FormField label="AWS CLI Update Command">
+                          <CodeSnippet code={kubeconfigData.aws_cli_command} language="cli" />
+                        </FormField>
+
+                        <FormField label="Kubeconfig Configuration (~/.kube/config)">
+                          <CodeSnippet code={kubeconfigData.kubeconfig_yaml} language="cli" />
+                        </FormField>
+                      </SpaceBetween>
+                    )}
+                  </SpaceBetween>
+                ),
+              },
+            ]}
+          />
+        </Container>
+      )}
+
+      {/* Create Cluster Modal */}
+      <Modal
+        visible={createClusterOpen}
+        onDismiss={() => setCreateClusterOpen(false)}
+        header="Create EKS Kubernetes Cluster"
+        size="large"
+        footer={
+          <Box float="right">
+            <SpaceBetween direction="horizontal" size="xs">
+              <Button variant="link" onClick={() => setCreateClusterOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" loading={creatingCluster} onClick={handleCreateCluster}>
+                Create Cluster
+              </Button>
+            </SpaceBetween>
+          </Box>
+        }
+      >
+        <SpaceBetween size="m">
+          <FormField label="Cluster Name" description="Unique alphanumeric identifier for the Kubernetes cluster.">
+            <Input
+              value={clusterName}
+              onChange={({ detail }) => setClusterName(detail.value)}
+              placeholder="production-k8s-cluster"
+            />
+          </FormField>
+
+          <FormField label="Kubernetes Version">
+            <Select
+              selectedOption={clusterVersion}
+              onChange={({ detail }) => setClusterVersion(detail.selectedOption as any)}
+              options={K8S_VERSIONS}
+            />
+          </FormField>
+
+          <FormField label="Cluster Service IAM Role ARN">
+            <Input
+              value={clusterRoleArn}
+              onChange={({ detail }) => setClusterRoleArn(detail.value)}
+              placeholder="arn:aws:iam::000000000000:role/eks-cluster-role"
+            />
+          </FormField>
+
+          <FormField label="VPC Subnet IDs (Comma separated)">
+            <Input
+              value={subnetIds}
+              onChange={({ detail }) => setSubnetIds(detail.value)}
+              placeholder="subnet-01234567, subnet-89abcdef"
+            />
+          </FormField>
+
+          <FormField label="Security Group IDs (Comma separated)">
+            <Input
+              value={securityGroupIds}
+              onChange={({ detail }) => setSecurityGroupIds(detail.value)}
+              placeholder="sg-01234567"
+            />
+          </FormField>
+        </SpaceBetween>
+      </Modal>
+
+      {/* Delete Cluster Modal */}
+      <Modal
+        visible={deleteClusterOpen}
+        onDismiss={() => setDeleteClusterOpen(false)}
+        header="Delete EKS Cluster"
+        footer={
+          <Box float="right">
+            <SpaceBetween direction="horizontal" size="xs">
+              <Button variant="link" onClick={() => setDeleteClusterOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" loading={deletingCluster} onClick={handleDeleteCluster}>
+                Confirm Delete
+              </Button>
+            </SpaceBetween>
+          </Box>
+        }
+      >
+        <SpaceBetween size="m">
+          <Alert type="warning">
+            Are you sure you want to delete cluster <strong>{activeCluster?.name}</strong>?
+          </Alert>
+          <Box variant="p">
+            This will terminate the Kubernetes control plane and deregister all associated node groups.
+          </Box>
+        </SpaceBetween>
+      </Modal>
+
+      {/* Add Node Group Modal */}
+      <Modal
+        visible={createNodegroupOpen}
+        onDismiss={() => setCreateNodegroupOpen(false)}
+        header={`Add Managed Node Group to ${activeCluster?.name}`}
+        size="large"
+        footer={
+          <Box float="right">
+            <SpaceBetween direction="horizontal" size="xs">
+              <Button variant="link" onClick={() => setCreateNodegroupOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" loading={creatingNodegroup} onClick={handleCreateNodegroup}>
+                Create Node Group
+              </Button>
+            </SpaceBetween>
+          </Box>
+        }
+      >
+        <SpaceBetween size="m">
+          <FormField label="Node Group Name">
+            <Input
+              value={nodegroupName}
+              onChange={({ detail }) => setNodegroupName(detail.value)}
+              placeholder="worker-pool-01"
+            />
+          </FormField>
+
+          <FormField label="Node Instance IAM Role ARN">
+            <Input
+              value={nodeRoleArn}
+              onChange={({ detail }) => setNodeRoleArn(detail.value)}
+              placeholder="arn:aws:iam::000000000000:role/eks-node-role"
+            />
+          </FormField>
+
+          <FormField label="Subnet IDs (Comma separated)">
+            <Input
+              value={ngSubnets}
+              onChange={({ detail }) => setNgSubnets(detail.value)}
+              placeholder="subnet-01234567, subnet-89abcdef"
+            />
+          </FormField>
+
+          <Grid gridDefinition={[{ colspan: 4 }, { colspan: 4 }, { colspan: 4 }]}>
+            <FormField label="Min Size">
+              <Input type="number" value={minSize} onChange={({ detail }) => setMinSize(detail.value)} />
+            </FormField>
+            <FormField label="Desired Size">
+              <Input type="number" value={desiredSize} onChange={({ detail }) => setDesiredSize(detail.value)} />
+            </FormField>
+            <FormField label="Max Size">
+              <Input type="number" value={maxSize} onChange={({ detail }) => setMaxSize(detail.value)} />
+            </FormField>
+          </Grid>
+
+          <FormField label="Instance Type">
+            <Input
+              value={instanceType}
+              onChange={({ detail }) => setInstanceType(detail.value)}
+              placeholder="t3.medium"
+            />
+          </FormField>
+        </SpaceBetween>
+      </Modal>
+
+      {/* Add Fargate Profile Modal */}
+      <Modal
+        visible={createFargateOpen}
+        onDismiss={() => setCreateFargateOpen(false)}
+        header={`Create Fargate Profile on ${activeCluster?.name}`}
+        size="large"
+        footer={
+          <Box float="right">
+            <SpaceBetween direction="horizontal" size="xs">
+              <Button variant="link" onClick={() => setCreateFargateOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" loading={creatingFargate} onClick={handleCreateFargateProfile}>
+                Create Profile
+              </Button>
+            </SpaceBetween>
+          </Box>
+        }
+      >
+        <SpaceBetween size="m">
+          <FormField label="Profile Name">
+            <Input
+              value={fargateProfileName}
+              onChange={({ detail }) => setFargateProfileName(detail.value)}
+              placeholder="serverless-apps-profile"
+            />
+          </FormField>
+
+          <FormField label="Pod Execution Role ARN">
+            <Input
+              value={fargatePodRole}
+              onChange={({ detail }) => setFargatePodRole(detail.value)}
+              placeholder="arn:aws:iam::000000000000:role/eks-fargate-pod-role"
+            />
+          </FormField>
+
+          <FormField label="Target Kubernetes Namespace">
+            <Input
+              value={fargateNamespace}
+              onChange={({ detail }) => setFargateNamespace(detail.value)}
+              placeholder="default"
+            />
+          </FormField>
+
+          <FormField label="Subnet IDs (Comma separated)">
+            <Input
+              value={fargateSubnets}
+              onChange={({ detail }) => setFargateSubnets(detail.value)}
+              placeholder="subnet-01234567, subnet-89abcdef"
+            />
+          </FormField>
+        </SpaceBetween>
+      </Modal>
+    </SpaceBetween>
+  );
+};

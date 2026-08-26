@@ -111,3 +111,83 @@ def stop_execution(
         'execution_arn': arn,
         'stop_date': response.get('stopDate'),
     }
+
+
+def describe_execution(execution_arn: str) -> dict[str, Any]:
+    from .aws import _clean_response
+    arn = validate_execution_arn(execution_arn)
+    response = _stepfunctions_client().describe_execution(executionArn=arn)
+    return _clean_response(response)
+
+
+def get_execution_history(execution_arn: str, *, max_results: int = 100, reverse_order: bool = False) -> dict[str, Any]:
+    from .aws import _clean_response
+    arn = validate_execution_arn(execution_arn)
+    response = _stepfunctions_client().get_execution_history(
+        executionArn=arn,
+        maxResults=max_results,
+        reverseOrder=reverse_order,
+    )
+    return {
+        'execution_arn': arn,
+        'events': _clean_response(response.get('events', [])),
+        'next_token': response.get('nextToken'),
+    }
+
+
+def describe_state_machine(state_machine_arn: str) -> dict[str, Any]:
+    from .aws import _clean_response
+    arn = validate_state_machine_arn(state_machine_arn)
+    response = _stepfunctions_client().describe_state_machine(stateMachineArn=arn)
+    return _clean_response(response)
+
+
+def create_state_machine(
+    name: str,
+    definition: Any,
+    role_arn: str,
+    *,
+    state_machine_type: str = 'STANDARD',
+    logging_configuration: Any = None,
+    tracing_configuration: Any = None,
+    tags: Any = None,
+) -> dict[str, Any]:
+    from .aws import _clean_response
+    clean_name = (name or '').strip()
+    if not clean_name:
+        raise ValueError('State machine name is required')
+    clean_role = (role_arn or '').strip()
+    if not clean_role:
+        raise ValueError('Role ARN is required')
+
+    clean_def = _json_input(definition)
+    kwargs: dict[str, Any] = {
+        'name': clean_name,
+        'definition': clean_def,
+        'roleArn': clean_role,
+        'type': state_machine_type.strip().upper() if state_machine_type else 'STANDARD',
+    }
+    if logging_configuration and isinstance(logging_configuration, dict):
+        kwargs['loggingConfiguration'] = logging_configuration
+    if tracing_configuration and isinstance(tracing_configuration, dict):
+        kwargs['tracingConfiguration'] = tracing_configuration
+    if tags and isinstance(tags, list):
+        kwargs['tags'] = tags
+
+    response = _stepfunctions_client().create_state_machine(**kwargs)
+    return {
+        'state_machine_arn': response.get('stateMachineArn'),
+        'creation_date': response.get('creationDate'),
+        'response': _clean_response(response),
+    }
+
+
+def delete_state_machine(state_machine_arn: str) -> dict[str, Any]:
+    arn = validate_state_machine_arn(state_machine_arn)
+    response = _stepfunctions_client().delete_state_machine(stateMachineArn=arn)
+    return {
+        'state_machine_arn': arn,
+        'deleted': True,
+        'response': response,
+    }
+

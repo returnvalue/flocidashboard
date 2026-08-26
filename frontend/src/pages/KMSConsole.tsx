@@ -16,8 +16,20 @@ import Grid from '@cloudscape-design/components/grid';
 import Alert from '@cloudscape-design/components/alert';
 import TextFilter from '@cloudscape-design/components/text-filter';
 import Tabs from '@cloudscape-design/components/tabs';
-import { fetchInventory, executeServiceAction } from '../api/client';
-import { CodeSnippet } from '../components/CodeSnippet';
+import KeyValuePairs from '@cloudscape-design/components/key-value-pairs';
+import {
+  fetchInventory,
+  executeServiceAction,
+  fetchKmsKeyPolicy,
+  putKmsKeyPolicy,
+  fetchKmsKeyRotation,
+  updateKmsKeyRotation,
+  updateKmsKeyState,
+  fetchKmsGrants,
+  createKmsGrant,
+  revokeKmsGrant,
+  generateKmsDataKey,
+} from '../api/client';
 
 interface KMSConsoleProps {
   activeTab?: string;
@@ -46,6 +58,22 @@ export const KMSConsole: React.FC<KMSConsoleProps> = ({ activeTab, onTabChange }
   const [aliasName, setAliasName] = useState('');
   const [creating, setCreating] = useState(false);
 
+  // Active Key Sub-states
+  const [keyPolicyDoc, setKeyPolicyDoc] = useState('');
+  const [savingPolicy, setSavingPolicy] = useState(false);
+  const [rotationEnabled, setRotationEnabled] = useState(false);
+  const [savingRotation, setSavingRotation] = useState(false);
+  const [grants, setGrants] = useState<any[]>([]);
+  const [createGrantOpen, setCreateGrantOpen] = useState(false);
+  const [granteePrincipal, setGranteePrincipal] = useState('arn:aws:iam::000000000000:root');
+  const [grantOperations, setGrantOperations] = useState('Decrypt,GenerateDataKey');
+  const [savingGrant, setSavingGrant] = useState(false);
+
+  // Data Key Generator
+  const [dataKeySpec, setDataKeySpec] = useState({ label: 'AES_256 (256-bit symmetric key)', value: 'AES_256' });
+  const [generatedDataKey, setGeneratedDataKey] = useState<any | null>(null);
+  const [generatingDataKey, setGeneratingDataKey] = useState(false);
+
   // Crypto Workbench
   const [cryptoKeyId, setCryptoKeyId] = useState('');
   const [plaintextInput, setPlaintextInput] = useState('Hello Floci KMS');
@@ -60,7 +88,8 @@ export const KMSConsole: React.FC<KMSConsoleProps> = ({ activeTab, onTabChange }
     try {
       const res = await fetchInventory('kms');
       setData(res || { keys: [], aliases: [] });
-      if (res.keys?.length > 0 && !cryptoKeyId) {
+      if (res.keys?.length > 0 && selectedKeys.length === 0) {
+        setSelectedKeys([res.keys[0]]);
         setCryptoKeyId(res.keys[0].KeyId || res.keys[0].key_id);
       }
     } catch (err) {
@@ -73,6 +102,32 @@ export const KMSConsole: React.FC<KMSConsoleProps> = ({ activeTab, onTabChange }
   useEffect(() => {
     loadData();
   }, []);
+
+  const activeKey = selectedKeys[0] || null;
+  const activeKeyId = activeKey ? activeKey.KeyId || activeKey.key_id : '';
+
+  const loadKeyDetails = async (kId: string) => {
+    if (!kId) return;
+    try {
+      const [policyRes, rotRes, grantsRes]: any[] = await Promise.all([
+        fetchKmsKeyPolicy(kId),
+        fetchKmsKeyRotation(kId),
+        fetchKmsGrants(kId),
+      ]);
+      const pol = policyRes?.policy || policyRes?.Policy;
+      setKeyPolicyDoc(typeof pol === 'object' ? JSON.stringify(pol, null, 2) : String(pol || ''));
+      setRotationEnabled(rotRes?.KeyRotationEnabled ?? false);
+      setGrants(grantsRes?.Grants || grantsRes?.grants || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    if (activeKeyId) {
+      loadKeyDetails(activeKeyId);
+    }
+  }, [activeKeyId]);
 
   const handleCreateKey = async () => {
     setCreating(true);
@@ -100,6 +155,85 @@ export const KMSConsole: React.FC<KMSConsoleProps> = ({ activeTab, onTabChange }
       setActionMessage({ type: 'error', text: err.message || 'Failed to create KMS key' });
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleSavePolicy = async () => {
+    if (!activeKeyId || !keyPolicyDoc.trim()) return;
+    setSavingPolicy(true);
+    try {
+      await putKmsKeyPolicy(activeKeyId, keyPolicyDoc.trim());
+      setActionMessage({ type: 'success', text: 'Key policy updated.' });
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to update key policy' });
+    } finally {
+      setSavingPolicy(false);
+    }
+  };
+
+  const handleToggleRotation = async () => {
+    if (!activeKeyId) return;
+    setSavingRotation(true);
+    try {
+      await updateKmsKeyRotation(activeKeyId, !rotationEnabled);
+      setRotationEnabled(!rotationEnabled);
+      setActionMessage({ type: 'success', text: `Automatic key rotation ${!rotationEnabled ? 'enabled' : 'disabled'}.` });
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to update key rotation' });
+    } finally {
+      setSavingRotation(false);
+    }
+  };
+
+  const handleToggleKeyState = async (enable: boolean) => {
+    if (!activeKeyId) return;
+    try {
+      await updateKmsKeyState(activeKeyId, enable ? 'enable' : 'disable');
+      setActionMessage({ type: 'success', text: `Key ${enable ? 'enabled' : 'disabled'}.` });
+      await loadData();
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to change key state' });
+    }
+  };
+
+  const handleCreateGrant = async () => {
+    if (!activeKeyId || !granteePrincipal.trim()) return;
+    setSavingGrant(true);
+    try {
+      const ops = grantOperations.split(',').map((s) => s.trim()).filter(Boolean);
+      await createKmsGrant(activeKeyId, granteePrincipal.trim(), ops);
+      setActionMessage({ type: 'success', text: 'KMS grant created successfully.' });
+      setCreateGrantOpen(false);
+      await loadKeyDetails(activeKeyId);
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to create grant' });
+    } finally {
+      setSavingGrant(false);
+    }
+  };
+
+  const handleRevokeGrant = async (grantId: string) => {
+    if (!activeKeyId) return;
+    try {
+      await revokeKmsGrant(activeKeyId, grantId);
+      setActionMessage({ type: 'success', text: `Grant ${grantId} revoked.` });
+      await loadKeyDetails(activeKeyId);
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to revoke grant' });
+    }
+  };
+
+  const handleGenerateDataKey = async () => {
+    if (!activeKeyId) return;
+    setGeneratingDataKey(true);
+    try {
+      const res = await generateKmsDataKey(activeKeyId, dataKeySpec.value as any);
+      setGeneratedDataKey(res);
+      setActionMessage({ type: 'success', text: 'Data encryption key generated.' });
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to generate data key' });
+    } finally {
+      setGeneratingDataKey(false);
     }
   };
 
@@ -147,31 +281,32 @@ export const KMSConsole: React.FC<KMSConsoleProps> = ({ activeTab, onTabChange }
       Description: k.Description || k.description || '—',
       KeySpec: k.KeySpec || k.key_spec || 'SYMMETRIC_DEFAULT',
       KeyUsage: k.KeyUsage || k.key_usage || 'ENCRYPT_DECRYPT',
-      Enabled: k.Enabled !== false,
-      AliasName: matchingAlias ? (matchingAlias.AliasName || matchingAlias.alias_name) : '—',
+      Enabled: k.Enabled !== false && k.KeyState !== 'Disabled',
+      Alias: matchingAlias ? matchingAlias.AliasName || matchingAlias.alias_name : '—',
     };
   });
 
-  const filteredKeys = keysList.filter((k: any) => {
-    const text = `${k.KeyId} ${k.AliasName} ${k.Description} ${k.Arn}`.toLowerCase();
-    return text.includes(filterText.toLowerCase());
-  });
+  const filteredKeys = keysList.filter((k: any) =>
+    (k.KeyId || '').toLowerCase().includes(filterText.toLowerCase()) ||
+    (k.Alias || '').toLowerCase().includes(filterText.toLowerCase()) ||
+    (k.Description || '').toLowerCase().includes(filterText.toLowerCase())
+  );
 
   return (
     <SpaceBetween size="l">
-      {/* Header */}
+      {/* Header Container */}
       <Container
         header={
           <Header
             variant="h1"
-            description="Create and manage cryptographic keys and control their use across local mock AWS services."
+            description="Manage cryptographic keys, encryption policies, automatic key rotation, and grants."
             actions={
               <SpaceBetween direction="horizontal" size="xs">
                 <Button iconName="refresh" onClick={loadData} loading={loading}>
                   Refresh
                 </Button>
                 <Button variant="primary" iconName="add-plus" onClick={() => setCreateModalOpen(true)}>
-                  Create KMS Key
+                  Create Key
                 </Button>
               </SpaceBetween>
             }
@@ -196,21 +331,21 @@ export const KMSConsole: React.FC<KMSConsoleProps> = ({ activeTab, onTabChange }
             </Box>
           </Box>
           <Box padding="m" textAlign="center">
-            <Box variant="awsui-key-label">Aliases Defined</Box>
+            <Box variant="awsui-key-label">Key Aliases</Box>
             <Box variant="h1" color="text-status-info">
-              {(data.aliases || []).length}
+              {data.aliases?.length || 0}
             </Box>
           </Box>
           <Box padding="m" textAlign="center">
-            <Box variant="awsui-key-label">Status</Box>
+            <Box variant="awsui-key-label">Cryptography Engine</Box>
             <Box variant="h2" color="text-status-info">
-              <StatusIndicator type="success">KMS Engine Active</StatusIndicator>
+              <StatusIndicator type="success">AES-GCM / RSA Ready</StatusIndicator>
             </Box>
           </Box>
         </Grid>
       </Container>
 
-      {/* Tabs */}
+      {/* Main Tabs */}
       <Tabs
         activeTabId={selectedTabId}
         onChange={({ detail }) => {
@@ -219,79 +354,207 @@ export const KMSConsole: React.FC<KMSConsoleProps> = ({ activeTab, onTabChange }
         }}
         tabs={[
           {
-            label: `KMS Keys (${keysList.length})`,
+            label: `Customer Managed Keys (${keysList.length})`,
             id: 'keys',
             content: (
-              <Container
-                header={
-                  <Header
-                    variant="h2"
-                    description="Customer-managed encryption keys provisioned in Floci."
-                  >
-                    KMS Key Inventory
-                  </Header>
-                }
-              >
-                <SpaceBetween size="m">
-                  <TextFilter
-                    filteringText={filterText}
-                    filteringPlaceholder="Filter keys by ID, alias, description..."
-                    onChange={({ detail }) => setFilterText(detail.filteringText)}
-                  />
+              <SpaceBetween size="l">
+                <Container header={<Header variant="h2">Keys Inventory</Header>}>
+                  <SpaceBetween size="m">
+                    <TextFilter
+                      filteringText={filterText}
+                      filteringPlaceholder="Find key by ID, alias, or description..."
+                      onChange={({ detail }) => setFilterText(detail.filteringText)}
+                    />
 
-                  <Table
-                    columnDefinitions={[
-                      {
-                        id: 'alias',
-                        header: 'Alias / Name',
-                        cell: (item) => (
-                          <div>
-                            <strong>{item.AliasName !== '—' ? item.AliasName : item.KeyId}</strong>
-                            {item.AliasName !== '—' && (
-                              <div style={{ color: '#879596', fontSize: '11px' }}>{item.KeyId}</div>
-                            )}
-                          </div>
-                        ),
-                      },
-                      {
-                        id: 'description',
-                        header: 'Description',
-                        cell: (item) => item.Description,
-                      },
-                      {
-                        id: 'spec',
-                        header: 'Key Spec',
-                        cell: (item) => <Badge color="grey">{item.KeySpec}</Badge>,
-                        width: 180,
-                      },
-                      {
-                        id: 'usage',
-                        header: 'Key Usage',
-                        cell: (item) => <Badge color="blue">{item.KeyUsage}</Badge>,
-                        width: 160,
-                      },
-                      {
-                        id: 'status',
-                        header: 'State',
-                        cell: (item) => (
-                          <StatusIndicator type={item.Enabled ? 'success' : 'stopped'}>
-                            {item.Enabled ? 'Enabled' : 'Disabled'}
-                          </StatusIndicator>
-                        ),
-                        width: 120,
-                      },
-                    ]}
-                    items={filteredKeys}
-                    selectionType="single"
-                    selectedItems={selectedKeys}
-                    onSelectionChange={({ detail }) => setSelectedKeys(detail.selectedItems)}
-                    empty={
-                      <Box textAlign="center" color="inherit">
-                        <b>No KMS keys found</b>
-                        <p>Create a KMS key to start encrypting and decrypting data.</p>
-                      </Box>
-                    }
-                  />
+                    <Table
+                      columnDefinitions={[
+                        {
+                          id: 'alias',
+                          header: 'Alias',
+                          cell: (item: any) => (
+                            <Button variant="inline-link" onClick={() => setSelectedKeys([item])}>
+                              <strong>{item.Alias}</strong>
+                            </Button>
+                          ),
+                        },
+                        {
+                          id: 'keyId',
+                          header: 'Key ID',
+                          cell: (item: any) => <code>{item.KeyId}</code>,
+                        },
+                        {
+                          id: 'status',
+                          header: 'Status',
+                          cell: (item: any) => (
+                            <StatusIndicator type={item.Enabled ? 'success' : 'stopped'}>
+                              {item.Enabled ? 'Enabled' : 'Disabled'}
+                            </StatusIndicator>
+                          ),
+                          width: 120,
+                        },
+                        {
+                          id: 'spec',
+                          header: 'Key Spec',
+                          cell: (item: any) => <Badge color="blue">{item.KeySpec}</Badge>,
+                          width: 180,
+                        },
+                        {
+                          id: 'usage',
+                          header: 'Usage',
+                          cell: (item: any) => item.KeyUsage,
+                          width: 160,
+                        },
+                      ]}
+                      items={filteredKeys}
+                      selectionType="single"
+                      selectedItems={selectedKeys}
+                      onSelectionChange={({ detail }) => {
+                        setSelectedKeys(detail.selectedItems);
+                        if (detail.selectedItems.length > 0) {
+                          setCryptoKeyId(detail.selectedItems[0].KeyId);
+                        }
+                      }}
+                      empty={<Box textAlign="center">No KMS keys found.</Box>}
+                    />
+                  </SpaceBetween>
+                </Container>
+
+                {activeKey && (
+                  <Container header={<Header variant="h2">Key: {activeKey.KeyId}</Header>}>
+                    <Tabs
+                      tabs={[
+                        {
+                          label: 'Key Policy',
+                          id: 'policy',
+                          content: (
+                            <SpaceBetween size="m">
+                              <Box float="right">
+                                <Button variant="primary" loading={savingPolicy} onClick={handleSavePolicy}>
+                                  Save Key Policy
+                                </Button>
+                              </Box>
+                              <Textarea rows={10} value={keyPolicyDoc} onChange={({ detail }) => setKeyPolicyDoc(detail.value)} />
+                            </SpaceBetween>
+                          ),
+                        },
+                        {
+                          label: 'Key Rotation',
+                          id: 'rotation',
+                          content: (
+                            <SpaceBetween size="m">
+                              <Box>
+                                Automatic Key Rotation:{' '}
+                                {rotationEnabled ? (
+                                  <StatusIndicator type="success">Enabled (Annual rotation)</StatusIndicator>
+                                ) : (
+                                  <StatusIndicator type="stopped">Disabled</StatusIndicator>
+                                )}
+                              </Box>
+                              <Button loading={savingRotation} onClick={handleToggleRotation}>
+                                {rotationEnabled ? 'Disable Rotation' : 'Enable Automatic Rotation'}
+                              </Button>
+                            </SpaceBetween>
+                          ),
+                        },
+                        {
+                          label: 'Key Lifecycle',
+                          id: 'lifecycle',
+                          content: (
+                            <SpaceBetween size="m">
+                              <Box>
+                                Key State: <Badge color={activeKey.Enabled ? 'green' : 'grey'}>{activeKey.Enabled ? 'Enabled' : 'Disabled'}</Badge>
+                              </Box>
+                              <SpaceBetween direction="horizontal" size="xs">
+                                {activeKey.Enabled ? (
+                                  <Button onClick={() => handleToggleKeyState(false)}>Disable Key</Button>
+                                ) : (
+                                  <Button variant="primary" onClick={() => handleToggleKeyState(true)}>Enable Key</Button>
+                                )}
+                              </SpaceBetween>
+                            </SpaceBetween>
+                          ),
+                        },
+                        {
+                          label: `Grants (${grants.length})`,
+                          id: 'grants',
+                          content: (
+                            <SpaceBetween size="m">
+                              <Box float="right">
+                                <Button variant="primary" iconName="add-plus" onClick={() => setCreateGrantOpen(true)}>
+                                  Create Grant
+                                </Button>
+                              </Box>
+                              <Table
+                                columnDefinitions={[
+                                  { id: 'id', header: 'Grant ID', cell: (g: any) => <code>{g.GrantId || g.grant_id}</code> },
+                                  { id: 'principal', header: 'Grantee Principal', cell: (g: any) => g.GranteePrincipal || g.grantee_principal },
+                                  { id: 'ops', header: 'Operations', cell: (g: any) => (g.Operations || []).join(', ') },
+                                  {
+                                    id: 'act',
+                                    header: 'Action',
+                                    cell: (g: any) => (
+                                      <Button iconName="remove" onClick={() => handleRevokeGrant(g.GrantId || g.grant_id)}>
+                                        Revoke
+                                      </Button>
+                                    ),
+                                    width: 110,
+                                  },
+                                ]}
+                                items={grants}
+                                empty={<Box textAlign="center">No grants created on this key.</Box>}
+                              />
+                            </SpaceBetween>
+                          ),
+                        },
+                      ]}
+                    />
+                  </Container>
+                )}
+              </SpaceBetween>
+            ),
+          },
+          {
+            label: 'Data Key Generator',
+            id: 'datakey',
+            content: (
+              <Container header={<Header variant="h2">Generate Symmetric Data Key (Envelope Encryption)</Header>}>
+                <SpaceBetween size="m">
+                  <Grid gridDefinition={[{ colspan: { default: 12, s: 6 } }, { colspan: { default: 12, s: 6 } }]}>
+                    <FormField label="Target KMS Key">
+                      <Select
+                        selectedOption={cryptoKeyId ? { label: cryptoKeyId, value: cryptoKeyId } : null}
+                        onChange={({ detail }) => setCryptoKeyId(detail.selectedOption.value || '')}
+                        options={keysList.map((k: any) => ({ label: `${k.Alias} (${k.KeyId})`, value: k.KeyId }))}
+                      />
+                    </FormField>
+                    <FormField label="Data Key Spec">
+                      <Select
+                        selectedOption={dataKeySpec}
+                        onChange={({ detail }) => setDataKeySpec(detail.selectedOption as any)}
+                        options={[
+                          { label: 'AES_256 (256-bit symmetric key)', value: 'AES_256' },
+                          { label: 'AES_128 (128-bit symmetric key)', value: 'AES_128' },
+                        ]}
+                      />
+                    </FormField>
+                  </Grid>
+
+                  <Button variant="primary" loading={generatingDataKey} onClick={handleGenerateDataKey}>
+                    Generate Data Encryption Key
+                  </Button>
+
+                  {generatedDataKey && (
+                    <Container header={<Header variant="h3">Generated Data Key Output</Header>}>
+                      <KeyValuePairs
+                        columns={1}
+                        items={[
+                          { label: 'Plaintext Key (Base64)', value: generatedDataKey.Plaintext || generatedDataKey.plaintext || '••••' },
+                          { label: 'Ciphertext Blob (Encrypted with KMS)', value: generatedDataKey.CiphertextBlob || generatedDataKey.ciphertext_blob || '••••' },
+                          { label: 'Key ARN', value: generatedDataKey.KeyId || cryptoKeyId },
+                        ]}
+                      />
+                    </Container>
+                  )}
                 </SpaceBetween>
               </Container>
             ),
@@ -300,35 +563,17 @@ export const KMSConsole: React.FC<KMSConsoleProps> = ({ activeTab, onTabChange }
             label: 'Encrypt & Decrypt Playground',
             id: 'crypto',
             content: (
-              <Container
-                header={
-                  <Header
-                    variant="h2"
-                    description="Interactive cryptographic test workbench for symmetrical KMS keys."
-                  >
-                    KMS Cryptographic Workbench
-                  </Header>
-                }
-              >
+              <Container header={<Header variant="h2">KMS Cryptographic Workbench</Header>}>
                 <Grid gridDefinition={[{ colspan: { default: 12, m: 6 } }, { colspan: { default: 12, m: 6 } }]}>
                   {/* Encrypt Card */}
                   <Container header={<Header variant="h3">Encrypt Plaintext</Header>}>
                     <SpaceBetween size="m">
                       <FormField label="KMS Key ID / Alias">
-                        <Input
-                          value={cryptoKeyId}
-                          onChange={({ detail }) => setCryptoKeyId(detail.value)}
-                          placeholder="Key ID or alias/my-key"
-                        />
+                        <Input value={cryptoKeyId} onChange={({ detail }) => setCryptoKeyId(detail.value)} placeholder="Key ID or alias/my-key" />
                       </FormField>
 
                       <FormField label="Plaintext Data">
-                        <Textarea
-                          rows={3}
-                          value={plaintextInput}
-                          onChange={({ detail }) => setPlaintextInput(detail.value)}
-                          placeholder="Enter message to encrypt..."
-                        />
+                        <Textarea rows={3} value={plaintextInput} onChange={({ detail }) => setPlaintextInput(detail.value)} />
                       </FormField>
 
                       <Button variant="primary" loading={encrypting} onClick={handleEncrypt}>
@@ -337,7 +582,7 @@ export const KMSConsole: React.FC<KMSConsoleProps> = ({ activeTab, onTabChange }
 
                       {ciphertextOutput && (
                         <FormField label="Ciphertext (Base64 Blob)">
-                          <CodeSnippet language="cli" code={ciphertextOutput} />
+                          <Textarea rows={4} value={ciphertextOutput} readOnly />
                         </FormField>
                       )}
                     </SpaceBetween>
@@ -347,12 +592,7 @@ export const KMSConsole: React.FC<KMSConsoleProps> = ({ activeTab, onTabChange }
                   <Container header={<Header variant="h3">Decrypt Ciphertext</Header>}>
                     <SpaceBetween size="m">
                       <FormField label="Ciphertext Blob">
-                        <Textarea
-                          rows={4}
-                          value={decryptInput}
-                          onChange={({ detail }) => setDecryptInput(detail.value)}
-                          placeholder="Paste ciphertext blob..."
-                        />
+                        <Textarea rows={4} value={decryptInput} onChange={({ detail }) => setDecryptInput(detail.value)} />
                       </FormField>
 
                       <Button variant="primary" loading={decrypting} onClick={handleDecrypt}>
@@ -361,7 +601,7 @@ export const KMSConsole: React.FC<KMSConsoleProps> = ({ activeTab, onTabChange }
 
                       {decryptedOutput && (
                         <FormField label="Decrypted Plaintext">
-                          <CodeSnippet language="cli" code={decryptedOutput} />
+                          <Textarea rows={3} value={decryptedOutput} readOnly />
                         </FormField>
                       )}
                     </SpaceBetween>
@@ -393,19 +633,11 @@ export const KMSConsole: React.FC<KMSConsoleProps> = ({ activeTab, onTabChange }
       >
         <SpaceBetween size="m">
           <FormField label="Key Description" description="Optional description for the key.">
-            <Input
-              value={description}
-              onChange={({ detail }) => setDescription(detail.value)}
-              placeholder="Primary app encryption key"
-            />
+            <Input value={description} onChange={({ detail }) => setDescription(detail.value)} placeholder="Primary app encryption key" />
           </FormField>
 
-          <FormField label="Key Alias (Optional)" description="e.g. alias/app-key or app-key">
-            <Input
-              value={aliasName}
-              onChange={({ detail }) => setAliasName(detail.value)}
-              placeholder="alias/app-key"
-            />
+          <FormField label="Key Alias (Optional)">
+            <Input value={aliasName} onChange={({ detail }) => setAliasName(detail.value)} placeholder="alias/app-key" />
           </FormField>
 
           <FormField label="Key Spec">
@@ -431,6 +663,34 @@ export const KMSConsole: React.FC<KMSConsoleProps> = ({ activeTab, onTabChange }
                 { label: 'GENERATE_VERIFY_MAC', value: 'GENERATE_VERIFY_MAC' },
               ]}
             />
+          </FormField>
+        </SpaceBetween>
+      </Modal>
+
+      {/* Create Grant Modal */}
+      <Modal
+        visible={createGrantOpen}
+        onDismiss={() => setCreateGrantOpen(false)}
+        header={`Create Grant for ${activeKeyId}`}
+        footer={
+          <Box float="right">
+            <SpaceBetween direction="horizontal" size="xs">
+              <Button variant="link" onClick={() => setCreateGrantOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" loading={savingGrant} onClick={handleCreateGrant}>
+                Create Grant
+              </Button>
+            </SpaceBetween>
+          </Box>
+        }
+      >
+        <SpaceBetween size="m">
+          <FormField label="Grantee Principal ARN">
+            <Input value={granteePrincipal} onChange={({ detail }) => setGranteePrincipal(detail.value)} />
+          </FormField>
+          <FormField label="Operations (comma-separated)">
+            <Input value={grantOperations} onChange={({ detail }) => setGrantOperations(detail.value)} placeholder="Decrypt, GenerateDataKey" />
           </FormField>
         </SpaceBetween>
       </Modal>

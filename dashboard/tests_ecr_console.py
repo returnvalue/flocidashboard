@@ -230,3 +230,38 @@ class ECRApiHelperTests(SimpleTestCase):
             acceptedMediaTypes=['application/vnd.oci.image.manifest.v1+json'],
         )
         self.assertEqual(result['images'][0]['imageManifest'], '{}')
+
+    @patch('dashboard.ecr_views.get_push_commands')
+    def test_get_push_commands_endpoint(self, cmds_mock):
+        cmds_mock.return_value = {
+            'repository_name': 'my-app',
+            'registry_uri': 'localhost:4566/ecr/my-app',
+            'commands': {'mac_linux': ['docker build -t my-app .']},
+        }
+
+        response = self.client.get(
+            reverse('dashboard:ecr-push-commands'),
+            {'repository_name': 'my-app'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('commands', response.json())
+        cmds_mock.assert_called_once_with('my-app', region='us-east-1')
+
+    @patch('dashboard.ecr_views.put_mock_image')
+    def test_put_mock_image_endpoint(self, mock_img):
+        mock_img.return_value = {'repository_name': 'my-app', 'image_tag': 'v1.0.0'}
+
+        response = self.client.post(
+            reverse('dashboard:ecr-mock-image'),
+            data=json.dumps({
+                'repository_name': 'my-app',
+                'image_tag': 'v1.0.0',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['image_tag'], 'v1.0.0')
+        mock_img.assert_called_once_with('my-app', image_tag='v1.0.0', image_digest=None, image_manifest=None)
+

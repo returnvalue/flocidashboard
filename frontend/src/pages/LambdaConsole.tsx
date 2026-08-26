@@ -29,8 +29,12 @@ import {
   deleteLambdaEventSourceMapping,
   fetchLambdaVersions,
   publishLambdaVersion,
+  updateLambdaFunctionConfiguration,
+  updateLambdaEnvironmentVariables,
+  fetchLambdaAliases,
+  createLambdaAlias,
+  deleteLambdaAlias,
 } from '../api/client';
-import { CodeSnippet } from '../components/CodeSnippet';
 
 interface FunctionItem {
   FunctionName: string;
@@ -42,6 +46,8 @@ interface FunctionItem {
   Timeout?: number;
   MemorySize?: number;
   LastModified?: string;
+  Environment?: { Variables?: Record<string, string> };
+  Layers?: any[];
 }
 
 interface LambdaConsoleProps {
@@ -63,36 +69,49 @@ export const LambdaConsole: React.FC<LambdaConsoleProps> = ({ activeTab, onTabCh
     }
   }, [activeTab]);
 
-  // Create Function Modal
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [functionName, setFunctionName] = useState('');
   const [runtime, setRuntime] = useState({ label: 'Python 3.12', value: 'python3.12' });
   const [handler, setHandler] = useState('lambda_function.lambda_handler');
   const [creating, setCreating] = useState(false);
 
-  // Test Invocation Modal
   const [invokeModalOpen, setInvokeModalOpen] = useState(false);
   const [invokePayload, setInvokePayload] = useState('{\n  "key1": "value1",\n  "key2": "value2"\n}');
   const [invokeResponse, setInvokeResponse] = useState<string | null>(null);
   const [invoking, setInvoking] = useState(false);
 
-  // Function URL State
   const [functionUrlConfig, setFunctionUrlConfig] = useState<any | null>(null);
-  const [urlAuthType, setUrlAuthType] = useState({ label: 'NONE (Public Unauthenticated)', value: 'NONE' });
+  const [urlAuthType, setUrlAuthType] = useState({ label: 'NONE (Public)', value: 'NONE' });
   const [savingUrl, setSavingUrl] = useState(false);
 
-  // Event Source Mappings (Triggers) State
   const [triggers, setTriggers] = useState<any[]>([]);
   const [addTriggerOpen, setAddTriggerOpen] = useState(false);
   const [triggerSourceArn, setTriggerSourceArn] = useState('arn:aws:sqs:us-east-1:000000000000:my-queue');
   const [triggerBatchSize, setTriggerBatchSize] = useState('10');
   const [savingTrigger, setSavingTrigger] = useState(false);
 
-  // Versions State
   const [versions, setVersions] = useState<any[]>([]);
   const [publishVersionOpen, setPublishVersionOpen] = useState(false);
   const [versionDescription, setVersionDescription] = useState('');
   const [publishingVersion, setPublishingVersion] = useState(false);
+
+  const [envVars, setEnvVars] = useState<Array<{ key: string; value: string }>>([]);
+  const [newEnvKey, setNewEnvKey] = useState('');
+  const [newEnvVal, setNewEnvVal] = useState('');
+  const [savingEnv, setSavingEnv] = useState(false);
+
+  const [cfgMemory, setCfgMemory] = useState('128');
+  const [cfgTimeout, setCfgTimeout] = useState('30');
+  const [cfgDescription, setCfgDescription] = useState('');
+  const [cfgHandler, setCfgHandler] = useState('');
+  const [savingConfig, setSavingConfig] = useState(false);
+
+  const [aliases, setAliases] = useState<any[]>([]);
+  const [createAliasOpen, setCreateAliasOpen] = useState(false);
+  const [aliasName, setAliasName] = useState('');
+  const [aliasVersion, setAliasVersion] = useState('$LATEST');
+  const [aliasDesc, setAliasDesc] = useState('');
+  const [savingAlias, setSavingAlias] = useState(false);
 
   const loadFunctions = async () => {
     setLoading(true);
@@ -108,6 +127,8 @@ export const LambdaConsole: React.FC<LambdaConsoleProps> = ({ activeTab, onTabCh
         Timeout: f.Timeout ?? 30,
         MemorySize: f.MemorySize ?? 128,
         LastModified: f.LastModified || new Date().toISOString().split('T')[0],
+        Environment: f.Environment,
+        Layers: f.Layers || [],
       }));
       setFunctions(list);
       if (list.length > 0 && selectedFunctions.length === 0) {
@@ -124,21 +145,31 @@ export const LambdaConsole: React.FC<LambdaConsoleProps> = ({ activeTab, onTabCh
     loadFunctions();
   }, []);
 
-  const activeFunction = selectedFunctions[0];
+  const activeFunction = selectedFunctions[0] || null;
 
   const loadFunctionDetails = async (fn: FunctionItem) => {
     try {
-      const [urlRes, triggersRes, versionsRes] = await Promise.all([
+      const [urlRes, triggersRes, versionsRes, aliasesRes] = await Promise.all([
         fetchLambdaFunctionUrl(fn.FunctionName),
         fetchLambdaEventSourceMappings(fn.FunctionName),
         fetchLambdaVersions(fn.FunctionName),
+        fetchLambdaAliases(fn.FunctionName),
       ]);
       setFunctionUrlConfig(urlRes);
       setTriggers(triggersRes || []);
       setVersions(versionsRes || []);
+      setAliases(aliasesRes || []);
     } catch (err) {
       console.error(err);
     }
+
+    setCfgMemory(String(fn.MemorySize || 128));
+    setCfgTimeout(String(fn.Timeout || 30));
+    setCfgDescription(fn.Description || '');
+    setCfgHandler(fn.Handler || 'index.handler');
+
+    const envMap = fn.Environment?.Variables || {};
+    setEnvVars(Object.entries(envMap).map(([k, v]) => ({ key: k, value: String(v) })));
   };
 
   useEffect(() => {
@@ -149,6 +180,7 @@ export const LambdaConsole: React.FC<LambdaConsoleProps> = ({ activeTab, onTabCh
       setFunctionUrlConfig(null);
       setTriggers([]);
       setVersions([]);
+      setAliases([]);
     }
   }, [activeFunction?.FunctionName]);
 
@@ -161,14 +193,15 @@ export const LambdaConsole: React.FC<LambdaConsoleProps> = ({ activeTab, onTabCh
         FunctionName: functionName.trim(),
         Runtime: runtime.value,
         Handler: handler.trim(),
+        Code: { ZipFile: 'dummy' },
         Role: 'arn:aws:iam::000000000000:role/lambda-basic-execution',
       });
-      setActionMessage({ type: 'success', text: `Function "${functionName.trim()}" created successfully.` });
+      setActionMessage({ type: 'success', text: `Lambda function "${functionName.trim()}" created successfully.` });
       setCreateModalOpen(false);
       setFunctionName('');
       await loadFunctions();
     } catch (err: any) {
-      setActionMessage({ type: 'error', text: err.message || 'Failed to create function' });
+      setActionMessage({ type: 'error', text: err.message || 'Failed to create Lambda function' });
     } finally {
       setCreating(false);
     }
@@ -186,17 +219,19 @@ export const LambdaConsole: React.FC<LambdaConsoleProps> = ({ activeTab, onTabCh
     }
   };
 
-  const handleInvoke = async () => {
+  const handleInvokeFunction = async () => {
     if (!activeFunction) return;
     setInvoking(true);
+    setActionMessage(null);
     try {
       const res = await executeServiceAction('lambda', 'invoke', {
         FunctionName: activeFunction.FunctionName,
         Payload: invokePayload,
       });
       setInvokeResponse(JSON.stringify(res, null, 2));
+      setActionMessage({ type: 'success', text: 'Function invoked successfully.' });
     } catch (err: any) {
-      setInvokeResponse(JSON.stringify({ error: err.message || 'Invocation failed' }, null, 2));
+      setActionMessage({ type: 'error', text: err.message || 'Failed to invoke function' });
     } finally {
       setInvoking(false);
     }
@@ -207,11 +242,13 @@ export const LambdaConsole: React.FC<LambdaConsoleProps> = ({ activeTab, onTabCh
     setSavingUrl(true);
     try {
       if (enable) {
-        await createLambdaFunctionUrl(activeFunction.FunctionName, urlAuthType.value as any);
-        setActionMessage({ type: 'success', text: 'Lambda Function URL created.' });
+        const res = await createLambdaFunctionUrl(activeFunction.FunctionName, urlAuthType.value as any);
+        setFunctionUrlConfig(res);
+        setActionMessage({ type: 'success', text: 'Function URL enabled.' });
       } else {
         await deleteLambdaFunctionUrl(activeFunction.FunctionName);
-        setActionMessage({ type: 'success', text: 'Lambda Function URL deleted.' });
+        setFunctionUrlConfig(null);
+        setActionMessage({ type: 'success', text: 'Function URL disabled.' });
       }
       await loadFunctionDetails(activeFunction);
     } catch (err: any) {
@@ -230,7 +267,7 @@ export const LambdaConsole: React.FC<LambdaConsoleProps> = ({ activeTab, onTabCh
         triggerSourceArn.trim(),
         Number(triggerBatchSize) || 10
       );
-      setActionMessage({ type: 'success', text: 'Trigger added successfully.' });
+      setActionMessage({ type: 'success', text: 'Event source mapping created.' });
       setAddTriggerOpen(false);
       await loadFunctionDetails(activeFunction);
     } catch (err: any) {
@@ -241,11 +278,10 @@ export const LambdaConsole: React.FC<LambdaConsoleProps> = ({ activeTab, onTabCh
   };
 
   const handleDeleteTrigger = async (uuid: string) => {
-    if (!activeFunction) return;
     try {
       await deleteLambdaEventSourceMapping(uuid);
-      setActionMessage({ type: 'success', text: 'Trigger removed.' });
-      await loadFunctionDetails(activeFunction);
+      setActionMessage({ type: 'success', text: 'Trigger mapping removed.' });
+      if (activeFunction) await loadFunctionDetails(activeFunction);
     } catch (err: any) {
       setActionMessage({ type: 'error', text: err.message || 'Failed to delete trigger' });
     }
@@ -256,7 +292,7 @@ export const LambdaConsole: React.FC<LambdaConsoleProps> = ({ activeTab, onTabCh
     setPublishingVersion(true);
     try {
       await publishLambdaVersion(activeFunction.FunctionName, versionDescription.trim());
-      setActionMessage({ type: 'success', text: 'New Lambda version published.' });
+      setActionMessage({ type: 'success', text: 'New version published.' });
       setPublishVersionOpen(false);
       setVersionDescription('');
       await loadFunctionDetails(activeFunction);
@@ -267,30 +303,96 @@ export const LambdaConsole: React.FC<LambdaConsoleProps> = ({ activeTab, onTabCh
     }
   };
 
+  const handleSaveEnvVars = async () => {
+    if (!activeFunction) return;
+    setSavingEnv(true);
+    try {
+      const varsObj: Record<string, string> = {};
+      envVars.forEach((v) => {
+        if (v.key.trim()) varsObj[v.key.trim()] = v.value;
+      });
+      await updateLambdaEnvironmentVariables(activeFunction.FunctionName, varsObj);
+      setActionMessage({ type: 'success', text: 'Environment variables saved successfully.' });
+      await loadFunctions();
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to save environment variables' });
+    } finally {
+      setSavingEnv(false);
+    }
+  };
+
+  const handleSaveConfiguration = async () => {
+    if (!activeFunction) return;
+    setSavingConfig(true);
+    try {
+      await updateLambdaFunctionConfiguration(activeFunction.FunctionName, {
+        memorySize: Number(cfgMemory) || 128,
+        timeout: Number(cfgTimeout) || 30,
+        description: cfgDescription.trim(),
+        handler: cfgHandler.trim(),
+      });
+      setActionMessage({ type: 'success', text: 'Function configuration saved.' });
+      await loadFunctions();
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to save configuration' });
+    } finally {
+      setSavingConfig(false);
+    }
+  };
+
+  const handleCreateAlias = async () => {
+    if (!activeFunction || !aliasName.trim()) return;
+    setSavingAlias(true);
+    try {
+      await createLambdaAlias(activeFunction.FunctionName, aliasName.trim(), aliasVersion, aliasDesc.trim());
+      setActionMessage({ type: 'success', text: `Alias "${aliasName.trim()}" created.` });
+      setCreateAliasOpen(false);
+      setAliasName('');
+      await loadFunctionDetails(activeFunction);
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to create alias' });
+    } finally {
+      setSavingAlias(false);
+    }
+  };
+
+  const handleDeleteAlias = async (name: string) => {
+    if (!activeFunction) return;
+    try {
+      await deleteLambdaAlias(activeFunction.FunctionName, name);
+      setActionMessage({ type: 'success', text: `Alias "${name}" deleted.` });
+      await loadFunctionDetails(activeFunction);
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to delete alias' });
+    }
+  };
+
   const filteredFunctions = functions.filter((f) =>
     f.FunctionName.toLowerCase().includes(filterText.toLowerCase())
   );
 
-  const functionUrlEndpoint = functionUrlConfig?.FunctionUrl || (activeFunction ? `http://localhost:4566/2021-10-31/functions/${activeFunction.FunctionName}/invocations` : '');
+  const functionUrlEndpoint = activeFunction
+    ? `http://${activeFunction.FunctionName}.lambda-url.localhost:4566/`
+    : '';
 
   return (
     <SpaceBetween size="l">
-      {/* Header */}
       <Container
         header={
           <Header
             variant="h1"
-            description="Run code without thinking about servers or clusters. Scales automatically with demand."
+            counter={`(${functions.length})`}
+            description="Run code without thinking about servers. Scalable, event-driven serverless compute."
             actions={
               <SpaceBetween direction="horizontal" size="xs">
                 <Button iconName="refresh" onClick={loadFunctions} loading={loading}>
                   Refresh
                 </Button>
                 <Button disabled={!activeFunction} onClick={handleDeleteFunction}>
-                  Delete Function
+                  Delete function
                 </Button>
                 <Button variant="primary" iconName="add-plus" onClick={() => setCreateModalOpen(true)}>
-                  Create Function
+                  Create function
                 </Button>
               </SpaceBetween>
             }
@@ -309,33 +411,29 @@ export const LambdaConsole: React.FC<LambdaConsoleProps> = ({ activeTab, onTabCh
 
         <Grid gridDefinition={[{ colspan: { default: 12, s: 4 } }, { colspan: { default: 12, s: 4 } }, { colspan: { default: 12, s: 4 } }]}>
           <Box padding="m" textAlign="center">
-            <Box variant="awsui-key-label">Functions</Box>
+            <Box variant="awsui-key-label">Total Functions</Box>
             <Box variant="h1" color="text-status-info">
               {functions.length}
             </Box>
           </Box>
           <Box padding="m" textAlign="center">
-            <Box variant="awsui-key-label">Serverless Runtime</Box>
+            <Box variant="awsui-key-label">Active Region</Box>
             <Box variant="h2" color="text-status-info">
-              <Badge color="blue">Local Docker & MicroVM</Badge>
+              us-east-1
             </Box>
           </Box>
           <Box padding="m" textAlign="center">
-            <Box variant="awsui-key-label">Engine Health</Box>
+            <Box variant="awsui-key-label">Execution Engine</Box>
             <Box variant="h2" color="text-status-info">
-              <StatusIndicator type="success">Lambda Ready</StatusIndicator>
+              <StatusIndicator type="success">Serverless Ready</StatusIndicator>
             </Box>
           </Box>
         </Grid>
       </Container>
 
-      {/* Functions Table */}
       <Container
         header={
-          <Header
-            variant="h2"
-            description="Functions deployed in your local serverless environment."
-          >
+          <Header variant="h2" description="Lambda functions deployed in Floci environment.">
             Functions ({functions.length})
           </Header>
         }
@@ -343,7 +441,7 @@ export const LambdaConsole: React.FC<LambdaConsoleProps> = ({ activeTab, onTabCh
         <SpaceBetween size="m">
           <TextFilter
             filteringText={filterText}
-            filteringPlaceholder="Find functions by name..."
+            filteringPlaceholder="Find function by name..."
             onChange={({ detail }) => setFilterText(detail.filteringText)}
           />
 
@@ -351,14 +449,18 @@ export const LambdaConsole: React.FC<LambdaConsoleProps> = ({ activeTab, onTabCh
             columnDefinitions={[
               {
                 id: 'name',
-                header: 'Function Name',
-                cell: (item) => <strong>{item.FunctionName}</strong>,
+                header: 'Function name',
+                cell: (item) => (
+                  <Button variant="inline-link" onClick={() => setSelectedFunctions([item])}>
+                    <strong>{item.FunctionName}</strong>
+                  </Button>
+                ),
               },
               {
                 id: 'runtime',
                 header: 'Runtime',
                 cell: (item) => <Badge color="blue">{item.Runtime}</Badge>,
-                width: 140,
+                width: 150,
               },
               {
                 id: 'handler',
@@ -368,9 +470,9 @@ export const LambdaConsole: React.FC<LambdaConsoleProps> = ({ activeTab, onTabCh
               },
               {
                 id: 'memory',
-                header: 'Memory',
-                cell: (item) => `${item.MemorySize} MB`,
-                width: 120,
+                header: 'Memory / Timeout',
+                cell: (item) => `${item.MemorySize || 128} MB / ${item.Timeout || 30}s`,
+                width: 180,
               },
             ]}
             items={filteredFunctions}
@@ -380,26 +482,17 @@ export const LambdaConsole: React.FC<LambdaConsoleProps> = ({ activeTab, onTabCh
             empty={
               <Box textAlign="center" color="inherit">
                 <b>No Lambda functions found</b>
-                <p>Create a serverless function to execute Python, Node.js, or Java code.</p>
+                <p>Create a function to execute event-driven serverless code.</p>
               </Box>
             }
           />
         </SpaceBetween>
       </Container>
 
-      {/* Deepened Function Inspector */}
       {activeFunction && (
         <Container
           header={
-            <Header
-              variant="h2"
-              description={`Inspecting ${activeFunction.FunctionName}`}
-              actions={
-                <Button variant="primary" iconName="caret-right-filled" onClick={() => setInvokeModalOpen(true)}>
-                  Test / Invoke
-                </Button>
-              }
-            >
+            <Header variant="h2" description={`Inspecting function: ${activeFunction.FunctionName}`}>
               Function: {activeFunction.FunctionName}
             </Header>
           }
@@ -412,39 +505,158 @@ export const LambdaConsole: React.FC<LambdaConsoleProps> = ({ activeTab, onTabCh
             }}
             tabs={[
               {
-                label: 'Code Preview',
+                label: 'Code & Test Invocation',
                 id: 'code',
                 content: (
                   <SpaceBetween size="m">
-                    <CodeSnippet
-                      language="boto3"
-                      code={`# Handler for ${activeFunction.FunctionName}
-import json
+                    <Box float="right">
+                      <Button variant="primary" iconName="caret-right-filled" onClick={() => setInvokeModalOpen(true)}>
+                        Test / Invoke Function
+                      </Button>
+                    </Box>
 
-def lambda_handler(event, context):
-    print("Received event:", json.dumps(event))
-    return {
-        "statusCode": 200,
-        "body": json.dumps({
-            "message": "Hello from Floci Lambda!",
-            "function": "${activeFunction.FunctionName}",
-            "input": event
-        })
-    }
-`}
+                    <Container header={<Header variant="h3">Function Code & Handler</Header>}>
+                      <KeyValuePairs
+                        columns={2}
+                        items={[
+                          { label: 'Function ARN', value: activeFunction.FunctionArn },
+                          { label: 'Runtime', value: activeFunction.Runtime },
+                          { label: 'Handler', value: activeFunction.Handler },
+                          { label: 'Code Size', value: `${activeFunction.CodeSize || 512} Bytes` },
+                        ]}
+                      />
+                    </Container>
+
+                    {invokeResponse && (
+                      <Container header={<Header variant="h3">Execution Result</Header>}>
+                        <Textarea rows={6} value={invokeResponse} readOnly />
+                      </Container>
+                    )}
+                  </SpaceBetween>
+                ),
+              },
+              {
+                label: `Environment Variables (${envVars.length})`,
+                id: 'env',
+                content: (
+                  <SpaceBetween size="m">
+                    <Box float="right">
+                      <Button variant="primary" loading={savingEnv} onClick={handleSaveEnvVars}>
+                        Save Variables
+                      </Button>
+                    </Box>
+
+                    <Table
+                      columnDefinitions={[
+                        { id: 'key', header: 'Key', cell: (v) => <strong>{v.key}</strong> },
+                        { id: 'value', header: 'Value', cell: (v) => <code>{v.value}</code> },
+                        {
+                          id: 'act',
+                          header: 'Action',
+                          cell: (v) => (
+                            <Button iconName="remove" onClick={() => setEnvVars(envVars.filter((e) => e.key !== v.key))}>
+                              Remove
+                            </Button>
+                          ),
+                          width: 110,
+                        },
+                      ]}
+                      items={envVars}
+                      empty={<Box textAlign="center">No environment variables defined.</Box>}
+                    />
+
+                    <Grid gridDefinition={[{ colspan: { default: 12, s: 5 } }, { colspan: { default: 12, s: 5 } }, { colspan: { default: 12, s: 2 } }]}>
+                      <FormField label="Variable Key">
+                        <Input value={newEnvKey} onChange={({ detail }) => setNewEnvKey(detail.value)} placeholder="DATABASE_URL" />
+                      </FormField>
+                      <FormField label="Variable Value">
+                        <Input value={newEnvVal} onChange={({ detail }) => setNewEnvVal(detail.value)} placeholder="postgres://..." />
+                      </FormField>
+                      <Box margin={{ top: 'l' }}>
+                        <Button
+                          onClick={() => {
+                            if (!newEnvKey.trim()) return;
+                            setEnvVars([...envVars.filter((e) => e.key !== newEnvKey.trim()), { key: newEnvKey.trim(), value: newEnvVal.trim() }]);
+                            setNewEnvKey('');
+                            setNewEnvVal('');
+                          }}
+                        >
+                          Add Pair
+                        </Button>
+                      </Box>
+                    </Grid>
+                  </SpaceBetween>
+                ),
+              },
+              {
+                label: 'General Configuration',
+                id: 'config',
+                content: (
+                  <SpaceBetween size="m">
+                    <Grid gridDefinition={[{ colspan: { default: 12, s: 6 } }, { colspan: { default: 12, s: 6 } }]}>
+                      <FormField label="Memory Size (MB)" description="Amount of memory allocated to the function (128 MB to 10,240 MB).">
+                        <Input value={cfgMemory} onChange={({ detail }) => setCfgMemory(detail.value)} type="number" />
+                      </FormField>
+                      <FormField label="Timeout (Seconds)" description="Execution timeout duration (1 to 900 seconds).">
+                        <Input value={cfgTimeout} onChange={({ detail }) => setCfgTimeout(detail.value)} type="number" />
+                      </FormField>
+                    </Grid>
+
+                    <FormField label="Description">
+                      <Input value={cfgDescription} onChange={({ detail }) => setCfgDescription(detail.value)} placeholder="Function description..." />
+                    </FormField>
+
+                    <FormField label="Handler Entrypoint">
+                      <Input value={cfgHandler} onChange={({ detail }) => setCfgHandler(detail.value)} placeholder="index.handler" />
+                    </FormField>
+
+                    <Button variant="primary" loading={savingConfig} onClick={handleSaveConfiguration}>
+                      Save Configuration
+                    </Button>
+                  </SpaceBetween>
+                ),
+              },
+              {
+                label: `Aliases (${aliases.length})`,
+                id: 'aliases',
+                content: (
+                  <SpaceBetween size="m">
+                    <Box float="right">
+                      <Button variant="primary" iconName="add-plus" onClick={() => setCreateAliasOpen(true)}>
+                        Create Alias
+                      </Button>
+                    </Box>
+
+                    <Table
+                      columnDefinitions={[
+                        { id: 'name', header: 'Alias Name', cell: (a) => <strong>{a.Name || a.name}</strong> },
+                        { id: 'version', header: 'Function Version', cell: (a) => <Badge color="blue">{a.FunctionVersion || a.functionVersion || '$LATEST'}</Badge> },
+                        { id: 'desc', header: 'Description', cell: (a) => a.Description || a.description || '—' },
+                        {
+                          id: 'act',
+                          header: 'Action',
+                          cell: (a) => (
+                            <Button iconName="remove" onClick={() => handleDeleteAlias(a.Name || a.name)}>
+                              Delete
+                            </Button>
+                          ),
+                          width: 110,
+                        },
+                      ]}
+                      items={aliases}
+                      empty={<Box textAlign="center">No aliases created for this function.</Box>}
                     />
                   </SpaceBetween>
                 ),
               },
               {
-                label: 'Function URL (Public HTTP Endpoint)',
+                label: 'Function URL',
                 id: 'url',
                 content: (
                   <Container
                     header={
                       <Header
                         variant="h3"
-                        description="Dedicated HTTP(S) endpoint for your function without requiring API Gateway."
                         actions={
                           functionUrlConfig ? (
                             <Button loading={savingUrl} onClick={() => handleToggleFunctionUrl(false)}>
@@ -470,39 +682,35 @@ def lambda_handler(event, context):
                           <StatusIndicator type="stopped">Not Configured</StatusIndicator>
                         )}
                       </Box>
-
-                      {functionUrlConfig ? (
-                        <Alert type="info">
-                          Function URL:{' '}
-                          <Link href={functionUrlEndpoint} external>
-                            {functionUrlEndpoint}
-                          </Link>
-                        </Alert>
-                      ) : (
-                        <FormField label="Authentication Type">
+                      {!functionUrlConfig && (
+                        <FormField label="Auth Type">
                           <Select
                             selectedOption={urlAuthType}
                             onChange={({ detail }) => setUrlAuthType(detail.selectedOption as any)}
                             options={[
                               { label: 'NONE (Public Unauthenticated)', value: 'NONE' },
-                              { label: 'AWS_IAM (Caller must sign request with SigV4)', value: 'AWS_IAM' },
+                              { label: 'AWS_IAM (Signed with SigV4)', value: 'AWS_IAM' },
                             ]}
                           />
                         </FormField>
+                      )}
+                      {functionUrlConfig && (
+                        <Alert type="info">
+                          Function URL: <Link href={functionUrlEndpoint} external>{functionUrlEndpoint}</Link>
+                        </Alert>
                       )}
                     </SpaceBetween>
                   </Container>
                 ),
               },
               {
-                label: `Triggers & Mappings (${triggers.length})`,
+                label: `Triggers (${triggers.length})`,
                 id: 'triggers',
                 content: (
                   <Container
                     header={
                       <Header
                         variant="h3"
-                        description="Event source mappings that automatically poll resources (SQS, DynamoDB Streams, Kinesis) and invoke this function."
                         actions={
                           <Button variant="primary" iconName="add-plus" onClick={() => setAddTriggerOpen(true)}>
                             Add Trigger
@@ -516,13 +724,12 @@ def lambda_handler(event, context):
                     <Table
                       columnDefinitions={[
                         { id: 'source', header: 'Event Source ARN', cell: (i: any) => <code>{i.EventSourceArn || i.eventSourceArn}</code> },
-                        { id: 'status', header: 'State', cell: () => <StatusIndicator type="success">Enabled</StatusIndicator>, width: 120 },
                         { id: 'batch', header: 'Batch Size', cell: (i: any) => i.BatchSize || 10, width: 120 },
                         {
                           id: 'action',
                           header: 'Action',
                           cell: (i: any) => (
-                            <Button onClick={() => handleDeleteTrigger(i.UUID || i.uuid)}>
+                            <Button iconName="remove" onClick={() => handleDeleteTrigger(i.UUID || i.uuid)}>
                               Delete
                             </Button>
                           ),
@@ -530,7 +737,7 @@ def lambda_handler(event, context):
                         },
                       ]}
                       items={triggers}
-                      empty={<Box textAlign="center">No event source triggers attached to this function.</Box>}
+                      empty={<Box textAlign="center">No event source triggers attached.</Box>}
                     />
                   </Container>
                 ),
@@ -557,28 +764,10 @@ def lambda_handler(event, context):
                       columnDefinitions={[
                         { id: 'version', header: 'Version', cell: (i: any) => <strong>{i.Version || i.version || '$LATEST'}</strong>, width: 120 },
                         { id: 'desc', header: 'Description', cell: (i: any) => i.Description || i.description || '—' },
-                        { id: 'arn', header: 'Version ARN', cell: (i: any) => <code>{i.FunctionArn || i.functionArn}</code> },
                       ]}
-                      items={versions.length > 0 ? versions : [{ Version: '$LATEST', Description: 'Active working draft', FunctionArn: activeFunction.FunctionArn }]}
+                      items={versions.length > 0 ? versions : [{ Version: '$LATEST', Description: 'Active working draft' }]}
                     />
                   </Container>
-                ),
-              },
-              {
-                label: 'Configuration',
-                id: 'config',
-                content: (
-                  <KeyValuePairs
-                    columns={3}
-                    items={[
-                      { label: 'Function ARN', value: activeFunction.FunctionArn },
-                      { label: 'Runtime', value: activeFunction.Runtime },
-                      { label: 'Handler', value: activeFunction.Handler },
-                      { label: 'Memory Size', value: `${activeFunction.MemorySize} MB` },
-                      { label: 'Timeout', value: `${activeFunction.Timeout} seconds` },
-                      { label: 'Execution Role', value: 'arn:aws:iam::000000000000:role/lambda-basic-execution' },
-                    ]}
-                  />
                 ),
               },
             ]}
@@ -586,7 +775,6 @@ def lambda_handler(event, context):
         </Container>
       )}
 
-      {/* Create Function Modal */}
       <Modal
         visible={createModalOpen}
         onDismiss={() => setCreateModalOpen(false)}
@@ -606,14 +794,9 @@ def lambda_handler(event, context):
         }
       >
         <SpaceBetween size="m">
-          <FormField label="Function Name" description="Unique function identifier.">
-            <Input
-              value={functionName}
-              onChange={({ detail }) => setFunctionName(detail.value)}
-              placeholder="processOrderEvent"
-            />
+          <FormField label="Function Name">
+            <Input value={functionName} onChange={({ detail }) => setFunctionName(detail.value)} placeholder="my-function" />
           </FormField>
-
           <FormField label="Runtime">
             <Select
               selectedOption={runtime}
@@ -621,23 +804,15 @@ def lambda_handler(event, context):
               options={[
                 { label: 'Python 3.12', value: 'python3.12' },
                 { label: 'Node.js 20.x', value: 'nodejs20.x' },
-                { label: 'Custom Runtime (provided.al2023)', value: 'provided.al2023' },
-                { label: 'Java 21', value: 'java21' },
               ]}
             />
           </FormField>
-
-          <FormField label="Handler" description="The entrypoint file and method to execute.">
-            <Input
-              value={handler}
-              onChange={({ detail }) => setHandler(detail.value)}
-              placeholder="lambda_function.lambda_handler"
-            />
+          <FormField label="Handler">
+            <Input value={handler} onChange={({ detail }) => setHandler(detail.value)} />
           </FormField>
         </SpaceBetween>
       </Modal>
 
-      {/* Test / Invoke Modal */}
       <Modal
         visible={invokeModalOpen}
         onDismiss={() => setInvokeModalOpen(false)}
@@ -649,36 +824,28 @@ def lambda_handler(event, context):
               <Button variant="link" onClick={() => setInvokeModalOpen(false)}>
                 Close
               </Button>
-              <Button variant="primary" iconName="caret-right-filled" loading={invoking} onClick={handleInvoke}>
-                Execute
+              <Button variant="primary" loading={invoking} onClick={handleInvokeFunction}>
+                Execute Function
               </Button>
             </SpaceBetween>
           </Box>
         }
       >
         <SpaceBetween size="m">
-          <FormField label="Event JSON Payload" description="Input JSON payload passed to the handler function.">
+          <FormField label="Event JSON Payload">
             <Textarea
-              rows={6}
+              rows={8}
               value={invokePayload}
               onChange={({ detail }) => setInvokePayload(detail.value)}
             />
           </FormField>
-
-          {invokeResponse && (
-            <Container header={<Header variant="h3">Execution Result</Header>}>
-              <CodeSnippet language="json" code={invokeResponse} />
-            </Container>
-          )}
         </SpaceBetween>
       </Modal>
 
-      {/* Add Trigger Modal */}
       <Modal
         visible={addTriggerOpen}
         onDismiss={() => setAddTriggerOpen(false)}
-        header={`Add Event Trigger: ${activeFunction?.FunctionName}`}
-        size="large"
+        header="Add Event Source Trigger"
         footer={
           <Box float="right">
             <SpaceBetween direction="horizontal" size="xs">
@@ -693,30 +860,26 @@ def lambda_handler(event, context):
         }
       >
         <SpaceBetween size="m">
-          <FormField label="Event Source ARN" description="ARN of an Amazon SQS Queue, DynamoDB Stream, or Kinesis Stream.">
+          <FormField label="Event Source ARN" description="SQS queue, DynamoDB stream, or Kinesis stream ARN.">
             <Input
               value={triggerSourceArn}
               onChange={({ detail }) => setTriggerSourceArn(detail.value)}
-              placeholder="arn:aws:sqs:us-east-1:000000000000:my-queue"
             />
           </FormField>
-
-          <FormField label="Batch Size" description="Maximum number of records to retrieve in a single batch (1-10000).">
+          <FormField label="Batch Size">
             <Input
-              type="number"
               value={triggerBatchSize}
               onChange={({ detail }) => setTriggerBatchSize(detail.value)}
-              placeholder="10"
+              type="number"
             />
           </FormField>
         </SpaceBetween>
       </Modal>
 
-      {/* Publish Version Modal */}
       <Modal
         visible={publishVersionOpen}
         onDismiss={() => setPublishVersionOpen(false)}
-        header={`Publish New Version: ${activeFunction?.FunctionName}`}
+        header={`Publish New Version of ${activeFunction?.FunctionName}`}
         footer={
           <Box float="right">
             <SpaceBetween direction="horizontal" size="xs">
@@ -724,7 +887,7 @@ def lambda_handler(event, context):
                 Cancel
               </Button>
               <Button variant="primary" loading={publishingVersion} onClick={handlePublishVersion}>
-                Publish
+                Publish Version
               </Button>
             </SpaceBetween>
           </Box>
@@ -734,9 +897,39 @@ def lambda_handler(event, context):
           <Input
             value={versionDescription}
             onChange={({ detail }) => setVersionDescription(detail.value)}
-            placeholder="Production release snapshot"
+            placeholder="Release v1.2"
           />
         </FormField>
+      </Modal>
+
+      <Modal
+        visible={createAliasOpen}
+        onDismiss={() => setCreateAliasOpen(false)}
+        header={`Create Alias for ${activeFunction?.FunctionName}`}
+        footer={
+          <Box float="right">
+            <SpaceBetween direction="horizontal" size="xs">
+              <Button variant="link" onClick={() => setCreateAliasOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" loading={savingAlias} onClick={handleCreateAlias}>
+                Create Alias
+              </Button>
+            </SpaceBetween>
+          </Box>
+        }
+      >
+        <SpaceBetween size="m">
+          <FormField label="Alias Name">
+            <Input value={aliasName} onChange={({ detail }) => setAliasName(detail.value)} placeholder="PROD or STAGE" />
+          </FormField>
+          <FormField label="Target Version">
+            <Input value={aliasVersion} onChange={({ detail }) => setAliasVersion(detail.value)} placeholder="$LATEST or 1" />
+          </FormField>
+          <FormField label="Description (Optional)">
+            <Input value={aliasDesc} onChange={({ detail }) => setAliasDesc(detail.value)} placeholder="Production deployment alias" />
+          </FormField>
+        </SpaceBetween>
       </Modal>
     </SpaceBetween>
   );

@@ -243,3 +243,96 @@ def describe_instance_type_limits(engine_version: str, instance_type: str) -> di
         'limits_by_role': response.get('LimitsByRole', {}),
         'response': _clean_response(response),
     }
+
+
+def execute_domain_request(
+    domain_name: str,
+    *,
+    method: str = 'GET',
+    path: str = '/_cluster/health',
+    body: Any = None,
+    headers: dict[str, str] | None = None,
+    endpoint_url: str | None = None,
+) -> dict[str, Any]:
+    import json
+    import time
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+    clean_domain = _required(domain_name, 'Domain name')
+    clean_method = (method or 'GET').strip().upper()
+    clean_path = (path or '/_cluster/health').strip()
+    if not clean_path.startswith('/'):
+        clean_path = f'/{clean_path}'
+
+    target_url = endpoint_url
+    if not target_url:
+        floci_endpoint = FlociClientFactory().endpoint_url.rstrip('/')
+        target_url = f'{floci_endpoint}/opensearch/{clean_domain}{clean_path}'
+
+    req_headers = {
+        'User-Agent': 'Floci-Dashboard-OpenSearch-DevTools/1.0',
+    }
+    if headers and isinstance(headers, dict):
+        for k, v in headers.items():
+            req_headers[str(k)] = str(v)
+
+    req_data = None
+    if body is not None and clean_method not in {'GET', 'HEAD'}:
+        if isinstance(body, str):
+            req_data = body.encode('utf-8')
+        elif isinstance(body, (dict, list)):
+            req_data = json.dumps(body).encode('utf-8')
+            if 'Content-Type' not in req_headers:
+                req_headers['Content-Type'] = 'application/json'
+
+    request = urllib.request.Request(target_url, data=req_data, headers=req_headers, method=clean_method)
+    start_time = time.perf_counter()
+
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            resp_body_str = response.read().decode('utf-8', errors='replace')
+            try:
+                parsed_json = json.loads(resp_body_str)
+            except Exception:
+                parsed_json = None
+            return {
+                'domain_name': clean_domain,
+                'method': clean_method,
+                'path': clean_path,
+                'status_code': response.status,
+                'latency_ms': latency_ms,
+                'headers': dict(response.headers.items()),
+                'body': resp_body_str,
+                'json': parsed_json,
+            }
+    except urllib.error.HTTPError as err:
+        latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
+        err_body_str = err.read().decode('utf-8', errors='replace')
+        try:
+            parsed_json = json.loads(err_body_str)
+        except Exception:
+            parsed_json = None
+        return {
+            'domain_name': clean_domain,
+            'method': clean_method,
+            'path': clean_path,
+            'status_code': err.code,
+            'latency_ms': latency_ms,
+            'headers': dict(err.headers.items()) if err.headers else {},
+            'body': err_body_str,
+            'json': parsed_json,
+            'error': str(err),
+        }
+    except Exception as err:
+        latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
+        return {
+            'domain_name': clean_domain,
+            'method': clean_method,
+            'path': clean_path,
+            'status_code': 500,
+            'latency_ms': latency_ms,
+            'error': str(err),
+        }
+

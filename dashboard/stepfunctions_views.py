@@ -6,7 +6,38 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 
 from .actions import handle_action_error, parse_json_body
-from .stepfunctions_api import delete_state_machine_version, publish_state_machine_version, start_execution, stop_execution
+from .stepfunctions_api import (
+    create_state_machine, delete_state_machine, delete_state_machine_version,
+    describe_execution, describe_state_machine, get_execution_history,
+    publish_state_machine_version, start_execution, stop_execution,
+)
+
+
+@require_http_methods(['POST'])
+def stepfunctions_state_machines_create(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(create_state_machine(
+            name=body.get('name', ''),
+            definition=body.get('definition'),
+            role_arn=body.get('role_arn', ''),
+            state_machine_type=body.get('type') or 'STANDARD',
+            logging_configuration=body.get('logging_configuration'),
+            tracing_configuration=body.get('tracing_configuration'),
+            tags=body.get('tags'),
+        ))
+    except Exception as exc:
+        return handle_action_error(exc, service='stepfunctions', operation='create_state_machine')
+
+
+@require_http_methods(['GET', 'DELETE'])
+def stepfunctions_state_machine_detail(request, state_machine_arn: str):
+    try:
+        if request.method == 'DELETE':
+            return JsonResponse(delete_state_machine(state_machine_arn))
+        return JsonResponse(describe_state_machine(state_machine_arn))
+    except Exception as exc:
+        return handle_action_error(exc, service='stepfunctions', operation='delete_state_machine' if request.method == 'DELETE' else 'describe_state_machine')
 
 
 @require_http_methods(['POST'])
@@ -21,6 +52,22 @@ def stepfunctions_executions_start(request):
         ))
     except Exception as exc:
         return handle_action_error(exc, service='stepfunctions', operation='start_execution')
+
+
+@require_http_methods(['GET'])
+def stepfunctions_execution_detail(request, execution_arn: str):
+    try:
+        return JsonResponse(describe_execution(execution_arn))
+    except Exception as exc:
+        return handle_action_error(exc, service='stepfunctions', operation='describe_execution')
+
+
+@require_http_methods(['GET'])
+def stepfunctions_execution_history(request, execution_arn: str):
+    try:
+        return JsonResponse(get_execution_history(execution_arn))
+    except Exception as exc:
+        return handle_action_error(exc, service='stepfunctions', operation='get_execution_history')
 
 
 @require_http_methods(['POST'])

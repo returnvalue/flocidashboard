@@ -6,7 +6,7 @@ const AppSyncConsole = (() => {
   const breadcrumbsEl = document.getElementById('appsync-breadcrumbs');
   const summaryEl = document.getElementById('appsync-summary');
   const loadedAtEl = document.getElementById('appsync-loaded-at');
-  const state = { inventory: null, selectedApiId: '', lastResult: null };
+  const state = { inventory: null, selectedApiId: '', lastResult: null, lastGraphqlResult: null };
   const el = ui.el;
   const apiJson = ui.apiJson;
   const btn = ui.button;
@@ -44,6 +44,85 @@ const AppSyncConsole = (() => {
     openModal('Create GraphQL API', form, 'Create', async (close) => {
       const data = await apiJson('/api/appsync/apis/', { method: 'POST', body: JSON.stringify({ name: name.value.trim(), authentication_type: auth.value.trim(), tags: parseJson(tags.value, {}, 'Tags') }) });
       state.selectedApiId = data.api_id || ''; state.lastResult = data; close(); toast('GraphQL API created'); await refresh();
+    });
+  }
+
+  function showGraphiqlModal(api) {
+    const form = el('div', 'appsync-modal-form');
+    const presets = {
+      introspection: {
+        name: 'Introspection (__schema)',
+        query: 'query GetSchemaTypes {\n  __schema {\n    types {\n      name\n      kind\n      description\n    }\n  }\n}',
+        vars: '{}',
+      },
+      sample_query: {
+        name: 'Sample Query (hello)',
+        query: 'query HelloQuery {\n  hello\n}',
+        vars: '{}',
+      },
+      custom_mutation: {
+        name: 'Sample Mutation',
+        query: 'mutation CreateItem($input: String!) {\n  createItem(name: $input) {\n    id\n    name\n  }\n}',
+        vars: '{\n  "input": "Sample Item"\n}',
+      },
+    };
+
+    const presetSelect = document.createElement('select');
+    Object.entries(presets).forEach(([k, v]) => {
+      const opt = el('option', null, v.name);
+      opt.value = k;
+      presetSelect.append(opt);
+    });
+
+    const apiKeyVal = (api?.api_keys || [])[0]?.id || '';
+    const apiKeyInput = input(apiKeyVal, 'Optional API Key');
+    const queryArea = textarea(presets.introspection.query, 'GraphQL Query');
+    queryArea.style.minHeight = '150px';
+    queryArea.className = 'appsync-code-area';
+
+    const varsArea = textarea(presets.introspection.vars, 'Variables JSON');
+    varsArea.style.minHeight = '80px';
+    varsArea.className = 'appsync-code-area';
+
+    presetSelect.addEventListener('change', () => {
+      const selected = presets[presetSelect.value];
+      if (selected) {
+        queryArea.value = selected.query;
+        varsArea.value = selected.vars;
+      }
+    });
+
+    field(form, 'Query Preset', presetSelect);
+    field(form, 'API Key (x-api-key)', apiKeyInput);
+    field(form, 'GraphQL Query String', queryArea);
+    field(form, 'Query Variables JSON', varsArea);
+
+    openModal('GraphiQL Query Runner', form, 'Execute Query', async (close) => {
+      const query = queryArea.value.trim();
+      if (!query) throw new Error('GraphQL query cannot be empty');
+      let varsObj = null;
+      if (varsArea.value.trim()) {
+        try {
+          varsObj = JSON.parse(varsArea.value.trim());
+        } catch (e) {
+          throw new Error('Variables must be valid JSON: ' + e.message);
+        }
+      }
+
+      const res = await apiJson('/api/appsync/graphql/run/', {
+        method: 'POST',
+        body: JSON.stringify({
+          api_id: apiId(api),
+          query,
+          variables: varsObj,
+          api_key: apiKeyInput.value.trim() || undefined,
+        }),
+      });
+
+      state.lastGraphqlResult = res;
+      toast(`Query finished (HTTP ${res.status_code}, ${res.latency_ms}ms)`);
+      close();
+      render();
     });
   }
 
@@ -118,43 +197,116 @@ const AppSyncConsole = (() => {
     items.forEach((item) => {
       const card = el('article', 'appsync-card'); card.append(el('h4', null, item.name || item.fieldName || item.functionId || item.id || 'Resource'));
       const dl = document.createElement('dl'); facts.forEach(([label, key]) => ui.addField(dl, label, item[key])); card.append(dl);
-      if (deleteHandler) card.append(btn('Delete', 'appsync-btn-danger', () => deleteHandler(item).catch((error) => toast(error.message, true))));
+      if (deleteHandler) card.append(btn('Delete', 'appsync-btn-danger', () => deleteHandler(item)));
       list.append(card);
     });
     section.append(list); return section;
   }
 
-  function renderDetail(api) {
-    const panel = el('section', 'appsync-panel'); panel.append(el('div', 'appsync-panel-heading', api?.name || 'AppSync workflow')); const body = el('div', 'appsync-detail');
-    if (!api) body.append(el('p', 'appsync-empty', 'Create a GraphQL API to begin configuring AppSync resolver resources.'));
-    else {
-      const facts = el('dl', 'appsync-facts'); [['API ID', apiId(api)], ['ARN', api.arn], ['Authentication', api.authenticationType], ['URIs', api.uris], ['Schema status', api.schema_status], ['Tags', api.tags]].forEach(([label, value]) => ui.addField(facts, label, value)); body.append(facts);
-      const actions = el('div', 'appsync-action-row'); actions.append(btn('Upload schema', null, () => showSchema(api)), btn('Create API key', 'appsync-btn-secondary', () => showApiKey(api)), btn('Create data source', 'appsync-btn-secondary', () => showDataSource(api)), btn('Create resolver', 'appsync-btn-secondary', () => showResolver(api)), btn('Create function', 'appsync-btn-secondary', () => showFunction(api)), btn('Create type', 'appsync-btn-secondary', () => showType(api)), btn('Tags', 'appsync-btn-secondary', () => showTags(api)), btn('Delete API', 'appsync-btn-danger', () => deleteApi(api).catch((error) => toast(error.message, true)))); body.append(actions);
-      const base = `/api/appsync/apis/${encodeURIComponent(apiId(api))}`;
-      body.append(
-        renderCards('API keys', api.api_keys || [], [['ID', 'id'], ['Description', 'description'], ['Expires', 'expires']], (item) => deleteItem(`${base}/api-keys/`, { key_id: item.id }, 'API key')),
-        renderCards('Data sources', api.data_sources || [], [['Type', 'type'], ['Description', 'description']], (item) => deleteItem(`${base}/data-sources/`, { name: item.name }, 'data source')),
-        renderCards('Resolvers', api.resolvers || [], [['Type', 'typeName'], ['Field', 'fieldName'], ['Data source', 'dataSourceName']], (item) => deleteItem(`${base}/resolvers/`, { type_name: item.typeName, field_name: item.fieldName }, 'resolver')),
-        renderCards('Functions', api.functions || [], [['Function ID', 'functionId'], ['Data source', 'dataSourceName'], ['Description', 'description']], (item) => deleteItem(`${base}/functions/`, { function_id: item.functionId }, 'function')),
-        renderCards('Types', api.types || [], [['Definition', 'definition']], (item) => deleteItem(`${base}/types/`, { type_name: item.name }, 'type')),
-      );
+  function renderGraphqlResult() {
+    if (!state.lastGraphqlResult) return null;
+    const res = state.lastGraphqlResult;
+    const card = el('section', 'appsync-section');
+    const heading = el('div', 'appsync-panel-heading');
+    heading.append(
+      el('span', null, 'Last GraphQL Execution Result'),
+      el('span', 'appsync-meta', `${res.latency_ms}ms · HTTP ${res.status_code}`),
+    );
+    card.append(heading);
+
+    if (res.data) {
+      card.append(el('h4', null, 'Data'));
+      card.append(el('pre', 'appsync-output', JSON.stringify(res.data, null, 2)));
     }
-    if (state.lastResult) { const result = el('pre', 'appsync-result'); result.textContent = JSON.stringify(ui.displayValue(state.lastResult), null, 2); body.append(el('h3', null, 'Last action result'), result); }
-    panel.append(body); return panel;
+    if (res.errors) {
+      card.append(el('h4', null, 'Errors'));
+      card.append(el('pre', 'appsync-output appsync-output-error', JSON.stringify(res.errors, null, 2)));
+    }
+    if (!res.data && !res.errors && res.raw) {
+      card.append(el('pre', 'appsync-output', JSON.stringify(res.raw, null, 2)));
+    }
+    return card;
+  }
+
+  function renderWorkbench() {
+    const api = selectedApi();
+    const container = el('div');
+    container.append(toolbar(
+      [
+        btn('Create GraphQL API', null, showCreateApi),
+        btn('Run GraphQL query', 'appsync-btn-primary', () => api && showGraphiqlModal(api)),
+        btn('Upload schema', null, () => api && showSchema(api)),
+        btn('Create API key', null, () => api && showApiKey(api)),
+        btn('Create data source', null, () => api && showDataSource(api)),
+        btn('Create resolver', null, () => api && showResolver(api)),
+        btn('Create function', null, () => api && showFunction(api)),
+        btn('Create type', null, () => api && showType(api)),
+        btn('Manage tags', 'appsync-btn-secondary', () => api && showTags(api)),
+        btn('Delete API', 'appsync-btn-danger', () => api && deleteApi(api)),
+      ],
+      [],
+    ));
+
+    [...container.querySelectorAll('button')].slice(1).forEach((button) => { button.disabled = !api; });
+
+    const workbench = el('div', 'appsync-workbench');
+    workbench.append(renderApiList());
+
+    const detail = el('section', 'appsync-panel');
+    detail.append(el('div', 'appsync-panel-heading', api ? (api.name || apiId(api)) : 'API detail'));
+    const content = el('div', 'appsync-content');
+    if (!api) {
+      content.append(el('p', 'appsync-empty', 'Create or select an AppSync GraphQL API to inspect its schema, data sources, resolvers, and functions.'));
+    } else {
+      const summary = document.createElement('dl');
+      [['API ID', apiId(api)], ['ARN', api.arn], ['Authentication type', api.authenticationType], ['GraphQL endpoint', api.uris?.GRAPHQL || api.uris?.graphql], ['Realtime endpoint', api.uris?.REALTIME || api.uris?.realtime], ['Resolver count', api.resolver_count]].forEach(([l, v]) => ui.addField(summary, l, v));
+      content.append(summary);
+      if (api.schema_definition) {
+        const schemaBlock = el('section', 'appsync-section');
+        schemaBlock.append(el('h3', null, 'GraphQL Schema Definition'), el('pre', 'appsync-output', api.schema_definition));
+        content.append(schemaBlock);
+      }
+      const resCard = renderGraphqlResult();
+      if (resCard) content.append(resCard);
+      content.append(renderCards('API keys', api.api_keys || [], [['Key ID', 'id'], ['Description', 'description'], ['Expires', 'expires']], (item) => deleteItem(`/api/appsync/apis/${encodeURIComponent(apiId(api))}/api-keys/`, { key_id: item.id }, 'API key')));
+      content.append(renderCards('Data sources', api.data_sources || [], [['Name', 'name'], ['Type', 'type'], ['Description', 'description']], (item) => deleteItem(`/api/appsync/apis/${encodeURIComponent(apiId(api))}/data-sources/`, { name: item.name }, 'data source')));
+      content.append(renderCards('Resolvers', api.resolvers || [], [['Type', 'typeName'], ['Field', 'fieldName'], ['Data source', 'dataSourceName']], (item) => deleteItem(`/api/appsync/apis/${encodeURIComponent(apiId(api))}/resolvers/`, { type_name: item.typeName, field_name: item.fieldName }, 'resolver')));
+      content.append(renderCards('Functions', api.functions || [], [['ID', 'functionId'], ['Name', 'name'], ['Data source', 'dataSourceName']], (item) => deleteItem(`/api/appsync/apis/${encodeURIComponent(apiId(api))}/functions/`, { function_id: item.functionId }, 'function')));
+      content.append(renderCards('Types', api.types || [], [['Name', 'name'], ['Format', 'format'], ['Description', 'description']], (item) => deleteItem(`/api/appsync/apis/${encodeURIComponent(apiId(api))}/types/`, { type_name: item.name }, 'type')));
+    }
+    detail.append(content);
+    workbench.append(detail);
+    container.append(workbench);
+    return container;
   }
 
   function render() {
     if (!root) return;
-    root.textContent = ''; renderBreadcrumbs(); renderSummary(state.inventory?.summary || {});
-    root.append(toolbar([btn('Create GraphQL API', null, showCreateApi), btn('Refresh', 'appsync-btn-secondary', () => refresh().catch((error) => toast(error.message, true)))], [el('span', 'appsync-toolbar-note', 'Resolver configuration with Phase 4 VTL engine support')]));
-    const workbench = el('div', 'appsync-workbench'); workbench.append(renderApiList(), renderDetail(selectedApi())); root.append(workbench);
+    renderBreadcrumbs();
+    root.textContent = '';
+    root.append(renderWorkbench());
     if (loadedAtEl) loadedAtEl.textContent = `Loaded ${new Date().toLocaleTimeString()}`;
   }
 
-  async function refresh() { const data = await apiJson('/api/appsync/'); state.inventory = data; if (!selectedApi() && apis().length) state.selectedApiId = apiId(apis()[0]); render(); }
-  function init() { if (!root) return; root.append(el('div', 'appsync-empty', 'Loading...')); refresh().catch((error) => toast(error.message, true)); }
+  async function refresh() {
+    const data = await apiJson('/api/appsync/');
+    state.inventory = data;
+    if (!selectedApi() && apis().length) state.selectedApiId = apiId(apis()[0]);
+    renderSummary(data.summary || {});
+    render();
+  }
+
+  function init() {
+    if (!root) return;
+    root.append(el('p', 'appsync-empty', 'Loading AppSync workbench...'));
+    refresh().catch((err) => toast(err.message, true));
+  }
+
   return { init, refresh };
 })();
 
 window.AppSyncConsole = AppSyncConsole;
-if (document.getElementById('appsync-console-root')) AppSyncConsole.init();
+
+if (document.getElementById('appsync-console-root')) {
+  AppSyncConsole.init();
+}

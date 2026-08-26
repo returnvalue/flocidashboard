@@ -15,7 +15,17 @@ import Grid from '@cloudscape-design/components/grid';
 import Alert from '@cloudscape-design/components/alert';
 import TextFilter from '@cloudscape-design/components/text-filter';
 import Tabs from '@cloudscape-design/components/tabs';
-import { fetchInventory, executeServiceAction, fetchInspectorLogGroups, fetchInspectorLogEvents } from '../api/client';
+import {
+  fetchInventory,
+  executeServiceAction,
+  fetchInspectorLogGroups,
+  fetchInspectorLogEvents,
+  putCloudWatchMetricData,
+  setCloudWatchAlarmState,
+  deleteCloudWatchAlarms,
+  createCloudWatchLogStream,
+  putCloudWatchLogRetention,
+} from '../api/client';
 
 interface CloudWatchConsoleProps {
   activeTab?: string;
@@ -45,12 +55,35 @@ export const CloudWatchConsole: React.FC<CloudWatchConsoleProps> = ({ activeTab,
   const [comparisonOp, setComparisonOp] = useState({ label: 'GreaterThanThreshold (>)', value: 'GreaterThanThreshold' });
   const [creating, setCreating] = useState(false);
 
+  // Metrics Ingest State
+  const [ingestNamespace, setIngestNamespace] = useState('MyApp/CustomMetrics');
+  const [ingestMetricName, setIngestMetricName] = useState('RequestLatency');
+  const [ingestValue, setIngestValue] = useState('42.5');
+  const [ingestUnit, setIngestUnit] = useState({ label: 'Milliseconds', value: 'Milliseconds' });
+  const [publishingMetric, setPublishingMetric] = useState(false);
+  const [metricsList, setMetricsList] = useState<any[]>([
+    { Namespace: 'AWS/EC2', MetricName: 'CPUUtilization' },
+    { Namespace: 'AWS/Lambda', MetricName: 'Invocations' },
+    { Namespace: 'AWS/Lambda', MetricName: 'Duration' },
+    { Namespace: 'AWS/SQS', MetricName: 'ApproximateNumberOfMessagesVisible' },
+  ]);
+
   // CloudWatch Logs
   const [logGroups, setLogGroups] = useState<any[]>([]);
   const [selectedLogGroup, setSelectedLogGroup] = useState<any>(null);
   const [logEvents, setLogEvents] = useState<any[]>([]);
   const [logFilter, setLogFilter] = useState('');
   const [loadingLogs, setLoadingLogs] = useState(false);
+
+  // Retention Modal
+  const [retentionModalOpen, setRetentionModalOpen] = useState(false);
+  const [selectedRetention, setSelectedRetention] = useState({ label: '30 days', value: '30' });
+  const [savingRetention, setSavingRetention] = useState(false);
+
+  // Create Stream Modal
+  const [createStreamOpen, setCreateStreamOpen] = useState(false);
+  const [newStreamName, setNewStreamName] = useState('');
+  const [creatingStream, setCreatingStream] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -118,19 +151,85 @@ export const CloudWatchConsole: React.FC<CloudWatchConsoleProps> = ({ activeTab,
     }
   };
 
-  const handleSetAlarmState = async (stateValue: 'OK' | 'ALARM') => {
+  const handleSetAlarmState = async (stateValue: 'OK' | 'ALARM' | 'INSUFFICIENT_DATA') => {
     if (!selectedAlarms.length) return;
     const alarm = selectedAlarms[0];
     try {
-      await executeServiceAction('cloudwatch', 'set_alarm_state', {
-        alarm_name: alarm.AlarmName,
-        state_value: stateValue,
-        state_reason: `Manual override via Floci CloudWatch Console`,
-      });
-      setActionMessage({ type: 'success', text: `Alarm state updated to ${stateValue}.` });
+      await setCloudWatchAlarmState(
+        alarm.AlarmName,
+        stateValue,
+        `Manual simulator state override from CloudWatch Console`
+      );
+      setActionMessage({ type: 'success', text: `Alarm "${alarm.AlarmName}" state transitioned to ${stateValue}.` });
       await loadData();
     } catch (err: any) {
       setActionMessage({ type: 'error', text: err.message || 'Failed to update alarm state' });
+    }
+  };
+
+  const handleDeleteAlarm = async () => {
+    if (!selectedAlarms.length) return;
+    const alarm = selectedAlarms[0];
+    try {
+      await deleteCloudWatchAlarms([alarm.AlarmName]);
+      setActionMessage({ type: 'success', text: `Alarm "${alarm.AlarmName}" deleted.` });
+      setSelectedAlarms([]);
+      await loadData();
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to delete alarm' });
+    }
+  };
+
+  const handlePublishMetric = async () => {
+    if (!ingestNamespace.trim() || !ingestMetricName.trim()) return;
+    setPublishingMetric(true);
+    try {
+      await putCloudWatchMetricData(ingestNamespace.trim(), [{
+        MetricName: ingestMetricName.trim(),
+        Value: Number(ingestValue) || 0,
+        Unit: ingestUnit.value,
+        Timestamp: new Date().toISOString(),
+      }]);
+      setMetricsList((prev) => [
+        { Namespace: ingestNamespace.trim(), MetricName: ingestMetricName.trim() },
+        ...prev.filter((m) => !(m.Namespace === ingestNamespace.trim() && m.MetricName === ingestMetricName.trim())),
+      ]);
+      setActionMessage({ type: 'success', text: `Metric "${ingestMetricName.trim()}" published to "${ingestNamespace.trim()}".` });
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to publish metric' });
+    } finally {
+      setPublishingMetric(false);
+    }
+  };
+
+  const handleSaveRetention = async () => {
+    if (!selectedLogGroup?.value) return;
+    setSavingRetention(true);
+    try {
+      await putCloudWatchLogRetention(selectedLogGroup.value, Number(selectedRetention.value) || 30);
+      setActionMessage({ type: 'success', text: `Retention policy updated for ${selectedLogGroup.value}.` });
+      setRetentionModalOpen(false);
+      await loadData();
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to update retention policy' });
+    } finally {
+      setSavingRetention(false);
+    }
+  };
+
+  const handleCreateLogStream = async () => {
+    if (!selectedLogGroup?.value || !newStreamName.trim()) return;
+    setCreatingStream(true);
+    try {
+      await createCloudWatchLogStream(selectedLogGroup.value, newStreamName.trim());
+      setActionMessage({ type: 'success', text: `Log stream "${newStreamName.trim()}" created.` });
+      setCreateStreamOpen(false);
+      setNewStreamName('');
+      await loadLogs(selectedLogGroup.value);
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to create log stream' });
+    } finally {
+      setCreatingStream(false);
     }
   };
 
@@ -148,25 +247,25 @@ export const CloudWatchConsole: React.FC<CloudWatchConsoleProps> = ({ activeTab,
     return text.includes(filterText.toLowerCase());
   });
 
-  const filteredEvents = logEvents.filter((ev) =>
-    (ev.message || '').toLowerCase().includes(logFilter.toLowerCase())
+  const filteredEvents = logEvents.filter((e: any) =>
+    (e.message || '').toLowerCase().includes(logFilter.toLowerCase())
   );
 
   return (
     <SpaceBetween size="l">
-      {/* Header */}
+      {/* Header Container */}
       <Container
         header={
           <Header
             variant="h1"
-            description="Observability and monitoring service providing data and actionable insights for mock AWS resources."
+            description="Observability and monitoring for AWS cloud resources and applications."
             actions={
               <SpaceBetween direction="horizontal" size="xs">
                 <Button iconName="refresh" onClick={loadData} loading={loading}>
                   Refresh
                 </Button>
                 <Button variant="primary" iconName="add-plus" onClick={() => setCreateModalOpen(true)}>
-                  Create Metric Alarm
+                  Create Alarm
                 </Button>
               </SpaceBetween>
             }
@@ -185,27 +284,27 @@ export const CloudWatchConsole: React.FC<CloudWatchConsoleProps> = ({ activeTab,
 
         <Grid gridDefinition={[{ colspan: { default: 12, s: 4 } }, { colspan: { default: 12, s: 4 } }, { colspan: { default: 12, s: 4 } }]}>
           <Box padding="m" textAlign="center">
-            <Box variant="awsui-key-label">Total Metric Alarms</Box>
+            <Box variant="awsui-key-label">Metric Alarms</Box>
             <Box variant="h1" color="text-status-info">
               {alarmsList.length}
             </Box>
           </Box>
           <Box padding="m" textAlign="center">
-            <Box variant="awsui-key-label">Alarms In Alarm State</Box>
-            <Box variant="h1" color="text-status-error">
-              {alarmsList.filter((a: any) => a.StateValue === 'ALARM').length}
+            <Box variant="awsui-key-label">Log Groups</Box>
+            <Box variant="h1" color="text-status-info">
+              {logGroups.length}
             </Box>
           </Box>
           <Box padding="m" textAlign="center">
-            <Box variant="awsui-key-label">Log Groups Active</Box>
-            <Box variant="h1" color="text-status-info">
-              {logGroups.length}
+            <Box variant="awsui-key-label">Metrics Engine</Box>
+            <Box variant="h2" color="text-status-info">
+              <StatusIndicator type="success">Telemetry Ready</StatusIndicator>
             </Box>
           </Box>
         </Grid>
       </Container>
 
-      {/* Tabs */}
+      {/* Main Tabs */}
       <Tabs
         activeTabId={selectedTabId}
         onChange={({ detail }) => {
@@ -221,20 +320,16 @@ export const CloudWatchConsole: React.FC<CloudWatchConsoleProps> = ({ activeTab,
                 header={
                   <Header
                     variant="h2"
-                    description="Alarms evaluating metric thresholds across compute and storage resources."
                     actions={
                       <SpaceBetween direction="horizontal" size="xs">
-                        <Button
-                          disabled={!selectedAlarms.length}
-                          onClick={() => handleSetAlarmState('ALARM')}
-                        >
-                          Simulate Alarm (ALARM)
+                        <Button disabled={!selectedAlarms.length} onClick={() => handleSetAlarmState('OK')}>
+                          Simulate OK
                         </Button>
-                        <Button
-                          disabled={!selectedAlarms.length}
-                          onClick={() => handleSetAlarmState('OK')}
-                        >
-                          Clear Alarm (OK)
+                        <Button disabled={!selectedAlarms.length} onClick={() => handleSetAlarmState('ALARM')}>
+                          Simulate ALARM
+                        </Button>
+                        <Button disabled={!selectedAlarms.length} onClick={handleDeleteAlarm}>
+                          Delete Alarm
                         </Button>
                       </SpaceBetween>
                     }
@@ -246,7 +341,7 @@ export const CloudWatchConsole: React.FC<CloudWatchConsoleProps> = ({ activeTab,
                 <SpaceBetween size="m">
                   <TextFilter
                     filteringText={filterText}
-                    filteringPlaceholder="Filter alarms by name, metric..."
+                    filteringPlaceholder="Filter alarms by name, metric, or namespace..."
                     onChange={({ detail }) => setFilterText(detail.filteringText)}
                   />
 
@@ -261,7 +356,7 @@ export const CloudWatchConsole: React.FC<CloudWatchConsoleProps> = ({ activeTab,
                         id: 'state',
                         header: 'State',
                         cell: (item) => (
-                          <StatusIndicator type={item.StateValue === 'OK' ? 'success' : 'error'}>
+                          <StatusIndicator type={item.StateValue === 'OK' ? 'success' : item.StateValue === 'ALARM' ? 'error' : 'in-progress'}>
                             {item.StateValue}
                           </StatusIndicator>
                         ),
@@ -290,15 +385,58 @@ export const CloudWatchConsole: React.FC<CloudWatchConsoleProps> = ({ activeTab,
                     selectionType="single"
                     selectedItems={selectedAlarms}
                     onSelectionChange={({ detail }) => setSelectedAlarms(detail.selectedItems)}
-                    empty={
-                      <Box textAlign="center" color="inherit">
-                        <b>No metric alarms found</b>
-                        <p>Create an alarm to monitor infrastructure metrics.</p>
-                      </Box>
-                    }
+                    empty={<Box textAlign="center">No metric alarms found.</Box>}
                   />
                 </SpaceBetween>
               </Container>
+            ),
+          },
+          {
+            label: 'Metrics Explorer & Ingestion',
+            id: 'metrics',
+            content: (
+              <SpaceBetween size="l">
+                <Container header={<Header variant="h2">Publish Custom Metric Data</Header>}>
+                  <SpaceBetween size="m">
+                    <Grid gridDefinition={[{ colspan: { default: 12, s: 3 } }, { colspan: { default: 12, s: 3 } }, { colspan: { default: 12, s: 3 } }, { colspan: { default: 12, s: 3 } }]}>
+                      <FormField label="Namespace">
+                        <Input value={ingestNamespace} onChange={({ detail }) => setIngestNamespace(detail.value)} placeholder="MyApp/Metrics" />
+                      </FormField>
+                      <FormField label="Metric Name">
+                        <Input value={ingestMetricName} onChange={({ detail }) => setIngestMetricName(detail.value)} placeholder="RequestCount" />
+                      </FormField>
+                      <FormField label="Value">
+                        <Input value={ingestValue} onChange={({ detail }) => setIngestValue(detail.value)} type="number" />
+                      </FormField>
+                      <FormField label="Unit">
+                        <Select
+                          selectedOption={ingestUnit}
+                          onChange={({ detail }) => setIngestUnit(detail.selectedOption as any)}
+                          options={[
+                            { label: 'Count', value: 'Count' },
+                            { label: 'Milliseconds', value: 'Milliseconds' },
+                            { label: 'Bytes', value: 'Bytes' },
+                            { label: 'Percent', value: 'Percent' },
+                          ]}
+                        />
+                      </FormField>
+                    </Grid>
+                    <Button variant="primary" loading={publishingMetric} onClick={handlePublishMetric}>
+                      Publish Metric Data
+                    </Button>
+                  </SpaceBetween>
+                </Container>
+
+                <Container header={<Header variant="h2">Known Metrics Inventory</Header>}>
+                  <Table
+                    columnDefinitions={[
+                      { id: 'ns', header: 'Namespace', cell: (m) => <Badge color="blue">{m.Namespace}</Badge> },
+                      { id: 'metric', header: 'Metric Name', cell: (m) => <strong>{m.MetricName}</strong> },
+                    ]}
+                    items={metricsList}
+                  />
+                </Container>
+              </SpaceBetween>
             ),
           },
           {
@@ -310,8 +448,16 @@ export const CloudWatchConsole: React.FC<CloudWatchConsoleProps> = ({ activeTab,
                   <Header
                     variant="h2"
                     description="Real-time log events captured from Lambda functions and API requests."
+                    actions={
+                      <SpaceBetween direction="horizontal" size="xs">
+                        <Button onClick={() => setRetentionModalOpen(true)}>Retention Settings</Button>
+                        <Button variant="primary" iconName="add-plus" onClick={() => setCreateStreamOpen(true)}>
+                          Create Log Stream
+                        </Button>
+                      </SpaceBetween>
+                    }
                   >
-                    CloudWatch Log Stream Viewer
+                    CloudWatch Log Viewer
                   </Header>
                 }
               >
@@ -428,6 +574,63 @@ export const CloudWatchConsole: React.FC<CloudWatchConsoleProps> = ({ activeTab,
             />
           </FormField>
         </SpaceBetween>
+      </Modal>
+
+      {/* Retention Settings Modal */}
+      <Modal
+        visible={retentionModalOpen}
+        onDismiss={() => setRetentionModalOpen(false)}
+        header={`Set Retention for ${selectedLogGroup?.value}`}
+        footer={
+          <Box float="right">
+            <SpaceBetween direction="horizontal" size="xs">
+              <Button variant="link" onClick={() => setRetentionModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" loading={savingRetention} onClick={handleSaveRetention}>
+                Save Retention
+              </Button>
+            </SpaceBetween>
+          </Box>
+        }
+      >
+        <FormField label="Retention Period">
+          <Select
+            selectedOption={selectedRetention}
+            onChange={({ detail }) => setSelectedRetention(detail.selectedOption as any)}
+            options={[
+              { label: '1 day', value: '1' },
+              { label: '7 days', value: '7' },
+              { label: '30 days', value: '30' },
+              { label: '90 days', value: '90' },
+              { label: '365 days', value: '365' },
+              { label: 'Never expire (0)', value: '0' },
+            ]}
+          />
+        </FormField>
+      </Modal>
+
+      {/* Create Log Stream Modal */}
+      <Modal
+        visible={createStreamOpen}
+        onDismiss={() => setCreateStreamOpen(false)}
+        header={`Create Log Stream in ${selectedLogGroup?.value}`}
+        footer={
+          <Box float="right">
+            <SpaceBetween direction="horizontal" size="xs">
+              <Button variant="link" onClick={() => setCreateStreamOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" loading={creatingStream} onClick={handleCreateLogStream}>
+                Create Stream
+              </Button>
+            </SpaceBetween>
+          </Box>
+        }
+      >
+        <FormField label="Log Stream Name">
+          <Input value={newStreamName} onChange={({ detail }) => setNewStreamName(detail.value)} placeholder="2026/08/24/[$LATEST]abc123" />
+        </FormField>
       </Modal>
     </SpaceBetween>
   );

@@ -272,3 +272,56 @@ def list_tags(resource_arn: str) -> dict[str, Any]:
         'tags': response.get('tags', {}),
         'response': _clean_response(response),
     }
+
+
+def get_kubeconfig(cluster_name: str, *, region: str = 'us-east-1') -> dict[str, Any]:
+    clean_name = _required(cluster_name, 'Cluster name')
+    endpoint_url = FlociClientFactory().endpoint_url
+
+    try:
+        response = _client().describe_cluster(name=clean_name)
+        cluster = response.get('cluster', {})
+    except Exception:
+        cluster = {}
+
+    server_endpoint = cluster.get('endpoint') or f'{endpoint_url}/eks/{clean_name}'
+    ca_data = cluster.get('certificateAuthority', {}).get('data') or 'LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCg=='
+    arn = cluster.get('arn') or f'arn:aws:eks:{region}:000000000000:cluster/{clean_name}'
+
+    kubeconfig_yaml = f"""apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority-data: {ca_data}
+    server: {server_endpoint}
+  name: {arn}
+contexts:
+- context:
+    cluster: {arn}
+    user: {arn}
+  name: {arn}
+current-context: {arn}
+kind: Config
+preferences: {{}}
+users:
+- name: {arn}
+  user:
+    exec:
+      apiVersion: client.authentication.k8s.io/v1beta1
+      args:
+      - --region
+      - {region}
+      - eks
+      - get-token
+      - --cluster-name
+      - {clean_name}
+      command: aws
+"""
+
+    return {
+        'cluster_name': clean_name,
+        'cluster_arn': arn,
+        'endpoint': server_endpoint,
+        'aws_cli_command': f'aws eks update-kubeconfig --name {clean_name} --region {region}',
+        'kubeconfig_yaml': kubeconfig_yaml,
+    }
+

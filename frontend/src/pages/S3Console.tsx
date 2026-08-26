@@ -18,6 +18,7 @@ import Box from '@cloudscape-design/components/box';
 import Badge from '@cloudscape-design/components/badge';
 import Alert from '@cloudscape-design/components/alert';
 import Link from '@cloudscape-design/components/link';
+import Checkbox from '@cloudscape-design/components/checkbox';
 import {
   fetchServiceInventory,
   executeServiceAction,
@@ -30,8 +31,20 @@ import {
   putS3Notifications,
   deleteS3Object,
   createS3Folder,
+  fetchS3BucketPolicy,
+  putS3BucketPolicy,
+  deleteS3BucketPolicy,
+  fetchS3BucketCors,
+  putS3BucketCors,
+  deleteS3BucketCors,
+  fetchS3BucketVersioning,
+  putS3BucketVersioning,
+  fetchS3BucketPublicAccessBlock,
+  putS3BucketPublicAccessBlock,
+  fetchS3ObjectTags,
+  putS3ObjectTags,
+  fetchS3ObjectHead,
 } from '../api/client';
-import { CodeSnippet } from '../components/CodeSnippet';
 
 interface BucketItem {
   Name: string;
@@ -46,12 +59,26 @@ interface S3ConsoleProps {
   onTabChange?: (tabId: string) => void;
 }
 
+const CORS_SAMPLE = JSON.stringify(
+  [
+    {
+      AllowedHeaders: ['*'],
+      AllowedMethods: ['GET', 'PUT', 'POST', 'DELETE', 'HEAD'],
+      AllowedOrigins: ['*'],
+      ExposeHeaders: ['ETag'],
+      MaxAgeSeconds: 3000,
+    },
+  ],
+  null,
+  2
+);
+
 export const S3Console: React.FC<S3ConsoleProps> = ({ activeTab, onTabChange }) => {
   const [buckets, setBuckets] = useState<BucketItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBuckets, setSelectedBuckets] = useState<BucketItem[]>([]);
   const [filterText, setFilterText] = useState('');
-  const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [selectedTabId, setSelectedTabId] = useState(activeTab || 'objects');
 
   useEffect(() => {
@@ -71,6 +98,15 @@ export const S3Console: React.FC<S3ConsoleProps> = ({ activeTab, onTabChange }) 
   const [loadingObjects, setLoadingObjects] = useState(false);
   const [objectFilter, setObjectFilter] = useState('');
 
+  // Object Details / Tagging Modal
+  const [inspectModalOpen, setInspectModalOpen] = useState(false);
+  const [inspectObject, setInspectObject] = useState<any | null>(null);
+  const [objectHeadData, setObjectHeadData] = useState<any | null>(null);
+  const [objectTags, setObjectTags] = useState<Array<{ Key: string; Value: string }>>([]);
+  const [newTagKey, setNewTagKey] = useState('');
+  const [newTagValue, setNewTagValue] = useState('');
+  const [savingTags, setSavingTags] = useState(false);
+
   // Upload Object Modal
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadKey, setUploadKey] = useState('');
@@ -89,6 +125,25 @@ export const S3Console: React.FC<S3ConsoleProps> = ({ activeTab, onTabChange }) 
   const [presignedUrl, setPresignedUrl] = useState('');
   const [generatingPresign, setGeneratingPresign] = useState(false);
   const [copiedPresign, setCopiedPresign] = useState(false);
+
+  // Versioning & Properties
+  const [versioningStatus, setVersioningStatus] = useState('Suspended');
+  const [updatingVersioning, setUpdatingVersioning] = useState(false);
+
+  // Permissions: Bucket Policy
+  const [bucketPolicyText, setBucketPolicyText] = useState('');
+  const [savingPolicy, setSavingPolicy] = useState(false);
+
+  // Permissions: CORS
+  const [corsText, setCorsText] = useState(CORS_SAMPLE);
+  const [savingCors, setSavingCors] = useState(false);
+
+  // Permissions: Public Access Block
+  const [pabBlockAcls, setPabBlockAcls] = useState(true);
+  const [pabIgnoreAcls, setPabIgnoreAcls] = useState(true);
+  const [pabBlockPolicy, setPabBlockPolicy] = useState(true);
+  const [pabRestrictBuckets, setPabRestrictBuckets] = useState(true);
+  const [savingPab, setSavingPab] = useState(false);
 
   // Website Hosting State
   const [websiteConfig, setWebsiteConfig] = useState<any | null>(null);
@@ -135,35 +190,72 @@ export const S3Console: React.FC<S3ConsoleProps> = ({ activeTab, onTabChange }) 
   const loadBucketDetails = async (bucket: BucketItem) => {
     setLoadingObjects(true);
     try {
-      const [objsRes, webRes, notifRes] = await Promise.all([
-        fetchS3Objects(bucket.Name),
-        fetchS3Website(bucket.Name),
-        fetchS3Notifications(bucket.Name),
-      ]);
-      setObjects(objsRes.contents || []);
-      setWebsiteConfig(webRes);
-      if (webRes?.IndexDocument?.Suffix) {
-        setWebsiteIndexDoc(webRes.IndexDocument.Suffix);
-      }
-      if (webRes?.ErrorDocument?.Key) {
-        setWebsiteErrorDoc(webRes.ErrorDocument.Key);
-      }
-      setNotificationsConfig(notifRes || {});
+      const objs = await fetchS3Objects(bucket.Name);
+      setObjects(Array.isArray(objs) ? objs : (objs?.contents || []));
     } catch (err) {
       console.error(err);
+      setObjects([]);
     } finally {
       setLoadingObjects(false);
+    }
+
+    try {
+      const ws = await fetchS3Website(bucket.Name);
+      setWebsiteConfig(ws);
+      if (ws?.IndexDocument?.Suffix) setWebsiteIndexDoc(ws.IndexDocument.Suffix);
+      if (ws?.ErrorDocument?.Key) setWebsiteErrorDoc(ws.ErrorDocument.Key);
+    } catch {
+      setWebsiteConfig(null);
+    }
+
+    try {
+      const notifs = await fetchS3Notifications(bucket.Name);
+      setNotificationsConfig(notifs || {});
+    } catch {
+      setNotificationsConfig({});
+    }
+
+    try {
+      const v = await fetchS3BucketVersioning(bucket.Name);
+      setVersioningStatus(v.status || 'Suspended');
+    } catch {
+      setVersioningStatus('Suspended');
+    }
+
+    try {
+      const pol = await fetchS3BucketPolicy(bucket.Name);
+      setBucketPolicyText(pol || '');
+    } catch {
+      setBucketPolicyText('');
+    }
+
+    try {
+      const cors = await fetchS3BucketCors(bucket.Name);
+      if (cors && (cors.CORSRules || cors.cors_rules)) {
+        setCorsText(JSON.stringify(cors.CORSRules || cors.cors_rules, null, 2));
+      } else {
+        setCorsText(CORS_SAMPLE);
+      }
+    } catch {
+      setCorsText(CORS_SAMPLE);
+    }
+
+    try {
+      const pab = await fetchS3BucketPublicAccessBlock(bucket.Name);
+      if (pab) {
+        setPabBlockAcls(pab.BlockPublicAcls ?? true);
+        setPabIgnoreAcls(pab.IgnorePublicAcls ?? true);
+        setPabBlockPolicy(pab.BlockPublicPolicy ?? true);
+        setPabRestrictBuckets(pab.RestrictPublicBuckets ?? true);
+      }
+    } catch {
+      // Defaults to true
     }
   };
 
   useEffect(() => {
     if (activeBucket) {
       loadBucketDetails(activeBucket);
-      setSelectedObjects([]);
-    } else {
-      setObjects([]);
-      setWebsiteConfig(null);
-      setNotificationsConfig({});
     }
   }, [activeBucket?.Name]);
 
@@ -242,9 +334,133 @@ export const S3Console: React.FC<S3ConsoleProps> = ({ activeTab, onTabChange }) 
       await deleteS3Object(activeBucket.Name, obj.Key || obj.key);
       setActionMessage({ type: 'success', text: `Object "${obj.Key || obj.key}" deleted.` });
       setSelectedObjects([]);
+      setInspectObject(null);
       await loadBucketDetails(activeBucket);
     } catch (err: any) {
       setActionMessage({ type: 'error', text: err.message || 'Failed to delete object' });
+    }
+  };
+
+  const handleInspectObject = async (obj: any) => {
+    setInspectObject(obj);
+    setInspectModalOpen(true);
+    const key = obj.Key || obj.key;
+    if (!activeBucket || !key) return;
+    try {
+      const [head, tags] = await Promise.all([
+        fetchS3ObjectHead(activeBucket.Name, key),
+        fetchS3ObjectTags(activeBucket.Name, key),
+      ]);
+      setObjectHeadData(head);
+      setObjectTags(tags || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAddObjectTag = async () => {
+    if (!activeBucket || !inspectObject || !newTagKey.trim()) return;
+    setSavingTags(true);
+    try {
+      const key = inspectObject.Key || inspectObject.key;
+      const updatedTags = [...objectTags.filter((t) => t.Key !== newTagKey.trim()), { Key: newTagKey.trim(), Value: newTagValue.trim() }];
+      await putS3ObjectTags(activeBucket.Name, key, updatedTags);
+      setObjectTags(updatedTags);
+      setNewTagKey('');
+      setNewTagValue('');
+      setActionMessage({ type: 'success', text: 'Object tags updated successfully.' });
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to update tags' });
+    } finally {
+      setSavingTags(false);
+    }
+  };
+
+  const handleRemoveObjectTag = async (tagKey: string) => {
+    if (!activeBucket || !inspectObject) return;
+    setSavingTags(true);
+    try {
+      const key = inspectObject.Key || inspectObject.key;
+      const updatedTags = objectTags.filter((t) => t.Key !== tagKey);
+      await putS3ObjectTags(activeBucket.Name, key, updatedTags);
+      setObjectTags(updatedTags);
+      setActionMessage({ type: 'success', text: 'Object tag removed.' });
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to delete tag' });
+    } finally {
+      setSavingTags(false);
+    }
+  };
+
+  const handleToggleVersioning = async () => {
+    if (!activeBucket) return;
+    setUpdatingVersioning(true);
+    try {
+      const newStatus = versioningStatus === 'Enabled' ? 'Suspended' : 'Enabled';
+      await putS3BucketVersioning(activeBucket.Name, newStatus);
+      setVersioningStatus(newStatus);
+      setActionMessage({ type: 'success', text: `Bucket versioning ${newStatus === 'Enabled' ? 'enabled' : 'suspended'}.` });
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to update versioning' });
+    } finally {
+      setUpdatingVersioning(false);
+    }
+  };
+
+  const handleSavePolicy = async () => {
+    if (!activeBucket) return;
+    setSavingPolicy(true);
+    try {
+      if (!bucketPolicyText.trim()) {
+        await deleteS3BucketPolicy(activeBucket.Name);
+        setActionMessage({ type: 'success', text: 'Bucket policy removed.' });
+      } else {
+        await putS3BucketPolicy(activeBucket.Name, bucketPolicyText.trim());
+        setActionMessage({ type: 'success', text: 'Bucket policy saved successfully.' });
+      }
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to save bucket policy' });
+    } finally {
+      setSavingPolicy(false);
+    }
+  };
+
+  const handleSaveCors = async () => {
+    if (!activeBucket) return;
+    setSavingCors(true);
+    try {
+      if (!corsText.trim()) {
+        await deleteS3BucketCors(activeBucket.Name);
+        setActionMessage({ type: 'success', text: 'CORS configuration removed.' });
+      } else {
+        const parsed = JSON.parse(corsText.trim());
+        await putS3BucketCors(activeBucket.Name, parsed);
+        setActionMessage({ type: 'success', text: 'CORS configuration saved.' });
+      }
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to save CORS configuration (must be valid JSON)' });
+    } finally {
+      setSavingCors(false);
+    }
+  };
+
+  const handleSavePab = async () => {
+    if (!activeBucket) return;
+    setSavingPab(true);
+    try {
+      await putS3BucketPublicAccessBlock(activeBucket.Name, {
+        PublicAccessBlockConfiguration: {
+          BlockPublicAcls: pabBlockAcls,
+          IgnorePublicAcls: pabIgnoreAcls,
+          BlockPublicPolicy: pabBlockPolicy,
+          RestrictPublicBuckets: pabRestrictBuckets,
+        },
+      });
+      setActionMessage({ type: 'success', text: 'Public Access Block settings updated.' });
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to update Public Access Block' });
+    } finally {
+      setSavingPab(false);
     }
   };
 
@@ -409,7 +625,11 @@ export const S3Console: React.FC<S3ConsoleProps> = ({ activeTab, onTabChange }) 
               {
                 id: 'name',
                 header: 'Bucket name',
-                cell: (item) => <strong>{item.Name}</strong>,
+                cell: (item) => (
+                  <Button variant="inline-link" onClick={() => setSelectedBuckets([item])}>
+                    <strong>{item.Name}</strong>
+                  </Button>
+                ),
               },
               {
                 id: 'region',
@@ -485,6 +705,12 @@ export const S3Console: React.FC<S3ConsoleProps> = ({ activeTab, onTabChange }) 
                         </Button>
                         <Button
                           disabled={!selectedObjects.length}
+                          onClick={() => handleInspectObject(selectedObjects[0])}
+                        >
+                          Inspect / Tag
+                        </Button>
+                        <Button
+                          disabled={!selectedObjects.length}
                           onClick={handleDeleteObject}
                         >
                           Delete
@@ -509,7 +735,11 @@ export const S3Console: React.FC<S3ConsoleProps> = ({ activeTab, onTabChange }) 
                         {
                           id: 'key',
                           header: 'Object Key',
-                          cell: (item) => <strong>{item.Key || item.key}</strong>,
+                          cell: (item) => (
+                            <Button variant="inline-link" onClick={() => handleInspectObject(item)}>
+                              <strong>{item.Key || item.key}</strong>
+                            </Button>
+                          ),
                         },
                         {
                           id: 'size',
@@ -528,9 +758,19 @@ export const S3Console: React.FC<S3ConsoleProps> = ({ activeTab, onTabChange }) 
                           width: 220,
                         },
                         {
-                          id: 'storage',
-                          header: 'Storage Class',
-                          cell: () => <Badge color="blue">STANDARD</Badge>,
+                          id: 'download',
+                          header: 'Download',
+                          cell: (item) => (
+                            <Button
+                              iconName="download"
+                              onClick={() => {
+                                const key = item.Key || item.key;
+                                window.open(`/api/s3/buckets/${encodeURIComponent(activeBucket.Name)}/objects/${encodeURIComponent(key)}/download/`, '_blank');
+                              }}
+                            >
+                              Download
+                            </Button>
+                          ),
                           width: 130,
                         },
                       ]}
@@ -561,10 +801,31 @@ export const S3Console: React.FC<S3ConsoleProps> = ({ activeTab, onTabChange }) 
                         { label: 'AWS Region', value: activeBucket.Region || 'us-east-1' },
                         { label: 'Creation Date', value: activeBucket.CreationDate },
                         { label: 'Default Encryption', value: 'Server-Side Encryption with Amazon S3 Managed Keys (SSE-S3)' },
-                        { label: 'Bucket Versioning', value: 'Disabled' },
+                        { label: 'Bucket Versioning', value: versioningStatus },
                         { label: 'Object Lock', value: 'Disabled' },
                       ]}
                     />
+
+                    {/* Bucket Versioning Toggle */}
+                    <Container
+                      header={
+                        <Header
+                          variant="h3"
+                          description="Keep multiple variants of an object in the same bucket."
+                          actions={
+                            <Button loading={updatingVersioning} onClick={handleToggleVersioning}>
+                              {versioningStatus === 'Enabled' ? 'Suspend Versioning' : 'Enable Versioning'}
+                            </Button>
+                          }
+                        >
+                          Bucket Versioning: {versioningStatus}
+                        </Header>
+                      }
+                    >
+                      <Box>
+                        Versioning status is currently <strong>{versioningStatus}</strong>.
+                      </Box>
+                    </Container>
 
                     {/* Static Website Hosting */}
                     <Container
@@ -681,32 +942,110 @@ export const S3Console: React.FC<S3ConsoleProps> = ({ activeTab, onTabChange }) 
                 label: 'Permissions & Policy',
                 id: 'permissions',
                 content: (
-                  <SpaceBetween size="m">
-                    <Container header={<Header variant="h3">Block Public Access (Bucket Settings)</Header>}>
-                      <StatusIndicator type="success">Block all public access is ON</StatusIndicator>
+                  <SpaceBetween size="l">
+                    {/* Block Public Access */}
+                    <Container
+                      header={
+                        <Header
+                          variant="h3"
+                          description="Block public access settings for this S3 bucket."
+                          actions={
+                            <Button variant="primary" loading={savingPab} onClick={handleSavePab}>
+                              Save Public Access Block
+                            </Button>
+                          }
+                        >
+                          Block Public Access
+                        </Header>
+                      }
+                    >
+                      <SpaceBetween size="s">
+                        <Checkbox checked={pabBlockAcls} onChange={({ detail }) => setPabBlockAcls(detail.checked)}>
+                          Block public ACLs
+                        </Checkbox>
+                        <Checkbox checked={pabIgnoreAcls} onChange={({ detail }) => setPabIgnoreAcls(detail.checked)}>
+                          Ignore public ACLs
+                        </Checkbox>
+                        <Checkbox checked={pabBlockPolicy} onChange={({ detail }) => setPabBlockPolicy(detail.checked)}>
+                          Block public bucket policies
+                        </Checkbox>
+                        <Checkbox checked={pabRestrictBuckets} onChange={({ detail }) => setPabRestrictBuckets(detail.checked)}>
+                          Restrict public buckets
+                        </Checkbox>
+                      </SpaceBetween>
                     </Container>
-                    <Container header={<Header variant="h3">Bucket Policy (JSON)</Header>}>
-                      <CodeSnippet
-                        language="json"
-                        code={JSON.stringify(
-                          {
-                            Version: '2012-10-17',
-                            Statement: [
-                              {
-                                Sid: 'FlociLocalAccess',
-                                Effect: 'Allow',
-                                Principal: '*',
-                                Action: 's3:*',
-                                Resource: [
-                                  `arn:aws:s3:::${activeBucket.Name}`,
-                                  `arn:aws:s3:::${activeBucket.Name}/*`,
-                                ],
-                              },
-                            ],
-                          },
-                          null,
-                          2
-                        )}
+
+                    {/* Bucket Policy Editor */}
+                    <Container
+                      header={
+                        <Header
+                          variant="h3"
+                          description="JSON access control policy attached directly to this bucket."
+                          actions={
+                            <SpaceBetween direction="horizontal" size="xs">
+                              <Button
+                                onClick={() =>
+                                  setBucketPolicyText(
+                                    JSON.stringify(
+                                      {
+                                        Version: '2012-10-17',
+                                        Statement: [
+                                          {
+                                            Sid: 'PublicReadGetObject',
+                                            Effect: 'Allow',
+                                            Principal: '*',
+                                            Action: ['s3:GetObject'],
+                                            Resource: [`arn:aws:s3:::${activeBucket.Name}/*`],
+                                          },
+                                        ],
+                                      },
+                                      null,
+                                      2
+                                    )
+                                  )
+                                }
+                              >
+                                Load Public Read Template
+                              </Button>
+                              <Button variant="primary" loading={savingPolicy} onClick={handleSavePolicy}>
+                                Save Policy
+                              </Button>
+                            </SpaceBetween>
+                          }
+                        >
+                          Bucket Policy (JSON)
+                        </Header>
+                      }
+                    >
+                      <Textarea
+                        rows={10}
+                        value={bucketPolicyText}
+                        onChange={({ detail }) => setBucketPolicyText(detail.value)}
+                        placeholder='{\n  "Version": "2012-10-17",\n  "Statement": []\n}'
+                      />
+                    </Container>
+
+                    {/* CORS Editor */}
+                    <Container
+                      header={
+                        <Header
+                          variant="h3"
+                          description="Cross-Origin Resource Sharing (CORS) rules for cross-origin web client requests."
+                          actions={
+                            <Button variant="primary" loading={savingCors} onClick={handleSaveCors}>
+                              Save CORS Configuration
+                            </Button>
+                          }
+                        >
+                          Cross-Origin Resource Sharing (CORS)
+                        </Header>
+                      }
+                    >
+                      <Textarea
+                        rows={8}
+                        value={corsText}
+                        onChange={({ detail }) => setCorsText(detail.value)}
+                        placeholder="[\n  {\n    &quot;AllowedHeaders&quot;: [&quot;*&quot;],\n    &quot;AllowedMethods&quot;: [&quot;GET&quot;]\n  }\n]"
                       />
                     </Container>
                   </SpaceBetween>
@@ -749,6 +1088,77 @@ export const S3Console: React.FC<S3ConsoleProps> = ({ activeTab, onTabChange }) 
           <FormField label="AWS Region">
             <Input value="us-east-1 (US East N. Virginia)" disabled />
           </FormField>
+        </SpaceBetween>
+      </Modal>
+
+      {/* Inspect Object & Tags Modal */}
+      <Modal
+        visible={inspectModalOpen}
+        onDismiss={() => setInspectModalOpen(false)}
+        header={`Object Details: ${inspectObject?.Key || inspectObject?.key}`}
+        size="large"
+        footer={
+          <Box float="right">
+            <Button variant="primary" onClick={() => setInspectModalOpen(false)}>
+              Close
+            </Button>
+          </Box>
+        }
+      >
+        <SpaceBetween size="m">
+          <KeyValuePairs
+            columns={2}
+            items={[
+              { label: 'Object Key', value: inspectObject?.Key || inspectObject?.key },
+              { label: 'Size', value: `${inspectObject?.Size ?? inspectObject?.size ?? 0} Bytes` },
+              { label: 'ETag', value: objectHeadData?.ETag || 'N/A' },
+              { label: 'Content Type', value: objectHeadData?.ContentType || 'application/octet-stream' },
+              { label: 'Last Modified', value: inspectObject?.LastModified || 'Just now' },
+              { label: 'Storage Class', value: 'STANDARD' },
+            ]}
+          />
+
+          <Container
+            header={
+              <Header variant="h3" description="Manage key-value tags assigned to this S3 object.">
+                Object Tags ({objectTags.length})
+              </Header>
+            }
+          >
+            <SpaceBetween size="m">
+              <Table
+                columnDefinitions={[
+                  { id: 'key', header: 'Tag Key', cell: (t) => <strong>{t.Key}</strong> },
+                  { id: 'val', header: 'Tag Value', cell: (t) => t.Value },
+                  {
+                    id: 'act',
+                    header: 'Action',
+                    cell: (t) => (
+                      <Button iconName="remove" onClick={() => handleRemoveObjectTag(t.Key)}>
+                        Delete
+                      </Button>
+                    ),
+                  },
+                ]}
+                items={objectTags}
+                empty={<Box textAlign="center">No tags assigned to this object.</Box>}
+              />
+
+              <Grid gridDefinition={[{ colspan: { default: 12, s: 5 } }, { colspan: { default: 12, s: 5 } }, { colspan: { default: 12, s: 2 } }]}>
+                <FormField label="Tag Key">
+                  <Input value={newTagKey} onChange={({ detail }) => setNewTagKey(detail.value)} placeholder="e.g. project" />
+                </FormField>
+                <FormField label="Tag Value">
+                  <Input value={newTagValue} onChange={({ detail }) => setNewTagValue(detail.value)} placeholder="e.g. ecommerce" />
+                </FormField>
+                <Box margin={{ top: 'l' }}>
+                  <Button loading={savingTags} onClick={handleAddObjectTag}>
+                    Add Tag
+                  </Button>
+                </Box>
+              </Grid>
+            </SpaceBetween>
+          </Container>
         </SpaceBetween>
       </Modal>
 

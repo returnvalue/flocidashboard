@@ -138,3 +138,214 @@ def remove_target(rule_name: str, event_bus_name: str, target_id: str) -> dict[s
     clean_id = _clean_required(target_id, 'Target ID')
     response = _events_client().remove_targets(Rule=rule, EventBusName=bus, Ids=[clean_id])
     return {'rule_name': rule, 'event_bus_name': bus, 'target_id': clean_id, 'removed': response.get('FailedEntryCount', 0) == 0, 'failed_entries': response.get('FailedEntries', [])}
+
+
+def _match_pattern_value(pattern_val: Any, event_val: Any) -> bool:
+    if isinstance(pattern_val, list):
+        for matcher in pattern_val:
+            if _match_single_item(matcher, event_val):
+                return True
+        return False
+    return _match_single_item(pattern_val, event_val)
+
+
+def _match_single_item(matcher: Any, event_val: Any) -> bool:
+    if matcher is None:
+        return event_val is None
+
+    if isinstance(matcher, (str, int, float, bool)):
+        if isinstance(event_val, list):
+            return matcher in event_val
+        return matcher == event_val
+
+    if isinstance(matcher, dict):
+        if 'prefix' in matcher:
+            prefix = str(matcher['prefix'])
+            if isinstance(event_val, list):
+                return any(isinstance(v, str) and v.startswith(prefix) for v in event_val)
+            return isinstance(event_val, str) and event_val.startswith(prefix)
+
+        if 'suffix' in matcher:
+            suffix = str(matcher['suffix'])
+            if isinstance(event_val, list):
+                return any(isinstance(v, str) and v.endswith(suffix) for v in event_val)
+            return isinstance(event_val, str) and event_val.endswith(suffix)
+
+        if 'exists' in matcher:
+            expected = bool(matcher['exists'])
+            is_present = event_val is not None
+            return is_present == expected
+
+        if 'anything-but' in matcher:
+            excluded = matcher['anything-but']
+            if isinstance(excluded, dict) and 'prefix' in excluded:
+                p = str(excluded['prefix'])
+                return not (isinstance(event_val, str) and event_val.startswith(p))
+            if isinstance(excluded, list):
+                return event_val not in excluded
+            return event_val != excluded
+
+        if 'numeric' in matcher:
+            num_rules = matcher['numeric']
+            if not isinstance(event_val, (int, float)):
+                return False
+            # e.g. [">", 0] or [">=", 10, "<=", 100]
+            for i in range(0, len(num_rules), 2):
+                op = num_rules[i]
+                target_num = num_rules[i + 1]
+                if op == '>' and not (event_val > target_num):
+                    return False
+                if op == '>=' and not (event_val >= target_num):
+                    return False
+                if op == '<' and not (event_val < target_num):
+                    return False
+                if op == '<=' and not (event_val <= target_num):
+                    return False
+                if op == '=' and not (event_val == target_num):
+                    return False
+            return True
+
+    return False
+
+
+def _evaluate_pattern_match(pattern_obj: dict[str, Any], event_obj: dict[str, Any]) -> tuple[bool, list[str]]:
+    mismatches = []
+    for key, pattern_val in pattern_obj.items():
+        if key not in event_obj:
+            # Check if it was an exists: false matcher
+            if isinstance(pattern_val, list) and len(pattern_val) == 1 and isinstance(pattern_val[0], dict) and pattern_val[0].get('exists') is False:
+                continue
+            mismatches.append(f'Missing field: {key}')
+            continue
+
+        event_val = event_obj[key]
+
+        if isinstance(pattern_val, dict) and isinstance(event_val, dict):
+            sub_matched, sub_mismatches = _evaluate_pattern_match(pattern_val, event_val)
+            if not sub_matched:
+                mismatches.extend([f'{key}.{m}' for m in sub_mismatches])
+        else:
+            if not _match_pattern_value(pattern_val, event_val):
+                mismatches.append(f'Field mismatch on "{key}"')
+
+    return (len(mismatches) == 0, mismatches)
+
+
+def test_event_pattern(event_pattern: Any, event: Any) -> dict[str, Any]:
+    if isinstance(event_pattern, str):
+        try:
+            pattern_obj = json.loads(event_pattern)
+        except json.JSONDecodeError as exc:
+            raise ValueError('Event pattern must be valid JSON') from exc
+    elif isinstance(event_pattern, dict):
+        pattern_obj = event_pattern
+    else:
+        raise ValueError('Event pattern must be a JSON object or string')
+
+    if isinstance(event, str):
+        try:
+            event_obj = json.loads(event)
+        except json.JSONDecodeError as exc:
+            raise ValueError('Sample event must be valid JSON') from exc
+    elif isinstance(event, dict):
+        event_obj = event
+    else:
+        raise ValueError('Sample event must be a JSON object or string')
+
+    matched, mismatches = _evaluate_pattern_match(pattern_obj, event_obj)
+    return {
+        'result': matched,
+        'mismatches': mismatches,
+        'summary': 'Pattern matched sample event successfully' if matched else f'Pattern did not match ({len(mismatches)} mismatches)',
+    }
+
+
+def get_sample_events() -> dict[str, dict[str, Any]]:
+    return {
+        'ec2_instance_state': {
+            'name': 'EC2 Instance State-change Notification',
+            'pattern': {
+                'source': ['aws.ec2'],
+                'detail-type': ['EC2 Instance State-change Notification'],
+                'detail': {
+                    'state': ['running', 'stopped'],
+                },
+            },
+            'event': {
+                'version': '0',
+                'id': '7bf73129-1428-4cd3-a780-95db273d1602',
+                'detail-type': 'EC2 Instance State-change Notification',
+                'source': 'aws.ec2',
+                'account': '000000000000',
+                'time': '2026-08-25T12:00:00Z',
+                'region': 'us-east-1',
+                'resources': ['arn:aws:ec2:us-east-1:000000000000:instance/i-1234567890abcdef0'],
+                'detail': {
+                    'instance-id': 'i-1234567890abcdef0',
+                    'state': 'running',
+                },
+            },
+        },
+        's3_object_created': {
+            'name': 'Amazon S3 Object Created (Put)',
+            'pattern': {
+                'source': ['aws.s3'],
+                'detail-type': ['Object Created'],
+                'detail': {
+                    'bucket': {
+                        'name': ['my-app-uploads'],
+                    },
+                    'object': {
+                        'key': [{'prefix': 'invoices/'}, {'suffix': '.pdf'}],
+                    },
+                },
+            },
+            'event': {
+                'version': '0',
+                'id': '9da9c5e0-3bf8-4e18-8798-4d53cb1c83f9',
+                'detail-type': 'Object Created',
+                'source': 'aws.s3',
+                'account': '000000000000',
+                'time': '2026-08-25T12:00:00Z',
+                'region': 'us-east-1',
+                'resources': ['arn:aws:s3:::my-app-uploads'],
+                'detail': {
+                    'version': '0',
+                    'bucket': {'name': 'my-app-uploads'},
+                    'object': {'key': 'invoices/august_2026.pdf', 'size': 2048},
+                    'reason': 'PutObject',
+                },
+            },
+        },
+        'custom_order_event': {
+            'name': 'Custom App Order Processed',
+            'pattern': {
+                'source': ['custom.ecommerce'],
+                'detail-type': ['OrderPlaced', 'OrderShipped'],
+                'detail': {
+                    'totalAmount': [{'numeric': ['>=', 50]}],
+                    'customer': {
+                        'tier': [{'anything-but': 'FRAUD_RISK'}],
+                    },
+                },
+            },
+            'event': {
+                'version': '0',
+                'id': '43de8011-8930-4e12-b132-7261a8bb4356',
+                'detail-type': 'OrderPlaced',
+                'source': 'custom.ecommerce',
+                'account': '000000000000',
+                'time': '2026-08-25T12:00:00Z',
+                'region': 'us-east-1',
+                'resources': [],
+                'detail': {
+                    'orderId': 'ord-9921',
+                    'totalAmount': 129.50,
+                    'customer': {
+                        'id': 'cust-1029',
+                        'tier': 'GOLD',
+                    },
+                },
+            },
+        },
+    }

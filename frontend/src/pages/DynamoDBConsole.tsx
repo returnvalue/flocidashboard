@@ -24,6 +24,9 @@ import {
   executeDynamoDbPartiQL,
   putDynamoDbItem,
   deleteDynamoDbItem,
+  updateDynamoDbTableCapacity,
+  updateDynamoDbPitr,
+  updateDynamoDbTtl,
 } from '../api/client';
 
 interface TableItem {
@@ -34,6 +37,13 @@ interface TableItem {
   CreationDateTime?: string;
   PartitionKey?: string;
   SortKey?: string;
+  BillingMode?: string;
+  GlobalSecondaryIndexes?: any[];
+  LocalSecondaryIndexes?: any[];
+  StreamSpecification?: any;
+  LatestStreamArn?: string;
+  PointInTimeRecovery?: boolean;
+  TimeToLive?: { Status: string; AttributeName?: string };
 }
 
 interface DynamoDBConsoleProps {
@@ -69,8 +79,9 @@ export const DynamoDBConsole: React.FC<DynamoDBConsoleProps> = ({ activeTab, onT
   const [selectedItemRows, setSelectedItemRows] = useState<any[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
 
-  // Create / Insert Item Modal
-  const [createItemOpen, setCreateItemOpen] = useState(false);
+  // Create / Edit Item Modal
+  const [itemModalOpen, setItemModalOpen] = useState(false);
+  const [isEditingItem, setIsEditingItem] = useState(false);
   const [itemJson, setItemJson] = useState('{\n  "id": "item-101",\n  "name": "Sample Widget",\n  "price": 19.99,\n  "status": "ACTIVE"\n}');
   const [savingItem, setSavingItem] = useState(false);
 
@@ -79,6 +90,19 @@ export const DynamoDBConsole: React.FC<DynamoDBConsoleProps> = ({ activeTab, onT
   const [partiqlResults, setPartiqlResults] = useState<any[]>([]);
   const [runningPartiql, setRunningPartiql] = useState(false);
   const [partiqlLatency, setPartiqlLatency] = useState<number | null>(null);
+
+  // Capacity & Backups State
+  const [billingMode, setBillingMode] = useState<'PAY_PER_REQUEST' | 'PROVISIONED'>('PAY_PER_REQUEST');
+  const [readUnits, setReadUnits] = useState('5');
+  const [writeUnits, setWriteUnits] = useState('5');
+  const [pitrEnabled, setPitrEnabled] = useState(false);
+  const [savingCapacity, setSavingCapacity] = useState(false);
+  const [savingPitr, setSavingPitr] = useState(false);
+
+  // TTL State
+  const [ttlEnabled, setTtlEnabled] = useState(false);
+  const [ttlAttribute, setTtlAttribute] = useState('expiresAt');
+  const [savingTtl, setSavingTtl] = useState(false);
 
   const loadTables = async () => {
     setLoading(true);
@@ -92,6 +116,13 @@ export const DynamoDBConsole: React.FC<DynamoDBConsoleProps> = ({ activeTab, onT
         CreationDateTime: t.CreationDateTime || new Date().toISOString().split('T')[0],
         PartitionKey: t.PartitionKey || t.KeySchema?.find((k: any) => k.KeyType === 'HASH')?.AttributeName || 'id',
         SortKey: t.SortKey || t.KeySchema?.find((k: any) => k.KeyType === 'RANGE')?.AttributeName || undefined,
+        BillingMode: t.BillingModeSummary?.BillingMode || t.BillingMode || 'PAY_PER_REQUEST',
+        GlobalSecondaryIndexes: t.GlobalSecondaryIndexes || [],
+        LocalSecondaryIndexes: t.LocalSecondaryIndexes || [],
+        StreamSpecification: t.StreamSpecification,
+        LatestStreamArn: t.LatestStreamArn,
+        PointInTimeRecovery: t.ContinuousBackupsDescription?.PointInTimeRecoveryDescription?.PointInTimeRecoveryStatus === 'ENABLED',
+        TimeToLive: t.TimeToLiveDescription || { Status: 'DISABLED', AttributeName: 'expiresAt' },
       }));
       setTables(list);
       if (list.length > 0 && selectedTables.length === 0) {
@@ -108,7 +139,7 @@ export const DynamoDBConsole: React.FC<DynamoDBConsoleProps> = ({ activeTab, onT
     loadTables();
   }, []);
 
-  const activeTable = selectedTables[0];
+  const activeTable = selectedTables[0] || null;
 
   const loadTableItems = async (tbl: TableItem) => {
     setLoadingItems(true);
@@ -128,6 +159,10 @@ export const DynamoDBConsole: React.FC<DynamoDBConsoleProps> = ({ activeTab, onT
       setSelectedItemRows([]);
       setPartiqlQuery(`SELECT * FROM "${activeTable.TableName}"`);
       setPartiqlResults([]);
+      setBillingMode((activeTable.BillingMode as any) || 'PAY_PER_REQUEST');
+      setPitrEnabled(activeTable.PointInTimeRecovery ?? false);
+      setTtlEnabled(activeTable.TimeToLive?.Status === 'ENABLED');
+      setTtlAttribute(activeTable.TimeToLive?.AttributeName || 'expiresAt');
     } else {
       setTableItems([]);
     }
@@ -152,7 +187,7 @@ export const DynamoDBConsole: React.FC<DynamoDBConsoleProps> = ({ activeTab, onT
         AttributeDefinitions: attrDefs,
         BillingMode: 'PAY_PER_REQUEST',
       });
-      setActionMessage({ type: 'success', text: `DynamoDB Table "${tableName.trim()}" created successfully.` });
+      setActionMessage({ type: 'success', text: `Table "${tableName.trim()}" created successfully.` });
       setCreateTableOpen(false);
       setTableName('');
       await loadTables();
@@ -178,21 +213,14 @@ export const DynamoDBConsole: React.FC<DynamoDBConsoleProps> = ({ activeTab, onT
   const handleSaveItem = async () => {
     if (!activeTable) return;
     setSavingItem(true);
-    setActionMessage(null);
     try {
-      let parsed = {};
-      try {
-        parsed = JSON.parse(itemJson);
-      } catch (e) {
-        throw new Error('Invalid JSON format');
-      }
-
+      const parsed = JSON.parse(itemJson);
       await putDynamoDbItem(activeTable.TableName, parsed);
-      setActionMessage({ type: 'success', text: 'Item inserted into table successfully.' });
-      setCreateItemOpen(false);
+      setActionMessage({ type: 'success', text: 'Item saved successfully.' });
+      setItemModalOpen(false);
       await loadTableItems(activeTable);
     } catch (err: any) {
-      setActionMessage({ type: 'error', text: err.message || 'Failed to save item' });
+      setActionMessage({ type: 'error', text: err.message || 'Failed to save item (must be valid JSON)' });
     } finally {
       setSavingItem(false);
     }
@@ -200,15 +228,14 @@ export const DynamoDBConsole: React.FC<DynamoDBConsoleProps> = ({ activeTab, onT
 
   const handleDeleteItem = async () => {
     if (!activeTable || !selectedItemRows.length) return;
-    const item = selectedItemRows[0];
-    const pKey = activeTable.PartitionKey || 'id';
-    const keyPayload: Record<string, any> = { [pKey]: item[pKey] };
-    if (activeTable.SortKey && item[activeTable.SortKey]) {
-      keyPayload[activeTable.SortKey] = item[activeTable.SortKey];
+    const row = selectedItemRows[0];
+    const pk = activeTable.PartitionKey || 'id';
+    const keyObj: Record<string, any> = { [pk]: row[pk] };
+    if (activeTable.SortKey && row[activeTable.SortKey]) {
+      keyObj[activeTable.SortKey] = row[activeTable.SortKey];
     }
-
     try {
-      await deleteDynamoDbItem(activeTable.TableName, keyPayload);
+      await deleteDynamoDbItem(activeTable.TableName, keyObj);
       setActionMessage({ type: 'success', text: 'Item deleted.' });
       setSelectedItemRows([]);
       await loadTableItems(activeTable);
@@ -220,12 +247,11 @@ export const DynamoDBConsole: React.FC<DynamoDBConsoleProps> = ({ activeTab, onT
   const handleRunPartiQL = async () => {
     if (!partiqlQuery.trim()) return;
     setRunningPartiql(true);
-    setActionMessage(null);
-    const start = performance.now();
+    const start = Date.now();
     try {
       const res = await executeDynamoDbPartiQL(partiqlQuery.trim());
-      setPartiqlLatency(Math.round(performance.now() - start));
       setPartiqlResults(res.items || []);
+      setPartiqlLatency(Date.now() - start);
     } catch (err: any) {
       setActionMessage({ type: 'error', text: err.message || 'PartiQL query failed' });
     } finally {
@@ -233,26 +259,65 @@ export const DynamoDBConsole: React.FC<DynamoDBConsoleProps> = ({ activeTab, onT
     }
   };
 
+  const handleSaveCapacity = async () => {
+    if (!activeTable) return;
+    setSavingCapacity(true);
+    try {
+      await updateDynamoDbTableCapacity(
+        activeTable.TableName,
+        billingMode,
+        Number(readUnits) || 5,
+        Number(writeUnits) || 5
+      );
+      setActionMessage({ type: 'success', text: `Table capacity updated to ${billingMode}.` });
+      await loadTables();
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to update capacity' });
+    } finally {
+      setSavingCapacity(false);
+    }
+  };
+
+  const handleTogglePitr = async () => {
+    if (!activeTable) return;
+    setSavingPitr(true);
+    try {
+      await updateDynamoDbPitr(activeTable.TableName, !pitrEnabled);
+      setPitrEnabled(!pitrEnabled);
+      setActionMessage({ type: 'success', text: `Point-in-time recovery ${!pitrEnabled ? 'enabled' : 'disabled'}.` });
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to update PITR' });
+    } finally {
+      setSavingPitr(false);
+    }
+  };
+
+  const handleToggleTtl = async () => {
+    if (!activeTable) return;
+    setSavingTtl(true);
+    try {
+      await updateDynamoDbTtl(activeTable.TableName, ttlAttribute.trim(), !ttlEnabled);
+      setTtlEnabled(!ttlEnabled);
+      setActionMessage({ type: 'success', text: `TTL ${!ttlEnabled ? 'enabled' : 'disabled'}.` });
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to update TTL' });
+    } finally {
+      setSavingTtl(false);
+    }
+  };
+
   const filteredTables = tables.filter((t) =>
     t.TableName.toLowerCase().includes(tableFilter.toLowerCase())
   );
 
-  // Collect dynamic columns from items
-  const itemAttributeKeys = Array.from(
-    new Set(tableItems.flatMap((it) => Object.keys(it || {})))
-  );
-
-  const partiqlAttributeKeys = Array.from(
-    new Set(partiqlResults.flatMap((it) => Object.keys(it || {})))
-  );
-
   return (
     <SpaceBetween size="l">
-      {/* Header */}
+      {/* Header Container */}
       <Container
         header={
           <Header
             variant="h1"
+            counter={`(${tables.length})`}
             description="Fast, flexible NoSQL database service for single-digit millisecond performance at any scale."
             actions={
               <SpaceBetween direction="horizontal" size="xs">
@@ -260,10 +325,10 @@ export const DynamoDBConsole: React.FC<DynamoDBConsoleProps> = ({ activeTab, onT
                   Refresh
                 </Button>
                 <Button disabled={!activeTable} onClick={handleDeleteTable}>
-                  Delete Table
+                  Delete table
                 </Button>
                 <Button variant="primary" iconName="add-plus" onClick={() => setCreateTableOpen(true)}>
-                  Create Table
+                  Create table
                 </Button>
               </SpaceBetween>
             }
@@ -282,33 +347,30 @@ export const DynamoDBConsole: React.FC<DynamoDBConsoleProps> = ({ activeTab, onT
 
         <Grid gridDefinition={[{ colspan: { default: 12, s: 4 } }, { colspan: { default: 12, s: 4 } }, { colspan: { default: 12, s: 4 } }]}>
           <Box padding="m" textAlign="center">
-            <Box variant="awsui-key-label">Active Tables</Box>
+            <Box variant="awsui-key-label">Total Tables</Box>
             <Box variant="h1" color="text-status-info">
               {tables.length}
             </Box>
           </Box>
           <Box padding="m" textAlign="center">
-            <Box variant="awsui-key-label">Billing Mode</Box>
+            <Box variant="awsui-key-label">Active Region</Box>
             <Box variant="h2" color="text-status-info">
-              <Badge color="blue">Pay-Per-Request (On-Demand)</Badge>
+              us-east-1
             </Box>
           </Box>
           <Box padding="m" textAlign="center">
-            <Box variant="awsui-key-label">Engine Health</Box>
+            <Box variant="awsui-key-label">DynamoDB Engine</Box>
             <Box variant="h2" color="text-status-info">
-              <StatusIndicator type="success">DynamoDB Ready</StatusIndicator>
+              <StatusIndicator type="success">Storage Engine Ready</StatusIndicator>
             </Box>
           </Box>
         </Grid>
       </Container>
 
-      {/* Tables List */}
+      {/* Tables Table */}
       <Container
         header={
-          <Header
-            variant="h2"
-            description="Tables defined in your local DynamoDB environment."
-          >
+          <Header variant="h2" description="DynamoDB tables hosted on Floci local storage engine.">
             Tables ({tables.length})
           </Header>
         }
@@ -316,7 +378,7 @@ export const DynamoDBConsole: React.FC<DynamoDBConsoleProps> = ({ activeTab, onT
         <SpaceBetween size="m">
           <TextFilter
             filteringText={tableFilter}
-            filteringPlaceholder="Find table by name..."
+            filteringPlaceholder="Find tables by name..."
             onChange={({ detail }) => setTableFilter(detail.filteringText)}
           />
 
@@ -324,26 +386,40 @@ export const DynamoDBConsole: React.FC<DynamoDBConsoleProps> = ({ activeTab, onT
             columnDefinitions={[
               {
                 id: 'name',
-                header: 'Table Name',
-                cell: (item) => <strong>{item.TableName}</strong>,
+                header: 'Table name',
+                cell: (item) => (
+                  <Button variant="inline-link" onClick={() => setSelectedTables([item])}>
+                    <strong>{item.TableName}</strong>
+                  </Button>
+                ),
               },
               {
                 id: 'status',
-                header: 'Table Status',
-                cell: (item) => <StatusIndicator type="success">{item.TableStatus}</StatusIndicator>,
-                width: 140,
+                header: 'Status',
+                cell: (item) => (
+                  <StatusIndicator type={item.TableStatus === 'ACTIVE' ? 'success' : 'in-progress'}>
+                    {item.TableStatus}
+                  </StatusIndicator>
+                ),
+                width: 130,
               },
               {
-                id: 'pk',
-                header: 'Partition Key (HASH)',
-                cell: (item) => <code>{item.PartitionKey}</code>,
-                width: 200,
+                id: 'partitionKey',
+                header: 'Partition key',
+                cell: (item) => <code>{item.PartitionKey} (HASH)</code>,
+                width: 180,
               },
               {
-                id: 'sk',
-                header: 'Sort Key (RANGE)',
-                cell: (item) => (item.SortKey ? <code>{item.SortKey}</code> : '—'),
-                width: 200,
+                id: 'sortKey',
+                header: 'Sort key',
+                cell: (item) => (item.SortKey ? <code>{item.SortKey} (RANGE)</code> : '—'),
+                width: 180,
+              },
+              {
+                id: 'items',
+                header: 'Item count',
+                cell: (item) => item.ItemCount ?? 0,
+                width: 120,
               },
             ]}
             items={filteredTables}
@@ -353,21 +429,18 @@ export const DynamoDBConsole: React.FC<DynamoDBConsoleProps> = ({ activeTab, onT
             empty={
               <Box textAlign="center" color="inherit">
                 <b>No DynamoDB tables found</b>
-                <p>Create a table with a Partition Key to store NoSQL records.</p>
+                <p>Create a table to start inserting items and testing queries.</p>
               </Box>
             }
           />
         </SpaceBetween>
       </Container>
 
-      {/* Active Table Deepened Inspector */}
+      {/* Active Table Details Inspector */}
       {activeTable && (
         <Container
           header={
-            <Header
-              variant="h2"
-              description={`Items and schema for ${activeTable.TableName}`}
-            >
+            <Header variant="h2" description={`Inspecting table: ${activeTable.TableName}`}>
               Table: {activeTable.TableName}
             </Header>
           }
@@ -386,90 +459,109 @@ export const DynamoDBConsole: React.FC<DynamoDBConsoleProps> = ({ activeTab, onT
                   <SpaceBetween size="m">
                     <Box float="right">
                       <SpaceBetween direction="horizontal" size="xs">
-                        <Button iconName="refresh" onClick={() => loadTableItems(activeTable)} loading={loadingItems}>
-                          Refresh Items
+                        <Button
+                          disabled={!selectedItemRows.length}
+                          onClick={() => {
+                            setItemJson(JSON.stringify(selectedItemRows[0], null, 2));
+                            setIsEditingItem(true);
+                            setItemModalOpen(true);
+                          }}
+                        >
+                          Edit item
                         </Button>
                         <Button disabled={!selectedItemRows.length} onClick={handleDeleteItem}>
-                          Delete Item
+                          Delete item
                         </Button>
-                        <Button variant="primary" iconName="add-plus" onClick={() => setCreateItemOpen(true)}>
-                          Create Item
+                        <Button
+                          variant="primary"
+                          iconName="add-plus"
+                          onClick={() => {
+                            setItemJson(
+                              JSON.stringify(
+                                {
+                                  [activeTable.PartitionKey || 'id']: `item-${Date.now().toString().slice(-4)}`,
+                                  name: 'New Item',
+                                  status: 'ACTIVE',
+                                },
+                                null,
+                                2
+                              )
+                            );
+                            setIsEditingItem(false);
+                            setItemModalOpen(true);
+                          }}
+                        >
+                          Create item
                         </Button>
                       </SpaceBetween>
                     </Box>
 
                     <Table
                       columnDefinitions={[
-                        ...(itemAttributeKeys.length > 0
-                          ? itemAttributeKeys.map((k) => ({
-                              id: k,
-                              header: k === activeTable.PartitionKey ? `${k} (PK)` : k,
-                              cell: (item: any) => {
-                                const val = item[k];
-                                if (val === undefined) return <span style={{ color: '#879596' }}>—</span>;
-                                if (typeof val === 'object') return <code>{JSON.stringify(val)}</code>;
-                                return <span>{String(val)}</span>;
+                        {
+                          id: 'pk',
+                          header: `Partition Key (${activeTable.PartitionKey})`,
+                          cell: (row) => <strong>{String(row[activeTable.PartitionKey || 'id'] ?? '—')}</strong>,
+                        },
+                        ...(activeTable.SortKey
+                          ? [
+                              {
+                                id: 'sk',
+                                header: `Sort Key (${activeTable.SortKey})`,
+                                cell: (row: any) => String(row[activeTable.SortKey!] ?? '—'),
                               },
-                            }))
-                          : [{ id: 'empty', header: 'No Attributes', cell: () => '—' }]),
+                            ]
+                          : []),
+                        {
+                          id: 'attributes',
+                          header: 'Attributes / Document Payload',
+                          cell: (row) => (
+                            <div style={{ fontFamily: 'monospace', fontSize: '11px', maxHeight: '60px', overflow: 'hidden' }}>
+                              {JSON.stringify(row)}
+                            </div>
+                          ),
+                        },
                       ]}
                       items={tableItems}
                       loading={loadingItems}
                       selectionType="single"
                       selectedItems={selectedItemRows}
                       onSelectionChange={({ detail }) => setSelectedItemRows(detail.selectedItems)}
-                      empty={
-                        <Box textAlign="center">
-                          <b>No items stored in this table</b>
-                          <p>Click "Create Item" to insert a JSON document.</p>
-                        </Box>
-                      }
+                      empty={<Box textAlign="center">No items returned from scan.</Box>}
                     />
                   </SpaceBetween>
                 ),
               },
               {
-                label: 'PartiQL SQL Query Editor',
+                label: 'PartiQL SQL Editor',
                 id: 'partiql',
                 content: (
                   <SpaceBetween size="m">
-                    <FormField
-                      label="PartiQL SQL Statement"
-                      description="Execute SQL-compatible queries directly against your DynamoDB table."
-                    >
+                    <FormField label="SQL (PartiQL) Statement" description="Execute standard SELECT queries on DynamoDB tables.">
                       <Textarea
-                        rows={4}
+                        rows={3}
                         value={partiqlQuery}
                         onChange={({ detail }) => setPartiqlQuery(detail.value)}
-                        placeholder={`SELECT * FROM "${activeTable.TableName}" WHERE id = '101'`}
+                        placeholder={`SELECT * FROM "${activeTable.TableName}"`}
                       />
                     </FormField>
 
-                    <SpaceBetween direction="horizontal" size="xs">
+                    <SpaceBetween direction="horizontal" size="s">
                       <Button variant="primary" iconName="caret-right-filled" loading={runningPartiql} onClick={handleRunPartiQL}>
-                        Run Query
+                        Run PartiQL Query
                       </Button>
-                      <Button onClick={() => setPartiqlQuery(`SELECT * FROM "${activeTable.TableName}"`)}>
-                        SELECT *
-                      </Button>
+                      {partiqlLatency !== null && (
+                        <Box padding={{ top: 'xs' }}>
+                          <Badge color="blue">Latency: {partiqlLatency}ms</Badge>
+                        </Box>
+                      )}
                     </SpaceBetween>
-
-                    {partiqlLatency != null && (
-                      <Badge color="green">Executed in {partiqlLatency}ms ({partiqlResults.length} items returned)</Badge>
-                    )}
 
                     {partiqlResults.length > 0 && (
                       <Table
-                        columnDefinitions={partiqlAttributeKeys.map((k) => ({
-                          id: k,
-                          header: k,
-                          cell: (item: any) => {
-                            const val = item[k];
-                            if (val === undefined) return <span style={{ color: '#879596' }}>—</span>;
-                            if (typeof val === 'object') return <code>{JSON.stringify(val)}</code>;
-                            return <span>{String(val)}</span>;
-                          },
-                        }))}
+                        columnDefinitions={[
+                          { id: 'row', header: 'Query Result Item', cell: (r) => <code>{JSON.stringify(r)}</code> },
+                        ]}
                         items={partiqlResults}
                       />
                     )}
@@ -477,18 +569,172 @@ export const DynamoDBConsole: React.FC<DynamoDBConsoleProps> = ({ activeTab, onT
                 ),
               },
               {
-                label: 'Overview & Schema',
+                label: `Indexes (${(activeTable.GlobalSecondaryIndexes?.length || 0) + (activeTable.LocalSecondaryIndexes?.length || 0)})`,
+                id: 'indexes',
+                content: (
+                  <SpaceBetween size="l">
+                    <Container header={<Header variant="h3">Global Secondary Indexes (GSIs)</Header>}>
+                      <Table
+                        columnDefinitions={[
+                          { id: 'name', header: 'Index Name', cell: (i) => <strong>{i.IndexName}</strong> },
+                          { id: 'status', header: 'Status', cell: (i) => <StatusIndicator type="success">{i.IndexStatus || 'ACTIVE'}</StatusIndicator> },
+                          { id: 'keys', header: 'Key Schema', cell: (i) => i.KeySchema?.map((k: any) => `${k.AttributeName} (${k.KeyType})`).join(', ') || '—' },
+                          { id: 'proj', header: 'Projection', cell: (i) => i.Projection?.ProjectionType || 'ALL' },
+                        ]}
+                        items={activeTable.GlobalSecondaryIndexes || []}
+                        empty={<Box textAlign="center">No Global Secondary Indexes configured on this table.</Box>}
+                      />
+                    </Container>
+
+                    <Container header={<Header variant="h3">Local Secondary Indexes (LSIs)</Header>}>
+                      <Table
+                        columnDefinitions={[
+                          { id: 'name', header: 'Index Name', cell: (i) => <strong>{i.IndexName}</strong> },
+                          { id: 'keys', header: 'Key Schema', cell: (i) => i.KeySchema?.map((k: any) => `${k.AttributeName} (${k.KeyType})`).join(', ') || '—' },
+                          { id: 'proj', header: 'Projection', cell: (i) => i.Projection?.ProjectionType || 'ALL' },
+                        ]}
+                        items={activeTable.LocalSecondaryIndexes || []}
+                        empty={<Box textAlign="center">No Local Secondary Indexes configured on this table.</Box>}
+                      />
+                    </Container>
+                  </SpaceBetween>
+                ),
+              },
+              {
+                label: 'Capacity & Backups',
+                id: 'capacity',
+                content: (
+                  <SpaceBetween size="l">
+                    <Container
+                      header={
+                        <Header
+                          variant="h3"
+                          description="Manage Read/Write capacity modes and throughput."
+                          actions={
+                            <Button variant="primary" loading={savingCapacity} onClick={handleSaveCapacity}>
+                              Save Capacity
+                            </Button>
+                          }
+                        >
+                          Read/Write Capacity Settings
+                        </Header>
+                      }
+                    >
+                      <SpaceBetween size="m">
+                        <FormField label="Capacity Mode">
+                          <Select
+                            selectedOption={{ label: billingMode === 'PAY_PER_REQUEST' ? 'On-Demand (Pay per request)' : 'Provisioned', value: billingMode }}
+                            onChange={({ detail }) => setBillingMode(detail.selectedOption.value as any)}
+                            options={[
+                              { label: 'On-Demand (Pay per request)', value: 'PAY_PER_REQUEST' },
+                              { label: 'Provisioned', value: 'PROVISIONED' },
+                            ]}
+                          />
+                        </FormField>
+
+                        {billingMode === 'PROVISIONED' && (
+                          <Grid gridDefinition={[{ colspan: { default: 12, s: 6 } }, { colspan: { default: 12, s: 6 } }]}>
+                            <FormField label="Read Capacity Units (RCU)">
+                              <Input value={readUnits} onChange={({ detail }) => setReadUnits(detail.value)} type="number" />
+                            </FormField>
+                            <FormField label="Write Capacity Units (WCU)">
+                              <Input value={writeUnits} onChange={({ detail }) => setWriteUnits(detail.value)} type="number" />
+                            </FormField>
+                          </Grid>
+                        )}
+                      </SpaceBetween>
+                    </Container>
+
+                    <Container
+                      header={
+                        <Header
+                          variant="h3"
+                          description="Continuous backups allow point-in-time recovery for table restoration."
+                          actions={
+                            <Button loading={savingPitr} onClick={handleTogglePitr}>
+                              {pitrEnabled ? 'Disable PITR' : 'Enable PITR'}
+                            </Button>
+                          }
+                        >
+                          Point-in-Time Recovery (PITR)
+                        </Header>
+                      }
+                    >
+                      <Box>
+                        Status:{' '}
+                        {pitrEnabled ? (
+                          <StatusIndicator type="success">Enabled</StatusIndicator>
+                        ) : (
+                          <StatusIndicator type="stopped">Disabled</StatusIndicator>
+                        )}
+                      </Box>
+                    </Container>
+                  </SpaceBetween>
+                ),
+              },
+              {
+                label: 'TTL & Streams',
+                id: 'ttl',
+                content: (
+                  <SpaceBetween size="l">
+                    <Container
+                      header={
+                        <Header
+                          variant="h3"
+                          description="Time to Live (TTL) automatically deletes items based on an epoch timestamp attribute."
+                          actions={
+                            <Button loading={savingTtl} onClick={handleToggleTtl}>
+                              {ttlEnabled ? 'Disable TTL' : 'Enable TTL'}
+                            </Button>
+                          }
+                        >
+                          Time to Live (TTL)
+                        </Header>
+                      }
+                    >
+                      <SpaceBetween size="m">
+                        <Box>
+                          Status:{' '}
+                          {ttlEnabled ? (
+                            <StatusIndicator type="success">Enabled</StatusIndicator>
+                          ) : (
+                            <StatusIndicator type="stopped">Disabled</StatusIndicator>
+                          )}
+                        </Box>
+                        <FormField label="TTL Attribute Name">
+                          <Input value={ttlAttribute} onChange={({ detail }) => setTtlAttribute(detail.value)} placeholder="expiresAt" />
+                        </FormField>
+                      </SpaceBetween>
+                    </Container>
+
+                    <Container header={<Header variant="h3">DynamoDB Streams</Header>}>
+                      <KeyValuePairs
+                        columns={2}
+                        items={[
+                          { label: 'Streams Status', value: activeTable.StreamSpecification ? 'Enabled' : 'Disabled' },
+                          { label: 'Stream ARN', value: activeTable.LatestStreamArn || 'N/A' },
+                          { label: 'View Type', value: activeTable.StreamSpecification?.StreamViewType || 'NEW_AND_OLD_IMAGES' },
+                        ]}
+                      />
+                    </Container>
+                  </SpaceBetween>
+                ),
+              },
+              {
+                label: 'Table Overview',
                 id: 'overview',
                 content: (
                   <KeyValuePairs
                     columns={3}
                     items={[
-                      { label: 'Table Name', value: activeTable.TableName },
                       { label: 'Table ARN', value: `arn:aws:dynamodb:us-east-1:000000000000:table/${activeTable.TableName}` },
-                      { label: 'Status', value: activeTable.TableStatus },
-                      { label: 'Partition Key (HASH)', value: `${activeTable.PartitionKey} (String)` },
-                      { label: 'Sort Key (RANGE)', value: activeTable.SortKey ? `${activeTable.SortKey} (String)` : 'None' },
-                      { label: 'Billing Mode', value: 'PAY_PER_REQUEST (On-Demand Capacity)' },
+                      { label: 'Table Status', value: activeTable.TableStatus },
+                      { label: 'Creation Date', value: activeTable.CreationDateTime },
+                      { label: 'Partition Key', value: `${activeTable.PartitionKey} (HASH)` },
+                      { label: 'Sort Key', value: activeTable.SortKey ? `${activeTable.SortKey} (RANGE)` : 'None' },
+                      { label: 'Table Size (Bytes)', value: `${activeTable.TableSizeBytes || 0} Bytes` },
+                      { label: 'Item Count', value: activeTable.ItemCount ?? 0 },
+                      { label: 'Billing Mode', value: activeTable.BillingMode || 'PAY_PER_REQUEST' },
                     ]}
                   />
                 ),
@@ -570,16 +816,16 @@ export const DynamoDBConsole: React.FC<DynamoDBConsoleProps> = ({ activeTab, onT
         </SpaceBetween>
       </Modal>
 
-      {/* Create / Insert Item Modal */}
+      {/* Create / Edit Item Modal */}
       <Modal
-        visible={createItemOpen}
-        onDismiss={() => setCreateItemOpen(false)}
-        header={`Insert Item into ${activeTable?.TableName}`}
+        visible={itemModalOpen}
+        onDismiss={() => setItemModalOpen(false)}
+        header={isEditingItem ? `Edit Item in ${activeTable?.TableName}` : `Insert Item into ${activeTable?.TableName}`}
         size="large"
         footer={
           <Box float="right">
             <SpaceBetween direction="horizontal" size="xs">
-              <Button variant="link" onClick={() => setCreateItemOpen(false)}>
+              <Button variant="link" onClick={() => setItemModalOpen(false)}>
                 Cancel
               </Button>
               <Button variant="primary" loading={savingItem} onClick={handleSaveItem}>

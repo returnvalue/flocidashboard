@@ -11,6 +11,7 @@ from .opensearch_api import (
     create_domain,
     delete_domain,
     describe_instance_type_limits,
+    execute_domain_request,
     get_compatible_versions,
     list_instance_type_details,
     list_tags,
@@ -132,3 +133,19 @@ def opensearch_instance_type_limits(request):
         ))
     except Exception as exc:
         return handle_action_error(exc, service='opensearch', operation='describe_instance_type_limits')
+
+
+@require_http_methods(['POST'])
+def opensearch_devtools_request(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(execute_domain_request(
+            domain_name=body.get('domain_name', ''),
+            method=body.get('method') or 'GET',
+            path=body.get('path') or '/_cluster/health',
+            body=body.get('body'),
+            headers=body.get('headers'),
+            endpoint_url=body.get('endpoint_url'),
+        ))
+    except Exception as exc:
+        return handle_action_error(exc, service='opensearch', operation='execute_domain_request')

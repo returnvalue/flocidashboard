@@ -219,6 +219,63 @@ const CodeDeployConsole = (() => {
     const result = renderLastResult(); if (result) content.append(result);
     panel.append(content); return panel;
   }
+  
+  function showLifecycleSimulatorModal(dep) {
+    const dId = deploymentId(dep);
+    const form = el('div', 'codedeploy-modal-form');
+    form.append(el('p', null, `Simulate AWS CodeDeploy lifecycle hook events for deployment ${dId}:`));
+
+    const events = [
+      'ApplicationStop',
+      'DownloadBundle',
+      'BeforeInstall',
+      'Install',
+      'AfterInstall',
+      'ApplicationStart',
+      'ValidateService',
+    ];
+
+    const timeline = el('div', 'codedeploy-lifecycle-timeline');
+    const resultBox = el('div', 'codedeploy-lifecycle-result');
+
+    events.forEach((evName) => {
+      const stepRow = el('div', 'codedeploy-lifecycle-step');
+      stepRow.append(el('strong', 'codedeploy-step-name', evName));
+
+      const actions = el('div', 'codedeploy-step-actions');
+      const passBtn = btn('✓ Pass', 'codedeploy-btn-pass', async () => {
+        try {
+          const res = await apiJson('/api/codedeploy/deployments/lifecycle/', {
+            method: 'POST',
+            body: JSON.stringify({ deployment_id: dId, lifecycle_event_name: evName, status: 'Succeeded' }),
+          });
+          resultBox.textContent = `✓ ${res.message}`;
+          toast(`${evName} simulated as Succeeded`);
+        } catch (e) {
+          resultBox.textContent = e.message;
+        }
+      });
+      const failBtn = btn('✗ Fail', 'codedeploy-btn-fail', async () => {
+        try {
+          const res = await apiJson('/api/codedeploy/deployments/lifecycle/', {
+            method: 'POST',
+            body: JSON.stringify({ deployment_id: dId, lifecycle_event_name: evName, status: 'Failed' }),
+          });
+          resultBox.textContent = `✗ ${res.message}`;
+          toast(`${evName} simulated as Failed`, true);
+        } catch (e) {
+          resultBox.textContent = e.message;
+        }
+      });
+      actions.append(passBtn, failBtn);
+      stepRow.append(actions);
+      timeline.append(stepRow);
+    });
+
+    form.append(timeline, resultBox);
+    openModal(`Lifecycle Hook Simulator: ${dId}`, form, 'Done', (close) => close());
+  }
+
   function renderWorkbench() {
     const app = selectedApplication();
     const container = el('div');

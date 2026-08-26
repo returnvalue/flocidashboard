@@ -83,6 +83,13 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
+.lambda-save-event-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
 .lambda-detail-section {
   padding: 14px;
   border: 1px solid var(--panel-border);

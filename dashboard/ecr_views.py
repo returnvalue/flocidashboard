@@ -14,8 +14,10 @@ from .ecr_api import (
     delete_repository,
     delete_repository_policy,
     get_authorization_token,
+    get_push_commands,
     put_image_tag_mutability,
     put_lifecycle_policy,
+    put_mock_image,
     run_garbage_collection,
     set_repository_policy,
     tag_resource,
@@ -150,3 +152,30 @@ def ecr_garbage_collection(request):
         return JsonResponse(run_garbage_collection())
     except Exception as exc:
         return handle_action_error(exc, service='ecr', operation='garbage_collection')
+
+
+@require_http_methods(['GET', 'POST'])
+def ecr_push_commands(request, name: str = ''):
+    try:
+        if not name:
+            body = parse_json_body(request) if request.method == 'POST' else {}
+            name = body.get('repository_name') or request.GET.get('repository_name') or ''
+        region = request.GET.get('region', 'us-east-1')
+        return JsonResponse(get_push_commands(name, region=region))
+    except Exception as exc:
+        return handle_action_error(exc, service='ecr', operation='get_push_commands')
+
+
+@require_http_methods(['POST'])
+def ecr_mock_image_put(request, name: str = ''):
+    try:
+        body = parse_json_body(request)
+        repo_name = name or body.get('repository_name') or ''
+        return JsonResponse(put_mock_image(
+            repo_name,
+            image_tag=body.get('image_tag') or 'latest',
+            image_digest=body.get('image_digest'),
+            image_manifest=body.get('image_manifest'),
+        ))
+    except Exception as exc:
+        return handle_action_error(exc, service='ecr', operation='put_mock_image')

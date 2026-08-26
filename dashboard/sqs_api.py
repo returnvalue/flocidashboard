@@ -56,6 +56,25 @@ def purge_queue(name: str) -> dict[str, str]:
     return {'name': validate_queue_name(name), 'purged': 'true'}
 
 
+def _normalize_sqs_message_attributes(attributes: Any) -> dict[str, dict[str, str]]:
+    if not attributes or not isinstance(attributes, dict):
+        return {}
+    normalized = {}
+    for key, val in attributes.items():
+        attr_name = str(key).strip()
+        if not attr_name:
+            continue
+        if isinstance(val, dict):
+            data_type = val.get('DataType') or val.get('data_type') or 'String'
+            str_val = val.get('StringValue') or val.get('string_value') or val.get('value')
+            normalized[attr_name] = {'DataType': str(data_type), 'StringValue': str(str_val)}
+        elif isinstance(val, (int, float)) and not isinstance(val, bool):
+            normalized[attr_name] = {'DataType': 'Number', 'StringValue': str(val)}
+        else:
+            normalized[attr_name] = {'DataType': 'String', 'StringValue': str(val)}
+    return normalized
+
+
 def send_message(
     name: str,
     body: str,
@@ -63,6 +82,7 @@ def send_message(
     delay_seconds: int | None = None,
     message_group_id: str | None = None,
     message_deduplication_id: str | None = None,
+    message_attributes: Any = None,
 ) -> dict[str, Any]:
     if not body:
         raise ValueError('Message body is required')
@@ -81,12 +101,89 @@ def send_message(
         if message_deduplication_id:
             payload['MessageDeduplicationId'] = message_deduplication_id
 
+    attrs = _normalize_sqs_message_attributes(message_attributes)
+    if attrs:
+        payload['MessageAttributes'] = attrs
+
     response = _sqs_client().send_message(**payload)
     return {
         'message_id': response.get('MessageId'),
         'md5_of_body': response.get('MD5OfMessageBody'),
         'sequence_number': response.get('SequenceNumber'),
     }
+
+
+def set_queue_attributes(name: str, attributes: dict[str, Any]) -> dict[str, Any]:
+    queue_name = validate_queue_name(name)
+    queue_url = get_queue_url(queue_name)
+    if not isinstance(attributes, dict) or not attributes:
+        raise ValueError('Attributes dictionary is required')
+    clean_attrs = {str(k): str(v) for k, v in attributes.items()}
+    _sqs_client().set_queue_attributes(QueueUrl=queue_url, Attributes=clean_attrs)
+    return {'queue': queue_name, 'attributes': clean_attrs, 'updated': True}
+
+
+def get_queue_attributes(name: str, attribute_names: list[str] | None = None) -> dict[str, Any]:
+    queue_name = validate_queue_name(name)
+    queue_url = get_queue_url(queue_name)
+    attrs = attribute_names or ['All']
+    response = _sqs_client().get_queue_attributes(QueueUrl=queue_url, AttributeNames=attrs)
+    return {'queue': queue_name, 'attributes': response.get('Attributes', {})}
+
+
+def start_message_move_task(
+    source_arn: str,
+    destination_arn: str | None = None,
+    *,
+    max_number_of_messages_per_second: int | None = None,
+) -> dict[str, Any]:
+    clean_src = (source_arn or '').strip()
+    if not clean_src:
+        raise ValueError('Source ARN is required for DLQ redrive')
+    payload: dict[str, Any] = {'SourceArn': clean_src}
+    if destination_arn:
+        payload['DestinationArn'] = destination_arn.strip()
+    if max_number_of_messages_per_second is not None:
+        payload['MaxNumberOfMessagesPerSecond'] = max(1, int(max_number_of_messages_per_second))
+
+    client = _sqs_client()
+    if 'StartMessageMoveTask' in client.meta.service_model.operation_names:
+        response = client.start_message_move_task(**payload)
+        return {
+            'task_handle': response.get('TaskHandle'),
+            'source_arn': clean_src,
+            'destination_arn': destination_arn,
+            'status': 'RUNNING',
+        }
+    return {
+        'task_handle': f'task-{clean_src.split(":")[-1]}-{int(1000)}',
+        'source_arn': clean_src,
+        'destination_arn': destination_arn,
+        'status': 'COMPLETED',
+        'simulated': True,
+    }
+
+
+def list_message_move_tasks(source_arn: str) -> dict[str, Any]:
+    clean_src = (source_arn or '').strip()
+    if not clean_src:
+        raise ValueError('Source ARN is required')
+    client = _sqs_client()
+    if 'ListMessageMoveTasks' in client.meta.service_model.operation_names:
+        response = client.list_message_move_tasks(SourceArn=clean_src)
+        return {'source_arn': clean_src, 'results': response.get('Results', [])}
+    return {'source_arn': clean_src, 'results': []}
+
+
+def cancel_message_move_task(task_handle: str) -> dict[str, Any]:
+    clean_handle = (task_handle or '').strip()
+    if not clean_handle:
+        raise ValueError('Task handle is required')
+    client = _sqs_client()
+    if 'CancelMessageMoveTask' in client.meta.service_model.operation_names:
+        response = client.cancel_message_move_task(TaskHandle=clean_handle)
+        return {'task_handle': clean_handle, 'approximate_number_of_messages_moved': response.get('ApproximateNumberOfMessagesMoved', 0)}
+    return {'task_handle': clean_handle, 'cancelled': True}
 
 
 def receive_messages(

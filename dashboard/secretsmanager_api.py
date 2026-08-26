@@ -200,5 +200,33 @@ def get_random_password(options: Any = None) -> dict[str, Any]:
         options = {}
     if not isinstance(options, dict):
         raise ValueError('Password options must be an object')
-    response = _client().get_random_password(**options)
+
+    clean_kwargs: dict[str, Any] = {}
+    mapping = {
+        'password_length': 'PasswordLength',
+        'passwordlength': 'PasswordLength',
+        'exclude_characters': 'ExcludeCharacters',
+        'excludecharacters': 'ExcludeCharacters',
+        'exclude_numbers': 'ExcludeNumbers',
+        'excludenumbers': 'ExcludeNumbers',
+        'exclude_punctuation': 'ExcludePunctuation',
+        'excludepunctuation': 'ExcludePunctuation',
+        'exclude_uppercase': 'ExcludeUppercase',
+        'excludeuppercase': 'ExcludeUppercase',
+        'exclude_lowercase': 'ExcludeLowercase',
+        'excludelowercase': 'ExcludeLowercase',
+        'include_space': 'IncludeSpace',
+        'includespace': 'IncludeSpace',
+        'require_each_included_type': 'RequireEachIncludedType',
+        'requireeachincludedtype': 'RequireEachIncludedType',
+    }
+    for k, v in options.items():
+        k_norm = k.lower()
+        if k_norm in mapping:
+            target_key = mapping[k_norm]
+            clean_kwargs[target_key] = int(v) if 'Length' in target_key else bool(v)
+        else:
+            clean_kwargs[k] = v
+
+    response = _client().get_random_password(**clean_kwargs)
     return {'random_password': response.get('RandomPassword')}

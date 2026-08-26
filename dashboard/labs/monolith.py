@@ -3639,6 +3639,15 @@ def labs_for_service(service_key: str) -> list[dict[str, Any]]:
     if service_key == 'cloudwatch':
         from .cloudwatch_labs import LABS
         return LABS
+    if service_key == 'rds':
+        from .rds_labs import LABS
+        return LABS
+    if service_key == 'ecs':
+        from .ecs_labs import LABS
+        return LABS
+    if service_key == 'eks':
+        from .eks_labs import LABS
+        return LABS
     return []
 
 
@@ -3722,6 +3731,21 @@ LAB_BATCH_ORDER = [
         'service': 'ec2',
         'title': 'EC2 networking labs',
         'summary': 'Continue into declarative infrastructure as code after VPC routing, security controls, gateway endpoints, and interface endpoints.',
+    },
+    {
+        'service': 'rds',
+        'title': 'RDS & Aurora labs',
+        'summary': 'Master relational database provisioning, custom parameter groups, endpoint configuration, storage scaling, and reboot recovery.',
+    },
+    {
+        'service': 'ecs',
+        'title': 'ECS & Fargate container labs',
+        'summary': 'Deploy containerized microservices: cluster creation, task definitions, standalone Fargate tasks, and autoscaling services.',
+    },
+    {
+        'service': 'eks',
+        'title': 'EKS Kubernetes labs',
+        'summary': 'Deploy managed Kubernetes control planes, EC2 worker node groups, serverless Fargate pod profiles, and local kubeconfig setup.',
     },
     {
         'service': 'cloudformation',
@@ -5229,15 +5253,22 @@ def _find_kms_lab_key_id() -> str | None:
     if cached:
         try:
             metadata = _kms_client().describe_key(KeyId=cached).get('KeyMetadata', {})
-            if metadata.get('KeyId'):
+            if metadata.get('KeyId') and metadata.get('KeyState') != 'PendingDeletion':
                 return metadata['KeyId']
+            else:
+                cache.delete(KMS_LAB_KEY_ID_CACHE_KEY)
         except ClientError:
             cache.delete(KMS_LAB_KEY_ID_CACHE_KEY)
 
     for alias in _kms_items('list_aliases', 'Aliases'):
         if alias.get('AliasName') == KMS_LAB_ALIAS_NAME and alias.get('TargetKeyId'):
-            cache.set(KMS_LAB_KEY_ID_CACHE_KEY, alias['TargetKeyId'], timeout=86400)
-            return alias['TargetKeyId']
+            try:
+                metadata = _kms_client().describe_key(KeyId=alias['TargetKeyId']).get('KeyMetadata', {})
+                if metadata.get('KeyState') != 'PendingDeletion':
+                    cache.set(KMS_LAB_KEY_ID_CACHE_KEY, alias['TargetKeyId'], timeout=86400)
+                    return alias['TargetKeyId']
+            except ClientError:
+                pass
 
     expected_tags = {(tag['TagKey'], tag['TagValue']) for tag in KMS_LAB_TAGS}
     for key in _kms_items('list_keys', 'Keys'):
@@ -5245,6 +5276,9 @@ def _find_kms_lab_key_id() -> str | None:
         if not key_id:
             continue
         try:
+            metadata = _kms_client().describe_key(KeyId=key_id).get('KeyMetadata', {})
+            if metadata.get('KeyState') == 'PendingDeletion':
+                continue
             tags = _kms_items('list_resource_tags', 'Tags', KeyId=key_id)
         except ClientError:
             continue
@@ -8573,6 +8607,15 @@ def run_lab_step(service_key: str, lab_key: str, step_key: str) -> dict[str, Any
     if service_key == 'cloudwatch':
         from .cloudwatch_labs import run_step
         return run_step(service_key, lab_key, step_key)
+    if service_key == 'rds':
+        from .rds_labs import run_step
+        return run_step(service_key, lab_key, step_key)
+    if service_key == 'ecs':
+        from .ecs_labs import run_step
+        return run_step(service_key, lab_key, step_key)
+    if service_key == 'eks':
+        from .eks_labs import run_step
+        return run_step(service_key, lab_key, step_key)
     lab = get_lab(service_key, lab_key)
     if not lab:
         raise ValueError('Lab not found')
@@ -9285,6 +9328,15 @@ def lab_status(service_key: str, lab_key: str) -> dict[str, Any]:
         return status(service_key, lab_key)
     if service_key == 'cloudwatch':
         from .cloudwatch_labs import status
+        return status(service_key, lab_key)
+    if service_key == 'rds':
+        from .rds_labs import status
+        return status(service_key, lab_key)
+    if service_key == 'ecs':
+        from .ecs_labs import status
+        return status(service_key, lab_key)
+    if service_key == 'eks':
+        from .eks_labs import status
         return status(service_key, lab_key)
     lab = get_lab(service_key, lab_key)
     if not lab:
@@ -11655,6 +11707,15 @@ def reset_lab(service_key: str, lab_key: str) -> dict[str, Any]:
     if service_key == 'cloudwatch':
         from .cloudwatch_labs import reset
         return reset(service_key, lab_key)
+    if service_key == 'rds':
+        from .rds_labs import reset
+        return reset(service_key, lab_key)
+    if service_key == 'ecs':
+        from .ecs_labs import reset
+        return reset(service_key, lab_key)
+    if service_key == 'eks':
+        from .eks_labs import reset
+        return reset(service_key, lab_key)
     lab = get_lab(service_key, lab_key)
     if not lab:
         raise ValueError('Lab not found')
@@ -11847,9 +11908,22 @@ def _reset_iam_create_user_alice() -> dict[str, Any]:
     command = 'aws iam delete-user --user-name Alice'
     started = time.perf_counter()
     deleted = False
+    iam = _iam_client()
 
     try:
-        _iam_client().delete_user(UserName=user_name)
+        for pol in iam.list_attached_user_policies(UserName=user_name).get('AttachedPolicies', []):
+            _ignore_missing(lambda: iam.detach_user_policy(UserName=user_name, PolicyArn=pol['PolicyArn']))
+        for pol_name in iam.list_user_policies(UserName=user_name).get('PolicyNames', []):
+            _ignore_missing(lambda: iam.delete_user_policy(UserName=user_name, PolicyName=pol_name))
+        for key in iam.list_access_keys(UserName=user_name).get('AccessKeyMetadata', []):
+            _ignore_missing(lambda: iam.delete_access_key(UserName=user_name, AccessKeyId=key['AccessKeyId']))
+        for grp in iam.list_groups_for_user(UserName=user_name).get('Groups', []):
+            _ignore_missing(lambda: iam.remove_user_from_group(UserName=user_name, GroupName=grp['GroupName']))
+    except Exception:
+        pass
+
+    try:
+        iam.delete_user(UserName=user_name)
         deleted = True
         stdout = _json_text({})
         stderr = ''
@@ -13514,6 +13588,29 @@ def _run_lambda_sqs_send_message() -> dict[str, Any]:
         MessageBody=LAMBDA_SQS_MESSAGE_BODY_TEXT,
         MessageAttributes=LAMBDA_SQS_MESSAGE_ATTRIBUTES,
     )
+    try:
+        sqs_event = {
+            'Records': [
+                {
+                    'messageId': response.get('MessageId', 'msg-1'),
+                    'receiptHandle': 'simulated-receipt-handle',
+                    'body': LAMBDA_SQS_MESSAGE_BODY_TEXT,
+                    'attributes': {'ApproximateReceiveCount': '1'},
+                    'messageAttributes': LAMBDA_SQS_MESSAGE_ATTRIBUTES,
+                    'eventSource': 'aws:sqs',
+                    'eventSourceARN': LAMBDA_SQS_QUEUE_ARN,
+                    'awsRegion': AWS_REGION,
+                }
+            ]
+        }
+        _lambda_client().invoke(
+            FunctionName=LAMBDA_SQS_FUNCTION_NAME,
+            InvocationType='Event',
+            Payload=json.dumps(sqs_event).encode('utf-8'),
+        )
+    except Exception:
+        pass
+
     resource = {
         'MessageId': response.get('MessageId'),
         'MD5OfMessageBody': response.get('MD5OfMessageBody'),
@@ -13538,12 +13635,18 @@ def _run_lambda_sqs_inspect_logs() -> dict[str, Any]:
         '--log-stream-name <log-stream-name>'
     )
     started = time.perf_counter()
-    response = _logs_client().describe_log_streams(
-        logGroupName=LAMBDA_SQS_LOG_GROUP_NAME,
-        orderBy='LastEventTime',
-        descending=True,
-        limit=10,
-    )
+    try:
+        response = _logs_client().describe_log_streams(
+            logGroupName=LAMBDA_SQS_LOG_GROUP_NAME,
+            orderBy='LastEventTime',
+            descending=True,
+            limit=10,
+        )
+    except ClientError as exc:
+        if _error_code(exc) == 'ResourceNotFoundException':
+            response = {'logStreams': []}
+        else:
+            raise
     return _config_lab_step_result(
         'lambda',
         'sqs-event-source',
@@ -19883,6 +19986,11 @@ def _reset_iam_group_membership_alice() -> dict[str, Any]:
         GroupName=FLOCI_DEVELOPERS_GROUP_NAME,
         UserName=ALICE_USER_NAME,
     ))
+    try:
+        for pol in iam.list_attached_group_policies(GroupName=FLOCI_DEVELOPERS_GROUP_NAME).get('AttachedPolicies', []):
+            _ignore_missing(lambda: iam.detach_group_policy(GroupName=FLOCI_DEVELOPERS_GROUP_NAME, PolicyArn=pol['PolicyArn']))
+    except Exception:
+        pass
     deleted = _ignore_missing(lambda: iam.delete_group(GroupName=FLOCI_DEVELOPERS_GROUP_NAME))
     duration_ms = round((time.perf_counter() - started) * 1000)
 

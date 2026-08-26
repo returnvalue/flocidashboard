@@ -58,6 +58,126 @@ def normalize_message_attributes(attributes: Any) -> dict[str, dict[str, str]]:
     return normalized
 
 
+def create_topic(
+    name: str,
+    *,
+    fifo: bool = False,
+    display_name: str | None = None,
+    kms_master_key_id: str | None = None,
+) -> dict[str, Any]:
+    clean_name = (name or '').strip()
+    if not clean_name:
+        raise ValueError('Topic name is required')
+    if fifo and not clean_name.endswith('.fifo'):
+        raise ValueError('FIFO topic names must end with .fifo')
+
+    attributes: dict[str, str] = {}
+    if fifo or clean_name.endswith('.fifo'):
+        attributes['FifoTopic'] = 'true'
+        attributes['ContentBasedDeduplication'] = 'true'
+    if display_name:
+        attributes['DisplayName'] = display_name.strip()
+    if kms_master_key_id:
+        attributes['KmsMasterKeyId'] = kms_master_key_id.strip()
+
+    payload: dict[str, Any] = {'Name': clean_name}
+    if attributes:
+        payload['Attributes'] = attributes
+
+    response = _sns_client().create_topic(**payload)
+    return {
+        'name': clean_name,
+        'topic_arn': response.get('TopicArn'),
+    }
+
+
+def delete_topic(topic_arn: str) -> dict[str, Any]:
+    arn = validate_topic_arn(topic_arn)
+    _sns_client().delete_topic(TopicArn=arn)
+    return {'topic_arn': arn, 'deleted': True}
+
+
+def get_topic_attributes(topic_arn: str) -> dict[str, Any]:
+    arn = validate_topic_arn(topic_arn)
+    response = _sns_client().get_topic_attributes(TopicArn=arn)
+    return {'topic_arn': arn, 'attributes': response.get('Attributes', {})}
+
+
+def subscribe(
+    topic_arn: str,
+    protocol: str,
+    endpoint: str,
+    *,
+    filter_policy: Any = None,
+    raw_message_delivery: bool = False,
+) -> dict[str, Any]:
+    arn = validate_topic_arn(topic_arn)
+    clean_proto = (protocol or '').strip().lower()
+    clean_endpoint = (endpoint or '').strip()
+    if not clean_proto:
+        raise ValueError('Protocol is required (e.g. sqs, lambda, http, https, email)')
+    if not clean_endpoint:
+        raise ValueError('Endpoint target ARN/URL/email is required')
+
+    attributes: dict[str, str] = {}
+    if raw_message_delivery:
+        attributes['RawMessageDelivery'] = 'true'
+    if filter_policy:
+        if isinstance(filter_policy, dict):
+            attributes['FilterPolicy'] = json.dumps(filter_policy)
+        else:
+            attributes['FilterPolicy'] = str(filter_policy)
+
+    payload: dict[str, Any] = {
+        'TopicArn': arn,
+        'Protocol': clean_proto,
+        'Endpoint': clean_endpoint,
+        'ReturnSubscriptionArn': True,
+    }
+    if attributes:
+        payload['Attributes'] = attributes
+
+    response = _sns_client().subscribe(**payload)
+    return {
+        'topic_arn': arn,
+        'protocol': clean_proto,
+        'endpoint': clean_endpoint,
+        'subscription_arn': response.get('SubscriptionArn'),
+    }
+
+
+def unsubscribe(subscription_arn: str) -> dict[str, Any]:
+    clean_arn = (subscription_arn or '').strip()
+    if not clean_arn or clean_arn == 'PendingConfirmation':
+        raise ValueError('A valid subscription ARN is required to unsubscribe')
+    _sns_client().unsubscribe(SubscriptionArn=clean_arn)
+    return {'subscription_arn': clean_arn, 'unsubscribed': True}
+
+
+def set_subscription_attributes(
+    subscription_arn: str,
+    attribute_name: str,
+    attribute_value: Any,
+) -> dict[str, Any]:
+    clean_arn = (subscription_arn or '').strip()
+    clean_attr = (attribute_name or '').strip()
+    if not clean_arn or not clean_attr:
+        raise ValueError('Subscription ARN and attribute name are required')
+
+    val = json.dumps(attribute_value) if isinstance(attribute_value, (dict, list)) else str(attribute_value)
+    _sns_client().set_subscription_attributes(
+        SubscriptionArn=clean_arn,
+        AttributeName=clean_attr,
+        AttributeValue=val,
+    )
+    return {
+        'subscription_arn': clean_arn,
+        'attribute_name': clean_attr,
+        'attribute_value': val,
+        'updated': True,
+    }
+
+
 def publish_message(
     topic_arn: str,
     message: str,

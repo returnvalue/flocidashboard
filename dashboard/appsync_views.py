@@ -19,6 +19,7 @@ from .appsync_api import (
     delete_graphql_api,
     delete_resolver,
     delete_type,
+    execute_graphql,
     start_schema_creation,
     tag_resource,
     untag_resource,
@@ -94,3 +95,19 @@ def appsync_tags(request):
     if request.method == 'POST':
         return _action(request, 'tag_resource', lambda body: tag_resource(body.get('resource_arn') or '', body.get('tags') or {}))
     return _action(request, 'untag_resource', lambda body: untag_resource(body.get('resource_arn') or '', body.get('tag_keys') or []))
+
+
+@require_http_methods(['POST'])
+def appsync_graphql_run(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(execute_graphql(
+            api_id=body.get('api_id', ''),
+            query=body.get('query', ''),
+            variables=body.get('variables'),
+            operation_name=body.get('operation_name'),
+            api_key=body.get('api_key'),
+            endpoint_url=body.get('endpoint_url'),
+        ))
+    except Exception as exc:
+        return handle_action_error(exc, service='appsync', operation='execute_graphql')

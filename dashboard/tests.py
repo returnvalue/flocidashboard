@@ -532,7 +532,7 @@ class DashboardTemplateTests(SimpleTestCase):
         self.assertContains(response, '<title>Labs - Floci Dashboard</title>', html=True)
         self.assertContains(response, '<h1 class="console-title">Labs</h1>', html=True)
         self.assertSharedShell(response)
-        self.assertContains(response, '17 services with labs')
+        self.assertContains(response, '20 services with labs')
         self.assertNotContains(response, 'Learning paths')
         self.assertNotContains(response, 'Recommended starting point')
         self.assertContains(response, 'Create a local admin user')

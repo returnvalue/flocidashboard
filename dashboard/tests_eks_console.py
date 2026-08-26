@@ -277,6 +277,23 @@ class EKSApiHelperTests(SimpleTestCase):
             subnets=['subnet-1'], selectors=[{'namespace': 'default'}], tags={'env': 'local'},
         )
 
+    @patch('dashboard.eks_views.get_kubeconfig')
+    def test_get_kubeconfig_endpoint(self, kube_mock):
+        kube_mock.return_value = {
+            'cluster_name': 'local',
+            'aws_cli_command': 'aws eks update-kubeconfig --name local --region us-east-1',
+            'kubeconfig_yaml': 'apiVersion: v1',
+        }
+
+        response = self.client.get(
+            reverse('dashboard:eks-cluster-kubeconfig', kwargs={'cluster_name': 'local'}),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('aws_cli_command', response.json())
+        kube_mock.assert_called_once_with('local', region='us-east-1')
+
+
 
 class EKSInventoryCapabilityTests(SimpleTestCase):
     @patch('dashboard.aws._paginate')

@@ -927,6 +927,160 @@ const ECSConsole = (() => {
     return panel;
   }
 
+  
+  function showDiffTaskDefinitionsModal(td) {
+    const family = td.family || td.name || '';
+    const form = el('div', 'ecs-modal-form');
+    const allDefs = taskDefinitions().filter((d) => (d.family || d.name) === family);
+
+    const selectA = document.createElement('select');
+    const selectB = document.createElement('select');
+
+    taskDefinitions().forEach((d) => {
+      const arn = taskDefArn(d);
+      const optA = el('option', null, `${d.family || 'family'}:${d.revision || 'rev'}`);
+      optA.value = arn;
+      const optB = el('option', null, `${d.family || 'family'}:${d.revision || 'rev'}`);
+      optB.value = arn;
+      selectA.append(optA);
+      selectB.append(optB);
+    });
+
+    if (selectA.options.length > 1) {
+      selectA.selectedIndex = 0;
+      selectB.selectedIndex = 1;
+    }
+
+    const diffOutput = el('div', 'ecs-diff-output');
+
+    async function runDiff() {
+      diffOutput.textContent = 'Comparing task definitions...';
+      try {
+        const res = await apiJson('/api/ecs/task-definitions/diff/', {
+          method: 'POST',
+          body: JSON.stringify({ task_definition_a: selectA.value, task_definition_b: selectB.value }),
+        });
+        diffOutput.textContent = '';
+        const summaryCard = el('div', 'ecs-diff-card');
+        summaryCard.append(
+          el('p', null, `CPU Changed: ${res.cpu_changed ? `Yes (${res.cpu_a} -> ${res.cpu_b})` : 'No'}`),
+          el('p', null, `Memory Changed: ${res.memory_changed ? `Yes (${res.memory_a} -> ${res.memory_b})` : 'No'}`),
+          el('p', null, `Added Containers: ${res.added_containers?.join(', ') || 'None'}`),
+          el('p', null, `Removed Containers: ${res.removed_containers?.join(', ') || 'None'}`),
+        );
+        diffOutput.append(summaryCard);
+      } catch (err) {
+        diffOutput.textContent = `Error comparing revisions: ${err.message}`;
+      }
+    }
+
+    selectA.addEventListener('change', runDiff);
+    selectB.addEventListener('change', runDiff);
+
+    form.append(
+      el('label', null, 'Revision A (Base)'), selectA,
+      el('label', null, 'Revision B (Target)'), selectB,
+      diffOutput,
+    );
+
+    openModal(`Diff Revisions for ${family}`, form, 'Close', (close) => close());
+    runDiff();
+  }
+
+  function showScaleServiceModal(cluster, service) {
+    const cName = clusterName(cluster);
+    const sName = serviceName(service);
+    const form = el('div', 'ecs-modal-form');
+
+    const currentCount = service.desiredCount ?? service.desired_count ?? 1;
+    const countInput = document.createElement('input');
+    countInput.type = 'number';
+    countInput.min = '0';
+    countInput.max = '100';
+    countInput.value = String(currentCount);
+
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.min = '0';
+    slider.max = '20';
+    slider.value = String(currentCount);
+
+    slider.addEventListener('input', () => { countInput.value = slider.value; });
+    countInput.addEventListener('input', () => { slider.value = countInput.value; });
+
+    const btnRow = el('div', 'ecs-scale-presets');
+    [0, 1, 2, 5, 10].forEach((n) => {
+      const b = btn(String(n), 'secondary-button', () => {
+        countInput.value = String(n);
+        slider.value = String(n);
+      });
+      btnRow.append(b);
+    });
+
+    form.append(
+      el('p', null, `Scale desired tasks for service "${sName}" in cluster "${cName}":`),
+      el('label', null, 'Desired Task Count'), countInput, slider,
+      el('label', null, 'Quick presets:'), btnRow,
+    );
+
+    openModal(`Scale Service ${sName}`, form, 'Apply Scale', async (close) => {
+      const targetCount = parseInt(countInput.value, 10);
+      await mutate('/api/ecs/services/scale/', {
+        cluster: cName,
+        service: sName,
+        desired_count: targetCount,
+      }, `Service ${sName} scaled to ${targetCount} tasks`);
+      close();
+    });
+  }
+
+  function showFargateValidatorModal() {
+    const form = el('div', 'ecs-modal-form');
+    const cpuSelect = document.createElement('select');
+    ['256 (0.25 vCPU)', '512 (0.5 vCPU)', '1024 (1 vCPU)', '2048 (2 vCPU)', '4096 (4 vCPU)', '8192 (8 vCPU)', '16384 (16 vCPU)'].forEach((c) => {
+      const opt = el('option', null, c);
+      opt.value = c.split(' ')[0];
+      cpuSelect.append(opt);
+    });
+
+    const memInput = document.createElement('input');
+    memInput.value = '512';
+    memInput.placeholder = 'Memory in MiB (e.g. 512, 1024, 2048)';
+
+    const resultBox = el('div', 'ecs-fargate-val-box');
+
+    async function checkSizing() {
+      try {
+        const res = await apiJson('/api/ecs/fargate/validate/', {
+          method: 'POST',
+          body: JSON.stringify({ cpu: cpuSelect.value, memory: memInput.value }),
+        });
+        resultBox.textContent = '';
+        const badge = el('span', `ecs-val-badge ${res.valid ? 'ecs-val-valid' : 'ecs-val-invalid'}`, res.valid ? '✓ VALID FARGATE CONFIG' : '✗ INVALID COMBINATION');
+        resultBox.append(
+          badge,
+          el('p', null, res.message),
+          el('p', null, `Allowed Memory Options: ${res.allowed_memory_options_mib?.join(', ')} MiB`),
+        );
+      } catch (e) {
+        resultBox.textContent = e.message;
+      }
+    }
+
+    cpuSelect.addEventListener('change', checkSizing);
+    memInput.addEventListener('input', checkSizing);
+
+    form.append(
+      el('p', null, 'Validate AWS Fargate CPU & Memory combinations according to AWS serverless container compute rules:'),
+      el('label', null, 'CPU Units'), cpuSelect,
+      el('label', null, 'Memory (MiB)'), memInput,
+      resultBox,
+    );
+
+    openModal('Fargate Sizing Validator', form, 'Close', (close) => close());
+    checkSizing();
+  }
+
   function renderWorkbench() {
     const workbench = el('div', 'ecs-workbench');
     const cluster = selectedCluster();

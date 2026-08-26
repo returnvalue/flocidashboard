@@ -35,3 +35,59 @@
 .codedeploy-toast{position:fixed;right:22px;z-index:120;max-width:min(420px,calc(100vw - 44px));padding:12px 14px;border-radius:8px;background:#1f6f4a;color:#fff;box-shadow:0 16px 40px rgba(15,23,42,.2);font-weight:680}
 .codedeploy-toast-error{background:#a93434}
 @media (max-width:860px){.codedeploy-workbench,.codedeploy-detail dl,.codedeploy-card dl{grid-template-columns:1fr}}
+
+
+.codedeploy-lifecycle-timeline {
+  display: grid;
+  gap: 8px;
+  background: #f8fafc;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.codedeploy-lifecycle-step {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: #fff;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+}
+
+.codedeploy-step-name {
+  font-size: 0.85rem;
+}
+
+.codedeploy-step-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.codedeploy-btn-pass {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.codedeploy-btn-fail {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.codedeploy-lifecycle-result {
+  margin-top: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--foreground);
+}

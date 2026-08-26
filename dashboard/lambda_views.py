@@ -8,9 +8,10 @@ from django.views.decorators.http import require_http_methods
 from .actions import handle_action_error, parse_json_body
 from .lambda_api import (
     add_permission, create_function, delete_alias, delete_event_source_mapping,
-    delete_function, delete_function_url, invoke_function, publish_version,
-    remove_permission, save_alias, save_event_source_mapping, save_function_url,
-    set_concurrency, update_function_code, update_function_configuration, update_tags,
+    delete_function, delete_function_url, get_event_templates, invoke_function,
+    invoke_function_url, publish_version, remove_permission, save_alias,
+    save_event_source_mapping, save_function_url, set_concurrency,
+    update_function_code, update_function_configuration, update_tags,
 )
 
 
@@ -147,3 +148,26 @@ def lambda_function_tags(request, function_name: str):
         return JsonResponse(update_tags(arn, body.get('tags'), remove=body.get('tag_keys') if request.method == 'DELETE' else None))
     except Exception as exc:
         return _error(exc, 'untag_resource' if request.method == 'DELETE' else 'tag_resource')
+
+
+@require_http_methods(['GET'])
+def lambda_test_event_templates(request):
+    try:
+        return JsonResponse(get_event_templates())
+    except Exception as exc:
+        return _error(exc, 'get_event_templates')
+
+
+@require_http_methods(['POST'])
+def lambda_function_url_test(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(invoke_function_url(
+            url=body.get('url', ''),
+            method=body.get('method') or 'POST',
+            headers=body.get('headers') or None,
+            body=body.get('body') or None,
+            query_params=body.get('query_params') or None,
+        ))
+    except Exception as exc:
+        return _error(exc, 'invoke_function_url')

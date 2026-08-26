@@ -109,7 +109,7 @@ class LabsRegistryAuditTests(SimpleTestCase):
 class LabsPageTests(SimpleTestCase):
     def test_labs_package_facades_preserve_public_api(self):
         self.assertIs(facade_run_lab_step, run_lab_step)
-        self.assertEqual(len(all_labs()), 63)
+        self.assertEqual(len(all_labs()), 66)
         self.assertTrue(labs_for_service('iam'))
         self.assertTrue(issubclass(Lab, dict))
         self.assertTrue(issubclass(LabStep, dict))
@@ -132,10 +132,10 @@ class LabsPageTests(SimpleTestCase):
         response = self.client.get(reverse('dashboard:labs-catalog'))
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual(data['total_labs'], 63)
+        self.assertEqual(data['total_labs'], 66)
         self.assertIn('services', data)
         self.assertIn('labs', data)
-        self.assertGreaterEqual(len(data['services']), 17)
+        self.assertGreaterEqual(len(data['services']), 20)
 
     @patch('dashboard.views.lab_status')
     def test_api_lab_status_returns_live_verification_state(self, status_mock):

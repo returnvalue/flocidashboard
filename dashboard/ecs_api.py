@@ -388,3 +388,86 @@ def put_account_setting(name: str, value: str, *, principal_arn: str = '') -> di
         kwargs['principalArn'] = principal_arn
     response = _client().put_account_setting(**kwargs)
     return {'setting': _clean_response(response.get('setting', {})), 'response': _clean_response(response)}
+
+
+def scale_service(cluster: str, service: str, desired_count: int) -> dict[str, Any]:
+    return update_service(
+        cluster=_required(cluster, 'Cluster'),
+        service=_required(service, 'Service'),
+        desired_count=max(0, int(desired_count)),
+    )
+
+
+def validate_fargate_configuration(cpu: str | int, memory: str | int) -> dict[str, Any]:
+    cpu_str = str(cpu or '256').replace('vCPU', '').strip()
+    cpu_val = int(float(cpu_str) * 1024) if '.' in cpu_str else int(cpu_str)
+
+    mem_str = str(memory or '512').replace('GB', '').replace('gb', '').strip()
+    mem_val = int(float(mem_str) * 1024) if ('.' in mem_str or int(float(mem_str)) <= 128) and int(float(mem_str)) < 512 else int(mem_str)
+
+    fargate_matrix = {
+        256: [512, 1024, 2048],
+        512: [1024, 2048, 3072, 4096],
+        1024: [2048, 3072, 4096, 5120, 6144, 7168, 8192],
+        2048: [4096, 5120, 6144, 7168, 8192, 9216, 10240, 11264, 12288, 13312, 14336, 15360, 16384],
+        4096: [8192, 9216, 10240, 11264, 12288, 13312, 14336, 15360, 16384, 17408, 18432, 19456, 20480, 21504, 22528, 23552, 24576, 25600, 26624, 27648, 28672, 29696, 30720],
+        8192: [16384, 20480, 24576, 28672, 32768, 36864, 40960, 45056, 49152, 53248, 57344, 61440],
+        16384: [32768, 40960, 49152, 57344, 65536, 73728, 81920, 90112, 98304, 106496, 114688, 122880],
+    }
+
+    allowed_mems = fargate_matrix.get(cpu_val, [])
+    is_valid = bool(allowed_mems and mem_val in allowed_mems)
+
+    return {
+        'cpu_units': cpu_val,
+        'memory_mib': mem_val,
+        'valid': is_valid,
+        'allowed_memory_options_mib': allowed_mems,
+        'message': 'Valid AWS Fargate configuration' if is_valid else f'Invalid combination: {cpu_val} CPU units requires memory in {allowed_mems} MiB',
+    }
+
+
+def describe_task_definition(task_definition: str) -> dict[str, Any]:
+    response = _client().describe_task_definition(
+        taskDefinition=_required(task_definition, 'Task definition'),
+        include=['TAGS'],
+    )
+    return {
+        'task_definition': _clean_response(response.get('taskDefinition', {})),
+        'tags': _clean_response(response.get('tags', [])),
+    }
+
+
+def diff_task_definitions(task_definition_a: str, task_definition_b: str) -> dict[str, Any]:
+    tda = describe_task_definition(_required(task_definition_a, 'Task definition A')).get('task_definition', {})
+    tdb = describe_task_definition(_required(task_definition_b, 'Task definition B')).get('task_definition', {})
+
+    containers_a = {c.get('name'): c for c in tda.get('containerDefinitions', [])}
+    containers_b = {c.get('name'): c for c in tdb.get('containerDefinitions', [])}
+
+    added_containers = [name for name in containers_b if name not in containers_a]
+    removed_containers = [name for name in containers_a if name not in containers_b]
+    modified_containers = []
+
+    for name in containers_a:
+        if name in containers_b and containers_a[name] != containers_b[name]:
+            modified_containers.append({
+                'name': name,
+                'before': containers_a[name],
+                'after': containers_b[name],
+            })
+
+    return {
+        'task_definition_a': task_definition_a,
+        'task_definition_b': task_definition_b,
+        'cpu_changed': tda.get('cpu') != tdb.get('cpu'),
+        'cpu_a': tda.get('cpu'),
+        'cpu_b': tdb.get('cpu'),
+        'memory_changed': tda.get('memory') != tdb.get('memory'),
+        'memory_a': tda.get('memory'),
+        'memory_b': tdb.get('memory'),
+        'added_containers': added_containers,
+        'removed_containers': removed_containers,
+        'modified_containers': modified_containers,
+    }
+

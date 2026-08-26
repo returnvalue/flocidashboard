@@ -44,10 +44,8 @@ const SNSConsole = (() => {
   }
 
   function topicSubscriptions(topic) {
-    if (!topic) {
-      return [];
-    }
-    return subscriptions().filter((subscription) => subscription.topic_arn === topic.arn);
+    if (!topic) return [];
+    return subscriptions().filter((sub) => sub.topic_arn === topic.arn);
   }
 
   function isFifoTopic(topic) {
@@ -56,9 +54,7 @@ const SNSConsole = (() => {
   }
 
   function renderBreadcrumbs() {
-    if (!breadcrumbsEl) {
-      return;
-    }
+    if (!breadcrumbsEl) return;
     breadcrumbsEl.textContent = '';
     const home = el('button', null, 'Amazon SNS');
     home.addEventListener('click', () => {
@@ -88,14 +84,132 @@ const SNSConsole = (() => {
 
   function parseAttributes(value) {
     const trimmed = value.trim();
-    if (!trimmed) {
-      return null;
-    }
+    if (!trimmed) return null;
     const parsed = JSON.parse(trimmed);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       throw new Error('Message attributes must be a JSON object');
     }
     return parsed;
+  }
+
+  function showCreateTopicModal() {
+    const form = el('div');
+    const nameInput = document.createElement('input');
+    nameInput.placeholder = 'orders-events or orders-events.fifo';
+    nameInput.required = true;
+
+    const fifoCheckbox = document.createElement('input');
+    fifoCheckbox.type = 'checkbox';
+    const fifoLabel = el('label');
+    fifoLabel.append(fifoCheckbox, ' FIFO Topic (Message deduplication & ordering)');
+
+    const displayInput = document.createElement('input');
+    displayInput.placeholder = 'e.g. Order Events Hub';
+
+    form.append(
+      el('label', null, 'Topic Name'),
+      nameInput,
+      fifoLabel,
+      el('label', null, 'Display Name (Optional)'),
+      displayInput,
+    );
+
+    openModal('Create Topic', form, 'Create Topic', async (close) => {
+      const name = nameInput.value.trim();
+      if (!name) throw new Error('Topic name is required');
+      await apiJson('/api/sns/topics/', {
+        method: 'POST',
+        body: JSON.stringify({
+          name,
+          fifo: fifoCheckbox.checked,
+          display_name: displayInput.value.trim() || undefined,
+        }),
+      });
+      toast(`Topic ${name} created`);
+      close();
+      await refresh();
+    });
+  }
+
+  function showDeleteTopicModal(topic) {
+    const form = el('div');
+    form.append(
+      el('p', null, `Are you sure you want to delete topic "${topic.name || topicName(topic.arn)}"?`),
+      el('pre', 'sns-topic-arn-preview', topic.arn),
+    );
+
+    openModal('Delete Topic', form, 'Delete', async (close) => {
+      await apiJson(`/api/sns/topics/${encodeURIComponent(topic.arn)}/`, {
+        method: 'DELETE',
+      });
+      toast('Topic deleted');
+      state.selectedTopicArn = '';
+      close();
+      await refresh();
+    });
+  }
+
+  function showCreateSubscriptionModal(topic) {
+    const form = el('div');
+    const protoSelect = document.createElement('select');
+    [['sqs', 'Amazon SQS Queue'], ['lambda', 'AWS Lambda Function'], ['http', 'HTTP Webhook'], ['https', 'HTTPS Webhook'], ['email', 'Email Address']].forEach(([val, label]) => {
+      const opt = el('option', null, label);
+      opt.value = val;
+      protoSelect.append(opt);
+    });
+
+    const endpointInput = document.createElement('input');
+    endpointInput.placeholder = 'Queue ARN, Lambda ARN, HTTP URL, or Email';
+    endpointInput.required = true;
+
+    const rawDeliveryCheckbox = document.createElement('input');
+    rawDeliveryCheckbox.type = 'checkbox';
+    const rawDeliveryLabel = el('label');
+    rawDeliveryLabel.append(rawDeliveryCheckbox, ' Raw Message Delivery (Skip SNS JSON wrapper for SQS/HTTP)');
+
+    const filterPolicyInput = document.createElement('textarea');
+    filterPolicyInput.placeholder = '{"event_type": ["order_created", "order_paid"], "amount": [{"numeric": [">=", 100]}]}';
+
+    form.append(
+      el('label', null, 'Topic ARN'),
+      el('pre', 'sns-topic-arn-preview', topic.arn),
+      el('label', null, 'Protocol'),
+      protoSelect,
+      el('label', null, 'Endpoint Target'),
+      endpointInput,
+      rawDeliveryLabel,
+      el('label', null, 'Subscription Filter Policy (JSON object, Optional)'),
+      filterPolicyInput,
+    );
+
+    openModal('Create Subscription', form, 'Subscribe', async (close) => {
+      const proto = protoSelect.value;
+      const endpoint = endpointInput.value.trim();
+      if (!endpoint) throw new Error('Endpoint target is required');
+
+      let filterPolicy = null;
+      if (filterPolicyInput.value.trim()) {
+        try {
+          filterPolicy = JSON.parse(filterPolicyInput.value.trim());
+        } catch (e) {
+          throw new Error('Filter policy must be valid JSON: ' + e.message);
+        }
+      }
+
+      await apiJson('/api/sns/subscriptions/', {
+        method: 'POST',
+        body: JSON.stringify({
+          topic_arn: topic.arn,
+          protocol: proto,
+          endpoint,
+          filter_policy: filterPolicy,
+          raw_message_delivery: rawDeliveryCheckbox.checked,
+        }),
+      });
+      toast('Subscription created');
+      close();
+      await refresh();
+    });
   }
 
   function showPublishModal(topic) {
@@ -210,7 +324,20 @@ const SNSConsole = (() => {
 
   function renderSubscription(subscription) {
     const card = el('article', 'sns-subscription');
-    card.append(el('h4', null, subscription.protocol || 'Subscription'));
+    const heading = el('div', 'sns-card-heading');
+    heading.append(
+      el('h4', null, `${subscription.protocol || 'Subscription'} → ${subscription.endpoint || ''}`),
+      btn('Unsubscribe', 'sns-btn-danger', () => {
+        openModal('Unsubscribe', el('p', null, `Delete subscription ${subscription.arn}?`), 'Delete', async (close) => {
+          await apiJson(`/api/sns/subscriptions/${encodeURIComponent(subscription.arn)}/`, { method: 'DELETE' });
+          toast('Unsubscribed');
+          close();
+          await refresh();
+        });
+      }),
+    );
+    card.append(heading);
+
     const details = document.createElement('dl');
     consoleUi.addField(details, 'Endpoint', subscription.endpoint);
     consoleUi.addField(details, 'ARN', subscription.arn);
@@ -223,7 +350,7 @@ const SNSConsole = (() => {
   function renderSelectedTopic(topic) {
     const panel = el('section', 'sns-panel');
     const heading = el('div', 'sns-panel-heading');
-    const title = el('span', null, topic ? (topic.name || topicName(topic.arn)) : 'Publish');
+    const title = el('span', null, topic ? (topic.name || topicName(topic.arn)) : 'Topic Details');
     const count = el('span', 'sns-topic-meta', `${topicSubscriptions(topic).length} subscription${topicSubscriptions(topic).length === 1 ? '' : 's'}`);
     heading.append(title, count);
     panel.append(heading);
@@ -239,8 +366,13 @@ const SNSConsole = (() => {
       content.append(details);
 
       const topicSubs = topicSubscriptions(topic);
-      const subscriptionsTitle = el('h3', null, 'Subscriptions');
-      content.append(subscriptionsTitle);
+      const subHeading = el('div', 'sns-card-heading');
+      subHeading.append(
+        el('h3', null, 'Topic Subscriptions'),
+        btn('+ Add Subscription', 'sns-btn-secondary', () => showCreateSubscriptionModal(topic)),
+      );
+      content.append(subHeading);
+
       if (!topicSubs.length) {
         content.append(el('div', 'sns-empty sns-empty-compact', 'No subscriptions for this topic.'));
       } else {
@@ -251,7 +383,7 @@ const SNSConsole = (() => {
 
       if (state.lastPublish?.topic_arn === topic.arn) {
         const result = el('div', 'sns-publish-result');
-        result.append(el('h3', null, 'Last publish'));
+        result.append(el('h3', null, 'Last publish result'));
         const publishDetails = document.createElement('dl');
         consoleUi.addField(publishDetails, 'Message ID', state.lastPublish.message_id);
         consoleUi.addField(publishDetails, 'Sequence number', state.lastPublish.sequence_number);
@@ -268,15 +400,19 @@ const SNSConsole = (() => {
     const container = el('div');
     container.append(toolbar(
       [
-        btn('Publish message', null, () => topic && showPublishModal(topic)),
+        btn('Create Topic', null, showCreateTopicModal),
+        btn('Publish Message', 'sns-btn-secondary', () => topic && showPublishModal(topic)),
+        btn('Add Subscription', 'sns-btn-secondary', () => topic && showCreateSubscriptionModal(topic)),
       ],
-      [],
+      [
+        btn('Delete Topic', 'sns-btn-danger', () => topic && showDeleteTopicModal(topic)),
+      ],
     ));
 
-    const publishButton = container.querySelector('button');
-    if (publishButton) {
-      publishButton.disabled = !topic;
-    }
+    const topicButtons = container.querySelectorAll('.sns-btn-secondary, .sns-btn-danger');
+    topicButtons.forEach((button) => {
+      button.disabled = !topic;
+    });
 
     const workbench = el('div', 'sns-workbench');
     workbench.append(renderTopicList(), renderSelectedTopic(topic));
@@ -285,9 +421,7 @@ const SNSConsole = (() => {
   }
 
   function render() {
-    if (!root) {
-      return;
-    }
+    if (!root) return;
     renderBreadcrumbs();
     root.textContent = '';
     root.append(renderWorkbench());
@@ -307,9 +441,7 @@ const SNSConsole = (() => {
   }
 
   function init() {
-    if (!root) {
-      return;
-    }
+    if (!root) return;
     root.append(el('div', 'sns-empty', 'Loading...'));
     refresh().catch((error) => toast(error.message, true));
   }

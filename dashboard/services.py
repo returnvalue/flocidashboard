@@ -264,6 +264,7 @@ SQS_ACTIONS = (
             action_field('delay_seconds', 'Delay seconds', field_type='number'),
             action_field('message_group_id', 'FIFO message group ID'),
             action_field('message_deduplication_id', 'FIFO deduplication ID'),
+            action_field('message_attributes', 'Message attributes JSON object', field_type='object'),
         ),
         success_message='Message sent',
     ),
@@ -291,10 +292,82 @@ SQS_ACTIONS = (
         confirm='Delete this received message?',
         success_message='Message deleted',
     ),
+    action(
+        'set_queue_attributes',
+        'Configure queue attributes',
+        'POST',
+        '/api/sqs/queues/{queue}/attributes/',
+        'update',
+        fields=(
+            action_field('attributes', 'Queue attributes JSON object (e.g. RedrivePolicy, VisibilityTimeout)', required=True, field_type='object'),
+        ),
+        success_message='Queue attributes updated',
+    ),
+    action(
+        'start_dlq_redrive',
+        'Start DLQ Redrive',
+        'POST',
+        '/api/sqs/queues/{queue}/redrive/',
+        'update',
+        fields=(
+            action_field('source_arn', 'Source DLQ ARN'),
+            action_field('destination_arn', 'Destination Queue ARN (Optional)'),
+            action_field('max_number_of_messages_per_second', 'Max messages per second', field_type='number'),
+        ),
+        success_message='DLQ redrive task started',
+    ),
 )
 
 
 SNS_ACTIONS = (
+    action(
+        'create_topic',
+        'Create topic',
+        'POST',
+        '/api/sns/topics/',
+        'create',
+        fields=(
+            action_field('name', 'Topic name', required=True),
+            action_field('fifo', 'FIFO topic', field_type='boolean'),
+            action_field('display_name', 'Display name'),
+        ),
+        success_message='Topic created',
+    ),
+    action(
+        'delete_topic',
+        'Delete topic',
+        'DELETE',
+        '/api/sns/topics/{topic_arn}/',
+        'delete',
+        safety='destructive',
+        confirm='Delete this SNS topic and all its subscriptions?',
+        success_message='Topic deleted',
+    ),
+    action(
+        'subscribe',
+        'Create subscription',
+        'POST',
+        '/api/sns/subscriptions/',
+        'create',
+        fields=(
+            action_field('topic_arn', 'Topic ARN', required=True),
+            action_field('protocol', 'Protocol (sqs, lambda, http, https, email)', required=True),
+            action_field('endpoint', 'Endpoint ARN / URL / Email', required=True),
+            action_field('filter_policy', 'Filter policy JSON object', field_type='object'),
+            action_field('raw_message_delivery', 'Raw message delivery', field_type='boolean'),
+        ),
+        success_message='Subscription created',
+    ),
+    action(
+        'unsubscribe',
+        'Unsubscribe',
+        'DELETE',
+        '/api/sns/subscriptions/{subscription_arn}/',
+        'delete',
+        safety='destructive',
+        confirm='Delete this subscription?',
+        success_message='Subscription deleted',
+    ),
     action(
         'publish_message',
         'Publish message',
@@ -665,6 +738,22 @@ APPSYNC_ACTIONS = (
     action('delete_type', 'Delete type', 'DELETE', '/api/appsync/apis/{api_id}/types/', 'delete', safety='destructive', fields=(action_field('type_name', 'Type name', required=True),), confirm='Delete this AppSync type?', success_message='Type deleted'),
     action('tag_resource', 'Tag resource', 'POST', '/api/appsync/tags/', 'update', fields=(action_field('resource_arn', 'Resource ARN', required=True), action_field('tags', 'Tags JSON', required=True, field_type='object')), success_message='Tags added'),
     action('untag_resource', 'Untag resource', 'DELETE', '/api/appsync/tags/', 'update', fields=(action_field('resource_arn', 'Resource ARN', required=True), action_field('tag_keys', 'Tag keys JSON', required=True, field_type='array')), success_message='Tags removed'),
+    action(
+        'execute_graphql',
+        'Run GraphQL query',
+        'POST',
+        '/api/appsync/graphql/run/',
+        'execute',
+        safety='safe',
+        fields=(
+            action_field('api_id', 'API ID', required=True),
+            action_field('query', 'GraphQL query string', required=True, field_type='textarea'),
+            action_field('variables', 'Variables JSON', field_type='object'),
+            action_field('operation_name', 'Operation name'),
+            action_field('api_key', 'API Key (optional)'),
+        ),
+        success_message='GraphQL query executed',
+    ),
 )
 
 
@@ -757,6 +846,95 @@ CODEDEPLOY_ACTIONS = (
     action('delete_deployment_config', 'Delete deployment config', 'DELETE', '/api/codedeploy/deployment-configs/{config}/', 'delete', safety='destructive', confirm='Delete this custom deployment config?', success_message='Deployment config deleted'),
     action('tag_resource', 'Tag resource', 'POST', '/api/codedeploy/tags/', 'update', fields=(action_field('resource_arn', 'Resource ARN', required=True), action_field('tags', 'Tags JSON', required=True, field_type='array')), success_message='Resource tagged'),
     action('untag_resource', 'Untag resource', 'DELETE', '/api/codedeploy/tags/', 'update', fields=(action_field('resource_arn', 'Resource ARN', required=True), action_field('tag_keys', 'Tag keys JSON', required=True, field_type='array')), success_message='Resource untagged'),
+    action(
+        'simulate_lifecycle_event',
+        'Simulate lifecycle event',
+        'POST',
+        '/api/codedeploy/deployments/lifecycle/',
+        'execute',
+        fields=(
+            action_field('deployment_id', 'Deployment ID', required=True),
+            action_field('lifecycle_event_name', 'Lifecycle event (e.g. BeforeInstall, ValidateService)', required=True),
+            action_field('status', 'Status (Succeeded/Failed)'),
+        ),
+        success_message='Lifecycle event simulated',
+    ),
+)
+
+
+CODEPIPELINE_ACTIONS = (
+    action(
+        'create_pipeline',
+        'Create pipeline',
+        'POST',
+        '/api/codepipeline/pipelines/',
+        'create',
+        fields=(action_field('pipeline', 'Pipeline definition JSON', required=True, field_type='textarea'),),
+        success_message='Pipeline created',
+    ),
+    action(
+        'delete_pipeline',
+        'Delete pipeline',
+        'POST',
+        '/api/codepipeline/pipelines/delete/',
+        'delete',
+        safety='destructive',
+        confirm='Delete this CodePipeline delivery pipeline?',
+        fields=(action_field('name', 'Pipeline name', required=True),),
+        success_message='Pipeline deleted',
+    ),
+    action(
+        'start_pipeline_execution',
+        'Release change',
+        'POST',
+        '/api/codepipeline/pipelines/{name}/start/',
+        'execute',
+        fields=(action_field('name', 'Pipeline name', required=True),),
+        success_message='Pipeline execution started',
+    ),
+    action(
+        'retry_stage_execution',
+        'Retry stage',
+        'POST',
+        '/api/codepipeline/pipelines/{name}/retry/',
+        'execute',
+        fields=(
+            action_field('pipeline_name', 'Pipeline name', required=True),
+            action_field('stage_name', 'Stage name', required=True),
+            action_field('pipeline_execution_id', 'Execution ID', required=True),
+            action_field('retry_mode', 'Retry mode'),
+        ),
+        success_message='Stage execution retried',
+    ),
+    action(
+        'put_approval_result',
+        'Submit manual approval',
+        'POST',
+        '/api/codepipeline/pipelines/{name}/approve/',
+        'update',
+        fields=(
+            action_field('pipeline_name', 'Pipeline name', required=True),
+            action_field('stage_name', 'Stage name', required=True),
+            action_field('action_name', 'Action name', required=True),
+            action_field('status', 'Approval status (Approved/Rejected)', required=True),
+            action_field('summary', 'Comments / summary'),
+        ),
+        success_message='Approval result submitted',
+    ),
+    action(
+        'set_stage_transition',
+        'Set stage transition',
+        'POST',
+        '/api/codepipeline/pipelines/{name}/transitions/',
+        'update',
+        fields=(
+            action_field('pipeline_name', 'Pipeline name', required=True),
+            action_field('stage_name', 'Stage name', required=True),
+            action_field('enabled', 'Enabled', field_type='boolean'),
+            action_field('reason', 'Lock reason'),
+        ),
+        success_message='Stage transition updated',
+    ),
 )
 
 
@@ -801,10 +979,76 @@ LAMBDA_ACTIONS = (
     action('put_function_concurrency', 'Set concurrency', 'PUT', '/api/lambda/functions/{function}/concurrency/', 'update', fields=(action_field('reserved_concurrency', 'Reserved concurrency', required=True, field_type='number'),), success_message='Concurrency updated'),
     action('add_permission', 'Add permission', 'POST', '/api/lambda/functions/{function}/permissions/', 'update', fields=(action_field('statement', 'Permission JSON', required=True, field_type='object'),), success_message='Permission added'),
     action('tag_resource', 'Tag function', 'POST', '/api/lambda/functions/{function}/tags/', 'update', fields=(action_field('resource_arn', 'Function ARN', required=True), action_field('tags', 'Tags', required=True, field_type='object')), success_message='Function tagged'),
+    action(
+        'test_function_url',
+        'Test Function URL',
+        'POST',
+        '/api/lambda/function-url/test/',
+        'execute',
+        fields=(
+            action_field('url', 'Function URL endpoint', required=True),
+            action_field('method', 'HTTP Method (GET, POST, PUT, DELETE, PATCH, HEAD)'),
+            action_field('body', 'HTTP Request Body', field_type='textarea'),
+            action_field('headers', 'HTTP Headers JSON object', field_type='object'),
+        ),
+        success_message='Function URL invoked',
+    ),
 )
 
 
 DYNAMODB_ACTIONS = (
+    action(
+        'put_item',
+        'Put item',
+        'POST',
+        '/api/dynamodb/tables/{table}/items/',
+        'create',
+        fields=(
+            action_field('item', 'Item JSON object', required=True, field_type='object'),
+        ),
+        success_message='Item saved',
+    ),
+    action(
+        'get_item',
+        'Get item',
+        'POST',
+        '/api/dynamodb/tables/{table}/items/get/',
+        'read',
+        safety='safe',
+        fields=(
+            action_field('key', 'Primary key JSON object', required=True, field_type='object'),
+            action_field('consistent_read', 'Consistent read', field_type='boolean'),
+        ),
+    ),
+    action(
+        'delete_item',
+        'Delete item',
+        'POST',
+        '/api/dynamodb/tables/{table}/items/delete/',
+        'delete',
+        safety='destructive',
+        fields=(
+            action_field('key', 'Primary key JSON object', required=True, field_type='object'),
+        ),
+        confirm='Delete this DynamoDB item?',
+        success_message='Item deleted',
+    ),
+    action(
+        'query_table',
+        'Query table',
+        'POST',
+        '/api/dynamodb/tables/{table}/query/',
+        'read',
+        safety='safe',
+        fields=(
+            action_field('key_condition_expression', 'Key condition expression (e.g. pk = :pk)', required=True),
+            action_field('expression_attribute_values', 'Expression attribute values JSON', required=True, field_type='object'),
+            action_field('expression_attribute_names', 'Expression attribute names JSON', field_type='object'),
+            action_field('filter_expression', 'Filter expression'),
+            action_field('index_name', 'Index name (optional)'),
+            action_field('limit', 'Limit', field_type='number'),
+        ),
+    ),
     action(
         'scan_table',
         'Scan table',
@@ -813,9 +1057,23 @@ DYNAMODB_ACTIONS = (
         'read',
         safety='safe',
         fields=(
+            action_field('filter_expression', 'Filter expression'),
+            action_field('expression_attribute_values', 'Expression attribute values JSON', field_type='object'),
             action_field('limit', 'Limit', field_type='number'),
             action_field('exclusive_start_key', 'Exclusive start key JSON', field_type='object'),
         ),
+    ),
+    action(
+        'update_ttl',
+        'Configure TTL',
+        'POST',
+        '/api/dynamodb/tables/{table}/ttl/',
+        'update',
+        fields=(
+            action_field('attribute_name', 'TTL attribute name', required=True),
+            action_field('enabled', 'Enabled', required=True, field_type='boolean'),
+        ),
+        success_message='TTL updated',
     ),
     action(
         'execute_select_statement',
@@ -909,6 +1167,125 @@ EVENTBRIDGE_ACTIONS = (
             action_field('detail', 'Event detail JSON', field_type='textarea'),
         ),
         success_message='Event sent',
+    ),
+    action(
+        'test_event_pattern',
+        'Test event pattern',
+        'POST',
+        '/api/eventbridge/patterns/test/',
+        'execute',
+        safety='safe',
+        fields=(
+            action_field('event_pattern', 'Event pattern JSON', required=True, field_type='object'),
+            action_field('event', 'Sample event JSON', required=True, field_type='object'),
+        ),
+        success_message='Pattern evaluated',
+    ),
+)
+
+
+IOT_ACTIONS = (
+    action(
+        'publish_mqtt_message',
+        'Publish MQTT message',
+        'POST',
+        '/api/iot/mqtt/publish/',
+        'execute',
+        fields=(
+            action_field('topic', 'MQTT Topic', required=True),
+            action_field('payload', 'Payload JSON/text', required=True, field_type='textarea'),
+            action_field('qos', 'QoS (0 or 1)', field_type='number'),
+        ),
+        success_message='MQTT message published',
+    ),
+    action(
+        'create_thing',
+        'Create thing',
+        'POST',
+        '/api/iot/things/',
+        'create',
+        fields=(
+            action_field('thing_name', 'Thing name', required=True),
+            action_field('thing_type_name', 'Thing type name'),
+            action_field('attributes', 'Attributes JSON', field_type='object'),
+        ),
+        success_message='Thing created',
+    ),
+    action(
+        'delete_thing',
+        'Delete thing',
+        'DELETE',
+        '/api/iot/things/{thing_name}/',
+        'delete',
+        safety='destructive',
+        confirm='Delete this IoT thing?',
+        fields=(action_field('thing_name', 'Thing name', required=True),),
+        success_message='Thing deleted',
+    ),
+    action(
+        'get_thing_shadow',
+        'Get device shadow',
+        'GET',
+        '/api/iot/things/{thing_name}/shadow/',
+        'read',
+        safety='safe',
+        fields=(
+            action_field('thing_name', 'Thing name', required=True),
+            action_field('shadow_name', 'Named shadow (optional)'),
+        ),
+        success_message='Shadow retrieved',
+    ),
+    action(
+        'update_thing_shadow',
+        'Update device shadow',
+        'POST',
+        '/api/iot/things/{thing_name}/shadow/',
+        'update',
+        fields=(
+            action_field('thing_name', 'Thing name', required=True),
+            action_field('payload', 'Shadow state JSON', required=True, field_type='textarea'),
+            action_field('shadow_name', 'Named shadow (optional)'),
+        ),
+        success_message='Shadow updated',
+    ),
+    action(
+        'delete_thing_shadow',
+        'Delete device shadow',
+        'DELETE',
+        '/api/iot/things/{thing_name}/shadow/',
+        'delete',
+        safety='destructive',
+        confirm='Delete this device shadow?',
+        fields=(
+            action_field('thing_name', 'Thing name', required=True),
+            action_field('shadow_name', 'Named shadow (optional)'),
+        ),
+        success_message='Shadow deleted',
+    ),
+    action(
+        'create_topic_rule',
+        'Create topic rule',
+        'POST',
+        '/api/iot/topic-rules/',
+        'create',
+        fields=(
+            action_field('rule_name', 'Rule name', required=True),
+            action_field('sql', 'SQL statement', required=True, field_type='textarea'),
+            action_field('description', 'Description'),
+            action_field('actions', 'Rule actions JSON', field_type='array'),
+        ),
+        success_message='Topic rule created',
+    ),
+    action(
+        'delete_topic_rule',
+        'Delete topic rule',
+        'DELETE',
+        '/api/iot/topic-rules/{rule_name}/',
+        'delete',
+        safety='destructive',
+        confirm='Delete this IoT topic rule?',
+        fields=(action_field('rule_name', 'Rule name', required=True),),
+        success_message='Topic rule deleted',
     ),
 )
 
@@ -2440,6 +2817,33 @@ STEPFUNCTIONS_ACTIONS = (
         confirm='Stop this running execution?',
         success_message='Execution stopped',
     ),
+    action(
+        'create_state_machine',
+        'Create state machine',
+        'POST',
+        '/api/stepfunctions/state-machines/',
+        'create',
+        fields=(
+            action_field('name', 'State machine name', required=True),
+            action_field('role_arn', 'IAM Role ARN', required=True),
+            action_field('definition', 'ASL Definition JSON', required=True, field_type='object'),
+            action_field('type', 'Type (STANDARD or EXPRESS)'),
+        ),
+        success_message='State machine created',
+    ),
+    action(
+        'delete_state_machine',
+        'Delete state machine',
+        'DELETE',
+        '/api/stepfunctions/state-machines/{state_machine_arn}/',
+        'delete',
+        safety='destructive',
+        fields=(
+            action_field('state_machine_arn', 'State machine ARN', required=True),
+        ),
+        confirm='Delete this state machine?',
+        success_message='State machine deleted',
+    ),
 )
 
 
@@ -2903,6 +3307,80 @@ RDS_ACTIONS = (
 )
 
 
+RDSDATA_ACTIONS = (
+    action(
+        'execute_statement',
+        'Execute SQL',
+        'POST',
+        '/api/rdsdata/execute/',
+        'execute',
+        fields=(
+            action_field('sql', 'SQL Statement', required=True, field_type='textarea'),
+            action_field('resource_arn', 'Database/Cluster Resource ARN', required=True),
+            action_field('secret_arn', 'Credentials Secret ARN', required=True),
+            action_field('database', 'Database name'),
+            action_field('transaction_id', 'Transaction ID'),
+        ),
+        success_message='SQL executed',
+    ),
+    action(
+        'batch_execute_statement',
+        'Batch Execute SQL',
+        'POST',
+        '/api/rdsdata/batch-execute/',
+        'execute',
+        fields=(
+            action_field('sql', 'SQL Statement', required=True, field_type='textarea'),
+            action_field('resource_arn', 'Database/Cluster Resource ARN', required=True),
+            action_field('secret_arn', 'Credentials Secret ARN', required=True),
+            action_field('parameter_sets', 'Parameter sets JSON array', field_type='array'),
+            action_field('database', 'Database name'),
+            action_field('transaction_id', 'Transaction ID'),
+        ),
+        success_message='Batch SQL executed',
+    ),
+    action(
+        'begin_transaction',
+        'Begin transaction',
+        'POST',
+        '/api/rdsdata/transaction/begin/',
+        'create',
+        fields=(
+            action_field('resource_arn', 'Database/Cluster Resource ARN', required=True),
+            action_field('secret_arn', 'Credentials Secret ARN', required=True),
+            action_field('database', 'Database name'),
+        ),
+        success_message='Transaction begun',
+    ),
+    action(
+        'commit_transaction',
+        'Commit transaction',
+        'POST',
+        '/api/rdsdata/transaction/commit/',
+        'update',
+        fields=(
+            action_field('resource_arn', 'Database/Cluster Resource ARN', required=True),
+            action_field('secret_arn', 'Credentials Secret ARN', required=True),
+            action_field('transaction_id', 'Transaction ID', required=True),
+        ),
+        success_message='Transaction committed',
+    ),
+    action(
+        'rollback_transaction',
+        'Rollback transaction',
+        'POST',
+        '/api/rdsdata/transaction/rollback/',
+        'update',
+        fields=(
+            action_field('resource_arn', 'Database/Cluster Resource ARN', required=True),
+            action_field('secret_arn', 'Credentials Secret ARN', required=True),
+            action_field('transaction_id', 'Transaction ID', required=True),
+        ),
+        success_message='Transaction rolled back',
+    ),
+)
+
+
 ECS_ACTIONS = (
     action(
         'create_cluster',
@@ -3065,6 +3543,45 @@ ECS_ACTIONS = (
         ),
         success_message='Account setting saved',
     ),
+    action(
+        'scale_service',
+        'Scale service',
+        'POST',
+        '/api/ecs/services/scale/',
+        'update',
+        fields=(
+            action_field('cluster', 'Cluster', required=True),
+            action_field('service', 'Service', required=True),
+            action_field('desired_count', 'Desired count', required=True, field_type='number'),
+        ),
+        success_message='Service scaled',
+    ),
+    action(
+        'validate_fargate_configuration',
+        'Validate Fargate sizing',
+        'POST',
+        '/api/ecs/fargate/validate/',
+        'read',
+        safety='safe',
+        fields=(
+            action_field('cpu', 'CPU (e.g. 256, 512, 1024, 2048, 4096)', required=True),
+            action_field('memory', 'Memory (e.g. 512, 1024, 2048)', required=True),
+        ),
+        success_message='Fargate sizing evaluated',
+    ),
+    action(
+        'diff_task_definitions',
+        'Diff task definitions',
+        'POST',
+        '/api/ecs/task-definitions/diff/',
+        'read',
+        safety='safe',
+        fields=(
+            action_field('task_definition_a', 'Task definition A', required=True),
+            action_field('task_definition_b', 'Task definition B', required=True),
+        ),
+        success_message='Task definitions compared',
+    ),
 )
 
 
@@ -3184,6 +3701,16 @@ EKS_ACTIONS = (
         safety='safe',
         fields=(action_field('resource_arn', 'Resource ARN', required=True),),
         success_message='Tags loaded',
+    ),
+    action(
+        'get_kubeconfig',
+        'Get kubeconfig',
+        'POST',
+        '/api/eks/clusters/{cluster_name}/kubeconfig/',
+        'read',
+        safety='safe',
+        fields=(action_field('cluster_name', 'Cluster name', required=True),),
+        success_message='Kubeconfig generated',
     ),
 )
 
@@ -3408,6 +3935,21 @@ OPENSEARCH_ACTIONS = (
             action_field('instance_type', 'Instance type', required=True),
         ),
         success_message='Instance type limits loaded',
+    ),
+    action(
+        'execute_domain_request',
+        'DevTools REST request',
+        'POST',
+        '/api/opensearch/devtools/request/',
+        'execute',
+        safety='safe',
+        fields=(
+            action_field('domain_name', 'Domain name', required=True),
+            action_field('method', 'HTTP Method (GET, POST, PUT, DELETE)'),
+            action_field('path', 'Endpoint path (e.g. /_cluster/health)'),
+            action_field('body', 'Request body JSON/text', field_type='textarea'),
+        ),
+        success_message='DevTools request executed',
     ),
 )
 
@@ -3783,6 +4325,29 @@ ECR_ACTIONS = (
         safety='destructive',
         confirm='Run ECR registry garbage collection?',
         success_message='Garbage collection started',
+    ),
+    action(
+        'get_push_commands',
+        'View push commands',
+        'POST',
+        '/api/ecr/push-commands/',
+        'read',
+        safety='safe',
+        fields=(action_field('repository_name', 'Repository name', required=True),),
+        success_message='Push commands generated',
+    ),
+    action(
+        'put_mock_image',
+        'Inject mock image tag',
+        'POST',
+        '/api/ecr/mock-image/',
+        'create',
+        fields=(
+            action_field('repository_name', 'Repository name', required=True),
+            action_field('image_tag', 'Image tag (e.g. latest, v1.0.0)', required=True),
+            action_field('image_digest', 'Image digest (optional)'),
+        ),
+        success_message='Mock image tag published',
     ),
 )
 
@@ -4488,8 +5053,13 @@ SERVICES: tuple[ServiceDefinition, ...] = (
         'CodePipeline',
         'Pipelines, stages, executions, webhooks, and action types',
         'Developer Tools',
-        maturity='read_only_inspector',
-        tags=('developer-tools', 'delivery-pipeline', 'inventory'),
+        maturity='interactive_workbench',
+        console_css='dashboard/codepipeline-console.css',
+        console_js='dashboard/codepipeline-console.js',
+        shared_console=True,
+        tutorial_available=True,
+        tags=('layered-workbench', 'delivery-pipeline', 'pipeline-workbench'),
+        actions=CODEPIPELINE_ACTIONS,
     ),
     service(
         'codedeploy',
@@ -4728,6 +5298,7 @@ SERVICES: tuple[ServiceDefinition, ...] = (
         console_js='dashboard/iot-console.js',
         shared_console=True,
         tags=('layered-workbench', 'iot-workbench'),
+        actions=IOT_ACTIONS,
     ),
     service(
         'kafka',
@@ -4843,9 +5414,13 @@ SERVICES: tuple[ServiceDefinition, ...] = (
         'RDS Data API',
         'Serverless SQL statement and transaction calls',
         'Database',
-        maturity='read_only_inspector',
+        maturity='interactive_workbench',
         docs_url='https://floci.io/floci/services/rds-data/',
-        tags=('database', 'sql', 'inventory'),
+        console_css='dashboard/rdsdata-console.css',
+        console_js='dashboard/rdsdata-console.js',
+        shared_console=True,
+        tags=('layered-workbench', 'sql-runner-workbench'),
+        actions=RDSDATA_ACTIONS,
     ),
     service(
         'resourcegroupstagging',

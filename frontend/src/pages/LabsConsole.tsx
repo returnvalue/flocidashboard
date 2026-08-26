@@ -13,9 +13,11 @@ import Box from '@cloudscape-design/components/box';
 import StatusIndicator from '@cloudscape-design/components/status-indicator';
 import Modal from '@cloudscape-design/components/modal';
 import Alert from '@cloudscape-design/components/alert';
+import SegmentedControl from '@cloudscape-design/components/segmented-control';
 import { fetchLabsCatalog, fetchLabsProgress, fetchLabStatus, runLabStep, resetLab, resetAllLabs } from '../api/client';
 import { LabDefinition, LabStep } from '../types';
 import { CodeSnippet } from '../components/CodeSnippet';
+import { LAB_CURRICULUM, FLAT_CURRICULUM_LABS, getCurriculumItem, getLevelForLab } from '../labCurriculum';
 
 export const LabsConsole: React.FC = () => {
   const [allLabsList, setAllLabsList] = useState<LabDefinition[]>([]);
@@ -44,6 +46,7 @@ export const LabsConsole: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [statusLoading, setStatusLoading] = useState(false);
   const [filterText, setFilterText] = useState('');
+  const [selectedLevelId, setSelectedLevelId] = useState<string>('all');
   const [runningStepKey, setRunningStepKey] = useState<string | null>(null);
   const [isRunningAll, setIsRunningAll] = useState(false);
   const [activeSdk, setActiveSdkState] = useState<'cli' | 'boto3' | 'terraform'>(() => {
@@ -87,7 +90,7 @@ export const LabsConsole: React.FC = () => {
       if (urlLabKey) {
         const found = flattened.find((l) => l.key === urlLabKey && (!urlServiceKey || l.service === urlServiceKey));
         if (found) {
-          openLab(found);
+          openLab(found, false);
         }
       }
 
@@ -120,17 +123,43 @@ export const LabsConsole: React.FC = () => {
     loadCatalog();
   }, []);
 
-  const openLab = async (lab: LabDefinition) => {
+  // Listen for navigation events from SideNav or history changes
+  useEffect(() => {
+    const handleUrlSync = () => {
+      const params = new URLSearchParams(window.location.search);
+      const urlLabKey = params.get('lab');
+      const urlServiceKey = params.get('service');
+
+      if (urlLabKey && allLabsList.length > 0) {
+        const found = allLabsList.find((l) => l.key === urlLabKey && (!urlServiceKey || l.service === urlServiceKey));
+        if (found) {
+          openLab(found, false);
+        }
+      } else if (!urlLabKey && activeLab) {
+        closeLab(false);
+      }
+    };
+
+    window.addEventListener('popstate', handleUrlSync);
+    window.addEventListener('floci_navigate', handleUrlSync);
+    return () => {
+      window.removeEventListener('popstate', handleUrlSync);
+      window.removeEventListener('floci_navigate', handleUrlSync);
+    };
+  }, [allLabsList, activeLab]);
+
+  const openLab = async (lab: LabDefinition, updateUrl = true) => {
     setActiveLab(lab);
     setStepOutputs({});
     setStepCompleted({});
     setStatusLoading(true);
 
-    // Update URL query parameters
-    const url = new URL(window.location.href);
-    url.searchParams.set('lab', lab.key);
-    url.searchParams.set('service', lab.service);
-    window.history.pushState(null, '', url.pathname + url.search);
+    if (updateUrl) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('lab', lab.key);
+      url.searchParams.set('service', lab.service);
+      window.history.pushState(null, '', url.pathname + url.search);
+    }
 
     try {
       const statusData = await fetchLabStatus(lab.service, lab.key);
@@ -161,17 +190,19 @@ export const LabsConsole: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const closeLab = () => {
+  const closeLab = (updateUrl = true) => {
     cancelRunAllRef.current = true;
     setIsRunningAll(false);
     setActiveLab(null);
     setStepOutputs({});
     setStepCompleted({});
 
-    const url = new URL(window.location.href);
-    url.searchParams.delete('lab');
-    url.searchParams.delete('service');
-    window.history.pushState(null, '', url.pathname);
+    if (updateUrl) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('lab');
+      url.searchParams.delete('service');
+      window.history.pushState(null, '', url.pathname);
+    }
   };
 
   const scrollToStep = (stepKey: string) => {
@@ -280,7 +311,7 @@ export const LabsConsole: React.FC = () => {
       setCompletedLabsMap({});
       setResetResultMessage({
         type: 'success',
-        text: `Successfully reset all ${res.reset_lab_count || 63} labs in the system.`,
+        text: `Successfully reset all ${res.reset_lab_count || 66} labs in the system.`,
       });
       setResetAllModalOpen(false);
       await loadCatalog();
@@ -294,17 +325,48 @@ export const LabsConsole: React.FC = () => {
     }
   };
 
+  // Sort labs strictly according to the Beginner -> Senior Level Expert curriculum
+  const sortedCurriculumLabs = [...allLabsList].sort((a, b) => {
+    const curA = getCurriculumItem(a.service, a.key);
+    const curB = getCurriculumItem(b.service, b.key);
+    const idA = curA ? curA.id : 999;
+    const idB = curB ? curB.id : 999;
+    return idA - idB;
+  });
+
+  // Filter by level and search text
+  const filteredLabs = sortedCurriculumLabs.filter((l) => {
+    const curItem = getCurriculumItem(l.service, l.key);
+    const levelMatch = selectedLevelId === 'all' || curItem?.levelId === selectedLevelId;
+    const textMatch =
+      !filterText ||
+      l.title.toLowerCase().includes(filterText.toLowerCase()) ||
+      l.service.toLowerCase().includes(filterText.toLowerCase()) ||
+      l.description.toLowerCase().includes(filterText.toLowerCase()) ||
+      String(curItem?.id).includes(filterText);
+    return levelMatch && textMatch;
+  });
+
+  // Active lab curriculum metadata
+  const currentCurriculum = activeLab ? getCurriculumItem(activeLab.service, activeLab.key) : undefined;
+  const currentLevel = activeLab ? getLevelForLab(activeLab.service, activeLab.key) : undefined;
+
+  // Next and Previous labs in curriculum
+  const currentCurriculumIndex = currentCurriculum ? currentCurriculum.id : -1;
+  const prevCurriculumItem = currentCurriculumIndex > 1 ? FLAT_CURRICULUM_LABS[currentCurriculumIndex - 2] : undefined;
+  const nextCurriculumItem = currentCurriculumIndex > 0 && currentCurriculumIndex < FLAT_CURRICULUM_LABS.length ? FLAT_CURRICULUM_LABS[currentCurriculumIndex] : undefined;
+
+  const navigateToCurriculumItem = (item: typeof FLAT_CURRICULUM_LABS[0]) => {
+    const found = allLabsList.find((l) => l.service === item.service && l.key === item.key);
+    if (found) {
+      openLab(found);
+    }
+  };
+
   const completedCount = activeLab?.steps?.filter((s) => stepCompleted[s.key] || s.status?.verified).length || 0;
   const totalCount = activeLab?.steps?.length || 1;
   const percentComplete = Math.round((completedCount / totalCount) * 100);
   const isLabComplete = (completedCount === totalCount && totalCount > 0) || Boolean(completedLabsMap[`${activeLab?.service}:${activeLab?.key}`]);
-
-  const filteredLabs = allLabsList.filter(
-    (l) =>
-      l.title.toLowerCase().includes(filterText.toLowerCase()) ||
-      l.service.toLowerCase().includes(filterText.toLowerCase()) ||
-      l.description.toLowerCase().includes(filterText.toLowerCase())
-  );
 
   // If a lab is open, show the active Lab Studio
   if (activeLab) {
@@ -317,7 +379,7 @@ export const LabsConsole: React.FC = () => {
               description={activeLab.description}
               actions={
                 <SpaceBetween direction="horizontal" size="xs">
-                  <Button onClick={closeLab}>← Back to Labs Directory</Button>
+                  <Button onClick={() => closeLab()}>← Back to Labs Directory</Button>
                   <Button onClick={handleResetLab} loading={statusLoading}>
                     Reset lab
                   </Button>
@@ -333,9 +395,15 @@ export const LabsConsole: React.FC = () => {
                 </SpaceBetween>
               }
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                {currentCurriculum && (
+                  <Badge color="grey">Lesson #{currentCurriculum.id} of 66</Badge>
+                )}
+                {currentLevel && (
+                  <Badge color={currentLevel.color}>{currentLevel.badge}</Badge>
+                )}
                 <Badge color="blue">{activeLab.service.toUpperCase()}</Badge>
-                <span>{activeLab.title}</span>
+                <span style={{ fontSize: '18px', fontWeight: 600 }}>{activeLab.title}</span>
                 {isLabComplete && <StatusIndicator type="success">Completed</StatusIndicator>}
               </div>
             </Header>
@@ -451,6 +519,24 @@ export const LabsConsole: React.FC = () => {
             );
           })}
         </SpaceBetween>
+
+        {/* Next / Previous Curriculum Navigation */}
+        <Container>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+            {prevCurriculumItem ? (
+              <Button onClick={() => navigateToCurriculumItem(prevCurriculumItem)}>
+                ← Previous: #{prevCurriculumItem.id}. [{prevCurriculumItem.service.toUpperCase()}] {prevCurriculumItem.title}
+              </Button>
+            ) : (
+              <div />
+            )}
+            {nextCurriculumItem && (
+              <Button variant="primary" onClick={() => navigateToCurriculumItem(nextCurriculumItem)}>
+                Next: #{nextCurriculumItem.id}. [{nextCurriculumItem.service.toUpperCase()}] {nextCurriculumItem.title} →
+              </Button>
+            )}
+          </div>
+        </Container>
       </SpaceBetween>
     );
   }
@@ -472,7 +558,7 @@ export const LabsConsole: React.FC = () => {
         header={
           <Header
             variant="h1"
-            description="Choose from 63 hands-on local cloud architecture lessons across 17 AWS services."
+            description="Master AWS from Beginner to Senior Level Expert across 66 hands-on lessons in 5 progressive tiers."
             actions={
               <SpaceBetween direction="horizontal" size="xs">
                 <Button
@@ -481,7 +567,7 @@ export const LabsConsole: React.FC = () => {
                   onClick={() => setResetAllModalOpen(true)}
                   loading={resettingAll}
                 >
-                  Reset All
+                  Reset All Labs
                 </Button>
                 <Button iconName="refresh" onClick={loadCatalog} loading={loading}>
                   Refresh catalog
@@ -489,14 +575,29 @@ export const LabsConsole: React.FC = () => {
               </SpaceBetween>
             }
           >
-            AWS Workflow Labs Directory (63 Lessons)
+            AWS Workflow Labs Curriculum (66 Progressive Lessons)
           </Header>
         }
       >
         <SpaceBetween size="m">
+          {/* Level Filter Segmented Control */}
+          <div style={{ overflowX: 'auto', paddingBottom: '4px' }}>
+            <SegmentedControl
+              selectedId={selectedLevelId}
+              onChange={({ detail }) => setSelectedLevelId(detail.selectedId)}
+              options={[
+                { id: 'all', text: 'All 66 Labs' },
+                ...LAB_CURRICULUM.map((lvl) => ({
+                  id: lvl.id,
+                  text: `${lvl.title} (${lvl.labs.length})`,
+                })),
+              ]}
+            />
+          </div>
+
           <TextFilter
             filteringText={filterText}
-            filteringPlaceholder="Filter labs by service (e.g. S3, IAM, EC2, Lambda) or title..."
+            filteringPlaceholder="Filter labs by number (#1-#66), service (S3, IAM, EC2, EKS), or keyword..."
             onChange={({ detail }) => setFilterText(detail.filteringText)}
           />
 
@@ -504,9 +605,18 @@ export const LabsConsole: React.FC = () => {
             cardDefinition={{
               header: (item) => {
                 const isComplete = Boolean(completedLabsMap[`${item.service}:${item.key}`]);
+                const curItem = getCurriculumItem(item.service, item.key);
+                const curLevel = getLevelForLab(item.service, item.key);
+
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                      {curItem && (
+                        <Badge color="grey">#{curItem.id}</Badge>
+                      )}
+                      {curLevel && (
+                        <Badge color={curLevel.color}>{curLevel.badge}</Badge>
+                      )}
                       <Badge color="blue">{item.service.toUpperCase()}</Badge>
                       {isComplete && <Badge color="green">✓ COMPLETE</Badge>}
                     </div>
@@ -565,7 +675,7 @@ export const LabsConsole: React.FC = () => {
             empty={
               <Box textAlign="center" color="inherit">
                 <b>No matching labs found</b>
-                <p>Try searching for a different keyword or service.</p>
+                <p>Try searching for a different keyword or level filter.</p>
               </Box>
             }
           />
@@ -576,7 +686,7 @@ export const LabsConsole: React.FC = () => {
       <Modal
         visible={resetAllModalOpen}
         onDismiss={() => !resettingAll && setResetAllModalOpen(false)}
-        header="Reset All 63 Workflow Labs"
+        header="Reset All 66 Workflow Labs"
         footer={
           <Box float="right">
             <SpaceBetween direction="horizontal" size="xs">
@@ -592,7 +702,7 @@ export const LabsConsole: React.FC = () => {
       >
         <SpaceBetween size="m">
           <Alert type="warning">
-            This will tear down all lab-created AWS resources across all 17 services (S3 buckets, DynamoDB tables, Lambda functions, IAM roles/users, SQS queues, etc.) and clear completion progress for all 63 lessons.
+            This will tear down all lab-created AWS resources across all 20 services (S3 buckets, DynamoDB tables, Lambda functions, IAM roles/users, SQS queues, RDS instances, ECS clusters, EKS clusters, etc.) and clear completion progress for all 66 lessons.
           </Alert>
           <p>Are you sure you want to reset every lab in the system?</p>
         </SpaceBetween>

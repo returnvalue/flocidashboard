@@ -110,6 +110,45 @@ class LambdaFunctionsApiTests(SimpleTestCase):
             invocation_type='RequestResponse',
         )
 
+    def test_get_event_templates_endpoint(self):
+        response = self.client.get(reverse('dashboard:lambda-test-event-templates'))
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn('apigateway_v2_http', data)
+        self.assertIn('sqs_standard', data)
+        self.assertIn('sns_notification', data)
+        self.assertIn('dynamodb_streams', data)
+        self.assertIn('s3_put_object', data)
+
+    @patch('dashboard.lambda_views.invoke_function_url')
+    def test_function_url_test_endpoint_success(self, url_mock):
+        url_mock.return_value = {
+            'url': 'http://localhost:4566/functions/worker',
+            'status_code': 200,
+            'body': '{"ok": true}',
+            'latency_ms': 12.5,
+        }
+
+        response = self.client.post(
+            reverse('dashboard:lambda-function-url-test'),
+            data=json.dumps({
+                'url': 'http://localhost:4566/functions/worker',
+                'method': 'POST',
+                'body': '{"test": 1}',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['status_code'], 200)
+        url_mock.assert_called_once_with(
+            url='http://localhost:4566/functions/worker',
+            method='POST',
+            headers=None,
+            body='{"test": 1}',
+            query_params=None,
+        )
+
 
 class LambdaApiHelperTests(SimpleTestCase):
     @patch('dashboard.lambda_api._lambda_client')

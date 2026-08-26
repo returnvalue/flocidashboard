@@ -165,3 +165,89 @@ def untag_resource(resource_arn: str, tag_keys: Any) -> dict[str, Any]:
     clean_keys = [_required(key, 'Tag key') for key in tag_keys]
     response = _client().untag_resource(resourceArn=clean_arn, tagKeys=clean_keys)
     return {'resource_arn': clean_arn, 'tag_keys': clean_keys, 'response': _clean_response(response)}
+
+
+def execute_graphql(
+    api_id: str,
+    query: str,
+    *,
+    variables: Any = None,
+    operation_name: str | None = None,
+    api_key: str | None = None,
+    endpoint_url: str | None = None,
+) -> dict[str, Any]:
+    import json
+    import time
+    import urllib.error
+    import urllib.request
+    clean_api_id = _required(api_id, 'API ID')
+    clean_query = _required(query, 'GraphQL Query')
+
+    target_url = endpoint_url
+    if not target_url:
+        floci_endpoint = FlociClientFactory().endpoint_url.rstrip('/')
+        target_url = f'{floci_endpoint}/graphql/{clean_api_id}'
+
+    payload: dict[str, Any] = {'query': clean_query}
+    if variables:
+        if isinstance(variables, str):
+            try:
+                payload['variables'] = json.loads(variables)
+            except json.JSONDecodeError as exc:
+                raise ValueError('Variables must be valid JSON') from exc
+        elif isinstance(variables, dict):
+            payload['variables'] = variables
+    if operation_name:
+        payload['operationName'] = operation_name.strip()
+
+    req_data = json.dumps(payload).encode('utf-8')
+    headers = {
+        'Content-Type': 'application/json',
+        'User-Agent': 'Floci-Dashboard-GraphiQL/1.0',
+    }
+    if api_key:
+        headers['x-api-key'] = api_key.strip()
+
+    request = urllib.request.Request(target_url, data=req_data, headers=headers, method='POST')
+    start_time = time.perf_counter()
+
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            resp_body = response.read().decode('utf-8', errors='replace')
+            try:
+                resp_json = json.loads(resp_body)
+            except Exception:
+                resp_json = {'raw': resp_body}
+            return {
+                'api_id': clean_api_id,
+                'status_code': response.status,
+                'latency_ms': latency_ms,
+                'data': resp_json.get('data'),
+                'errors': resp_json.get('errors'),
+                'raw': resp_json if resp_json.get('data') is None and resp_json.get('errors') is None else None,
+            }
+    except urllib.error.HTTPError as err:
+        latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
+        err_body = err.read().decode('utf-8', errors='replace')
+        try:
+            err_json = json.loads(err_body)
+        except Exception:
+            err_json = {'error': err_body}
+        return {
+            'api_id': clean_api_id,
+            'status_code': err.code,
+            'latency_ms': latency_ms,
+            'errors': err_json.get('errors', [{'message': str(err)}]),
+            'data': err_json.get('data'),
+        }
+    except Exception as err:
+        latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
+        return {
+            'api_id': clean_api_id,
+            'status_code': 500,
+            'latency_ms': latency_ms,
+            'errors': [{'message': str(err)}],
+            'data': None,
+        }
+

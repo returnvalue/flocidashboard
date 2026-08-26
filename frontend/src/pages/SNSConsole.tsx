@@ -10,48 +10,120 @@ import Tabs from '@cloudscape-design/components/tabs';
 import Modal from '@cloudscape-design/components/modal';
 import FormField from '@cloudscape-design/components/form-field';
 import Input from '@cloudscape-design/components/input';
+import Textarea from '@cloudscape-design/components/textarea';
+import Select from '@cloudscape-design/components/select';
+import Checkbox from '@cloudscape-design/components/checkbox';
 import StatusIndicator from '@cloudscape-design/components/status-indicator';
 import KeyValuePairs from '@cloudscape-design/components/key-value-pairs';
 import Box from '@cloudscape-design/components/box';
-import { fetchServiceInventory, executeServiceAction } from '../api/client';
+import Alert from '@cloudscape-design/components/alert';
+import Badge from '@cloudscape-design/components/badge';
+import ColumnLayout from '@cloudscape-design/components/column-layout';
+import {
+  fetchServiceInventory,
+  publishSnsMessage,
+  createSnsSubscription,
+  executeServiceAction,
+} from '../api/client';
+
+interface SubscriptionItem {
+  SubscriptionArn: string;
+  Protocol: string;
+  Endpoint: string;
+  TopicArn: string;
+  Owner?: string;
+  attributes?: Record<string, any>;
+}
 
 interface TopicItem {
   TopicArn: string;
   TopicName: string;
   SubscriptionsPending?: number;
   SubscriptionsConfirmed?: number;
+  Type?: string;
+  DisplayName?: string;
+  Policy?: string;
+  subscriptions?: SubscriptionItem[];
+  attributes?: Record<string, any>;
 }
+
+const PROTOCOL_OPTIONS = [
+  { label: 'Amazon SQS', value: 'sqs', description: 'Deliver messages to an SQS queue ARN' },
+  { label: 'AWS Lambda', value: 'lambda', description: 'Invoke a Lambda function ARN' },
+  { label: 'Email', value: 'email', description: 'Send email notification to an address' },
+  { label: 'HTTP / HTTPS Webhook', value: 'https', description: 'Deliver HTTP POST payload to a URL' },
+];
 
 export const SNSConsole: React.FC = () => {
   const [topics, setTopics] = useState<TopicItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedItems, setSelectedItems] = useState<TopicItem[]>([]);
   const [filterText, setFilterText] = useState('');
+  const [activeTabId, setActiveTabId] = useState('subscriptions');
+
+  // Modals
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
-  const [topicName, setTopicName] = useState('');
-  const [messageText, setMessageText] = useState('{"alert": "Order Processed"}');
+  const [subscribeModalOpen, setSubscribeModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+
+  // Create Topic state
+  const [newTopicName, setNewTopicName] = useState('');
+  const [isFifo, setIsFifo] = useState(false);
+  const [displayName, setDisplayName] = useState('');
   const [creating, setCreating] = useState(false);
+
+  // Publish Message state
+  const [subject, setSubject] = useState('');
+  const [messageBody, setMessageBody] = useState('{\n  "alert": "Order Processed",\n  "order_id": "ord-1029",\n  "status": "APPROVED"\n}');
+  const [messageGroupId, setMessageGroupId] = useState('group-1');
+  const [messageDeduplicationId, setMessageDeduplicationId] = useState('');
   const [publishing, setPublishing] = useState(false);
-  const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Create Subscription state
+  const [subProtocol, setSubProtocol] = useState(PROTOCOL_OPTIONS[0]);
+  const [subEndpoint, setSubEndpoint] = useState('');
+  const [subscribing, setSubscribing] = useState(false);
+
+  // Deleting Subscription / Topic
+  const [deletingSubArn, setDeletingSubArn] = useState<string | null>(null);
+  const [deletingTopic, setDeletingTopic] = useState(false);
+  const [actionAlert, setActionAlert] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+
+  const activeTopic = selectedItems[0] || null;
 
   const loadData = async () => {
     setLoading(true);
     try {
       const data = await fetchServiceInventory('sns');
-      const list = (data.topics || data.Topics || []).map((t: any) => {
-        const arn = typeof t === 'string' ? t : t.TopicArn || t.arn;
-        const name = arn.split(':').pop() || 'topic';
+      const rawTopics = data.topics || data.Topics || [];
+      const list: TopicItem[] = rawTopics.map((t: any) => {
+        const arn = typeof t === 'string' ? t : t.TopicArn || t.arn || '';
+        const name = t.name || arn.split(':').pop() || 'topic';
+        const attrs = t.attributes || t.Attributes || {};
+        const isFifoTopic = name.endsWith('.fifo') || attrs.FifoTopic === 'true';
         return {
           TopicArn: arn,
           TopicName: name,
-          SubscriptionsPending: t.SubscriptionsPending ?? 0,
-          SubscriptionsConfirmed: t.SubscriptionsConfirmed ?? 1,
+          SubscriptionsPending: Number(attrs.SubscriptionsPending || t.SubscriptionsPending || 0),
+          SubscriptionsConfirmed: Number(attrs.SubscriptionsConfirmed || t.SubscriptionsConfirmed || (t.subscriptions ? t.subscriptions.length : 0)),
+          Type: isFifoTopic ? 'FIFO' : 'Standard',
+          DisplayName: attrs.DisplayName || name,
+          Policy: attrs.Policy || '',
+          subscriptions: t.subscriptions || [],
+          attributes: attrs,
         };
       });
       setTopics(list);
-    } catch (err) {
+      if (list.length > 0 && !selectedItems.length) {
+        setSelectedItems([list[0]]);
+      } else if (selectedItems.length > 0) {
+        const refreshed = list.find((item) => item.TopicArn === selectedItems[0].TopicArn);
+        if (refreshed) setSelectedItems([refreshed]);
+      }
+    } catch (err: any) {
       console.error(err);
+      setActionAlert({ type: 'error', message: err.message || 'Failed to load SNS topics.' });
     } finally {
       setLoading(false);
     }
@@ -62,62 +134,120 @@ export const SNSConsole: React.FC = () => {
   }, []);
 
   const handleCreateTopic = async () => {
-    if (!topicName.trim()) return;
+    if (!newTopicName.trim()) return;
+    let finalName = newTopicName.trim();
+    if (isFifo && !finalName.endsWith('.fifo')) {
+      finalName += '.fifo';
+    }
     setCreating(true);
+    setActionAlert(null);
     try {
-      await executeServiceAction('sns', 'create_topic', { Name: topicName });
-      setActionMessage({ type: 'success', text: `Topic "${topicName}" created.` });
+      const params: any = { Name: finalName };
+      if (displayName) params.DisplayName = displayName;
+      if (isFifo) {
+        params.Attributes = { FifoTopic: 'true', ContentBasedDeduplication: 'true' };
+      }
+      await executeServiceAction('sns', 'create_topic', params);
+      setActionAlert({ type: 'success', message: `Topic "${finalName}" created successfully.` });
       setCreateModalOpen(false);
-      setTopicName('');
+      setNewTopicName('');
+      setDisplayName('');
+      setIsFifo(false);
       await loadData();
     } catch (err: any) {
-      setActionMessage({ type: 'error', text: err.message || 'Failed to create topic' });
+      setActionAlert({ type: 'error', message: err.message || 'Failed to create topic.' });
     } finally {
       setCreating(false);
     }
   };
 
-  const handlePublish = async () => {
-    if (!selectedItems.length) return;
-    setPublishing(true);
+  const handleDeleteTopic = async () => {
+    if (!activeTopic) return;
+    setDeletingTopic(true);
+    setActionAlert(null);
     try {
-      await executeServiceAction('sns', 'publish', {
-        TopicArn: selectedItems[0].TopicArn,
-        Message: messageText,
-      });
-      setActionMessage({ type: 'success', text: 'Message published to topic.' });
+      await executeServiceAction('sns', 'delete_topic', { TopicArn: activeTopic.TopicArn });
+      setActionAlert({ type: 'success', message: `Topic "${activeTopic.TopicName}" deleted.` });
+      setDeleteModalOpen(false);
+      setSelectedItems([]);
+      await loadData();
+    } catch (err: any) {
+      setActionAlert({ type: 'error', message: err.message || 'Failed to delete topic.' });
+    } finally {
+      setDeletingTopic(false);
+    }
+  };
+
+  const handlePublishMessage = async () => {
+    if (!activeTopic) return;
+    setPublishing(true);
+    setActionAlert(null);
+    try {
+      const res = await publishSnsMessage(
+        activeTopic.TopicArn,
+        messageBody,
+        subject || undefined,
+        undefined,
+        undefined,
+        activeTopic.Type === 'FIFO' ? messageGroupId : undefined,
+        activeTopic.Type === 'FIFO' && messageDeduplicationId ? messageDeduplicationId : undefined
+      );
+      setActionAlert({ type: 'success', message: `Message published to topic (Message ID: ${res.message_id || 'OK'}).` });
       setPublishModalOpen(false);
     } catch (err: any) {
-      setActionMessage({ type: 'error', text: err.message || 'Failed to publish' });
+      setActionAlert({ type: 'error', message: err.message || 'Failed to publish message.' });
     } finally {
       setPublishing(false);
     }
   };
 
-  const handleDeleteTopic = async () => {
-    if (!selectedItems.length) return;
+  const handleCreateSubscription = async () => {
+    if (!activeTopic || !subEndpoint.trim()) return;
+    setSubscribing(true);
+    setActionAlert(null);
     try {
-      await executeServiceAction('sns', 'delete_topic', { TopicArn: selectedItems[0].TopicArn });
-      setActionMessage({ type: 'success', text: 'Topic deleted.' });
-      setSelectedItems([]);
+      await createSnsSubscription(activeTopic.TopicArn, subProtocol.value, subEndpoint.trim());
+      setActionAlert({ type: 'success', message: `Subscribed ${subEndpoint} (${subProtocol.label}) to ${activeTopic.TopicName}.` });
+      setSubscribeModalOpen(false);
+      setSubEndpoint('');
       await loadData();
     } catch (err: any) {
-      setActionMessage({ type: 'error', text: err.message || 'Failed to delete topic' });
+      setActionAlert({ type: 'error', message: err.message || 'Failed to create subscription.' });
+    } finally {
+      setSubscribing(false);
+    }
+  };
+
+  const handleDeleteSubscription = async (subArn: string) => {
+    if (!subArn || subArn === 'PendingConfirmation') return;
+    setDeletingSubArn(subArn);
+    try {
+      await executeServiceAction('sns', 'unsubscribe', { SubscriptionArn: subArn });
+      setActionAlert({ type: 'success', message: 'Subscription removed.' });
+      await loadData();
+    } catch (err: any) {
+      setActionAlert({ type: 'error', message: err.message || 'Failed to unsubscribe.' });
+    } finally {
+      setDeletingSubArn(null);
     }
   };
 
   const filteredTopics = topics.filter((t) =>
-    t.TopicName.toLowerCase().includes(filterText.toLowerCase())
+    t.TopicName.toLowerCase().includes(filterText.toLowerCase()) ||
+    t.TopicArn.toLowerCase().includes(filterText.toLowerCase())
   );
-
-  const activeTopic = selectedItems[0];
 
   return (
     <SpaceBetween size="l">
-      {actionMessage && (
-        <StatusIndicator type={actionMessage.type === 'success' ? 'success' : 'error'}>
-          {actionMessage.text}
-        </StatusIndicator>
+      {actionAlert && (
+        <Alert
+          type={actionAlert.type}
+          dismissible
+          onDismiss={() => setActionAlert(null)}
+          header={actionAlert.type === 'error' ? 'SNS Operation Error' : 'SNS Notification'}
+        >
+          {actionAlert.message}
+        </Alert>
       )}
 
       <Table
@@ -125,20 +255,24 @@ export const SNSConsole: React.FC = () => {
           <Header
             variant="h1"
             counter={`(${topics.length})`}
-            description="Fully managed pub/sub messaging service for application integration."
+            description="Fully managed pub/sub messaging service for microservices, distributed systems, and serverless applications."
             actions={
               <SpaceBetween direction="horizontal" size="xs">
                 <Button iconName="refresh" onClick={loadData} loading={loading}>
                   Refresh
                 </Button>
                 <Button
-                  disabled={!selectedItems.length}
+                  disabled={!activeTopic}
                   iconName="share"
                   onClick={() => setPublishModalOpen(true)}
                 >
                   Publish message
                 </Button>
-                <Button disabled={!selectedItems.length} onClick={handleDeleteTopic}>
+                <Button
+                  disabled={!activeTopic}
+                  iconName="remove"
+                  onClick={() => setDeleteModalOpen(true)}
+                >
                   Delete topic
                 </Button>
                 <Button
@@ -167,14 +301,25 @@ export const SNSConsole: React.FC = () => {
             isRowHeader: true,
           },
           {
+            id: 'type',
+            header: 'Type',
+            cell: (item) => (
+              <Badge color={item.Type === 'FIFO' ? 'blue' : 'grey'}>{item.Type || 'Standard'}</Badge>
+            ),
+          },
+          {
             id: 'arn',
             header: 'Topic ARN',
-            cell: (item) => item.TopicArn,
+            cell: (item) => (
+              <code style={{ fontSize: '11px' }}>{item.TopicArn}</code>
+            ),
           },
           {
             id: 'subscriptions',
             header: 'Subscriptions',
-            cell: (item) => `${item.SubscriptionsConfirmed || 0} active`,
+            cell: (item) => (
+              <Badge color="green">{item.SubscriptionsConfirmed ?? (item.subscriptions?.length || 0)} active</Badge>
+            ),
           },
         ]}
         items={filteredTopics}
@@ -186,16 +331,16 @@ export const SNSConsole: React.FC = () => {
         filter={
           <TextFilter
             filteringText={filterText}
-            filteringPlaceholder="Filter topics by name..."
+            filteringPlaceholder="Filter topics by name or ARN..."
             onChange={({ detail }) => setFilterText(detail.filteringText)}
           />
         }
         pagination={<Pagination currentPageIndex={1} pagesCount={1} />}
         empty={
-          <Box textAlign="center" color="inherit">
+          <Box textAlign="center" color="inherit" padding={{ vertical: 'l' }}>
             <SpaceBetween size="m">
-              <b>No topics found</b>
-              <p>You have not created any SNS topics yet.</p>
+              <b>No SNS topics found</b>
+              <p>Create a topic to publish messages to multiple subscribers simultaneously.</p>
               <Button variant="primary" onClick={() => setCreateModalOpen(true)}>
                 Create topic
               </Button>
@@ -205,23 +350,206 @@ export const SNSConsole: React.FC = () => {
       />
 
       {activeTopic && (
-        <Container header={<Header variant="h2">Topic: {activeTopic.TopicName}</Header>}>
+        <Container
+          header={
+            <Header
+              variant="h2"
+              description={`ARN: ${activeTopic.TopicArn}`}
+              actions={
+                <SpaceBetween direction="horizontal" size="xs">
+                  <Button iconName="share" onClick={() => setPublishModalOpen(true)}>
+                    Publish message
+                  </Button>
+                </SpaceBetween>
+              }
+            >
+              Topic: {activeTopic.TopicName}
+            </Header>
+          }
+        >
           <Tabs
+            activeTabId={activeTabId}
+            onChange={({ detail }) => setActiveTabId(detail.activeTabId)}
             tabs={[
               {
-                label: 'Details',
-                id: 'details',
+                id: 'subscriptions',
+                label: `Subscriptions (${activeTopic.subscriptions?.length || activeTopic.SubscriptionsConfirmed || 0})`,
                 content: (
-                  <KeyValuePairs
-                    columns={3}
-                    items={[
-                      { label: 'Topic ARN', value: activeTopic.TopicArn },
-                      { label: 'Topic Name', value: activeTopic.TopicName },
-                      { label: 'Type', value: 'Standard' },
-                      { label: 'Display name', value: activeTopic.TopicName },
-                      { label: 'Encryption', value: 'Server-side encryption enabled (SSE)' },
-                    ]}
-                  />
+                  <SpaceBetween size="l">
+                    <Table
+                      header={
+                        <Header
+                          variant="h3"
+                          counter={`(${activeTopic.subscriptions?.length || 0})`}
+                          actions={
+                            <Button
+                              variant="primary"
+                              iconName="add-plus"
+                              onClick={() => setSubscribeModalOpen(true)}
+                            >
+                              Create subscription
+                            </Button>
+                          }
+                        >
+                          Topic Subscriptions
+                        </Header>
+                      }
+                      columnDefinitions={[
+                        {
+                          id: 'protocol',
+                          header: 'Protocol',
+                          cell: (sub) => <Badge color="blue">{sub.Protocol ? sub.Protocol.toUpperCase() : 'UNKNOWN'}</Badge>,
+                        },
+                        {
+                          id: 'endpoint',
+                          header: 'Endpoint',
+                          cell: (sub) => <strong>{sub.Endpoint}</strong>,
+                        },
+                        {
+                          id: 'arn',
+                          header: 'Subscription ARN',
+                          cell: (sub) => (
+                            <code style={{ fontSize: '11px' }}>
+                              {sub.SubscriptionArn || 'PendingConfirmation'}
+                            </code>
+                          ),
+                        },
+                        {
+                          id: 'status',
+                          header: 'Status',
+                          cell: (sub) => (
+                            <StatusIndicator type={sub.SubscriptionArn === 'PendingConfirmation' ? 'pending' : 'success'}>
+                              {sub.SubscriptionArn === 'PendingConfirmation' ? 'Pending' : 'Confirmed'}
+                            </StatusIndicator>
+                          ),
+                        },
+                        {
+                          id: 'actions',
+                          header: 'Action',
+                          cell: (sub) => (
+                            <Button
+                              iconName="remove"
+                              disabled={sub.SubscriptionArn === 'PendingConfirmation'}
+                              onClick={() => handleDeleteSubscription(sub.SubscriptionArn)}
+                              loading={deletingSubArn === sub.SubscriptionArn}
+                            >
+                              Unsubscribe
+                            </Button>
+                          ),
+                        },
+                      ]}
+                      items={activeTopic.subscriptions || []}
+                      empty={
+                        <Box textAlign="center" color="inherit" padding={{ vertical: 'm' }}>
+                          <SpaceBetween size="s">
+                            <b>No subscribers yet</b>
+                            <p>Subscribe an SQS queue, Lambda function, or HTTPS webhook to receive topic messages.</p>
+                            <Button onClick={() => setSubscribeModalOpen(true)}>Create subscription</Button>
+                          </SpaceBetween>
+                        </Box>
+                      }
+                    />
+                  </SpaceBetween>
+                ),
+              },
+              {
+                id: 'details',
+                label: 'Topic details & configuration',
+                content: (
+                  <SpaceBetween size="l">
+                    <KeyValuePairs
+                      columns={3}
+                      items={[
+                        { label: 'Topic Name', value: activeTopic.TopicName },
+                        { label: 'Topic ARN', value: activeTopic.TopicArn },
+                        { label: 'Topic Type', value: activeTopic.Type || 'Standard' },
+                        { label: 'Display Name', value: activeTopic.DisplayName || activeTopic.TopicName },
+                        { label: 'Subscriptions Confirmed', value: String(activeTopic.SubscriptionsConfirmed ?? 0) },
+                        { label: 'Subscriptions Pending', value: String(activeTopic.SubscriptionsPending ?? 0) },
+                        { label: 'Encryption', value: 'Server-Side Encryption enabled (AWS KMS / Default)' },
+                        { label: 'Delivery Retry Policy', value: 'Default 3 retries with exponential backoff' },
+                      ]}
+                    />
+                  </SpaceBetween>
+                ),
+              },
+              {
+                id: 'filtering',
+                label: 'Subscription filter policies',
+                content: (
+                  <SpaceBetween size="m">
+                    <Alert header="Attribute-Based Message Filtering">
+                      SNS subscription filter policies evaluate message attributes and payload bodies, routing only relevant notifications to specific subscribers.
+                    </Alert>
+                    <FormField label="Example Subscription Filter Policy (JSON)">
+                      <textarea
+                        readOnly
+                        rows={6}
+                        value={JSON.stringify(
+                          {
+                            store: ['example_corp'],
+                            event: ['order_cancelled', 'order_placed'],
+                            encrypted: [true],
+                          },
+                          null,
+                          2
+                        )}
+                        style={{
+                          width: '100%',
+                          fontFamily: 'monospace',
+                          fontSize: '12px',
+                          background: '#1b2a3a',
+                          color: '#4af',
+                          padding: '10px',
+                          borderRadius: '4px',
+                          border: '1px solid #23395b',
+                        }}
+                      />
+                    </FormField>
+                  </SpaceBetween>
+                ),
+              },
+              {
+                id: 'policy',
+                label: 'Access policy',
+                content: (
+                  <SpaceBetween size="m">
+                    <Header variant="h3">Topic Access Policy (JSON)</Header>
+                    <textarea
+                      readOnly
+                      rows={8}
+                      value={
+                        activeTopic.Policy ||
+                        JSON.stringify(
+                          {
+                            Version: '2012-10-17',
+                            Id: `${activeTopic.TopicName}/SNSDefaultPolicy`,
+                            Statement: [
+                              {
+                                Sid: 'TopicOwnerAccess',
+                                Effect: 'Allow',
+                                Principal: { AWS: 'arn:aws:iam::000000000000:root' },
+                                Action: 'SNS:*',
+                                Resource: activeTopic.TopicArn,
+                              },
+                            ],
+                          },
+                          null,
+                          2
+                        )
+                      }
+                      style={{
+                        width: '100%',
+                        fontFamily: 'monospace',
+                        fontSize: '12px',
+                        background: '#1b2a3a',
+                        color: '#4af',
+                        padding: '12px',
+                        borderRadius: '4px',
+                        border: '1px solid #23395b',
+                      }}
+                    />
+                  </SpaceBetween>
                 ),
               },
             ]}
@@ -229,10 +557,11 @@ export const SNSConsole: React.FC = () => {
         </Container>
       )}
 
+      {/* Create Topic Modal */}
       <Modal
         visible={createModalOpen}
         onDismiss={() => setCreateModalOpen(false)}
-        header="Create SNS topic"
+        header="Create SNS Topic"
         closeAriaLabel="Close modal"
         footer={
           <Box float="right">
@@ -248,20 +577,82 @@ export const SNSConsole: React.FC = () => {
         }
       >
         <SpaceBetween size="m">
-          <FormField label="Topic name" description="Specify a name for your SNS notification topic.">
+          <FormField label="Topic name" description="Enter a unique name (append .fifo for FIFO topics).">
             <Input
-              value={topicName}
-              onChange={({ detail }) => setTopicName(detail.value)}
-              placeholder="e.g. system-alerts"
+              value={newTopicName}
+              onChange={({ detail }) => setNewTopicName(detail.value)}
+              placeholder="e.g. order-notifications"
+            />
+          </FormField>
+          <FormField label="Display name (optional)" description="Used as the sender name in SMS and email delivery.">
+            <Input
+              value={displayName}
+              onChange={({ detail }) => setDisplayName(detail.value)}
+              placeholder="e.g. Order Alerts"
+            />
+          </FormField>
+          <Checkbox
+            checked={isFifo}
+            onChange={({ detail }) => setIsFifo(detail.checked)}
+          >
+            FIFO topic (Strict message ordering and deduplication)
+          </Checkbox>
+        </SpaceBetween>
+      </Modal>
+
+      {/* Create Subscription Modal */}
+      <Modal
+        visible={subscribeModalOpen}
+        onDismiss={() => setSubscribeModalOpen(false)}
+        header={`Create Subscription for ${activeTopic?.TopicName || 'topic'}`}
+        closeAriaLabel="Close modal"
+        footer={
+          <Box float="right">
+            <SpaceBetween direction="horizontal" size="xs">
+              <Button variant="link" onClick={() => setSubscribeModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" onClick={handleCreateSubscription} loading={subscribing}>
+                Create subscription
+              </Button>
+            </SpaceBetween>
+          </Box>
+        }
+      >
+        <SpaceBetween size="m">
+          <FormField label="Protocol">
+            <Select
+              selectedOption={subProtocol}
+              onChange={({ detail }) => setSubProtocol(detail.selectedOption as any)}
+              options={PROTOCOL_OPTIONS}
+            />
+          </FormField>
+          <FormField
+            label="Endpoint"
+            description={
+              subProtocol.value === 'sqs'
+                ? 'Enter the ARN of the target SQS queue (e.g. arn:aws:sqs:us-east-1:000000000000:my-queue)'
+                : subProtocol.value === 'lambda'
+                ? 'Enter the ARN of the Lambda function'
+                : subProtocol.value === 'email'
+                ? 'Enter the destination email address'
+                : 'Enter the webhook URL (e.g. https://api.example.com/webhooks/sns)'
+            }
+          >
+            <Input
+              value={subEndpoint}
+              onChange={({ detail }) => setSubEndpoint(detail.value)}
+              placeholder="Enter endpoint ARN, URL, or email..."
             />
           </FormField>
         </SpaceBetween>
       </Modal>
 
+      {/* Publish Message Modal */}
       <Modal
         visible={publishModalOpen}
         onDismiss={() => setPublishModalOpen(false)}
-        header={`Publish message to ${activeTopic?.TopicName || 'topic'}`}
+        header={`Publish Message to ${activeTopic?.TopicName || 'Topic'}`}
         closeAriaLabel="Close modal"
         footer={
           <Box float="right">
@@ -269,31 +660,76 @@ export const SNSConsole: React.FC = () => {
               <Button variant="link" onClick={() => setPublishModalOpen(false)}>
                 Cancel
               </Button>
-              <Button variant="primary" onClick={handlePublish} loading={publishing}>
-                Publish
+              <Button variant="primary" onClick={handlePublishMessage} loading={publishing}>
+                Publish message
               </Button>
             </SpaceBetween>
           </Box>
         }
       >
         <SpaceBetween size="m">
-          <FormField label="Message text">
-            <textarea
-              value={messageText}
-              onChange={(e) => setMessageText(e.target.value)}
-              rows={4}
-              style={{
-                width: '100%',
-                background: '#1b2a3a',
-                color: '#fff',
-                fontFamily: 'monospace',
-                padding: '8px',
-                borderRadius: '4px',
-              }}
+          <FormField label="Subject (optional)" description="Appears in email subjects or event metadata.">
+            <Input
+              value={subject}
+              onChange={({ detail }) => setSubject(detail.value)}
+              placeholder="e.g. New Order Available"
             />
           </FormField>
+          <FormField label="Message body" description="Enter JSON payload or plaintext notification.">
+            <Textarea
+              value={messageBody}
+              onChange={({ detail }) => setMessageBody(detail.value)}
+              rows={6}
+              placeholder="Enter message body..."
+            />
+          </FormField>
+          {activeTopic?.Type === 'FIFO' && (
+            <ColumnLayout columns={2}>
+              <FormField label="Message group ID" description="Required for FIFO topics">
+                <Input
+                  value={messageGroupId}
+                  onChange={({ detail }) => setMessageGroupId(detail.value)}
+                  placeholder="e.g. group-1"
+                />
+              </FormField>
+              <FormField label="Deduplication ID" description="Optional if Content-Based Deduplication is on">
+                <Input
+                  value={messageDeduplicationId}
+                  onChange={({ detail }) => setMessageDeduplicationId(detail.value)}
+                  placeholder="e.g. dedup-tx-1002"
+                />
+              </FormField>
+            </ColumnLayout>
+          )}
+        </SpaceBetween>
+      </Modal>
+
+      {/* Delete Topic Modal */}
+      <Modal
+        visible={deleteModalOpen}
+        onDismiss={() => setDeleteModalOpen(false)}
+        header="Delete SNS Topic"
+        closeAriaLabel="Close modal"
+        footer={
+          <Box float="right">
+            <SpaceBetween direction="horizontal" size="xs">
+              <Button variant="link" onClick={() => setDeleteModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" onClick={handleDeleteTopic} loading={deletingTopic}>
+                Delete topic
+              </Button>
+            </SpaceBetween>
+          </Box>
+        }
+      >
+        <SpaceBetween size="m">
+          <Alert type="error" header="Permanent Deletion">
+            Are you sure you want to delete topic <strong>{activeTopic?.TopicName}</strong>? All associated subscriptions will be removed.
+          </Alert>
         </SpaceBetween>
       </Modal>
     </SpaceBetween>
   );
 };
+

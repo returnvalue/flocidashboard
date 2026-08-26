@@ -11,6 +11,7 @@ const StepFunctionsConsole = (() => {
     inventory: null,
     selectedStateMachineArn: '',
     selectedExecutionArn: '',
+    selectedStepName: '',
     lastStartedExecutionArn: '',
   };
 
@@ -33,7 +34,7 @@ const StepFunctionsConsole = (() => {
   }
 
   function selectedStateMachine() {
-    return stateMachines().find((machine) => machine.arn === state.selectedStateMachineArn) || stateMachines()[0] || null;
+    return stateMachines().find((m) => m.arn === state.selectedStateMachineArn) || stateMachines()[0] || null;
   }
 
   function executions(machine = selectedStateMachine()) {
@@ -63,14 +64,13 @@ const StepFunctionsConsole = (() => {
   }
 
   function renderBreadcrumbs() {
-    if (!breadcrumbsEl) {
-      return;
-    }
+    if (!breadcrumbsEl) return;
     breadcrumbsEl.textContent = '';
     const home = el('button', null, 'AWS Step Functions');
     home.addEventListener('click', () => {
       state.selectedStateMachineArn = '';
       state.selectedExecutionArn = '';
+      state.selectedStepName = '';
       render();
     });
     breadcrumbsEl.append(home);
@@ -85,24 +85,197 @@ const StepFunctionsConsole = (() => {
   }
 
   function parseJson(value) {
-    const trimmed = value.trim();
-    if (!trimmed) {
+    const trimmed = (value || '').trim();
+    if (!trimmed) return {};
+    try {
+      return JSON.parse(trimmed);
+    } catch (e) {
       return {};
     }
-    return JSON.parse(trimmed);
   }
 
   function statusClass(status) {
     return `stepfunctions-status stepfunctions-status-${String(status || 'unknown').toLowerCase()}`;
   }
 
+  function parseDefinition(definition) {
+    if (!definition) return null;
+    if (typeof definition === 'object') return definition;
+    try {
+      return JSON.parse(definition);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function showCreateStateMachineModal() {
+    const form = el('div', 'stepfunctions-modal-form');
+    const nameInput = document.createElement('input');
+    nameInput.placeholder = 'my-workflow';
+    nameInput.value = 'order-processing-workflow';
+
+    const roleInput = document.createElement('input');
+    roleInput.value = 'arn:aws:iam::000000000000:role/StepFunctionsExecutionRole';
+
+    const typeSelect = document.createElement('select');
+    ['STANDARD', 'EXPRESS'].forEach((t) => {
+      const opt = el('option', null, t);
+      opt.value = t;
+      typeSelect.append(opt);
+    });
+
+    const presetSelect = document.createElement('select');
+    const presets = {
+      order_flow: {
+        name: 'Order Processing (Task -> Choice -> SQS/Fail)',
+        def: {
+          Comment: 'Process and validate customer order',
+          StartAt: 'ValidateOrder',
+          States: {
+            ValidateOrder: {
+              Type: 'Task',
+              Resource: 'arn:aws:lambda:us-east-1:000000000000:function:ValidateOrderFunction',
+              Next: 'CheckPaymentStatus',
+            },
+            CheckPaymentStatus: {
+              Type: 'Choice',
+              Choices: [
+                {
+                  Variable: '$.status',
+                  StringEquals: 'APPROVED',
+                  Next: 'SendOrderConfirmation',
+                },
+              ],
+              Default: 'HandleFailedPayment',
+            },
+            SendOrderConfirmation: {
+              Type: 'Task',
+              Resource: 'arn:aws:sqs:us-east-1:000000000000:order-confirmations',
+              End: true,
+            },
+            HandleFailedPayment: {
+              Type: 'Fail',
+              Error: 'PaymentDeclined',
+              Cause: 'Order payment was not approved by payment processor',
+            },
+          },
+        },
+      },
+      parallel_flow: {
+        name: 'Parallel Branching Workflow',
+        def: {
+          Comment: 'Execute concurrent steps',
+          StartAt: 'ParallelCheck',
+          States: {
+            ParallelCheck: {
+              Type: 'Parallel',
+              Branches: [
+                {
+                  StartAt: 'CheckInventory',
+                  States: {
+                    CheckInventory: { Type: 'Pass', Result: { inStock: true }, End: true },
+                  },
+                },
+                {
+                  StartAt: 'CheckFraud',
+                  States: {
+                    CheckFraud: { Type: 'Pass', Result: { riskScore: 5 }, End: true },
+                  },
+                },
+              ],
+              Next: 'AllChecksComplete',
+            },
+            AllChecksComplete: {
+              Type: 'Succeed',
+            },
+          },
+        },
+      },
+      simple_pass: {
+        name: 'Simple Pass & Wait Workflow',
+        def: {
+          StartAt: 'Init',
+          States: {
+            Init: { Type: 'Pass', Result: { message: 'Initialized' }, Next: 'WaitBriefly' },
+            WaitBriefly: { Type: 'Wait', Seconds: 2, Next: 'Finish' },
+            Finish: { Type: 'Succeed' },
+          },
+        },
+      },
+    };
+
+    Object.entries(presets).forEach(([k, v]) => {
+      const opt = el('option', null, v.name);
+      opt.value = k;
+      presetSelect.append(opt);
+    });
+
+    const defArea = document.createElement('textarea');
+    defArea.className = 'stepfunctions-json-input';
+    defArea.style.minHeight = '200px';
+    defArea.value = JSON.stringify(presets.order_flow.def, null, 2);
+
+    presetSelect.addEventListener('change', () => {
+      const selected = presets[presetSelect.value];
+      if (selected) {
+        defArea.value = JSON.stringify(selected.def, null, 2);
+      }
+    });
+
+    form.append(
+      el('label', null, 'State Machine Name'),
+      nameInput,
+      el('label', null, 'IAM Execution Role ARN'),
+      roleInput,
+      el('label', null, 'Type'),
+      typeSelect,
+      el('label', null, 'Workflow Template Presets'),
+      presetSelect,
+      el('label', null, 'Amazon States Language (ASL) JSON Definition'),
+      defArea,
+    );
+
+    openModal('Create State Machine', form, 'Create', async (close) => {
+      const name = nameInput.value.trim();
+      if (!name) throw new Error('State machine name is required');
+      const role = roleInput.value.trim();
+      if (!role) throw new Error('Execution role ARN is required');
+      let defObj;
+      try {
+        defObj = JSON.parse(defArea.value);
+      } catch (e) {
+        throw new Error('ASL Definition must be valid JSON: ' + e.message);
+      }
+
+      const res = await apiJson('/api/stepfunctions/state-machines/', {
+        method: 'POST',
+        body: JSON.stringify({
+          name,
+          role_arn: role,
+          type: typeSelect.value,
+          definition: defObj,
+        }),
+      });
+      state.selectedStateMachineArn = res.state_machine_arn || '';
+      toast(`State machine ${name} created`);
+      close();
+      await refresh();
+    });
+  }
+
   function showStartExecutionModal(machine) {
-    const form = el('div');
+    const form = el('div', 'stepfunctions-modal-form');
     const nameInput = document.createElement('input');
     nameInput.placeholder = 'optional execution name';
     const inputText = document.createElement('textarea');
     inputText.required = true;
-    inputText.value = '{\n  "source": "floci-dashboard"\n}';
+    inputText.style.minHeight = '140px';
+    inputText.value = JSON.stringify({
+      orderId: 'ord-' + Math.floor(Math.random() * 90000 + 10000),
+      amount: 149.99,
+      status: 'APPROVED',
+      customer: 'customer@example.com',
+    }, null, 2);
     const traceInput = document.createElement('input');
     traceInput.placeholder = 'optional trace header';
 
@@ -136,7 +309,7 @@ const StepFunctionsConsole = (() => {
   }
 
   function showStopExecutionModal(execution) {
-    const form = el('div');
+    const form = el('div', 'stepfunctions-modal-form');
     const errorInput = document.createElement('input');
     errorInput.placeholder = 'StoppedByDashboard';
     const causeInput = document.createElement('textarea');
@@ -165,79 +338,15 @@ const StepFunctionsConsole = (() => {
     });
   }
 
-  function showPublishVersionModal(machine) {
-    const form = el('div');
-    const revisionInput = document.createElement('input');
-    revisionInput.placeholder = 'optional revision ID';
-    const descriptionInput = document.createElement('textarea');
-    descriptionInput.placeholder = 'Optional description';
-    form.append(
-      el('label', null, 'State machine'),
-      el('pre', 'stepfunctions-arn-preview', machine.arn),
-      el('label', null, 'Revision ID'),
-      revisionInput,
-      el('label', null, 'Description'),
-      descriptionInput,
-    );
-
-    openModal('Publish version', form, 'Publish', async (close) => {
-      const data = await apiJson('/api/stepfunctions/state-machine-versions/publish/', {
-        method: 'POST',
-        body: JSON.stringify({
-          state_machine_arn: machine.arn,
-          revision_id: revisionInput.value.trim() || null,
-          description: descriptionInput.value.trim() || null,
-        }),
-      });
-      close();
-      toast(data.state_machine_version_arn ? 'Version published' : 'Publish requested');
-      await refresh();
-    });
-  }
-
-  async function deleteVersion(version) {
-    if (!window.confirm(`Delete Step Functions version ${version.arn}?`)) {
-      return;
-    }
-    await apiJson('/api/stepfunctions/state-machine-versions/delete/', {
+  function deleteVersion(version) {
+    if (!window.confirm(`Delete state machine version ${version.arn}?`)) return Promise.resolve();
+    return apiJson('/api/stepfunctions/state-machine-versions/delete/', {
       method: 'DELETE',
       body: JSON.stringify({ state_machine_version_arn: version.arn }),
+    }).then(() => {
+      toast('State machine version deleted');
+      return refresh();
     });
-    toast('Version deleted');
-    await refresh();
-  }
-
-  function renderStateMachineRow(machine) {
-    const active = machine.arn === selectedStateMachine()?.arn;
-    const row = el('button', `stepfunctions-machine-row${active ? ' stepfunctions-machine-row-active' : ''}`);
-    const meta = [
-      machine.type,
-      `${machine.execution_count || 0} execution${machine.execution_count === 1 ? '' : 's'}`,
-      machine.status,
-    ].filter(Boolean);
-    row.append(
-      el('span', 'stepfunctions-machine-name', machine.name || 'Unnamed state machine'),
-      el('span', 'stepfunctions-machine-meta', meta.join(' / ') || 'No execution summary'),
-    );
-    row.addEventListener('click', () => {
-      state.selectedStateMachineArn = machine.arn;
-      state.selectedExecutionArn = '';
-      render();
-    });
-    return row;
-  }
-
-  function renderStateMachineList() {
-    const panel = el('section', 'stepfunctions-panel');
-    panel.append(el('div', 'stepfunctions-panel-heading', 'State machines'));
-    const list = el('div', 'stepfunctions-machine-list');
-    if (!stateMachines().length) {
-      list.append(el('div', 'stepfunctions-empty', 'No state machines found.'));
-    } else {
-      stateMachines().forEach((machine) => list.append(renderStateMachineRow(machine)));
-    }
-    panel.append(list);
-    return panel;
   }
 
   function renderExecutionRow(execution) {
@@ -246,10 +355,11 @@ const StepFunctionsConsole = (() => {
     row.append(
       el('span', 'stepfunctions-execution-name', execution.name || 'Unnamed execution'),
       el('span', statusClass(execution.status), execution.status || 'UNKNOWN'),
-      el('span', 'stepfunctions-machine-meta', consoleUi.formatDate(execution.started)),
+      el('span', 'stepfunctions-machine-meta', consoleUi.formatDate(execution.start_date)),
     );
     row.addEventListener('click', () => {
       state.selectedExecutionArn = execution.arn;
+      state.selectedStepName = '';
       render();
     });
     return row;
@@ -257,9 +367,9 @@ const StepFunctionsConsole = (() => {
 
   function renderExecutions(machine) {
     const wrapper = el('div', 'stepfunctions-executions');
-    wrapper.append(el('h3', null, 'Recent executions'));
+    wrapper.append(el('h3', null, 'Executions'));
     if (!executions(machine).length) {
-      wrapper.append(el('div', 'stepfunctions-empty stepfunctions-empty-compact', 'No executions found. Start one to inspect its input, output, and history.'));
+      wrapper.append(el('div', 'stepfunctions-empty stepfunctions-empty-compact', 'No executions found. Start one to inspect its workflow graph, input, output, and step history.'));
       return wrapper;
     }
     const list = el('div', 'stepfunctions-execution-list');
@@ -291,39 +401,152 @@ const StepFunctionsConsole = (() => {
     return wrapper;
   }
 
-  function renderJsonBlock(title, value) {
-    const wrapper = el('div', 'stepfunctions-json-block');
-    wrapper.append(el('h3', null, title));
-    wrapper.append(el('pre', 'stepfunctions-output', consoleUi.valueText(value)));
-    return wrapper;
-  }
+  function extractStepExecutionStatus(execution, stateName) {
+    if (!execution) return 'NOT_RUN';
+    const history = execution.history || [];
+    let entered = false;
+    let failed = false;
+    let succeeded = false;
 
-  function eventTitle(event) {
-    return event.type || `Event ${event.id || ''}`.trim() || 'History event';
-  }
-
-  function renderHistory(execution) {
-    const wrapper = el('div', 'stepfunctions-history');
-    wrapper.append(el('h3', null, 'History timeline'));
-    const history = execution?.history || [];
-    if (!history.length) {
-      wrapper.append(el('div', 'stepfunctions-empty stepfunctions-empty-compact', 'No history events returned for this execution.'));
-      return wrapper;
-    }
-    const list = el('div', 'stepfunctions-history-list');
-    history.forEach((event) => {
-      const item = el('article', 'stepfunctions-history-event');
-      const heading = el('div', 'stepfunctions-history-heading');
-      heading.append(
-        el('span', null, eventTitle(event)),
-        el('span', 'stepfunctions-machine-meta', consoleUi.formatDate(event.timestamp)),
-      );
-      item.append(heading);
-      item.append(el('pre', 'stepfunctions-history-detail', consoleUi.valueText(event)));
-      list.append(item);
+    history.forEach((evt) => {
+      const name = evt.state_entered_event_details?.name || evt.state_exited_event_details?.name || evt.name;
+      if (name === stateName) {
+        entered = true;
+        if (evt.type?.includes('Failed') || evt.type?.includes('ExecutionFailed')) failed = true;
+        if (evt.type?.includes('Exited') || evt.type?.includes('Succeeded')) succeeded = true;
+      }
     });
-    wrapper.append(list);
-    return wrapper;
+
+    if (failed) return 'FAILED';
+    if (succeeded) return 'SUCCEEDED';
+    if (entered) return 'RUNNING';
+    if (execution.status === 'SUCCEEDED') return 'SUCCEEDED';
+    if (execution.status === 'FAILED') return 'FAILED';
+    return 'NOT_RUN';
+  }
+
+  function renderAslGraph(machine, execution) {
+    const def = parseDefinition(machine?.definition);
+    const graphSection = el('section', 'stepfunctions-graph-section');
+    const header = el('div', 'stepfunctions-graph-header');
+    header.append(
+      el('h3', null, 'Visual Workflow Graph'),
+      el('span', 'stepfunctions-machine-meta', execution ? `Execution: ${execution.name} (${execution.status})` : 'Workflow ASL Topology'),
+    );
+    graphSection.append(header);
+
+    if (!def || !def.States) {
+      graphSection.append(el('div', 'stepfunctions-empty stepfunctions-empty-compact', 'Invalid or empty state machine definition.'));
+      return graphSection;
+    }
+
+    const states = def.States;
+    const startAt = def.StartAt;
+    const graphContainer = el('div', 'stepfunctions-graph-container');
+
+    // Start node
+    const startNode = el('div', 'stepfunctions-node stepfunctions-node-terminal', 'Start');
+    graphContainer.append(startNode);
+    graphContainer.append(el('div', 'stepfunctions-edge-arrow', '↓'));
+
+    // Linear/DAG step nodes
+    const stateKeys = Object.keys(states);
+    // Sort so StartAt is first
+    if (startAt && stateKeys.includes(startAt)) {
+      stateKeys.sort((a, b) => (a === startAt ? -1 : b === startAt ? 1 : 0));
+    }
+
+    stateKeys.forEach((name, idx) => {
+      const stateObj = states[name];
+      const type = stateObj.Type || 'Pass';
+      const stepStatus = extractStepExecutionStatus(execution, name);
+      const isSelected = state.selectedStepName === name;
+
+      const node = el('div', `stepfunctions-node stepfunctions-node-${type.toLowerCase()} stepfunctions-node-status-${stepStatus.toLowerCase()}${isSelected ? ' stepfunctions-node-selected' : ''}`);
+      
+      const nodeHeader = el('div', 'stepfunctions-node-header');
+      nodeHeader.append(
+        el('strong', 'stepfunctions-node-title', name),
+        el('span', 'stepfunctions-node-type-badge', type),
+      );
+      node.append(nodeHeader);
+
+      if (stateObj.Resource) {
+        node.append(el('div', 'stepfunctions-node-meta', stateObj.Resource.split(':').pop()));
+      }
+
+      if (execution) {
+        const statusBadge = el('span', `stepfunctions-step-status-tag stepfunctions-step-status-${stepStatus.toLowerCase()}`, stepStatus);
+        node.append(statusBadge);
+      }
+
+      node.addEventListener('click', () => {
+        state.selectedStepName = name;
+        render();
+      });
+
+      graphContainer.append(node);
+
+      if (idx < stateKeys.length - 1 || stateObj.End || type === 'Succeed' || type === 'Fail') {
+        const nextTarget = stateObj.Next || (stateObj.End ? 'End' : type === 'Choice' ? 'Branch' : 'Next');
+        const arrow = el('div', 'stepfunctions-edge-arrow', `↓ (${nextTarget})`);
+        graphContainer.append(arrow);
+      }
+    });
+
+    const endNode = el('div', 'stepfunctions-node stepfunctions-node-terminal', 'End');
+    graphContainer.append(endNode);
+
+    graphSection.append(graphContainer);
+    return graphSection;
+  }
+
+  function renderStepInspector(machine, execution) {
+    const def = parseDefinition(machine?.definition);
+    const states = def?.States || {};
+    const stepNames = Object.keys(states);
+    const currentStepName = state.selectedStepName || def?.StartAt || stepNames[0];
+    const currentStep = states[currentStepName];
+
+    const inspector = el('div', 'stepfunctions-step-inspector');
+    inspector.append(el('h3', null, 'Step Inspector'));
+
+    if (!currentStep) {
+      inspector.append(el('div', 'stepfunctions-empty stepfunctions-empty-compact', 'Select a step from the graph to inspect details.'));
+      return inspector;
+    }
+
+    const stepStatus = extractStepExecutionStatus(execution, currentStepName);
+    const card = el('div', 'stepfunctions-inspector-card');
+
+    const heading = el('div', 'stepfunctions-inspector-heading');
+    heading.append(
+      el('h4', null, currentStepName),
+      el('span', `stepfunctions-node-type-badge`, currentStep.Type || 'Pass'),
+    );
+    card.append(heading);
+
+    const facts = document.createElement('dl');
+    consoleUi.addField(facts, 'Type', currentStep.Type);
+    consoleUi.addField(facts, 'Status', stepStatus);
+    if (currentStep.Resource) consoleUi.addField(facts, 'Resource ARN', currentStep.Resource);
+    if (currentStep.Next) consoleUi.addField(facts, 'Next State', currentStep.Next);
+    if (currentStep.End) consoleUi.addField(facts, 'End State', 'True');
+    card.append(facts);
+
+    card.append(el('h5', null, 'State Definition'));
+    card.append(el('pre', 'stepfunctions-output', JSON.stringify(currentStep, null, 2)));
+
+    if (execution) {
+      card.append(el('h5', null, 'Execution Input'));
+      card.append(el('pre', 'stepfunctions-output', consoleUi.valueText(execution.input || {})));
+
+      card.append(el('h5', null, 'Execution Output / Result'));
+      card.append(el('pre', 'stepfunctions-output', consoleUi.valueText(execution.output || execution.error || 'Running or no output yet')));
+    }
+
+    inspector.append(card);
+    return inspector;
   }
 
   function renderSelectedMachine(machine) {
@@ -349,10 +572,16 @@ const StepFunctionsConsole = (() => {
     consoleUi.addField(details, 'Created', consoleUi.formatDate(machine.created));
     consoleUi.addField(details, 'Role ARN', machine.role_arn);
     consoleUi.addField(details, 'Revision ID', machine.revision_id);
-    consoleUi.addField(details, 'Logging', machine.logging_configuration || {});
-    consoleUi.addField(details, 'Tracing', machine.tracing_configuration || {});
     content.append(details);
-    content.append(renderJsonBlock('Definition', machine.definition || 'No definition returned.'));
+
+    const exec = selectedExecution(machine);
+
+    // Visual Graph + Inspector Row
+    const visualRow = el('div', 'stepfunctions-visual-workbench');
+    visualRow.append(renderAslGraph(machine, exec));
+    visualRow.append(renderStepInspector(machine, exec));
+    content.append(visualRow);
+
     content.append(renderVersions(machine));
     content.append(renderExecutions(machine));
     panel.append(content);
@@ -378,58 +607,82 @@ const StepFunctionsConsole = (() => {
     const details = document.createElement('dl');
     consoleUi.addField(details, 'Execution ARN', execution.arn);
     consoleUi.addField(details, 'State machine ARN', execution.state_machine_arn);
-    consoleUi.addField(details, 'Started', consoleUi.formatDate(execution.started));
-    consoleUi.addField(details, 'Stopped', consoleUi.formatDate(execution.stopped));
-    consoleUi.addField(details, 'Trace header', execution.trace_header);
-    consoleUi.addField(details, 'History events', execution.history_event_count);
+    consoleUi.addField(details, 'Status', execution.status);
+    consoleUi.addField(details, 'Started', consoleUi.formatDate(execution.start_date));
+    consoleUi.addField(details, 'Stopped', consoleUi.formatDate(execution.stop_date));
     content.append(details);
-    content.append(renderJsonBlock('Input', execution.input || 'None'));
-    content.append(renderJsonBlock('Output', execution.output || 'None'));
-    content.append(renderHistory(execution));
+
+    content.append(el('h3', null, 'Execution Input'));
+    content.append(el('pre', 'stepfunctions-output', consoleUi.valueText(execution.input || {})));
+
+    content.append(el('h3', null, 'Execution Output'));
+    content.append(el('pre', 'stepfunctions-output', consoleUi.valueText(execution.output || execution.error || 'No output recorded')));
+
     panel.append(content);
+    return panel;
+  }
+
+  function renderMachineList() {
+    const panel = el('section', 'stepfunctions-panel');
+    panel.append(el('div', 'stepfunctions-panel-heading', 'State machines'));
+    const list = el('div', 'stepfunctions-machine-list');
+    if (!stateMachines().length) {
+      list.append(el('div', 'stepfunctions-empty', 'No state machines found.'));
+    } else {
+      stateMachines().forEach((machine) => {
+        const active = machine.arn === selectedStateMachine()?.arn;
+        const row = el('button', `stepfunctions-machine-row${active ? ' stepfunctions-machine-row-active' : ''}`);
+        row.append(
+          el('span', 'stepfunctions-machine-name', machine.name || 'Unnamed machine'),
+          el('span', 'stepfunctions-machine-meta', `${machine.type || 'STANDARD'} · ${machine.status || 'ACTIVE'}`),
+        );
+        row.addEventListener('click', () => {
+          state.selectedStateMachineArn = machine.arn;
+          state.selectedExecutionArn = '';
+          state.selectedStepName = '';
+          render();
+        });
+        list.append(row);
+      });
+    }
+    panel.append(list);
     return panel;
   }
 
   function renderWorkbench() {
     const machine = selectedStateMachine();
     const execution = selectedExecution(machine);
-    const isRunning = execution?.status === 'RUNNING';
     const container = el('div');
     container.append(toolbar(
       [
+        btn('Create state machine', null, showCreateStateMachineModal),
         btn('Start execution', null, () => machine && showStartExecutionModal(machine)),
-        btn('Publish version', 'stepfunctions-btn-secondary', () => machine && showPublishVersionModal(machine)),
-      ],
-      [
         btn('Stop execution', 'stepfunctions-btn-danger', () => execution && showStopExecutionModal(execution)),
+        btn('Delete state machine', 'stepfunctions-btn-danger', async () => {
+          if (machine && window.confirm(`Delete state machine ${machine.name}?`)) {
+            state.selectedStateMachineArn = '';
+            await apiJson(`/api/stepfunctions/state-machines/${encodeURIComponent(machine.arn)}/`, { method: 'DELETE' });
+            toast('State machine deleted');
+            await refresh();
+          }
+        }),
       ],
+      [],
     ));
 
-    const startButton = container.querySelector('.stepfunctions-toolbar-left button');
-    const publishButton = container.querySelectorAll('.stepfunctions-toolbar-left button')[1];
-    const stopButton = container.querySelector('.stepfunctions-toolbar-right button');
-    if (startButton) {
-      startButton.disabled = !machine;
-    }
-    if (publishButton) {
-      publishButton.disabled = !machine;
-    }
-    if (stopButton) {
-      stopButton.disabled = !execution || !isRunning;
-    }
+    const buttons = [...container.querySelectorAll('button')];
+    if (buttons[1]) buttons[1].disabled = !machine;
+    if (buttons[2]) buttons[2].disabled = !execution || execution.status !== 'RUNNING';
+    if (buttons[3]) buttons[3].disabled = !machine;
 
     const workbench = el('div', 'stepfunctions-workbench');
-    const detail = el('div', 'stepfunctions-detail-stack');
-    detail.append(renderSelectedMachine(machine), renderExecutionDetail(execution));
-    workbench.append(renderStateMachineList(), detail);
+    workbench.append(renderMachineList(), renderSelectedMachine(machine), renderExecutionDetail(execution));
     container.append(workbench);
     return container;
   }
 
   function render() {
-    if (!root) {
-      return;
-    }
+    if (!root) return;
     renderBreadcrumbs();
     root.textContent = '';
     root.append(renderWorkbench());
@@ -444,19 +697,13 @@ const StepFunctionsConsole = (() => {
     if (!selectedStateMachine() && stateMachines().length) {
       state.selectedStateMachineArn = stateMachines()[0].arn;
     }
-    if (!selectedExecution() && selectedStateMachine()) {
-      const firstExecution = executions(selectedStateMachine())[0];
-      state.selectedExecutionArn = firstExecution?.arn || '';
-    }
     renderSummary(data.summary || {});
     render();
   }
 
   function init() {
-    if (!root) {
-      return;
-    }
-    root.append(el('div', 'stepfunctions-empty', 'Loading...'));
+    if (!root) return;
+    root.append(el('div', 'stepfunctions-empty', 'Loading Step Functions workbench...'));
     refresh().catch((error) => toast(error.message, true));
   }
 

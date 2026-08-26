@@ -415,3 +415,43 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+.ecs-diff-output {
+  background: #0f172a;
+  color: #f8fafc;
+  padding: 12px;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+}
+
+.ecs-diff-card {
+  display: grid;
+  gap: 6px;
+}
+
+.ecs-scale-presets {
+  display: flex;
+  gap: 6px;
+}
+
+.ecs-fargate-val-box {
+  background: #f8fafc;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.ecs-val-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
+.ecs-val-valid { background: #dcfce7; color: #166534; }
+.ecs-val-invalid { background: #fee2e2; color: #991b1b; }

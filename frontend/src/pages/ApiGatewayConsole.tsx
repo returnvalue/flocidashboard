@@ -12,7 +12,6 @@ import Input from '@cloudscape-design/components/input';
 import Textarea from '@cloudscape-design/components/textarea';
 import Select from '@cloudscape-design/components/select';
 import StatusIndicator from '@cloudscape-design/components/status-indicator';
-import KeyValuePairs from '@cloudscape-design/components/key-value-pairs';
 import Grid from '@cloudscape-design/components/grid';
 import Box from '@cloudscape-design/components/box';
 import Badge from '@cloudscape-design/components/badge';
@@ -22,8 +21,16 @@ import {
   createApiGatewayApi,
   deleteApiGatewayApi,
   testApiGatewayRequest,
+  fetchApiGatewayResources,
+  createApiGatewayResource,
+  createApiGatewayMethod,
+  deleteApiGatewayResource,
+  fetchApiGatewayStages,
+  createApiGatewayStage,
+  createApiGatewayDeployment,
+  fetchApiGatewayAuthorizers,
+  createApiGatewayAuthorizer,
 } from '../api/client';
-import { CodeSnippet } from '../components/CodeSnippet';
 
 interface ApiGatewayConsoleProps {
   activeTab?: string;
@@ -36,7 +43,7 @@ export const ApiGatewayConsole: React.FC<ApiGatewayConsoleProps> = ({ activeTab,
   const [selectedApis, setSelectedApis] = useState<any[]>([]);
   const [filterText, setFilterText] = useState('');
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [selectedTabId, setSelectedTabId] = useState(activeTab || 'test');
+  const [selectedTabId, setSelectedTabId] = useState(activeTab || 'resources');
 
   useEffect(() => {
     if (activeTab) {
@@ -50,6 +57,35 @@ export const ApiGatewayConsole: React.FC<ApiGatewayConsoleProps> = ({ activeTab,
   const [protocolType, setProtocolType] = useState({ label: 'HTTP API (Fast, low-latency)', value: 'HTTP' });
   const [apiDescription, setApiDescription] = useState('Production Microservice Gateway');
   const [creatingApi, setCreatingApi] = useState(false);
+
+  // Resources State
+  const [resources, setResources] = useState<any[]>([]);
+  const [createResourceOpen, setCreateResourceOpen] = useState(false);
+  const [resourcePathPart, setResourcePathPart] = useState('');
+  const [parentResourceId, setParentResourceId] = useState('');
+  const [creatingResource, setCreatingResource] = useState(false);
+
+  // Method Modal State
+  const [createMethodOpen, setCreateMethodOpen] = useState(false);
+  const [methodHttpMethod, setMethodHttpMethod] = useState({ label: 'GET', value: 'GET' });
+  const [methodAuthType, setMethodAuthType] = useState({ label: 'NONE', value: 'NONE' });
+  const [targetResourceId, setTargetResourceId] = useState('');
+  const [creatingMethod, setCreatingMethod] = useState(false);
+
+  // Stages & Deployments State
+  const [stages, setStages] = useState<any[]>([]);
+  const [createStageOpen, setCreateStageOpen] = useState(false);
+  const [stageName, setStageName] = useState('');
+  const [deploymentDesc, setDeploymentDesc] = useState('Initial production deployment');
+  const [creatingStage, setCreatingStage] = useState(false);
+
+  // Authorizers State
+  const [authorizers, setAuthorizers] = useState<any[]>([]);
+  const [createAuthOpen, setCreateAuthOpen] = useState(false);
+  const [authName, setAuthName] = useState('');
+  const [authType, setAuthType] = useState({ label: 'COGNITO_USER_POOLS', value: 'COGNITO_USER_POOLS' });
+  const [authUri, setAuthUri] = useState('');
+  const [creatingAuth, setCreatingAuth] = useState(false);
 
   // Test Request Runner State
   const [testPath, setTestPath] = useState('/items');
@@ -80,7 +116,34 @@ export const ApiGatewayConsole: React.FC<ApiGatewayConsoleProps> = ({ activeTab,
     loadData();
   }, []);
 
-  const activeApi = selectedApis[0];
+  const activeApi = selectedApis[0] || null;
+  const activeApiId = activeApi ? activeApi.ApiId || activeApi.id : '';
+
+  const loadApiSubresources = async (apiId: string) => {
+    if (!apiId) return;
+    try {
+      const [resList, stageList, authList]: any[] = await Promise.all([
+        fetchApiGatewayResources(apiId),
+        fetchApiGatewayStages(apiId),
+        fetchApiGatewayAuthorizers(apiId),
+      ]);
+      const rItems = resList?.items || resList?.resources || [];
+      setResources(rItems);
+      if (rItems.length > 0 && !parentResourceId) {
+        setParentResourceId(rItems[0].id || '');
+      }
+      setStages(stageList?.item || stageList?.stages || []);
+      setAuthorizers(authList?.items || authList?.authorizers || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    if (activeApiId) {
+      loadApiSubresources(activeApiId);
+    }
+  }, [activeApiId]);
 
   const handleCreateApi = async () => {
     if (!apiName.trim()) return;
@@ -100,10 +163,9 @@ export const ApiGatewayConsole: React.FC<ApiGatewayConsoleProps> = ({ activeTab,
   };
 
   const handleDeleteApi = async () => {
-    if (!activeApi) return;
-    const apiId = activeApi.ApiId || activeApi.id;
+    if (!activeApiId) return;
     try {
-      await deleteApiGatewayApi(apiId);
+      await deleteApiGatewayApi(activeApiId);
       setActionMessage({ type: 'success', text: `API "${activeApi.Name || activeApi.name}" deleted.` });
       setSelectedApis([]);
       await loadData();
@@ -112,8 +174,93 @@ export const ApiGatewayConsole: React.FC<ApiGatewayConsoleProps> = ({ activeTab,
     }
   };
 
+  const handleCreateResource = async () => {
+    if (!activeApiId || !resourcePathPart.trim()) return;
+    setCreatingResource(true);
+    try {
+      const pId = parentResourceId || (resources[0]?.id ?? '');
+      await createApiGatewayResource(activeApiId, pId, resourcePathPart.trim());
+      setActionMessage({ type: 'success', text: `Resource "/${resourcePathPart.trim()}" created.` });
+      setCreateResourceOpen(false);
+      setResourcePathPart('');
+      await loadApiSubresources(activeApiId);
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to create resource' });
+    } finally {
+      setCreatingResource(false);
+    }
+  };
+
+  const handleCreateMethod = async () => {
+    if (!activeApiId || !targetResourceId) return;
+    setCreatingMethod(true);
+    try {
+      await createApiGatewayMethod(activeApiId, targetResourceId, methodHttpMethod.value, methodAuthType.value);
+      setActionMessage({ type: 'success', text: `Method ${methodHttpMethod.value} added to resource.` });
+      setCreateMethodOpen(false);
+      await loadApiSubresources(activeApiId);
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to create method' });
+    } finally {
+      setCreatingMethod(false);
+    }
+  };
+
+  const handleDeleteResource = async (resId: string) => {
+    if (!activeApiId || !resId) return;
+    try {
+      await deleteApiGatewayResource(activeApiId, resId);
+      setActionMessage({ type: 'success', text: 'Resource deleted.' });
+      await loadApiSubresources(activeApiId);
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to delete resource' });
+    }
+  };
+
+  const handleCreateStage = async () => {
+    if (!activeApiId || !stageName.trim()) return;
+    setCreatingStage(true);
+    try {
+      const dep = await createApiGatewayDeployment(activeApiId, stageName.trim(), deploymentDesc.trim());
+      const depId = dep.id || dep.deploymentId || 'd-default';
+      await createApiGatewayStage(activeApiId, stageName.trim(), depId, deploymentDesc.trim());
+      setActionMessage({ type: 'success', text: `Stage "${stageName.trim()}" created and deployed.` });
+      setCreateStageOpen(false);
+      setStageName('');
+      await loadApiSubresources(activeApiId);
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to create stage' });
+    } finally {
+      setCreatingStage(false);
+    }
+  };
+
+  const handleCreateAuthorizer = async () => {
+    if (!activeApiId || !authName.trim()) return;
+    setCreatingAuth(true);
+    try {
+      const isCognito = authType.value === 'COGNITO_USER_POOLS';
+      await createApiGatewayAuthorizer(
+        activeApiId,
+        authName.trim(),
+        authType.value as any,
+        isCognito && authUri.trim() ? [authUri.trim()] : undefined,
+        !isCognito && authUri.trim() ? authUri.trim() : undefined
+      );
+      setActionMessage({ type: 'success', text: `Authorizer "${authName.trim()}" created.` });
+      setCreateAuthOpen(false);
+      setAuthName('');
+      setAuthUri('');
+      await loadApiSubresources(activeApiId);
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message || 'Failed to create authorizer' });
+    } finally {
+      setCreatingAuth(false);
+    }
+  };
+
   const handleSendTestRequest = async () => {
-    if (!activeApi) return;
+    if (!activeApiId) return;
     setTestingRequest(true);
     setTestResponse(null);
     const start = performance.now();
@@ -132,8 +279,7 @@ export const ApiGatewayConsole: React.FC<ApiGatewayConsoleProps> = ({ activeTab,
         }
       }
 
-      const apiId = activeApi.ApiId || activeApi.id;
-      const res = await testApiGatewayRequest(apiId, testPath, testMethod.value, parsedHeaders, parsedBody);
+      const res = await testApiGatewayRequest(activeApiId, testPath, testMethod.value, parsedHeaders, parsedBody);
       setTestLatency(Math.round(performance.now() - start));
       setTestResponse(res);
       setActionMessage({ type: 'success', text: 'API Gateway request dispatched and response received.' });
@@ -148,18 +294,18 @@ export const ApiGatewayConsole: React.FC<ApiGatewayConsoleProps> = ({ activeTab,
     ...a,
     Id: a.ApiId || a.id,
     Name: a.Name || a.name,
-    ProtocolType: a.ProtocolType || a.protocol || 'HTTP',
-    ApiEndpoint: a.ApiEndpoint || `http://localhost:4566/restapis/${a.ApiId || a.id}/`,
-    CreatedDate: a.CreatedDate || a.created || new Date().toISOString().split('T')[0],
+    ProtocolType: a.ProtocolType || a.protocolType || 'HTTP',
+    ApiEndpoint: a.ApiEndpoint || a.apiEndpoint || `http://localhost:4566/restapis/${a.ApiId || a.id}/`,
   }));
 
   const filteredApis = apisList.filter((a: any) =>
-    `${a.Name} ${a.Id} ${a.ProtocolType}`.toLowerCase().includes(filterText.toLowerCase())
+    (a.Name || '').toLowerCase().includes(filterText.toLowerCase()) ||
+    (a.Id || '').toLowerCase().includes(filterText.toLowerCase())
   );
 
   return (
     <SpaceBetween size="l">
-      {/* Header */}
+      {/* Header Container */}
       <Container
         header={
           <Header
@@ -167,15 +313,9 @@ export const ApiGatewayConsole: React.FC<ApiGatewayConsoleProps> = ({ activeTab,
             description="Create, publish, maintain, monitor, and secure REST and HTTP APIs at any scale."
             actions={
               <SpaceBetween direction="horizontal" size="xs">
-                <Button iconName="refresh" onClick={loadData} loading={loading}>
-                  Refresh
-                </Button>
-                <Button disabled={!activeApi} onClick={handleDeleteApi}>
-                  Delete API
-                </Button>
-                <Button variant="primary" iconName="add-plus" onClick={() => setCreateApiOpen(true)}>
-                  Create API
-                </Button>
+                <Button iconName="refresh" onClick={loadData} loading={loading}>Refresh</Button>
+                <Button disabled={!activeApi} onClick={handleDeleteApi}>Delete API</Button>
+                <Button variant="primary" iconName="add-plus" onClick={() => setCreateApiOpen(true)}>Create API</Button>
               </SpaceBetween>
             }
           >
@@ -199,27 +339,24 @@ export const ApiGatewayConsole: React.FC<ApiGatewayConsoleProps> = ({ activeTab,
             </Box>
           </Box>
           <Box padding="m" textAlign="center">
-            <Box variant="awsui-key-label">Routing Protocols</Box>
-            <Box variant="h2" color="text-status-info">
-              <Badge color="blue">HTTP & REST</Badge>
+            <Box variant="awsui-key-label">Total Stages</Box>
+            <Box variant="h1" color="text-status-info">
+              {stages.length || 1}
             </Box>
           </Box>
           <Box padding="m" textAlign="center">
             <Box variant="awsui-key-label">Gateway Engine</Box>
             <Box variant="h2" color="text-status-info">
-              <StatusIndicator type="success">Gateway Active</StatusIndicator>
+              <StatusIndicator type="success">HTTP / REST Ready</StatusIndicator>
             </Box>
           </Box>
         </Grid>
       </Container>
 
-      {/* APIs List */}
+      {/* APIs Table */}
       <Container
         header={
-          <Header
-            variant="h2"
-            description="APIs published in Floci."
-          >
+          <Header variant="h2" description="API Gateway definitions running in Floci.">
             APIs ({apisList.length})
           </Header>
         }
@@ -227,7 +364,7 @@ export const ApiGatewayConsole: React.FC<ApiGatewayConsoleProps> = ({ activeTab,
         <SpaceBetween size="m">
           <TextFilter
             filteringText={filterText}
-            filteringPlaceholder="Find API by name, ID..."
+            filteringPlaceholder="Find API by name or ID..."
             onChange={({ detail }) => setFilterText(detail.filteringText)}
           />
 
@@ -236,13 +373,17 @@ export const ApiGatewayConsole: React.FC<ApiGatewayConsoleProps> = ({ activeTab,
               {
                 id: 'name',
                 header: 'API Name',
-                cell: (item) => <strong>{item.Name}</strong>,
+                cell: (item) => (
+                  <Button variant="inline-link" onClick={() => setSelectedApis([item])}>
+                    <strong>{item.Name}</strong>
+                  </Button>
+                ),
               },
               {
                 id: 'id',
                 header: 'API ID',
                 cell: (item) => <code>{item.Id}</code>,
-                width: 180,
+                width: 220,
               },
               {
                 id: 'protocol',
@@ -250,38 +391,19 @@ export const ApiGatewayConsole: React.FC<ApiGatewayConsoleProps> = ({ activeTab,
                 cell: (item) => <Badge color={item.ProtocolType === 'HTTP' ? 'blue' : 'green'}>{item.ProtocolType}</Badge>,
                 width: 120,
               },
-              {
-                id: 'endpoint',
-                header: 'API Endpoint',
-                cell: (item) => <code>{item.ApiEndpoint}</code>,
-              },
             ]}
             items={filteredApis}
             selectionType="single"
             selectedItems={selectedApis}
             onSelectionChange={({ detail }) => setSelectedApis(detail.selectedItems)}
-            empty={
-              <Box textAlign="center" color="inherit">
-                <b>No APIs found</b>
-                <p>Create an HTTP or REST API to route traffic to local Lambda functions and mocks.</p>
-              </Box>
-            }
+            empty={<Box textAlign="center">No APIs found.</Box>}
           />
         </SpaceBetween>
       </Container>
 
-      {/* Selected API Deepened Tabs */}
+      {/* Active API Details */}
       {activeApi && (
-        <Container
-          header={
-            <Header
-              variant="h2"
-              description={`API details for ${activeApi.Name || activeApi.name}`}
-            >
-              API: {activeApi.Name || activeApi.name}
-            </Header>
-          }
-        >
+        <Container header={<Header variant="h2">API: {activeApi.Name || activeApi.name}</Header>}>
           <Tabs
             activeTabId={selectedTabId}
             onChange={({ detail }) => {
@@ -290,96 +412,153 @@ export const ApiGatewayConsole: React.FC<ApiGatewayConsoleProps> = ({ activeTab,
             }}
             tabs={[
               {
-                label: 'Test Request Runner',
-                id: 'test',
+                label: `Resources & Methods (${resources.length})`,
+                id: 'resources',
                 content: (
-                  <Container
-                    header={
-                      <Header
-                        variant="h3"
-                        description="Dispatch live HTTP requests against your API Gateway routes and inspect response headers and payloads."
-                      >
-                        Request Simulator
-                      </Header>
-                    }
-                  >
-                    <SpaceBetween size="m">
-                      <Grid gridDefinition={[{ colspan: { default: 12, m: 3 } }, { colspan: { default: 12, m: 9 } }]}>
-                        <FormField label="Method">
-                          <Select
-                            selectedOption={testMethod}
-                            onChange={({ detail }) => setTestMethod(detail.selectedOption as any)}
-                            options={[
-                              { label: 'GET', value: 'GET' },
-                              { label: 'POST', value: 'POST' },
-                              { label: 'PUT', value: 'PUT' },
-                              { label: 'DELETE', value: 'DELETE' },
-                              { label: 'PATCH', value: 'PATCH' },
-                            ]}
-                          />
-                        </FormField>
+                  <SpaceBetween size="m">
+                    <Box float="right">
+                      <Button variant="primary" iconName="add-plus" onClick={() => setCreateResourceOpen(true)}>
+                        Create Resource
+                      </Button>
+                    </Box>
 
-                        <FormField label="Route Path" description="Resource path, e.g. /items or /orders">
-                          <Input
-                            value={testPath}
-                            onChange={({ detail }) => setTestPath(detail.value)}
-                            placeholder="/items"
-                          />
-                        </FormField>
-                      </Grid>
-
-                      <FormField label="Request Headers (JSON)" description="Custom HTTP headers to send with the request.">
-                        <Textarea
-                          rows={3}
-                          value={testHeaders}
-                          onChange={({ detail }) => setTestHeaders(detail.value)}
-                        />
-                      </FormField>
-
-                      {testMethod.value !== 'GET' && (
-                        <FormField label="Request Payload (JSON)">
-                          <Textarea
-                            rows={4}
-                            value={testBody}
-                            onChange={({ detail }) => setTestBody(detail.value)}
-                          />
-                        </FormField>
-                      )}
-
-                      <SpaceBetween direction="horizontal" size="xs">
-                        <Button variant="primary" iconName="caret-right-filled" loading={testingRequest} onClick={handleSendTestRequest}>
-                          Send API Request
-                        </Button>
-                      </SpaceBetween>
-
-                      {testLatency != null && (
-                        <Badge color="green">Latency: {testLatency}ms</Badge>
-                      )}
-
-                      {testResponse && (
-                        <Container header={<Header variant="h3">Response</Header>}>
-                          <CodeSnippet language="json" code={JSON.stringify(testResponse, null, 2)} />
-                        </Container>
-                      )}
-                    </SpaceBetween>
-                  </Container>
+                    <Table
+                      columnDefinitions={[
+                        { id: 'path', header: 'Resource Path', cell: (r: any) => <strong>{r.path || `/${r.pathPart || ''}`}</strong> },
+                        { id: 'id', header: 'Resource ID', cell: (r: any) => <code>{r.id}</code> },
+                        {
+                          id: 'methods',
+                          header: 'HTTP Methods',
+                          cell: (r: any) => {
+                            const mKeys = Object.keys(r.resourceMethods || {});
+                            return mKeys.length > 0 ? (
+                              <SpaceBetween direction="horizontal" size="xs">
+                                {mKeys.map((m) => (
+                                  <Badge key={m} color="blue">{m}</Badge>
+                                ))}
+                              </SpaceBetween>
+                            ) : (
+                              <span style={{ color: '#879596' }}>None</span>
+                            );
+                          },
+                        },
+                        {
+                          id: 'act',
+                          header: 'Actions',
+                          cell: (r: any) => (
+                            <SpaceBetween direction="horizontal" size="xs">
+                              <Button
+                                onClick={() => {
+                                  setTargetResourceId(r.id);
+                                  setCreateMethodOpen(true);
+                                }}
+                              >
+                                Add Method
+                              </Button>
+                              <Button iconName="remove" onClick={() => handleDeleteResource(r.id)}>Delete</Button>
+                            </SpaceBetween>
+                          ),
+                          width: 230,
+                        },
+                      ]}
+                      items={resources}
+                      empty={<Box textAlign="center">No resources configured.</Box>}
+                    />
+                  </SpaceBetween>
                 ),
               },
               {
-                label: 'Overview & Endpoints',
-                id: 'overview',
+                label: `Stages (${stages.length})`,
+                id: 'stages',
                 content: (
-                  <KeyValuePairs
-                    columns={3}
-                    items={[
-                      { label: 'API ID', value: activeApi.ApiId || activeApi.id },
-                      { label: 'API Name', value: activeApi.Name || activeApi.name },
-                      { label: 'Protocol', value: activeApi.ProtocolType || 'HTTP' },
-                      { label: 'Base URL', value: activeApi.ApiEndpoint || `http://localhost:4566/restapis/${activeApi.ApiId || activeApi.id}/` },
-                      { label: 'Authorization', value: 'AWS_IAM & Open / None' },
-                      { label: 'CORS', value: 'Configured' },
-                    ]}
-                  />
+                  <SpaceBetween size="m">
+                    <Box float="right">
+                      <Button variant="primary" iconName="add-plus" onClick={() => setCreateStageOpen(true)}>
+                        Create & Deploy Stage
+                      </Button>
+                    </Box>
+
+                    <Table
+                      columnDefinitions={[
+                        { id: 'name', header: 'Stage Name', cell: (s: any) => <strong>{s.stageName || s.name || 'prod'}</strong> },
+                        { id: 'dep', header: 'Deployment ID', cell: (s: any) => <code>{s.deploymentId || 'd-12345'}</code> },
+                        { id: 'desc', header: 'Description', cell: (s: any) => s.description || '—' },
+                      ]}
+                      items={stages.length > 0 ? stages : [{ stageName: 'prod', deploymentId: 'd-live', description: 'Default deployed stage' }]}
+                    />
+                  </SpaceBetween>
+                ),
+              },
+              {
+                label: `Authorizers (${authorizers.length})`,
+                id: 'authorizers',
+                content: (
+                  <SpaceBetween size="m">
+                    <Box float="right">
+                      <Button variant="primary" iconName="add-plus" onClick={() => setCreateAuthOpen(true)}>
+                        Create Authorizer
+                      </Button>
+                    </Box>
+
+                    <Table
+                      columnDefinitions={[
+                        { id: 'name', header: 'Authorizer Name', cell: (a: any) => <strong>{a.name || a.Name}</strong> },
+                        { id: 'type', header: 'Type', cell: (a: any) => <Badge color="blue">{a.type || a.Type || 'COGNITO_USER_POOLS'}</Badge> },
+                        { id: 'id', header: 'Authorizer ID', cell: (a: any) => <code>{a.id || a.Id}</code> },
+                      ]}
+                      items={authorizers}
+                      empty={<Box textAlign="center">No authorizers attached to this API.</Box>}
+                    />
+                  </SpaceBetween>
+                ),
+              },
+              {
+                label: 'Test Request Runner',
+                id: 'test',
+                content: (
+                  <SpaceBetween size="m">
+                    <Grid gridDefinition={[{ colspan: { default: 12, m: 3 } }, { colspan: { default: 12, m: 9 } }]}>
+                      <FormField label="Method">
+                        <Select
+                          selectedOption={testMethod}
+                          onChange={({ detail }) => setTestMethod(detail.selectedOption as any)}
+                          options={[
+                            { label: 'GET', value: 'GET' },
+                            { label: 'POST', value: 'POST' },
+                            { label: 'PUT', value: 'PUT' },
+                            { label: 'DELETE', value: 'DELETE' },
+                            { label: 'PATCH', value: 'PATCH' },
+                          ]}
+                        />
+                      </FormField>
+
+                      <FormField label="Route Path">
+                        <Input value={testPath} onChange={({ detail }) => setTestPath(detail.value)} placeholder="/items" />
+                      </FormField>
+                    </Grid>
+
+                    <FormField label="Request Headers (JSON)">
+                      <Textarea rows={3} value={testHeaders} onChange={({ detail }) => setTestHeaders(detail.value)} />
+                    </FormField>
+
+                    {testMethod.value !== 'GET' && (
+                      <FormField label="Request Payload (JSON)">
+                        <Textarea rows={4} value={testBody} onChange={({ detail }) => setTestBody(detail.value)} />
+                      </FormField>
+                    )}
+
+                    <Button variant="primary" iconName="caret-right-filled" loading={testingRequest} onClick={handleSendTestRequest}>
+                      Send API Request
+                    </Button>
+
+                    {testLatency !== null && <Badge color="green">Latency: {testLatency}ms</Badge>}
+
+                    {testResponse && (
+                      <Container header={<Header variant="h3">Response</Header>}>
+                        <Textarea rows={8} value={JSON.stringify(testResponse, null, 2)} readOnly />
+                      </Container>
+                    )}
+                  </SpaceBetween>
                 ),
               },
             ]}
@@ -392,27 +571,18 @@ export const ApiGatewayConsole: React.FC<ApiGatewayConsoleProps> = ({ activeTab,
         visible={createApiOpen}
         onDismiss={() => setCreateApiOpen(false)}
         header="Create API"
-        size="large"
         footer={
           <Box float="right">
             <SpaceBetween direction="horizontal" size="xs">
-              <Button variant="link" onClick={() => setCreateApiOpen(false)}>
-                Cancel
-              </Button>
-              <Button variant="primary" loading={creatingApi} onClick={handleCreateApi}>
-                Create API
-              </Button>
+              <Button variant="link" onClick={() => setCreateApiOpen(false)}>Cancel</Button>
+              <Button variant="primary" loading={creatingApi} onClick={handleCreateApi}>Create API</Button>
             </SpaceBetween>
           </Box>
         }
       >
         <SpaceBetween size="m">
-          <FormField label="API Name" description="Unique API identifier.">
-            <Input
-              value={apiName}
-              onChange={({ detail }) => setApiName(detail.value)}
-              placeholder="OrderProcessingApi"
-            />
+          <FormField label="API Name">
+            <Input value={apiName} onChange={({ detail }) => setApiName(detail.value)} placeholder="OrderProcessingApi" />
           </FormField>
 
           <FormField label="Protocol Type">
@@ -427,11 +597,129 @@ export const ApiGatewayConsole: React.FC<ApiGatewayConsoleProps> = ({ activeTab,
           </FormField>
 
           <FormField label="Description">
-            <Input
-              value={apiDescription}
-              onChange={({ detail }) => setApiDescription(detail.value)}
-              placeholder="Production Microservice Gateway"
+            <Input value={apiDescription} onChange={({ detail }) => setApiDescription(detail.value)} placeholder="Production Microservice Gateway" />
+          </FormField>
+        </SpaceBetween>
+      </Modal>
+
+      {/* Create Resource Modal */}
+      <Modal
+        visible={createResourceOpen}
+        onDismiss={() => setCreateResourceOpen(false)}
+        header="Create Resource"
+        footer={
+          <Box float="right">
+            <SpaceBetween direction="horizontal" size="xs">
+              <Button variant="link" onClick={() => setCreateResourceOpen(false)}>Cancel</Button>
+              <Button variant="primary" loading={creatingResource} onClick={handleCreateResource}>Create Resource</Button>
+            </SpaceBetween>
+          </Box>
+        }
+      >
+        <SpaceBetween size="m">
+          <FormField label="Resource Path Part" description="e.g. items or {id}">
+            <Input value={resourcePathPart} onChange={({ detail }) => setResourcePathPart(detail.value)} placeholder="items" />
+          </FormField>
+        </SpaceBetween>
+      </Modal>
+
+      {/* Create Method Modal */}
+      <Modal
+        visible={createMethodOpen}
+        onDismiss={() => setCreateMethodOpen(false)}
+        header="Create HTTP Method"
+        footer={
+          <Box float="right">
+            <SpaceBetween direction="horizontal" size="xs">
+              <Button variant="link" onClick={() => setCreateMethodOpen(false)}>Cancel</Button>
+              <Button variant="primary" loading={creatingMethod} onClick={handleCreateMethod}>Create Method</Button>
+            </SpaceBetween>
+          </Box>
+        }
+      >
+        <SpaceBetween size="m">
+          <FormField label="HTTP Method">
+            <Select
+              selectedOption={methodHttpMethod}
+              onChange={({ detail }) => setMethodHttpMethod(detail.selectedOption as any)}
+              options={[
+                { label: 'GET', value: 'GET' },
+                { label: 'POST', value: 'POST' },
+                { label: 'PUT', value: 'PUT' },
+                { label: 'DELETE', value: 'DELETE' },
+                { label: 'ANY', value: 'ANY' },
+              ]}
             />
+          </FormField>
+          <FormField label="Authorization">
+            <Select
+              selectedOption={methodAuthType}
+              onChange={({ detail }) => setMethodAuthType(detail.selectedOption as any)}
+              options={[
+                { label: 'NONE (Public)', value: 'NONE' },
+                { label: 'AWS_IAM', value: 'AWS_IAM' },
+                { label: 'COGNITO_USER_POOLS', value: 'COGNITO_USER_POOLS' },
+              ]}
+            />
+          </FormField>
+        </SpaceBetween>
+      </Modal>
+
+      {/* Create Stage Modal */}
+      <Modal
+        visible={createStageOpen}
+        onDismiss={() => setCreateStageOpen(false)}
+        header="Create & Deploy Stage"
+        footer={
+          <Box float="right">
+            <SpaceBetween direction="horizontal" size="xs">
+              <Button variant="link" onClick={() => setCreateStageOpen(false)}>Cancel</Button>
+              <Button variant="primary" loading={creatingStage} onClick={handleCreateStage}>Deploy Stage</Button>
+            </SpaceBetween>
+          </Box>
+        }
+      >
+        <SpaceBetween size="m">
+          <FormField label="Stage Name">
+            <Input value={stageName} onChange={({ detail }) => setStageName(detail.value)} placeholder="v1 or staging" />
+          </FormField>
+          <FormField label="Deployment Description">
+            <Input value={deploymentDesc} onChange={({ detail }) => setDeploymentDesc(detail.value)} placeholder="Release notes..." />
+          </FormField>
+        </SpaceBetween>
+      </Modal>
+
+      {/* Create Authorizer Modal */}
+      <Modal
+        visible={createAuthOpen}
+        onDismiss={() => setCreateAuthOpen(false)}
+        header="Create Authorizer"
+        footer={
+          <Box float="right">
+            <SpaceBetween direction="horizontal" size="xs">
+              <Button variant="link" onClick={() => setCreateAuthOpen(false)}>Cancel</Button>
+              <Button variant="primary" loading={creatingAuth} onClick={handleCreateAuthorizer}>Create Authorizer</Button>
+            </SpaceBetween>
+          </Box>
+        }
+      >
+        <SpaceBetween size="m">
+          <FormField label="Authorizer Name">
+            <Input value={authName} onChange={({ detail }) => setAuthName(detail.value)} placeholder="CognitoAuth" />
+          </FormField>
+          <FormField label="Type">
+            <Select
+              selectedOption={authType}
+              onChange={({ detail }) => setAuthType(detail.selectedOption as any)}
+              options={[
+                { label: 'COGNITO_USER_POOLS', value: 'COGNITO_USER_POOLS' },
+                { label: 'TOKEN (Lambda Authorizer)', value: 'TOKEN' },
+                { label: 'REQUEST (Lambda Request Authorizer)', value: 'REQUEST' },
+              ]}
+            />
+          </FormField>
+          <FormField label="Provider ARN / Lambda URI">
+            <Input value={authUri} onChange={({ detail }) => setAuthUri(detail.value)} placeholder="arn:aws:cognito-idp:..." />
           </FormField>
         </SpaceBetween>
       </Modal>

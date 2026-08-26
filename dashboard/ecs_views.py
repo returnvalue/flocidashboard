@@ -11,17 +11,20 @@ from .ecs_api import (
     create_service,
     delete_cluster,
     delete_service,
-    deregister_task_definition,
     delete_task_definitions,
+    deregister_task_definition,
+    diff_task_definitions,
     put_account_setting,
     register_task_definition,
     run_task,
+    scale_service,
     stop_task,
     tag_resource,
     untag_resource,
+    update_container_instances_state,
     update_service,
     update_task_protection,
-    update_container_instances_state,
+    validate_fargate_configuration,
 )
 
 
@@ -214,3 +217,40 @@ def ecs_account_settings_put(request):
         ))
     except Exception as exc:
         return handle_action_error(exc, service='ecs', operation='put_account_setting')
+
+
+@require_http_methods(['POST'])
+def ecs_services_scale(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(scale_service(
+            body.get('cluster') or '',
+            body.get('service') or '',
+            body.get('desired_count', 1),
+        ))
+    except Exception as exc:
+        return handle_action_error(exc, service='ecs', operation='scale_service')
+
+
+@require_http_methods(['POST'])
+def ecs_fargate_validate(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(validate_fargate_configuration(
+            cpu=body.get('cpu') or '256',
+            memory=body.get('memory') or '512',
+        ))
+    except Exception as exc:
+        return handle_action_error(exc, service='ecs', operation='validate_fargate_configuration')
+
+
+@require_http_methods(['POST'])
+def ecs_task_definitions_diff(request):
+    try:
+        body = parse_json_body(request)
+        return JsonResponse(diff_task_definitions(
+            body.get('task_definition_a') or '',
+            body.get('task_definition_b') or '',
+        ))
+    except Exception as exc:
+        return handle_action_error(exc, service='ecs', operation='diff_task_definitions')

@@ -20,6 +20,14 @@ import { StepFunctionsConsole } from './pages/StepFunctionsConsole';
 import { CognitoConsole } from './pages/CognitoConsole';
 import { ApiGatewayConsole } from './pages/ApiGatewayConsole';
 import { SSMConsole } from './pages/SSMConsole';
+import { ECSConsole } from './pages/ECSConsole';
+import { EKSConsole } from './pages/EKSConsole';
+import { ECRConsole } from './pages/ECRConsole';
+import { CloudFrontConsole } from './pages/CloudFrontConsole';
+import { ELBv2Console } from './pages/ELBv2Console';
+import { AthenaConsole } from './pages/AthenaConsole';
+import { AppSyncConsole } from './pages/AppSyncConsole';
+import { SESConsole } from './pages/SESConsole';
 import { LabsConsole } from './pages/LabsConsole';
 import { InspectorConsole } from './pages/InspectorConsole';
 import { SettingsConsole } from './pages/SettingsConsole';
@@ -31,17 +39,21 @@ import { GenericServiceWorkbench } from './pages/GenericServiceWorkbench';
 import { AwsServiceIcon } from './components/AwsServiceIcons';
 import { FavoritesBar } from './components/FavoritesBar';
 import { fetchIdentity, fetchServices } from './api/client';
+import { LAB_CURRICULUM } from './labCurriculum';
 import { IdentityInfo, ServiceDefinition } from './types';
 import Container from '@cloudscape-design/components/container';
 import Header from '@cloudscape-design/components/header';
 import SpaceBetween from '@cloudscape-design/components/space-between';
 import Button from '@cloudscape-design/components/button';
 
-function parseUrlPath(): { mainView: string; subTab?: string } {
+function parseUrlPath(): { mainView: string; subTab?: string; fullView: string } {
   const path = window.location.pathname.replace(/^\/app\/?/, '').replace(/^\//, '').replace(/\/$/, '');
-  if (!path || path === 'app' || path === 'home') return { mainView: 'home' };
-  const parts = path.split('/');
-  return { mainView: parts[0] || 'home', subTab: parts[1] };
+  const search = window.location.search;
+  const fullView = path ? (search ? `${path}${search}` : path) : (search ? `home${search}` : 'home');
+  if (!path || path === 'app' || path === 'home') return { mainView: 'home', fullView };
+  const pathWithoutQuery = path.split('?')[0];
+  const parts = pathWithoutQuery.split('/');
+  return { mainView: parts[0] || 'home', subTab: parts[1], fullView };
 }
 
 export const App: React.FC = () => {
@@ -64,10 +76,11 @@ export const App: React.FC = () => {
     const handlePopState = () => {
       const parsed = parseUrlPath();
       setCurrentView(parsed.mainView);
-      setActiveSubView(window.location.pathname.replace(/^\//, '') || 'home');
+      setActiveSubView(parsed.fullView);
       if (parsed.subTab) {
         setActiveTabOverride((prev) => ({ ...prev, [parsed.mainView]: parsed.subTab! }));
       }
+      window.dispatchEvent(new CustomEvent('floci_navigate', { detail: { view: parsed.fullView, mainView: parsed.mainView, subTab: parsed.subTab } }));
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -80,21 +93,28 @@ export const App: React.FC = () => {
       if (window.location.pathname !== '/') {
         window.history.pushState(null, '', '/');
       }
+      window.dispatchEvent(new CustomEvent('floci_navigate', { detail: { view: 'home', mainView: 'home' } }));
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
-    const [main, sub] = view.split('/');
+    const pathPart = view.split('?')[0];
+    const queryPart = view.includes('?') ? view.split('?')[1] : '';
+    const parts = pathPart.split('/');
+    const main = parts[0] || 'home';
+    const sub = parts[1];
+
     setCurrentView(main);
     setActiveSubView(view);
     if (sub) {
       setActiveTabOverride((prev) => ({ ...prev, [main]: sub }));
     }
 
-    const targetPath = `/${view}`;
-    if (window.location.pathname !== targetPath) {
+    const targetPath = queryPart ? `/${pathPart}?${queryPart}` : `/${pathPart}`;
+    if (window.location.pathname + window.location.search !== targetPath) {
       window.history.pushState(null, '', targetPath);
     }
+    window.dispatchEvent(new CustomEvent('floci_navigate', { detail: { view, mainView: main, subTab: sub, query: queryPart } }));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -154,7 +174,7 @@ export const App: React.FC = () => {
       return { href: currentView, text: svc.title };
     }
     const specialHeaders: Record<string, string> = {
-      labs: 'Workflow Labs',
+      labs: 'AWS Workflow Labs (66)',
       inspector: 'Developer Inspector',
       topology: 'Architecture Topology Graph',
       settings: 'Dashboard Settings',
@@ -169,7 +189,7 @@ export const App: React.FC = () => {
     if (currentView === 'home') {
       return [
         { type: 'link' as const, text: 'Console Home', href: 'home', icon: <AwsServiceIcon service="aws" size={18} /> },
-        { type: 'link' as const, text: 'Workflow Labs (63)', href: 'labs', icon: <AwsServiceIcon service="labs" size={18} /> },
+        { type: 'link' as const, text: 'Workflow Labs (66)', href: 'labs', icon: <AwsServiceIcon service="labs" size={18} /> },
         { type: 'link' as const, text: 'Local Inspector Inbox', href: 'inspector', icon: <AwsServiceIcon service="inspector" size={18} /> },
         { type: 'link' as const, text: 'Architecture Topology Graph', href: 'topology', icon: <AwsServiceIcon service="topology" size={18} /> },
         { type: 'divider' as const },
@@ -206,6 +226,13 @@ export const App: React.FC = () => {
             { type: 'link' as const, text: 'Amazon Cognito', href: 'cognito', icon: <AwsServiceIcon service="cognito" size={18} /> },
             { type: 'link' as const, text: 'Amazon API Gateway', href: 'apigateway', icon: <AwsServiceIcon service="apigateway" size={18} /> },
             { type: 'link' as const, text: 'AWS Systems Manager (SSM)', href: 'ssm', icon: <AwsServiceIcon service="ssm" size={18} /> },
+            { type: 'link' as const, text: 'Amazon ECS', href: 'ecs', icon: <AwsServiceIcon service="ecs" size={18} /> },
+            { type: 'link' as const, text: 'Amazon ECR', href: 'ecr', icon: <AwsServiceIcon service="ecr" size={18} /> },
+            { type: 'link' as const, text: 'Amazon CloudFront', href: 'cloudfront', icon: <AwsServiceIcon service="cloudfront" size={18} /> },
+            { type: 'link' as const, text: 'Elastic Load Balancing (ELBv2)', href: 'elasticloadbalancing', icon: <AwsServiceIcon service="elasticloadbalancing" size={18} /> },
+            { type: 'link' as const, text: 'Amazon Athena', href: 'athena', icon: <AwsServiceIcon service="athena" size={18} /> },
+            { type: 'link' as const, text: 'AWS AppSync', href: 'appsync', icon: <AwsServiceIcon service="appsync" size={18} /> },
+            { type: 'link' as const, text: 'Amazon SES', href: 'ses', icon: <AwsServiceIcon service="ses" size={18} /> },
           ],
         },
       ];
@@ -216,8 +243,8 @@ export const App: React.FC = () => {
       case 's3':
         return [
           { type: 'link' as const, text: 'Buckets & Objects', href: 's3/objects', icon: <AwsServiceIcon service="s3" size={18} /> },
-          { type: 'link' as const, text: 'Static Website Hosting', href: 's3/website' },
-          { type: 'link' as const, text: 'Event Notifications Hub', href: 's3/notifications' },
+          { type: 'link' as const, text: 'Properties & Versioning', href: 's3/properties' },
+          { type: 'link' as const, text: 'Permissions & Policy', href: 's3/permissions' },
           { type: 'divider' as const },
           { type: 'link' as const, text: '← Console Home', href: 'home' },
         ];
@@ -284,7 +311,7 @@ export const App: React.FC = () => {
         ];
       case 'sqs':
         return [
-          { type: 'link' as const, text: 'Queues & Dead-Letter Hub', href: 'sqs', icon: <AwsServiceIcon service="sqs" size={18} /> },
+          { type: 'link' as const, text: 'Queues & Message Workbench', href: 'sqs', icon: <AwsServiceIcon service="sqs" size={18} /> },
           { type: 'divider' as const },
           { type: 'link' as const, text: '← Console Home', href: 'home' },
         ];
@@ -296,7 +323,7 @@ export const App: React.FC = () => {
         ];
       case 'rds':
         return [
-          { type: 'link' as const, text: 'Databases & Subnet Groups', href: 'rds', icon: <AwsServiceIcon service="rds" size={18} /> },
+          { type: 'link' as const, text: 'Databases, Clusters & Parameter Groups', href: 'rds', icon: <AwsServiceIcon service="rds" size={18} /> },
           { type: 'divider' as const },
           { type: 'link' as const, text: '← Console Home', href: 'home' },
         ];
@@ -315,7 +342,7 @@ export const App: React.FC = () => {
         ];
       case 'cloudformation':
         return [
-          { type: 'link' as const, text: 'Stacks & YAML Templates', href: 'cloudformation', icon: <AwsServiceIcon service="cloudformation" size={18} /> },
+          { type: 'link' as const, text: 'Stacks, Events & Change Sets', href: 'cloudformation', icon: <AwsServiceIcon service="cloudformation" size={18} /> },
           { type: 'divider' as const },
           { type: 'link' as const, text: '← Console Home', href: 'home' },
         ];
@@ -327,42 +354,114 @@ export const App: React.FC = () => {
         ];
       case 'eventbridge':
         return [
-          { type: 'link' as const, text: 'Event Buses & Rule Patterns', href: 'eventbridge', icon: <AwsServiceIcon service="eventbridge" size={18} /> },
+          { type: 'link' as const, text: 'Rules, Event Buses & Sandbox', href: 'eventbridge', icon: <AwsServiceIcon service="eventbridge" size={18} /> },
           { type: 'divider' as const },
           { type: 'link' as const, text: '← Console Home', href: 'home' },
         ];
       case 'cloudwatch':
         return [
           { type: 'link' as const, text: 'Metric Alarms', href: 'cloudwatch/alarms', icon: <AwsServiceIcon service="cloudwatch" size={18} /> },
-          { type: 'link' as const, text: 'Log Groups & Streams', href: 'cloudwatch/logs' },
+          { type: 'link' as const, text: 'Metrics Explorer & Ingestion', href: 'cloudwatch/metrics' },
+          { type: 'link' as const, text: 'Log Streams & Retention', href: 'cloudwatch/logs' },
           { type: 'divider' as const },
           { type: 'link' as const, text: '← Console Home', href: 'home' },
         ];
       case 'stepfunctions':
         return [
-          { type: 'link' as const, text: 'State Machines & Executions', href: 'stepfunctions', icon: <AwsServiceIcon service="stepfunctions" size={18} /> },
+          { type: 'link' as const, text: 'State Machines & Executions', href: 'stepfunctions/machines', icon: <AwsServiceIcon service="stepfunctions" size={18} /> },
+          { type: 'link' as const, text: 'Activities (Worker Pollers)', href: 'stepfunctions/activities' },
           { type: 'divider' as const },
           { type: 'link' as const, text: '← Console Home', href: 'home' },
         ];
       case 'cognito':
         return [
-          { type: 'link' as const, text: 'User Pools & Users', href: 'cognito/users', icon: <AwsServiceIcon service="cognito" size={18} /> },
-          { type: 'link' as const, text: 'App Clients', href: 'cognito/clients' },
-          { type: 'link' as const, text: 'Authentication Sandbox', href: 'cognito/auth' },
+          { type: 'link' as const, text: 'User Pools & Groups', href: 'cognito/users', icon: <AwsServiceIcon service="cognito" size={18} /> },
+          { type: 'link' as const, text: 'Identity Pools (Federated)', href: 'cognito/identities' },
+          { type: 'link' as const, text: 'Auth & JWT Decoder Sandbox', href: 'cognito/auth' },
           { type: 'divider' as const },
           { type: 'link' as const, text: '← Console Home', href: 'home' },
         ];
       case 'apigateway':
         return [
-          { type: 'link' as const, text: 'APIs & Routes', href: 'apigateway/test', icon: <AwsServiceIcon service="apigateway" size={18} /> },
+          { type: 'link' as const, text: 'Resources & Methods', href: 'apigateway/resources', icon: <AwsServiceIcon service="apigateway" size={18} /> },
+          { type: 'link' as const, text: 'Stages & Deployments', href: 'apigateway/stages' },
+          { type: 'link' as const, text: 'Authorizers', href: 'apigateway/authorizers' },
           { type: 'link' as const, text: 'Test Request Runner', href: 'apigateway/test' },
           { type: 'divider' as const },
           { type: 'link' as const, text: '← Console Home', href: 'home' },
         ];
       case 'ssm':
         return [
-          { type: 'link' as const, text: 'Parameter Store & Path Tree', href: 'ssm/val', icon: <AwsServiceIcon service="ssm" size={18} /> },
-          { type: 'link' as const, text: 'KMS Decryption Revealer', href: 'ssm/val' },
+          { type: 'link' as const, text: 'Parameters & Secrets', href: 'ssm/parameters', icon: <AwsServiceIcon service="ssm" size={18} /> },
+          { type: 'link' as const, text: 'SSM Documents & Runbooks', href: 'ssm/documents' },
+          { type: 'divider' as const },
+          { type: 'link' as const, text: '← Console Home', href: 'home' },
+        ];
+      case 'ecs':
+        return [
+          { type: 'link' as const, text: 'Clusters', href: 'ecs/clusters', icon: <AwsServiceIcon service="ecs" size={18} /> },
+          { type: 'link' as const, text: 'Services', href: 'ecs/services' },
+          { type: 'link' as const, text: 'Tasks', href: 'ecs/tasks' },
+          { type: 'link' as const, text: 'Task Definitions', href: 'ecs/definitions' },
+          { type: 'link' as const, text: 'Container Instances', href: 'ecs/instances' },
+          { type: 'divider' as const },
+          { type: 'link' as const, text: '← Console Home', href: 'home' },
+        ];
+      case 'ecr':
+        return [
+          { type: 'link' as const, text: 'Repositories', href: 'ecr/repositories', icon: <AwsServiceIcon service="ecr" size={18} /> },
+          { type: 'link' as const, text: 'Images Explorer', href: 'ecr/images' },
+          { type: 'link' as const, text: 'Lifecycle Policy & Mutability', href: 'ecr/lifecycle' },
+          { type: 'divider' as const },
+          { type: 'link' as const, text: '← Console Home', href: 'home' },
+        ];
+      case 'cloudfront':
+        return [
+          { type: 'link' as const, text: 'Distributions', href: 'cloudfront/distributions', icon: <AwsServiceIcon service="cloudfront" size={18} /> },
+          { type: 'link' as const, text: 'Invalidations', href: 'cloudfront/invalidations' },
+          { type: 'link' as const, text: 'Origins & Behaviors', href: 'cloudfront/origins' },
+          { type: 'link' as const, text: 'Cache Policies', href: 'cloudfront/cache-policies' },
+          { type: 'link' as const, text: 'Functions', href: 'cloudfront/functions' },
+          { type: 'divider' as const },
+          { type: 'link' as const, text: '← Console Home', href: 'home' },
+        ];
+      case 'elasticloadbalancing':
+      case 'elbv2':
+      case 'elb':
+        return [
+          { type: 'link' as const, text: 'Load Balancers', href: 'elasticloadbalancing/loadbalancers', icon: <AwsServiceIcon service="elasticloadbalancing" size={18} /> },
+          { type: 'link' as const, text: 'Target Groups', href: 'elasticloadbalancing/targetgroups' },
+          { type: 'link' as const, text: 'Registered Targets', href: 'elasticloadbalancing/targets' },
+          { type: 'link' as const, text: 'Listeners', href: 'elasticloadbalancing/listeners' },
+          { type: 'divider' as const },
+          { type: 'link' as const, text: '← Console Home', href: 'home' },
+        ];
+      case 'athena':
+        return [
+          { type: 'link' as const, text: 'Query Editor', href: 'athena/editor', icon: <AwsServiceIcon service="athena" size={18} /> },
+          { type: 'link' as const, text: 'Recent Queries', href: 'athena/history' },
+          { type: 'link' as const, text: 'Workgroups', href: 'athena/workgroups' },
+          { type: 'divider' as const },
+          { type: 'link' as const, text: '← Console Home', href: 'home' },
+        ];
+      case 'appsync':
+        return [
+          { type: 'link' as const, text: 'APIs', href: 'appsync/apis', icon: <AwsServiceIcon service="appsync" size={18} /> },
+          { type: 'link' as const, text: 'Schema Editor', href: 'appsync/schema' },
+          { type: 'link' as const, text: 'Data Sources', href: 'appsync/datasources' },
+          { type: 'link' as const, text: 'Resolvers', href: 'appsync/resolvers' },
+          { type: 'link' as const, text: 'API Keys', href: 'appsync/apikeys' },
+          { type: 'link' as const, text: 'GraphQL Query Sandbox', href: 'appsync/sandbox' },
+          { type: 'divider' as const },
+          { type: 'link' as const, text: '← Console Home', href: 'home' },
+        ];
+      case 'ses':
+        return [
+          { type: 'link' as const, text: 'Verified Identities', href: 'ses/identities', icon: <AwsServiceIcon service="ses" size={18} /> },
+          { type: 'link' as const, text: 'Send Email Workbench', href: 'ses/send' },
+          { type: 'link' as const, text: 'Email Templates', href: 'ses/templates' },
+          { type: 'link' as const, text: 'Configuration Sets', href: 'ses/configsets' },
+          { type: 'link' as const, text: 'Test Mailbox', href: 'ses/mailbox' },
           { type: 'divider' as const },
           { type: 'link' as const, text: '← Console Home', href: 'home' },
         ];
@@ -374,7 +473,22 @@ export const App: React.FC = () => {
         ];
       case 'labs':
         return [
-          { type: 'link' as const, text: 'Workflow Labs Catalog (63)', href: 'labs', icon: <AwsServiceIcon service="labs" size={18} /> },
+          {
+            type: 'link' as const,
+            text: 'All Labs Overview (66)',
+            href: 'labs',
+            icon: <AwsServiceIcon service="labs" size={18} />,
+          },
+          { type: 'divider' as const },
+          ...LAB_CURRICULUM.map((level) => ({
+            type: 'section' as const,
+            text: `${level.title} (${level.labs.length})`,
+            items: level.labs.map((lab) => ({
+              type: 'link' as const,
+              text: `#${lab.id}. [${lab.service.toUpperCase()}] ${lab.title}`,
+              href: `labs?service=${lab.service}&lab=${lab.key}`,
+            })),
+          })),
           { type: 'divider' as const },
           { type: 'link' as const, text: '← Console Home', href: 'home' },
         ];
@@ -502,7 +616,15 @@ export const App: React.FC = () => {
           />
         );
       case 'stepfunctions':
-        return <StepFunctionsConsole />;
+        return (
+          <StepFunctionsConsole
+            activeTab={activeTabOverride['stepfunctions']}
+            onTabChange={(tab) => {
+              setActiveTabOverride((prev) => ({ ...prev, stepfunctions: tab }));
+              setActiveSubView(`stepfunctions/${tab}`);
+            }}
+          />
+        );
       case 'cognito':
         return (
           <CognitoConsole
@@ -530,6 +652,88 @@ export const App: React.FC = () => {
             onTabChange={(tab) => {
               setActiveTabOverride((prev) => ({ ...prev, ssm: tab }));
               setActiveSubView(`ssm/${tab}`);
+            }}
+          />
+        );
+      case 'ecs':
+        return (
+          <ECSConsole
+            activeTab={activeTabOverride['ecs']}
+            onTabChange={(tab) => {
+              setActiveTabOverride((prev) => ({ ...prev, ecs: tab }));
+              setActiveSubView(`ecs/${tab}`);
+            }}
+          />
+        );
+      case 'eks':
+        return (
+          <EKSConsole
+            activeTab={activeTabOverride['eks']}
+            onTabChange={(tab) => {
+              setActiveTabOverride((prev) => ({ ...prev, eks: tab }));
+              setActiveSubView(`eks/${tab}`);
+            }}
+          />
+        );
+      case 'ecr':
+        return (
+          <ECRConsole
+            activeTab={activeTabOverride['ecr']}
+            onTabChange={(tab) => {
+              setActiveTabOverride((prev) => ({ ...prev, ecr: tab }));
+              setActiveSubView(`ecr/${tab}`);
+            }}
+          />
+        );
+      case 'cloudfront':
+        return (
+          <CloudFrontConsole
+            activeTab={activeTabOverride['cloudfront']}
+            onTabChange={(tab) => {
+              setActiveTabOverride((prev) => ({ ...prev, cloudfront: tab }));
+              setActiveSubView(`cloudfront/${tab}`);
+            }}
+          />
+        );
+      case 'elasticloadbalancing':
+      case 'elbv2':
+      case 'elb':
+        return (
+          <ELBv2Console
+            activeTab={activeTabOverride['elasticloadbalancing'] || activeTabOverride['elbv2']}
+            onTabChange={(tab) => {
+              setActiveTabOverride((prev) => ({ ...prev, elasticloadbalancing: tab, elbv2: tab }));
+              setActiveSubView(`elasticloadbalancing/${tab}`);
+            }}
+          />
+        );
+      case 'athena':
+        return (
+          <AthenaConsole
+            activeTab={activeTabOverride['athena']}
+            onTabChange={(tab) => {
+              setActiveTabOverride((prev) => ({ ...prev, athena: tab }));
+              setActiveSubView(`athena/${tab}`);
+            }}
+          />
+        );
+      case 'appsync':
+        return (
+          <AppSyncConsole
+            activeTab={activeTabOverride['appsync']}
+            onTabChange={(tab) => {
+              setActiveTabOverride((prev) => ({ ...prev, appsync: tab }));
+              setActiveSubView(`appsync/${tab}`);
+            }}
+          />
+        );
+      case 'ses':
+        return (
+          <SESConsole
+            activeTab={activeTabOverride['ses']}
+            onTabChange={(tab) => {
+              setActiveTabOverride((prev) => ({ ...prev, ses: tab }));
+              setActiveSubView(`ses/${tab}`);
             }}
           />
         );

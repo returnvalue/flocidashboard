@@ -11,6 +11,7 @@ const SQSConsole = (() => {
     inventory: null,
     selectedQueue: '',
     messages: [],
+    redriveTasks: [],
   };
 
   const el = consoleUi.el;
@@ -41,22 +42,14 @@ const SQSConsole = (() => {
 
   function formatBytes(bytes) {
     const value = Number(bytes || 0);
-    if (!value) {
-      return '';
-    }
-    if (value >= 1024 * 1024) {
-      return `${value / (1024 * 1024)} MB`;
-    }
-    if (value >= 1024) {
-      return `${value / 1024} KB`;
-    }
+    if (!value) return '';
+    if (value >= 1024 * 1024) return `${value / (1024 * 1024)} MB`;
+    if (value >= 1024) return `${value / 1024} KB`;
     return `${value} bytes`;
   }
 
   function renderBreadcrumbs() {
-    if (!breadcrumbsEl) {
-      return;
-    }
+    if (!breadcrumbsEl) return;
     breadcrumbsEl.textContent = '';
     const home = el('button', null, 'Amazon SQS');
     home.addEventListener('click', () => {
@@ -144,18 +137,6 @@ const SQSConsole = (() => {
     return data;
   }
 
-  function replaySendMessage(item) {
-    const payload = item.payload || {};
-    const queue = queues().find((candidate) => candidate.name === payload.queue_name) || selectedQueue();
-    if (payload.queue_name) {
-      state.selectedQueue = payload.queue_name;
-    }
-    render();
-    if (queue) {
-      showSendMessageModal(queue, payload);
-    }
-  }
-
   function showSendMessageModal(queue, replay = null) {
     const form = el('div');
     const bodyInput = document.createElement('textarea');
@@ -174,7 +155,21 @@ const SQSConsole = (() => {
     const dedupeInput = document.createElement('input');
     dedupeInput.placeholder = 'optional';
     dedupeInput.value = replay?.message_deduplication_id || '';
-    form.append(el('label', null, 'Message body'), bodyInput, el('label', null, 'Delay seconds'), delayInput);
+
+    const attrsInput = document.createElement('textarea');
+    attrsInput.placeholder = '{"CorrelationId": "req-1234", "TraceId": {"DataType": "String", "StringValue": "trace-5678"}}';
+    if (replay?.message_attributes) {
+      attrsInput.value = typeof replay.message_attributes === 'string' ? replay.message_attributes : JSON.stringify(replay.message_attributes, null, 2);
+    }
+
+    form.append(
+      el('label', null, 'Message body'),
+      bodyInput,
+      el('label', null, 'Delay seconds'),
+      delayInput,
+      el('label', null, 'Message attributes (JSON object, Optional)'),
+      attrsInput,
+    );
     if (queue.fifo) {
       form.append(
         el('label', null, 'Message group ID'),
@@ -191,6 +186,13 @@ const SQSConsole = (() => {
       if (queue.fifo) {
         payload.message_group_id = groupInput.value.trim();
         payload.message_deduplication_id = dedupeInput.value.trim();
+      }
+      if (attrsInput.value.trim()) {
+        try {
+          payload.message_attributes = JSON.parse(attrsInput.value.trim());
+        } catch (e) {
+          throw new Error('Message attributes must be valid JSON: ' + e.message);
+        }
       }
       await sendMessage(queue, payload);
       close();
@@ -218,18 +220,6 @@ const SQSConsole = (() => {
       },
     });
     return data;
-  }
-
-  function replayReceiveMessages(item) {
-    const payload = item.payload || {};
-    const queue = queues().find((candidate) => candidate.name === payload.queue_name) || selectedQueue();
-    if (payload.queue_name) {
-      state.selectedQueue = payload.queue_name;
-    }
-    render();
-    if (queue) {
-      showReceiveMessagesModal(queue, payload);
-    }
   }
 
   function showReceiveMessagesModal(queue, replay = null) {
@@ -269,6 +259,95 @@ const SQSConsole = (() => {
       close();
       toast(state.messages.length ? `Received ${state.messages.length} message(s)` : 'No messages available');
       render();
+    });
+  }
+
+  function showRedriveModal(queue) {
+    const form = el('div');
+    const queueArn = queue.arn || queue.attributes?.QueueArn || `arn:aws:sqs:us-east-1:000000000000:${queue.name}`;
+
+    const destSelect = document.createElement('select');
+    const defOpt = el('option', null, 'Default (Redrive to Original Source Queues)');
+    defOpt.value = '';
+    destSelect.append(defOpt);
+    queues().filter((q) => q.name !== queue.name).forEach((q) => {
+      const opt = el('option', null, `Queue: ${q.name}`);
+      opt.value = q.arn || `arn:aws:sqs:us-east-1:000000000000:${q.name}`;
+      destSelect.append(opt);
+    });
+
+    const rateInput = document.createElement('input');
+    rateInput.type = 'number';
+    rateInput.min = '1';
+    rateInput.placeholder = 'e.g. 50 (unlimited if empty)';
+
+    form.append(
+      el('p', null, `Start Dead-Letter Queue (DLQ) message redrive task for ${queue.name}.`),
+      el('label', null, 'Destination Queue ARN (Optional)'),
+      destSelect,
+      el('label', null, 'Max Messages Per Second Rate (Optional)'),
+      rateInput,
+    );
+
+    openModal('Start DLQ Redrive', form, 'Start Redrive', async (close) => {
+      const payload = { source_arn: queueArn };
+      if (destSelect.value) payload.destination_arn = destSelect.value;
+      if (rateInput.value) payload.max_number_of_messages_per_second = Number(rateInput.value);
+
+      const res = await apiJson(`/api/sqs/queues/${encodeURIComponent(queue.name)}/redrive/`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      toast(`DLQ redrive task started (Task ID: ${res.task_handle || 'active'})`);
+      close();
+      await refresh();
+    });
+  }
+
+  function showAttributesModal(queue) {
+    const form = el('div');
+    const attrs = queue.attributes || {};
+
+    const visInput = document.createElement('input');
+    visInput.value = attrs.VisibilityTimeout || '30';
+
+    const delayInput = document.createElement('input');
+    delayInput.value = attrs.DelaySeconds || '0';
+
+    const waitInput = document.createElement('input');
+    waitInput.value = attrs.ReceiveMessageWaitTimeSeconds || '0';
+
+    const redrivePolicyInput = document.createElement('textarea');
+    redrivePolicyInput.placeholder = '{"deadLetterTargetArn": "arn:aws:sqs:...", "maxReceiveCount": 5}';
+    redrivePolicyInput.value = attrs.RedrivePolicy || '';
+
+    form.append(
+      el('label', null, 'Visibility Timeout (Seconds)'),
+      visInput,
+      el('label', null, 'Delivery Delay (Seconds)'),
+      delayInput,
+      el('label', null, 'Receive Message Wait Time (Seconds)'),
+      waitInput,
+      el('label', null, 'Redrive Policy / DLQ Configuration (JSON string)'),
+      redrivePolicyInput,
+    );
+
+    openModal('Configure Queue Attributes', form, 'Save Changes', async (close) => {
+      const newAttrs = {
+        VisibilityTimeout: visInput.value.trim(),
+        DelaySeconds: delayInput.value.trim(),
+        ReceiveMessageWaitTimeSeconds: waitInput.value.trim(),
+      };
+      if (redrivePolicyInput.value.trim()) {
+        newAttrs.RedrivePolicy = redrivePolicyInput.value.trim();
+      }
+      await apiJson(`/api/sqs/queues/${encodeURIComponent(queue.name)}/attributes/`, {
+        method: 'POST',
+        body: JSON.stringify({ attributes: newAttrs }),
+      });
+      toast('Queue attributes updated');
+      close();
+      await refresh();
     });
   }
 
@@ -355,11 +434,23 @@ const SQSConsole = (() => {
     } else {
       const facts = document.createElement('dl');
       const maxSize = queue.attributes?.MaximumMessageSize || state.inventory?.configuration?.max_message_size_bytes;
+      consoleUi.addField(facts, 'Queue ARN', queue.arn || queue.attributes?.QueueArn);
       consoleUi.addField(facts, 'Visible messages', queue.approximate_messages);
       consoleUi.addField(facts, 'In-flight messages', queue.approximate_not_visible);
       consoleUi.addField(facts, 'Delayed messages', queue.approximate_delayed);
       consoleUi.addField(facts, 'Maximum message size', formatBytes(maxSize));
+      if (queue.attributes?.RedrivePolicy) {
+        consoleUi.addField(facts, 'Redrive Policy (DLQ)', queue.attributes.RedrivePolicy);
+      }
       list.append(facts);
+
+      const queueActionRow = el('div', 'sqs-action-row');
+      queueActionRow.append(
+        btn('Redrive DLQ Messages', 'sqs-btn-secondary', () => showRedriveModal(queue)),
+        btn('Configure Attributes', 'sqs-btn-secondary', () => showAttributesModal(queue)),
+      );
+      list.append(queueActionRow);
+
       if (!state.messages.length) {
         list.append(el('div', 'sqs-empty', 'No received messages. Poll the queue to inspect available messages.'));
       } else {
@@ -373,9 +464,13 @@ const SQSConsole = (() => {
         emptyText: 'Send or poll messages to build a local replay history.',
         onReplay: (item) => {
           if (item.action === 'send_message') {
-            replaySendMessage(item);
+            state.selectedQueue = item.payload?.queue_name || state.selectedQueue;
+            render();
+            showSendMessageModal(selectedQueue(), item.payload);
           } else {
-            replayReceiveMessages(item);
+            state.selectedQueue = item.payload?.queue_name || state.selectedQueue;
+            render();
+            showReceiveMessagesModal(selectedQueue(), item.payload);
           }
         },
         onClear: render,
@@ -393,6 +488,7 @@ const SQSConsole = (() => {
         btn('Create queue', null, showCreateQueueModal),
         btn('Send message', 'sqs-btn-secondary', () => queue && showSendMessageModal(queue)),
         btn('Poll messages', 'sqs-btn-secondary', () => queue && showReceiveMessagesModal(queue)),
+        btn('DLQ Redrive', 'sqs-btn-secondary', () => queue && showRedriveModal(queue)),
       ],
       [
         btn('Purge queue', 'sqs-btn-danger', () => queue && confirmQueueAction(
@@ -435,9 +531,7 @@ const SQSConsole = (() => {
   }
 
   function render() {
-    if (!root) {
-      return;
-    }
+    if (!root) return;
     renderBreadcrumbs();
     root.textContent = '';
     root.append(renderWorkbench());
@@ -457,9 +551,7 @@ const SQSConsole = (() => {
   }
 
   function init() {
-    if (!root) {
-      return;
-    }
+    if (!root) return;
     root.append(el('div', 'sqs-empty', 'Loading...'));
     refresh().catch((error) => toast(error.message, true));
   }

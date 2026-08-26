@@ -11,6 +11,8 @@ const LambdaConsole = (() => {
     inventory: null,
     selectedFunctionName: '',
     lastInvoke: null,
+    lastUrlTest: null,
+    templates: null,
   };
 
   const el = consoleUi.el;
@@ -39,10 +41,29 @@ const LambdaConsole = (() => {
     return fn?.name ? `/aws/lambda/${fn.name}` : '';
   }
 
-  function renderBreadcrumbs() {
-    if (!breadcrumbsEl) {
-      return;
+  function getSavedEvents(fnName) {
+    try {
+      const raw = localStorage.getItem(`floci_lambda_saved_events_${fnName}`);
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      return {};
     }
+  }
+
+  function saveEvent(fnName, eventName, payload) {
+    const events = getSavedEvents(fnName);
+    events[eventName] = payload;
+    localStorage.setItem(`floci_lambda_saved_events_${fnName}`, JSON.stringify(events));
+  }
+
+  function deleteSavedEvent(fnName, eventName) {
+    const events = getSavedEvents(fnName);
+    delete events[eventName];
+    localStorage.setItem(`floci_lambda_saved_events_${fnName}`, JSON.stringify(events));
+  }
+
+  function renderBreadcrumbs() {
+    if (!breadcrumbsEl) return;
     breadcrumbsEl.textContent = '';
     const home = el('button', null, 'AWS Lambda');
     home.addEventListener('click', () => {
@@ -71,9 +92,7 @@ const LambdaConsole = (() => {
 
   function parsePayload(value) {
     const trimmed = value.trim();
-    if (!trimmed) {
-      return {};
-    }
+    if (!trimmed) return {};
     return JSON.parse(trimmed);
   }
 
@@ -177,6 +196,17 @@ const LambdaConsole = (() => {
     });
   }
 
+  async function loadTemplates() {
+    if (!state.templates) {
+      try {
+        state.templates = await apiJson('/api/lambda/test-events/templates/');
+      } catch (e) {
+        state.templates = {};
+      }
+    }
+    return state.templates;
+  }
+
   async function invokeFunction(fn, payload) {
     const data = await apiJson(invokePath(fn.name), {
       method: 'POST',
@@ -210,11 +240,70 @@ const LambdaConsole = (() => {
     }
   }
 
-  function showInvokeModal(fn, replay = null) {
-    const form = el('div');
+  async function showInvokeModal(fn, replay = null) {
+    const templates = await loadTemplates();
+    const savedEvents = getSavedEvents(fn.name);
+
+    const form = el('div', 'lambda-modal-form');
+
+    const templateSelect = document.createElement('select');
+    const defaultTemplateOpt = el('option', null, '-- Choose Built-in AWS Event Template --');
+    defaultTemplateOpt.value = '';
+    templateSelect.append(defaultTemplateOpt);
+    Object.entries(templates).forEach(([key, info]) => {
+      const opt = el('option', null, info.name);
+      opt.value = key;
+      templateSelect.append(opt);
+    });
+
+    const savedSelect = document.createElement('select');
+    const defaultSavedOpt = el('option', null, '-- Choose Saved Custom Test Event --');
+    defaultSavedOpt.value = '';
+    savedSelect.append(defaultSavedOpt);
+    Object.keys(savedEvents).forEach((name) => {
+      const opt = el('option', null, name);
+      opt.value = name;
+      savedSelect.append(opt);
+    });
+
     const payloadInput = document.createElement('textarea');
     payloadInput.required = true;
+    payloadInput.style.minHeight = '180px';
     payloadInput.value = JSON.stringify(replay?.payload || { source: 'floci-dashboard' }, null, 2);
+
+    templateSelect.addEventListener('change', () => {
+      const selected = templates[templateSelect.value];
+      if (selected) {
+        payloadInput.value = JSON.stringify(selected.event, null, 2);
+      }
+    });
+
+    savedSelect.addEventListener('change', () => {
+      const eventData = savedEvents[savedSelect.value];
+      if (eventData) {
+        payloadInput.value = JSON.stringify(eventData, null, 2);
+      }
+    });
+
+    const saveEventRow = el('div', 'lambda-save-event-row');
+    const saveNameInput = document.createElement('input');
+    saveNameInput.placeholder = 'Event name (e.g. valid-order-event)';
+    const saveBtn = btn('Save Test Event', 'lambda-btn-secondary', () => {
+      const name = saveNameInput.value.trim();
+      if (!name) {
+        toast('Please enter a test event name', true);
+        return;
+      }
+      try {
+        const payloadObj = JSON.parse(payloadInput.value);
+        saveEvent(fn.name, name, payloadObj);
+        toast(`Test event "${name}" saved in browser storage`);
+      } catch (e) {
+        toast('Payload must be valid JSON to save: ' + e.message, true);
+      }
+    });
+    saveEventRow.append(saveNameInput, saveBtn);
+
     const qualifierInput = document.createElement('input');
     qualifierInput.placeholder = 'optional version or alias';
     qualifierInput.value = replay?.qualifier || '';
@@ -222,8 +311,9 @@ const LambdaConsole = (() => {
     qualifierList.id = 'lambda-qualifiers';
     [...(fn.aliases || []).map((alias) => alias.Name), ...(fn.versions || []).map((version) => version.Version)].forEach((value) => qualifierList.append(el('option', null, value)));
     qualifierInput.setAttribute('list', qualifierList.id);
+
     const typeInput = document.createElement('select');
-    [['RequestResponse', 'Synchronous'], ['Event', 'Asynchronous'], ['DryRun', 'Validate only']].forEach(([value, label]) => {
+    [['RequestResponse', 'Synchronous (RequestResponse)'], ['Event', 'Asynchronous (Event)'], ['DryRun', 'Validate only (DryRun)']].forEach(([value, label]) => {
       const option = el('option', null, label); option.value = value; typeInput.append(option);
     });
     typeInput.value = replay?.invocation_type || 'RequestResponse';
@@ -231,16 +321,22 @@ const LambdaConsole = (() => {
     form.append(
       el('label', null, 'Function'),
       el('pre', 'lambda-function-preview', fn.name),
-      el('label', null, 'JSON payload'),
+      el('label', null, 'Event Template Presets'),
+      templateSelect,
+      el('label', null, 'Saved Test Events'),
+      savedSelect,
+      el('label', null, 'JSON Payload Editor'),
       payloadInput,
-      el('label', null, 'Qualifier'),
+      el('label', null, 'Save as Named Test Event'),
+      saveEventRow,
+      el('label', null, 'Qualifier (Alias or Version)'),
       qualifierInput,
       qualifierList,
-      el('label', null, 'Invocation type'),
+      el('label', null, 'Invocation Type'),
       typeInput,
     );
 
-    openModal('Invoke function', form, 'Invoke', async (close) => {
+    openModal('Invoke Lambda Function', form, 'Invoke', async (close) => {
       const data = await invokeFunction(fn, {
         payload: parsePayload(payloadInput.value),
         qualifier: qualifierInput.value.trim() || null,
@@ -249,6 +345,72 @@ const LambdaConsole = (() => {
       state.lastInvoke = data;
       close();
       toast(data.function_error ? `Function error: ${data.function_error}` : 'Function invoked');
+      render();
+    });
+  }
+
+  function showFunctionUrlTestModal(fn) {
+    const form = el('div', 'lambda-modal-form');
+    const fnUrl = fn.function_url?.FunctionUrl || `http://localhost:4566/2021-10-31/functions/${encodeURIComponent(fn.name)}/invocations`;
+
+    const urlInput = document.createElement('input');
+    urlInput.value = fnUrl;
+    urlInput.placeholder = 'Function URL endpoint (e.g. http://...)';
+
+    const methodSelect = document.createElement('select');
+    ['POST', 'GET', 'PUT', 'DELETE', 'PATCH', 'HEAD'].forEach((m) => {
+      const opt = el('option', null, m);
+      opt.value = m;
+      methodSelect.append(opt);
+    });
+
+    const headersInput = document.createElement('textarea');
+    headersInput.className = 'lambda-json-input';
+    headersInput.placeholder = '{\n  "Content-Type": "application/json",\n  "Authorization": "Bearer test-token"\n}';
+    headersInput.value = '{\n  "Content-Type": "application/json"\n}';
+
+    const bodyInput = document.createElement('textarea');
+    bodyInput.className = 'lambda-json-input';
+    bodyInput.style.minHeight = '120px';
+    bodyInput.placeholder = '{\n  "message": "Hello from Function URL test"\n}';
+    bodyInput.value = '{\n  "message": "Hello from Function URL test"\n}';
+
+    form.append(
+      el('label', null, 'Function URL Endpoint'),
+      urlInput,
+      el('label', null, 'HTTP Method'),
+      methodSelect,
+      el('label', null, 'Request Headers (JSON object, Optional)'),
+      headersInput,
+      el('label', null, 'Request Body (Optional)'),
+      bodyInput,
+    );
+
+    openModal('Direct Function URL HTTP Tester', form, 'Send HTTP Request', async (close) => {
+      const url = urlInput.value.trim();
+      if (!url) throw new Error('Function URL endpoint is required');
+
+      let headers = null;
+      if (headersInput.value.trim()) {
+        try {
+          headers = JSON.parse(headersInput.value.trim());
+        } catch (e) {
+          throw new Error('Headers must be valid JSON: ' + e.message);
+        }
+      }
+
+      const res = await apiJson('/api/lambda/function-url/test/', {
+        method: 'POST',
+        body: JSON.stringify({
+          url,
+          method: methodSelect.value,
+          headers,
+          body: bodyInput.value,
+        }),
+      });
+      state.lastUrlTest = res;
+      toast(`HTTP ${res.status_code} received in ${res.latency_ms}ms`);
+      close();
       render();
     });
   }
@@ -305,6 +467,30 @@ const LambdaConsole = (() => {
     wrapper.append(el('h3', null, 'Log tail'));
     wrapper.append(el('pre', 'lambda-output', state.lastInvoke.log_tail || 'No log tail returned.'));
     return wrapper;
+  }
+
+  function renderUrlTestResult() {
+    if (!state.lastUrlTest) return null;
+    const res = state.lastUrlTest;
+    const card = el('section', 'lambda-card');
+    const heading = el('div', 'lambda-card-heading');
+    heading.append(
+      el('h3', null, 'Last Function URL HTTP Test Result'),
+      el('span', 'lambda-function-meta', `${res.latency_ms}ms · HTTP ${res.status_code}`),
+    );
+    card.append(heading);
+
+    const details = document.createElement('dl');
+    consoleUi.addField(details, 'URL', res.url);
+    consoleUi.addField(details, 'Method', res.method);
+    consoleUi.addField(details, 'Status', res.status_code);
+    consoleUi.addField(details, 'Latency', `${res.latency_ms} ms`);
+    consoleUi.addField(details, 'Response Headers', res.headers || {});
+    card.append(details);
+
+    card.append(el('h4', null, 'Response Body'));
+    card.append(el('pre', 'lambda-output', res.json ? JSON.stringify(res.json, null, 2) : res.body || 'Empty body'));
+    return card;
   }
 
   function section(title, actions = []) {
@@ -379,6 +565,7 @@ const LambdaConsole = (() => {
     controls.append(
       btn('Set concurrency', 'lambda-btn-secondary', () => showJsonModal('Reserved concurrency', [{ name: 'value', label: 'Concurrent executions', type: 'number', value: fn.concurrency?.ReservedConcurrentExecutions ?? '' }], 'Save', async (inputs) => mutate(`/api/lambda/functions/${encodeURIComponent(fn.name)}/concurrency/`, 'PUT', { reserved_concurrency: inputs.value.value }, 'Concurrency updated'))),
       btn(fn.function_url ? 'Edit URL' : 'Create URL', 'lambda-btn-secondary', () => showJsonModal('Function URL configuration', [{ name: 'options', label: 'Configuration JSON', multiline: true, value: JSON.stringify(fn.function_url && !fn.function_url.error ? { AuthType: fn.function_url.AuthType, Cors: fn.function_url.Cors } : { AuthType: 'NONE' }, null, 2) }], 'Save', async (inputs) => mutate(`/api/lambda/functions/${encodeURIComponent(fn.name)}/url/`, fn.function_url ? 'PUT' : 'POST', { options: jsonInput(inputs.options, 'URL configuration') }, 'Function URL saved'))),
+      btn('Test Function URL', 'lambda-btn-secondary', () => showFunctionUrlTestModal(fn)),
       btn('Add permission', 'lambda-btn-secondary', () => showJsonModal('Add permission', [{ name: 'statement', label: 'Permission JSON', multiline: true, value: '{\n  "StatementId": "allow-local",\n  "Action": "lambda:InvokeFunction",\n  "Principal": "*"\n}' }], 'Add', async (inputs) => mutate(`/api/lambda/functions/${encodeURIComponent(fn.name)}/permissions/`, 'POST', { statement: jsonInput(inputs.statement, 'Permission') }, 'Permission added'))),
       btn('Edit tags', 'lambda-btn-secondary', () => showJsonModal('Tag function', [{ name: 'tags', label: 'Tags JSON', multiline: true, value: JSON.stringify(fn.tags || {}, null, 2) }], 'Save', async (inputs) => mutate(`/api/lambda/functions/${encodeURIComponent(fn.name)}/tags/`, 'POST', { resource_arn: fn.arn, tags: jsonInput(inputs.tags, 'Tags') }, 'Tags updated'))),
       btn('Clear concurrency', 'lambda-btn-secondary', async () => mutate(`/api/lambda/functions/${encodeURIComponent(fn.name)}/concurrency/`, 'DELETE', null, 'Reserved concurrency cleared')),
@@ -426,6 +613,10 @@ const LambdaConsole = (() => {
     content.append(logLink);
     content.append(el('h3', null, 'Test and invoke'));
     content.append(renderInvokeResult(fn));
+
+    const urlResult = renderUrlTestResult();
+    if (urlResult) content.append(urlResult);
+
     content.append(consoleUi.renderActivityPanel({
       service: 'lambda',
       classPrefix: 'lambda',
@@ -446,6 +637,7 @@ const LambdaConsole = (() => {
       [
         btn('Create function', null, showCreateFunctionModal),
         btn('Invoke function', null, () => fn && showInvokeModal(fn)),
+        btn('Test Function URL', 'lambda-btn-secondary', () => fn && showFunctionUrlTestModal(fn)),
         btn('Delete function', 'lambda-btn-danger', async () => {
           if (fn && window.confirm(`Delete Lambda function ${fn.name}?`)) {
             state.selectedFunctionName = '';
@@ -465,9 +657,7 @@ const LambdaConsole = (() => {
   }
 
   function render() {
-    if (!root) {
-      return;
-    }
+    if (!root) return;
     renderBreadcrumbs();
     root.textContent = '';
     root.append(renderWorkbench());
@@ -487,9 +677,7 @@ const LambdaConsole = (() => {
   }
 
   function init() {
-    if (!root) {
-      return;
-    }
+    if (!root) return;
     root.append(el('div', 'lambda-empty', 'Loading...'));
     refresh().catch((error) => toast(error.message, true));
   }

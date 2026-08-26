@@ -429,9 +429,16 @@ def put_network_acl_entry(network_acl_id: str, entry: Any, *, replace: bool = Fa
     acl = _required(network_acl_id, 'Network ACL ID')
     if not isinstance(entry, dict):
         raise ValueError('Entry must be a JSON object')
+    if entry.get('rule_number') in (None, ''):
+        raise ValueError('Rule number is required')
+    try:
+        rule_num = int(entry['rule_number'])
+    except (ValueError, TypeError) as exc:
+        raise ValueError('Rule number must be an integer') from exc
+
     request: dict[str, Any] = {
         'NetworkAclId': acl,
-        'RuleNumber': int(entry.get('rule_number')),
+        'RuleNumber': rule_num,
         'Protocol': str(entry.get('protocol', '-1')),
         'RuleAction': str(entry.get('rule_action', 'allow')),
         'Egress': bool(entry.get('egress', False)),
@@ -449,7 +456,12 @@ def put_network_acl_entry(network_acl_id: str, entry: Any, *, replace: bool = Fa
 
 def delete_network_acl_entry(network_acl_id: str, rule_number: Any, *, egress: bool = False) -> dict[str, Any]:
     acl = _required(network_acl_id, 'Network ACL ID')
-    rule = int(rule_number)
+    if rule_number in (None, ''):
+        raise ValueError('Rule number is required')
+    try:
+        rule = int(rule_number)
+    except (ValueError, TypeError) as exc:
+        raise ValueError('Rule number must be an integer') from exc
     _ec2_client().delete_network_acl_entry(NetworkAclId=acl, RuleNumber=rule, Egress=bool(egress))
     return {'network_acl_id': acl, 'rule_number': rule, 'egress': bool(egress), 'deleted': True}
 

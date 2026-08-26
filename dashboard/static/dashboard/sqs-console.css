@@ -78,6 +78,14 @@
   background: var(--danger-bg);
 }
 
+.sqs-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 14px;
+}
+
 .sqs-toolbar button:disabled {
   opacity: 0.45;
   cursor: not-allowed;

@@ -204,6 +204,80 @@ export const LabsIcon: React.FC<IconProps> = ({ size = 24, style }) => (
   </svg>
 );
 
+export const ECSIcon: React.FC<IconProps> = ({ size = 24, style }) => (
+  <svg width={size} height={size} viewBox="0 0 48 48" fill="none" style={style} xmlns="http://www.w3.org/2000/svg">
+    <rect width="48" height="48" rx="8" fill="#ED7100" fillOpacity="0.15" />
+    <path d="M24 10L37 17.5V32.5L24 40L11 32.5V17.5L24 10Z" fill="#ED7100" />
+    <path d="M24 10V25L37 17.5M24 25L11 17.5M24 25V40" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <rect x="18" y="19" width="12" height="12" rx="2" fill="#FFFFFF" />
+    <rect x="21" y="22" width="6" height="6" rx="1" fill="#ED7100" />
+  </svg>
+);
+
+export const ECRIcon: React.FC<IconProps> = ({ size = 24, style }) => (
+  <svg width={size} height={size} viewBox="0 0 48 48" fill="none" style={style} xmlns="http://www.w3.org/2000/svg">
+    <rect width="48" height="48" rx="8" fill="#ED7100" fillOpacity="0.15" />
+    <path d="M24 10L36 17V31L24 38L12 31V17L24 10Z" fill="#ED7100" />
+    <circle cx="24" cy="24" r="7" fill="#FFFFFF" />
+    <circle cx="24" cy="24" r="4" fill="#ED7100" />
+    <path d="M24 12V17M24 31V36M14 24H19M29 24H34" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+
+export const CloudFrontIcon: React.FC<IconProps> = ({ size = 24, style }) => (
+  <svg width={size} height={size} viewBox="0 0 48 48" fill="none" style={style} xmlns="http://www.w3.org/2000/svg">
+    <rect width="48" height="48" rx="8" fill="#8C4FFF" fillOpacity="0.15" />
+    <circle cx="24" cy="24" r="14" fill="#8C4FFF" />
+    <circle cx="24" cy="24" r="10" stroke="#FFFFFF" strokeWidth="1.5" strokeDasharray="3 3" />
+    <circle cx="24" cy="24" r="5" fill="#FFFFFF" />
+    <circle cx="14" cy="24" r="2.5" fill="#FFD814" />
+    <circle cx="34" cy="24" r="2.5" fill="#FFD814" />
+    <circle cx="24" cy="14" r="2.5" fill="#FFD814" />
+    <circle cx="24" cy="34" r="2.5" fill="#FFD814" />
+  </svg>
+);
+
+export const ELBv2Icon: React.FC<IconProps> = ({ size = 24, style }) => (
+  <svg width={size} height={size} viewBox="0 0 48 48" fill="none" style={style} xmlns="http://www.w3.org/2000/svg">
+    <rect width="48" height="48" rx="8" fill="#8C4FFF" fillOpacity="0.15" />
+    <rect x="12" y="14" width="24" height="20" rx="4" fill="#8C4FFF" />
+    <circle cx="18" cy="24" r="3" fill="#FFFFFF" />
+    <circle cx="30" cy="19" r="2.5" fill="#FFFFFF" />
+    <circle cx="30" cy="29" r="2.5" fill="#FFFFFF" />
+    <path d="M21 24L27.5 19M21 24L27.5 29" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+
+export const AthenaIcon: React.FC<IconProps> = ({ size = 24, style }) => (
+  <svg width={size} height={size} viewBox="0 0 48 48" fill="none" style={style} xmlns="http://www.w3.org/2000/svg">
+    <rect width="48" height="48" rx="8" fill="#2E27AD" fillOpacity="0.15" />
+    <circle cx="24" cy="24" r="14" fill="#3B48CC" />
+    <circle cx="21" cy="21" r="6" stroke="#FFFFFF" strokeWidth="2.5" fill="none" />
+    <path d="M26 26L33 33" stroke="#FFD814" strokeWidth="3" strokeLinecap="round" />
+    <path d="M18 21H24M21 18V24" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
+export const AppSyncIcon: React.FC<IconProps> = ({ size = 24, style }) => (
+  <svg width={size} height={size} viewBox="0 0 48 48" fill="none" style={style} xmlns="http://www.w3.org/2000/svg">
+    <rect width="48" height="48" rx="8" fill="#E7157B" fillOpacity="0.15" />
+    <path d="M24 10L36 17V31L24 38L12 31V17L24 10Z" stroke="#E7157B" strokeWidth="2.5" fill="#E7157B" fillOpacity="0.2" />
+    <circle cx="24" cy="17" r="3" fill="#E7157B" />
+    <circle cx="16" cy="30" r="3" fill="#E7157B" />
+    <circle cx="32" cy="30" r="3" fill="#E7157B" />
+    <path d="M24 17L16 30M24 17L32 30M16 30H32" stroke="#E7157B" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+
+export const SESIcon: React.FC<IconProps> = ({ size = 24, style }) => (
+  <svg width={size} height={size} viewBox="0 0 48 48" fill="none" style={style} xmlns="http://www.w3.org/2000/svg">
+    <rect width="48" height="48" rx="8" fill="#D91535" fillOpacity="0.15" />
+    <rect x="11" y="14" width="26" height="20" rx="3" fill="#E7157B" />
+    <path d="M13 16L24 25L35 16" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M13 32L20 25M35 32L28 25" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
 export const InspectorIcon: React.FC<IconProps> = ({ size = 24, style }) => (
   <svg width={size} height={size} viewBox="0 0 48 48" fill="none" style={style} xmlns="http://www.w3.org/2000/svg">
     <rect width="48" height="48" rx="8" fill="#0972D3" fillOpacity="0.15" />
@@ -232,6 +306,10 @@ export const AwsServiceIcon: React.FC<IconProps & { service: string }> = ({ serv
     case 'ec2':
     case 'vpc':
       return <EC2Icon size={size} style={style} />;
+    case 'ecs':
+      return <ECSIcon size={size} style={style} />;
+    case 'ecr':
+      return <ECRIcon size={size} style={style} />;
     case 'iam':
     case 'sts':
       return <IAMIcon size={size} style={style} />;
@@ -242,8 +320,9 @@ export const AwsServiceIcon: React.FC<IconProps & { service: string }> = ({ serv
     case 'sqs':
       return <SQSIcon size={size} style={style} />;
     case 'sns':
-    case 'ses':
       return <SNSIcon size={size} style={style} />;
+    case 'ses':
+      return <SESIcon size={size} style={style} />;
     case 'rds':
       return <RDSIcon size={size} style={style} />;
     case 'kms':
@@ -252,6 +331,16 @@ export const AwsServiceIcon: React.FC<IconProps & { service: string }> = ({ serv
       return <SecretsManagerIcon size={size} style={style} />;
     case 'cloudformation':
       return <CloudFormationIcon size={size} style={style} />;
+    case 'cloudfront':
+      return <CloudFrontIcon size={size} style={style} />;
+    case 'elasticloadbalancing':
+    case 'elbv2':
+    case 'elb':
+      return <ELBv2Icon size={size} style={style} />;
+    case 'athena':
+      return <AthenaIcon size={size} style={style} />;
+    case 'appsync':
+      return <AppSyncIcon size={size} style={style} />;
     case 'route53':
       return <Route53Icon size={size} style={style} />;
     case 'events':

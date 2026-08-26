@@ -533,6 +533,86 @@ const ECRConsole = (() => {
     return panel;
   }
 
+  
+  function showPushCommandsModal(repo) {
+    const rName = repoName(repo);
+    const form = el('div', 'ecr-modal-form');
+    form.append(el('p', null, `Follow these steps to build, tag, and push Docker/OCI images to ${rName}:`));
+
+    const tabsRow = el('div', 'ecr-os-tabs');
+    const contentArea = el('div', 'ecr-push-commands-box');
+
+    apiJson(`/api/ecr/push-commands/?repository_name=${encodeURIComponent(rName)}`).then((data) => {
+      const cmds = data.commands || {};
+      const osList = [
+        ['mac_linux', 'macOS / Linux'],
+        ['windows_powershell', 'Windows PowerShell'],
+        ['podman', 'Podman'],
+      ];
+
+      function selectTab(osKey) {
+        tabsRow.querySelectorAll('button').forEach((b) => b.className = 'ecr-os-tab');
+        const activeBtn = tabsRow.querySelector(`[data-os="${osKey}"]`);
+        if (activeBtn) activeBtn.className = 'ecr-os-tab ecr-os-tab-active';
+
+        contentArea.textContent = '';
+        const lines = cmds[osKey] || [];
+        lines.forEach((line) => {
+          if (line.startsWith('#')) {
+            contentArea.append(el('p', 'ecr-cmd-comment', line));
+          } else {
+            const row = el('div', 'ecr-cmd-row');
+            const code = el('code', null, line);
+            const copy = btn('Copy', 'secondary-button', () => {
+              navigator.clipboard.writeText(line);
+              toast('Command copied to clipboard');
+            });
+            row.append(code, copy);
+            contentArea.append(row);
+          }
+        });
+      }
+
+      osList.forEach(([k, label]) => {
+        const tBtn = el('button', 'ecr-os-tab', label);
+        tBtn.dataset.os = k;
+        tBtn.addEventListener('click', () => selectTab(k));
+        tabsRow.append(tBtn);
+      });
+
+      selectTab('mac_linux');
+    });
+
+    form.append(tabsRow, contentArea);
+    openModal(`Push commands for ${rName}`, form, 'Done', (close) => close());
+  }
+
+  function showMockImageModal(repo) {
+    const rName = repoName(repo);
+    const form = el('div', 'ecr-modal-form');
+    const tagInput = document.createElement('input'); tagInput.value = 'latest'; tagInput.placeholder = 'e.g. latest, v1.0.0, dev';
+    const digestInput = document.createElement('input'); digestInput.placeholder = 'Optional custom sha256 digest';
+
+    form.append(
+      el('p', null, `Inject a mock container image tag into ${rName} for rapid local testing:`),
+      el('label', null, 'Image Tag'), tagInput,
+      el('label', null, 'Image Digest (optional)'), digestInput,
+    );
+
+    openModal('Inject Mock Image Tag', form, 'Publish Image Tag', async (close) => {
+      const tag = tagInput.value.trim();
+      if (!tag) throw new Error('Image tag is required');
+
+      await mutate('/api/ecr/mock-image/', {
+        repository_name: rName,
+        image_tag: tag,
+        image_digest: digestInput.value.trim() || undefined,
+      }, `Mock image tag "${tag}" published to ${rName}`);
+      close();
+      await refresh();
+    });
+  }
+
   function renderWorkbench() {
     const workbench = el('div', 'ecr-workbench');
     const repo = selectedRepository();
@@ -565,6 +645,8 @@ const ECRConsole = (() => {
     root.append(toolbar(
       [
         btn('Create repository', null, showCreateRepositoryModal),
+        btn('View push commands', 'primary-button', () => repo && showPushCommandsModal(repo)),
+        btn('+ Inject mock image', 'secondary-button', () => repo && showMockImageModal(repo)),
         btn('Docker login', 'ecr-btn-secondary', () => getAuthToken().catch((error) => toast(error.message, true))),
         btn('Run GC', 'ecr-btn-danger', () => runGarbageCollection().catch((error) => toast(error.message, true))),
       ],

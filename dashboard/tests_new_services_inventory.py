@@ -21,10 +21,10 @@ class NewServiceInventoryPageTests(SimpleTestCase):
             ('docdb', 'DocumentDB', 'MongoDB-compatible clusters, instances, and connection endpoints', True),
             ('emr', 'EMR', 'Clusters, instance groups, and steps', False),
             ('memorydb', 'MemoryDB', 'Redis-compatible clusters, users, ACLs, and endpoints', True),
-            ('codepipeline', 'CodePipeline', 'Pipelines, stages, executions, webhooks, and action types', False),
+            ('codepipeline', 'CodePipeline', 'Pipelines, stages, executions, webhooks, and action types', True),
             ('s3vectors', 'S3 Vectors', 'Vector buckets, embeddings, and similarity search indexes', True),
             ('iot', 'IoT Core', 'Things, device certificates, policies, and MQTT message routing', True),
-            ('rdsdata', 'RDS Data API', 'Serverless SQL statement and transaction calls', False),
+            ('rdsdata', 'RDS Data API', 'Serverless SQL statement and transaction calls', True),
             ('wafv2', 'WAF v2', 'Web ACLs, rule groups, IP sets, and regex pattern sets', True),
         ]
 
@@ -49,10 +49,10 @@ class NewServiceInventoryPageTests(SimpleTestCase):
             ('docdb', 'Database', 'interactive_workbench'),
             ('emr', 'Analytics', 'read_only_inspector'),
             ('memorydb', 'Database', 'interactive_workbench'),
-            ('codepipeline', 'Developer Tools', 'read_only_inspector'),
+            ('codepipeline', 'Developer Tools', 'interactive_workbench'),
             ('s3vectors', 'Storage', 'interactive_workbench'),
             ('iot', 'Application Integration', 'interactive_workbench'),
-            ('rdsdata', 'Database', 'read_only_inspector'),
+            ('rdsdata', 'Database', 'interactive_workbench'),
             ('wafv2', 'Security', 'interactive_workbench'),
         ]
 

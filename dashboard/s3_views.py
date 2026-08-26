@@ -79,7 +79,7 @@ def _parse_json_body(request) -> dict:
 
 def _parse_s3_create_body(request) -> tuple[str, str | None]:
     body = _parse_json_body(request)
-    name = str(body.get('name', '')).strip()
+    name = str(body.get('name') or body.get('bucket_name') or '').strip()
     region = body.get('region')
     if region is not None:
         region = str(region).strip() or None
@@ -167,6 +167,27 @@ def s3_bucket_objects(request, bucket_name: str):
             return _handle_s3(exc)
 
     if request.method == 'POST':
+        if request.content_type and 'application/json' in request.content_type:
+            try:
+                body_json = _parse_json_body(request)
+                key = str(body_json.get('key', '')).strip()
+                if not key:
+                    return _json_error('key is required')
+                key_err = _validate_key(key)
+                if key_err:
+                    return _json_error(key_err)
+                content = body_json.get('body', '')
+                if isinstance(content, str):
+                    body_bytes = content.encode('utf-8')
+                elif isinstance(content, bytes):
+                    body_bytes = content
+                else:
+                    body_bytes = json.dumps(content).encode('utf-8')
+                content_type = body_json.get('content_type') or 'text/plain; charset=utf-8'
+                return JsonResponse(upload_s3_object(bucket_name, key, body_bytes, content_type))
+            except Exception as exc:
+                return _handle_s3(exc)
+
         key = request.POST.get('key', '').strip()
         if not key:
             return _json_error('key is required')

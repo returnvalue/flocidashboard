@@ -1,5 +1,5 @@
 import json
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase
 from django.urls import reverse
@@ -412,3 +412,73 @@ class ECSApiHelperTests(SimpleTestCase):
             overrides=overrides,
         )
         self.assertEqual(result['task_arns'], ['arn:task/1'])
+
+    @patch('dashboard.ecs_views.scale_service')
+    def test_scale_service_endpoint(self, scale_mock):
+        scale_mock.return_value = {'cluster': 'prod', 'service_name': 'web', 'desired_count': 5}
+
+        response = self.client.post(
+            reverse('dashboard:ecs-services-scale'),
+            data=json.dumps({
+                'cluster': 'prod',
+                'service': 'web',
+                'desired_count': 5,
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['desired_count'], 5)
+        scale_mock.assert_called_once_with('prod', 'web', 5)
+
+    @patch('dashboard.ecs_views.validate_fargate_configuration')
+    def test_fargate_validate_endpoint(self, val_mock):
+        val_mock.return_value = {'cpu_units': 256, 'memory_mib': 512, 'valid': True}
+
+        response = self.client.post(
+            reverse('dashboard:ecs-fargate-validate'),
+            data=json.dumps({'cpu': '256', 'memory': '512'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['valid'])
+        val_mock.assert_called_once_with(cpu='256', memory='512')
+
+    @patch('dashboard.ecs_views.diff_task_definitions')
+    def test_diff_task_definitions_endpoint(self, diff_mock):
+        diff_mock.return_value = {
+            'task_definition_a': 'web:1',
+            'task_definition_b': 'web:2',
+            'cpu_changed': True,
+        }
+
+        response = self.client.post(
+            reverse('dashboard:ecs-task-definitions-diff'),
+            data=json.dumps({'task_definition_a': 'web:1', 'task_definition_b': 'web:2'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['cpu_changed'])
+        diff_mock.assert_called_once_with('web:1', 'web:2')
+
+    @patch('dashboard.ecs_api._client')
+    def test_diff_task_definitions_api_implementation(self, client_mock):
+        from .ecs_api import diff_task_definitions
+
+        client = MagicMock()
+        client.describe_task_definition.side_effect = [
+            {'taskDefinition': {'family': 'web', 'revision': 1, 'cpu': '256', 'memory': '512', 'containerDefinitions': [{'name': 'app', 'image': 'nginx:1'}]}},
+            {'taskDefinition': {'family': 'web', 'revision': 2, 'cpu': '512', 'memory': '1024', 'containerDefinitions': [{'name': 'app', 'image': 'nginx:2'}, {'name': 'sidecar', 'image': 'envoy'}]}},
+        ]
+        client_mock.return_value = client
+
+        result = diff_task_definitions('web:1', 'web:2')
+        self.assertTrue(result['cpu_changed'])
+        self.assertTrue(result['memory_changed'])
+        self.assertEqual(result['added_containers'], ['sidecar'])
+        self.assertEqual(len(result['modified_containers']), 1)
+        self.assertEqual(result['modified_containers'][0]['name'], 'app')
+
+

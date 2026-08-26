@@ -17,8 +17,8 @@ def secretsmanager_secrets_create(request):
     try:
         body = parse_json_body(request)
         return JsonResponse(create_secret(
-            body.get('name', ''),
-            body.get('value'),
+            body.get('name') or body.get('secret_name') or '',
+            body.get('value') if body.get('value') is not None else (body.get('secret_string') if body.get('secret_string') is not None else body.get('secret_value')),
             description=body.get('description') or '',
             kms_key_id=body.get('kms_key_id') or '',
         ))
