@@ -2,14 +2,14 @@
 
 **Floci Dashboard 2.0** is an official AWS Cloudscape-powered Single Page Application for inspecting, testing, and learning against a local [Floci](https://floci.io/) AWS-compatible environment. Built with **React 18**, **TypeScript**, **Vite**, and AWS’s official **`@cloudscape-design/components`** design system, Floci Dashboard 2.0 provides production-grade AWS management consoles, real-time developer inspection tools, interactive workflow labs, and universal dynamic workbenches for all **65 supported AWS mock services**.
 
-![Floci Dashboard UI](./flocidashboard.png)
+![Floci Dashboard 2.0 Cloudscape Console UI](./flocidashboard.png)
 
 ## Architecture & Features in Version 2.0
 
-- **Official AWS Cloudscape Design System**: Global Top Navigation, collapsible Side Navigation, deep breadcrumb navigation, and AWS design fidelity.
-- **17 Dedicated High-Priority Consoles**: Bespoke consoles for **Amazon S3**, **Amazon EC2**, **AWS IAM**, **Amazon DynamoDB**, **AWS Lambda**, **Amazon SQS**, **Amazon SNS**, **Amazon RDS**, **AWS KMS**, **AWS Secrets Manager**, **AWS CloudFormation**, **Amazon Route 53**, **Amazon EventBridge**, **Amazon CloudWatch**, **AWS Step Functions**, **Developer Inspector Inbox**, and **Workflow Labs**.
+- **Official AWS Cloudscape Design System**: Global Top Navigation, persistent AWS Favorites Bar with official AWS service icons, collapsible Side Navigation, deep breadcrumb navigation, and authentic AWS design fidelity.
+- **20 Dedicated Consoles**: Bespoke consoles for **Amazon S3**, **Amazon EC2**, **AWS IAM**, **Amazon DynamoDB**, **AWS Lambda**, **Amazon SQS**, **Amazon SNS**, **Amazon RDS**, **AWS KMS**, **AWS Secrets Manager**, **AWS CloudFormation**, **Amazon Route 53**, **Amazon EventBridge**, **Amazon CloudWatch**, **AWS Step Functions**, **Amazon Cognito**, **Amazon API Gateway**, **AWS Systems Manager (SSM)**, **Developer Inspector Inbox**, and **Workflow Labs**.
 - **Universal Dynamic Action Runner**: Dynamic, schema-driven Cloudscape consoles powering all **65 AWS mock services** with zero legacy fallbacks.
-- **Zero-Latency Workflow Labs (63 Labs / 349 Steps)**: 0ms catalog metadata load across 17 services, synchronized code generation for **AWS CLI v2**, **Python (`boto3`)**, and **Terraform (`HCL`)**, live state verification, and automated sequential runner.
+- **Zero-Latency Workflow Labs (66 Labs / 365 Steps)**: 0ms catalog metadata load across 20 services, synchronized code generation for **AWS CLI v2**, **Python (`boto3`)**, and **Terraform (`HCL`)**, live state verification, and automated sequential runner.
 - **Developer Inspection Inbox**: Local SES email inbox viewer, non-destructive SQS message peeker (`VisibilityTimeout=0`), and real-time Lambda CloudWatch log streams.
 - **Interactive AWS CLI Sandbox**: In-browser command runner with quick presets, shortcut execution (`Cmd+Enter`/`Ctrl+Enter`), and destructive command guardrails.
 - **Session Identity & STS Assumer**: Switch between Admin, IAM Users, and temporary assumed roles (`sts:AssumeRole`) with live caller ARN diagnostics.
@@ -183,7 +183,7 @@ The Labs directory at `/labs/` lists every service with curated labs. Individual
 
 Labs show the command shape across AWS CLI, Python `boto3`, and Terraform. Each Run button invokes a registered boto3-backed action, displays the response, and independently verifies the result against live Floci state. Users can also click **Run All Steps** to play through multi-step workflows automatically with paced scrolling and live descriptions. Reset removes only the resources owned by that lab. When the final lab in a service batch is complete, the lab page recommends the next batch in the recommended cloud engineering learning order: IAM $\rightarrow$ S3 $\rightarrow$ KMS $\rightarrow$ SSM $\rightarrow$ Secrets Manager $\rightarrow$ Cognito $\rightarrow$ SQS $\rightarrow$ SNS $\rightarrow$ Scheduler $\rightarrow$ DynamoDB $\rightarrow$ Lambda $\rightarrow$ API Gateway $\rightarrow$ EventBridge $\rightarrow$ Step Functions $\rightarrow$ CloudWatch $\rightarrow$ EC2 $\rightarrow$ CloudFormation.
 
-The curriculum includes **63 labs across 17 services (349 total steps)**:
+The curriculum includes **66 labs across 20 services (365 total steps)**:
 - **IAM (11 labs)**: admin bootstrap, users, policies, access keys, groups, roles, STS session policies, instance profiles, switched dashboard identities, and permission-enforcement checks.
 - **S3 (12 labs)**: buckets, objects, prefixes, metadata, tags, versioning, presigned URLs, security, encryption, lifecycle retention, CORS, S3-to-SQS notifications, and multipart uploads.
 - **KMS (1 lab)**: key lifecycle, alias creation, envelope encryption, and decryption round trips.
@@ -199,6 +199,9 @@ The curriculum includes **63 labs across 17 services (349 total steps)**:
 - **EventBridge (1 lab)**: application-spine capstone joining API Gateway, Lambda, a custom event bus, transformed SQS targets, notification handlers, and failure simulations.
 - **Step Functions (2 labs)**: State Machine Choice branching workflows and Parallel execution branches.
 - **CloudWatch (2 labs)**: custom metric filters, CloudWatch Alarms, and Log Group streams.
+- **RDS (1 lab)**: parameter group tuning, database instance provisioning, storage scaling, and reboot lifecycles.
+- **ECS (1 lab)**: Fargate cluster provisioning, task definitions, standalone task execution, and microservice replica scaling.
+- **EKS (1 lab)**: Kubernetes control planes, managed EC2 worker node groups, serverless Fargate profiles, and kubeconfig generation.
 - **EC2 (11 labs)**: public/private VPC routing, stateful security groups, network ACLs, VPC endpoints, guest IMDS inspection, UserData validation, IAM instance roles, web server SG routing, broken route repair, private S3 gateway endpoints, and SSM RunCommand dispatch.
 - **CloudFormation (1 lab)**: template validation, change set creation, stack provisioning, and resource lifecycle management.
 
