@@ -14,7 +14,22 @@ class NewServiceLabsLifecycleTests(TestCase):
         self.assertIn('ecs', services)
         self.assertIn('eks', services)
 
-    def test_rds_lab_lifecycle(self):
+    @patch('dashboard.labs.rds_labs.client')
+    def test_rds_lab_lifecycle(self, client_mock):
+        from django.core.cache import cache
+        cache.clear()
+        mock_rds = MagicMock()
+        client_mock.return_value = mock_rds
+
+        mock_rds.create_db_parameter_group.return_value = {'DBParameterGroup': {'DBParameterGroupName': 'lab-pg-ecommerce', 'DBParameterGroupFamily': 'postgres15'}}
+        mock_rds.describe_db_parameter_groups.return_value = {'DBParameterGroups': [{'DBParameterGroupName': 'lab-pg-ecommerce'}]}
+        mock_rds.create_db_instance.return_value = {'DBInstance': {'DBInstanceIdentifier': 'lab-db-orders', 'Engine': 'postgres'}}
+        mock_rds.describe_db_instances.return_value = {'DBInstances': [{'DBInstanceIdentifier': 'lab-db-orders', 'DBInstanceStatus': 'available'}]}
+        mock_rds.modify_db_instance.return_value = {'DBInstance': {'DBInstanceIdentifier': 'lab-db-orders', 'AllocatedStorage': 40}}
+        mock_rds.reboot_db_instance.return_value = {'DBInstance': {'DBInstanceIdentifier': 'lab-db-orders', 'DBInstanceStatus': 'rebooting'}}
+        mock_rds.delete_db_instance.return_value = {}
+        mock_rds.delete_db_parameter_group.return_value = {}
+
         labs = labs_for_service('rds')
         self.assertEqual(len(labs), 1)
         lab = labs[0]
@@ -52,7 +67,26 @@ class NewServiceLabsLifecycleTests(TestCase):
         # Teardown reset
         reset_lab('rds', 'db-instance-lifecycle')
 
-    def test_ecs_lab_lifecycle(self):
+    @patch('dashboard.labs.ecs_labs.client')
+    def test_ecs_lab_lifecycle(self, client_mock):
+        from django.core.cache import cache
+        cache.clear()
+        mock_ecs = MagicMock()
+        client_mock.return_value = mock_ecs
+
+        mock_ecs.create_cluster.return_value = {'cluster': {'clusterName': 'lab-microservices-cluster', 'status': 'ACTIVE'}}
+        mock_ecs.describe_clusters.return_value = {'clusters': [{'clusterName': 'lab-microservices-cluster', 'status': 'ACTIVE'}]}
+        mock_ecs.register_task_definition.return_value = {'taskDefinition': {'taskDefinitionArn': 'arn:aws:ecs:us-east-1:000000000000:task-definition/lab-web-service:1', 'family': 'lab-web-service'}}
+        mock_ecs.run_task.return_value = {'tasks': [{'taskArn': 'arn:aws:ecs:us-east-1:000000000000:task/lab-microservices-cluster/task1', 'lastStatus': 'RUNNING'}]}
+        mock_ecs.describe_tasks.return_value = {'tasks': [{'taskArn': 'arn:aws:ecs:us-east-1:000000000000:task/lab-microservices-cluster/task1', 'lastStatus': 'RUNNING'}]}
+        mock_ecs.create_service.return_value = {'service': {'serviceName': 'lab-order-service', 'desiredCount': 2}}
+        mock_ecs.describe_services.return_value = {'services': [{'serviceName': 'lab-order-service', 'desiredCount': 4, 'status': 'ACTIVE'}]}
+        mock_ecs.update_service.return_value = {'service': {'serviceName': 'lab-order-service', 'desiredCount': 4}}
+        mock_ecs.delete_service.return_value = {}
+        mock_ecs.stop_task.return_value = {}
+        mock_ecs.delete_cluster.return_value = {}
+        mock_ecs.deregister_task_definition.return_value = {}
+
         labs = labs_for_service('ecs')
         self.assertEqual(len(labs), 1)
         lab = labs[0]
@@ -94,7 +128,25 @@ class NewServiceLabsLifecycleTests(TestCase):
         # Teardown reset
         reset_lab('ecs', 'fargate-microservice')
 
-    def test_eks_lab_lifecycle(self):
+    @patch('dashboard.labs.eks_labs.client')
+    def test_eks_lab_lifecycle(self, client_mock):
+        from django.core.cache import cache
+        cache.clear()
+        mock_eks = MagicMock()
+        mock_ec2 = MagicMock()
+        client_mock.side_effect = lambda name: mock_eks if name == 'eks' else mock_ec2
+
+        mock_ec2.describe_subnets.return_value = {'Subnets': [{'SubnetId': 'subnet-1'}, {'SubnetId': 'subnet-2'}]}
+        mock_eks.create_cluster.return_value = {'cluster': {'name': 'lab-k8s-cluster', 'status': 'ACTIVE', 'endpoint': 'https://eks.local'}}
+        mock_eks.describe_cluster.return_value = {'cluster': {'name': 'lab-k8s-cluster', 'status': 'ACTIVE', 'endpoint': 'https://eks.local'}}
+        mock_eks.create_nodegroup.return_value = {'nodegroup': {'nodegroupName': 'lab-workers', 'status': 'ACTIVE'}}
+        mock_eks.describe_nodegroup.return_value = {'nodegroup': {'nodegroupName': 'lab-workers', 'status': 'ACTIVE'}}
+        mock_eks.create_fargate_profile.return_value = {'fargateProfile': {'fargateProfileName': 'lab-fargate-profile', 'status': 'ACTIVE'}}
+        mock_eks.describe_fargate_profile.return_value = {'fargateProfile': {'fargateProfileName': 'lab-fargate-profile', 'status': 'ACTIVE'}}
+        mock_eks.delete_fargate_profile.return_value = {}
+        mock_eks.delete_nodegroup.return_value = {}
+        mock_eks.delete_cluster.return_value = {}
+
         labs = labs_for_service('eks')
         self.assertEqual(len(labs), 1)
         lab = labs[0]

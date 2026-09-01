@@ -1,6 +1,32 @@
 # Changelog
 
-## 0.1.4 — 2026-08-23
+## 2.0.0 — 2026-09-01
+
+### Official AWS Cloudscape Design System & UI Architecture
+- Rebuilt frontend with **React 18**, **TypeScript**, **Vite**, and official **AWS `@cloudscape-design/components`** design system for 100% AWS console visual and architectural fidelity.
+- Added persistent **AWS Favorites Bar** under the global TopNav with official AWS SVG service icons, deep service linking, and quick switching.
+- Implemented authentic, contextual service-specific SideNav navigation across all 20 consoles with synchronized deep-tab routing.
+- Standardized typography on **Open Sans** across the TopNav, Favorites Bar, SideNav, and HTML shell.
+
+### Dedicated Consoles & Deepened Capabilities
+- **Top 15 AWS Consoles**: Bespoke consoles for **Amazon S3**, **Amazon EC2**, **AWS IAM**, **Amazon DynamoDB**, **AWS Lambda**, **Amazon SQS**, **Amazon SNS**, **Amazon RDS**, **AWS KMS**, **AWS Secrets Manager**, **AWS CloudFormation**, **Amazon Route 53**, **Amazon EventBridge**, **Amazon CloudWatch**, and **AWS Step Functions**.
+- **Tier 1-4 Enhancements**:
+  - **S3 & IAM**: Presigned URLs, static website hosting, event notifications, IAM role trust policies, and IAM Policy Simulator.
+  - **DynamoDB & Lambda**: Item CRUD, PartiQL SQL editor, Lambda Function URLs, and Event Source Mappings.
+  - **Cognito, API Gateway, SSM**: Cognito User Pools & Auth Sandbox, API Gateway HTTP routes & live test runner, SSM Parameter Store hierarchical tree & decryption.
+  - **EC2 Networking**: VPCs, subnets, route tables, security group rule managers, and interactive SVG topology graph.
+- **Developer Inspection Tools**: Local SES email mailbox, non-destructive SQS message peeker (`VisibilityTimeout=0`), and live CloudWatch logs stream tailer.
+- **Universal Dynamic Action Runner**: Schema-driven workbench powering all **65 supported AWS services** with zero legacy fallbacks.
+
+### Curriculum & Workflow Labs
+- Expanded catalog to **66 guided labs across 20 services (365 total steps)** including new interactive lifecycles for RDS, ECS, and EKS.
+- Multi-SDK code generation for every lab step: toggle instantly between **AWS CLI v2**, **Python `boto3`**, and **Terraform `HCL`** with persistent user preference.
+- Added **"Reset All"** lab teardown button on `/labs` alongside the automated **"Run All Steps" Play Through** workflow runner.
+
+### Quality & Verification
+- Expanded automated Django test suite to **1,163 passing tests** with 100% coverage across action registries, inventory enrichment, lab lifecycle execution, multi-SDK translation, AST validation, and service rendering.
+- Clean TypeScript compilation (`tsc`) and optimized Vite production bundle build.
+
 
 ### Curriculum & Workflow Labs
 - Expanded catalog to **63 labs across 17 services (349 total steps)**, adding Step Functions (Choice & Parallel workflows), Cognito (User Pools, App Clients, auth), and CloudWatch (metrics, alarms, logs).
